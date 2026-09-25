@@ -6,7 +6,7 @@ describe('analyzer configuration', () => {
     const config = defaultConfig();
     expect(config.schemaVersion).toBe(1);
     expect(config.table).toBe('CT2');
-    expect(config.reportColumns).toEqual([
+    expect(Object.values(config.columns)).toEqual([
       'Campo',
       'Vlr Antigo',
       'Vlr Atualizado',
@@ -18,13 +18,20 @@ describe('analyzer configuration', () => {
       'Situacao',
       'Tipo Dado Protegido',
     ]);
+    expect(Object.values(config.operations)).toEqual(['Inclusão', 'Alteração', 'Exclusão', 'Recuperação']);
   });
 
   it('rejects an unknown schema version', () => {
     expect(() => parseConfig({ ...defaultConfig(), schemaVersion: 2 })).toThrow();
   });
 
-  it('rejects duplicated report columns', () => {
-    expect(() => parseConfig({ ...defaultConfig(), reportColumns: ['Campo', 'Campo'] })).toThrow();
+  it('rejects two roles mapped to the same report column', () => {
+    const config = defaultConfig();
+    expect(() => parseConfig({ ...config, columns: { ...config.columns, user: 'Campo' } })).toThrow();
+  });
+
+  it('rejects a missing operation label', () => {
+    const config = defaultConfig();
+    expect(() => parseConfig({ ...config, operations: { ...config.operations, restore: '' } })).toThrow();
   });
 });

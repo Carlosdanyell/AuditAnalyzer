@@ -55,14 +55,111 @@ export interface Justification {
 
 /** Phase 5. */
 export type ExportOptions = Record<string, never>;
-/** Phase 1. */
-export type Reconciliation = Record<string, never>;
+
+/** CRC32 and size of a ZIP entry, checked against the central directory. */
+export interface EntryIntegrity {
+  name: string;
+  expectedCrc: number;
+  actualCrc: number;
+  expectedSize: number;
+  actualSize: number;
+  ok: boolean;
+}
+
+/** A line of the parameters sheet: "Pergunta NN : label ?" → value, or "Label: value". */
+export interface ParameterPair {
+  question: number | null;
+  label: string;
+  value: string;
+}
+
+export interface Alert {
+  level: 'warning' | 'info';
+  message: string;
+}
+
+/** Row reconciliation of the report sheet (docs/REGRAS_CFGR700.md, section 1). */
+export interface RowReconciliation {
+  sheetName: string;
+  /** Last row according to <dimension>, when present. */
+  dimensionRows: number | null;
+  /** Rows of the sheet including the first header. */
+  totalRows: number;
+  rowsAfterHeader: number;
+  repeatedHeaders: number;
+  /** Rows with an empty "Campo", including rows missing from the XML. */
+  blankRows: number;
+  /** Rows absent from the XML (gaps in the r attribute), included in blankRows. */
+  missingRows: number;
+  /** Blank rows (empty "Campo") that have other cells filled, included in blankRows. */
+  blankRowsWithContent: number;
+  detailRows: number;
+  /** rowsAfterHeader − repeatedHeaders − blankRows = detailRows. */
+  balanced: boolean;
+}
+
+export interface OperationCount {
+  operation: string;
+  count: number;
+}
+
+export interface InvalidCounts {
+  dateTime: number;
+  recno: number;
+  operation: number;
+  sharedStringIndex: number;
+}
+
+export interface ValueCount {
+  value: string;
+  count: number;
+}
+
+export interface FileReconciliation {
+  fileIndex: number;
+  name: string;
+  size: number;
+  sha256: string;
+  entries: EntryIntegrity[];
+  parameters: ParameterPair[];
+  alerts: Alert[];
+  rows: RowReconciliation;
+  /** Events per operation, in configuration order; unrecognized operations last, if any. */
+  events: OperationCount[];
+  totalEvents: number;
+  /** Seconds since 2000-01-01 (see shared/dates.ts); null when the file has no valid event. */
+  firstEvent: number | null;
+  lastEvent: number | null;
+  invalid: InvalidCounts;
+  /** Value counts of the columns not kept in the store (Tipo Dados, Situacao, Tipo Dado Protegido). */
+  otherColumns: { column: string; values: ValueCount[] }[];
+  /** Duration of each stage for this file, in milliseconds. */
+  timings: { stage: Stage; ms: number }[];
+}
+
+export interface Reconciliation {
+  files: FileReconciliation[];
+  consolidated: {
+    detailRows: number;
+    events: OperationCount[];
+    totalEvents: number;
+    firstEvent: number | null;
+    lastEvent: number | null;
+    alerts: Alert[];
+  };
+  checks: CheckResult[];
+  totalMs: number;
+}
+
 /** Phase 2. */
 export type Summary = Record<string, never>;
-/** Phase 2. */
+
 export interface CheckResult {
   id: string;
+  label: string;
   passed: boolean;
+  /** 'error' blocks the export; 'warning' is informative. */
+  severity: 'error' | 'warning';
   message: string;
 }
 /** Phase 3. */
@@ -86,6 +183,8 @@ export type WorkerEvent =
       done: number;
       total: number;
       unit: 'bytes' | 'rows' | 'steps';
+      /** Rows read so far in the current file (rows stage). */
+      rows?: number;
       message: string;
     }
   | { type: 'reconciliation'; data: Reconciliation }

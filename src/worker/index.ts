@@ -9,4 +9,4 @@ const scope = self as unknown as {
 
 const handle = createCommandHandler((event) => scope.postMessage(event));
 
-scope.onmessage = (e) => handle(e.data);
+scope.onmessage = (e) => void handle(e.data);

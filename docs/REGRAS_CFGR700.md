@@ -40,6 +40,18 @@ Observações:
 Reconciliação obrigatória, exibida na tela e gravada na exportação:
 `linhas após o 1º cabeçalho − cabeçalhos repetidos − linhas em branco = linhas de detalhe`.
 
+Decisões de leitura (Fase 1):
+- **Total de linhas da planilha** = maior entre a última `<row>` do XML e a última linha do `<dimension>`.
+  Se o `<dimension>` for além da última `<row>`, as linhas finais contam como ausentes no XML (em branco) e a
+  diferença aparece como alerta informativo.
+- **Linha com `Campo` vazio e outras colunas preenchidas** conta como em branco (a regra é pela coluna A);
+  a quantidade é exibida à parte na reconciliação.
+- **Recno** como número ou como texto só com dígitos é aceito. Recno não numérico, `Operacao` fora das quatro
+  operações configuradas, `Data Hora` inválida e referência a string compartilhada inexistente são contados por
+  arquivo e fazem falhar o invariante "Valores legíveis" (seção 11).
+- A primeira linha da aba precisa conter todos os cabeçalhos configurados; senão a leitura é interrompida.
+- O CRC32 e o tamanho de **todas** as entradas do ZIP são conferidos; qualquer divergência interrompe a leitura.
+
 ### Aba de parâmetros
 
 Ler e exibir todos os pares. Validar e alertar se:
@@ -67,6 +79,7 @@ O usuário pode carregar mais de um arquivo (ex.: 15–31/08 e 01–04/09). Regr
 - Os detalhes são unidos numa só base; `ord` é um contador global crescente na ordem de leitura (arquivo 1 inteiro,
   depois arquivo 2...).
 - Alertar se os intervalos de evento se sobrepõem ou se há intervalo descoberto entre eles (dias úteis).
+  Dias úteis = segunda a sexta, sem calendário de feriados; o alerta lista as datas descobertas.
 - A informação de um arquivo completa registros do outro (ex.: exclusão em setembro revela os dados de um registro
   que em agosto só aparecia por alteração).
 
@@ -81,6 +94,10 @@ Para agrupar, ordenar por `(Recno, dataHora, Operacao, Usuario, ord)` e agrupar 
 Usuário vazio no log é substituído pelo rótulo `(sem usuário no log)` (ocorre em rotinas executadas no servidor).
 
 Operações: `Inclusão`, `Alteração`, `Exclusão`, `Recuperação`.
+
+Na base consolidada (vários arquivos), linhas de arquivos diferentes com a mesma chave formam um único evento;
+nas contagens por arquivo, cada arquivo é agrupado separadamente. **A confirmar** contra o `golden.json`
+consolidado quando os dois arquivos estiverem disponíveis.
 - Recuperação grava valor anterior igual ao atualizado e não é alteração; não entra nas categorias.
 - Um mesmo Recno pode ter mais de uma Inclusão (a gravação ocorre em etapas); usar a primeira.
 - Um mesmo Recno pode ter duas Exclusões no mesmo segundo; tratar como um evento de exclusão (usar a última).
@@ -234,3 +251,8 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
 8. CRC32 e tamanho de cada entrada do ZIP conferem com o diretório central.
 9. Nenhuma data exportada anterior a 1901 ou vazia convertida em zero.
 10. Nenhuma mesclagem sobreposta na exportação.
+11. Valores legíveis: nenhuma linha de detalhe com Recno inválido, operação não reconhecida, Data Hora inválida
+    ou referência a string compartilhada inexistente (seção 1).
+
+Implementados na Fase 1: 1, 2, 8 e 11. Os alertas de parâmetros (seção 1) e de cobertura entre extrações
+(seção 3) aparecem como verificações de nível "alerta", que não bloqueiam a exportação.

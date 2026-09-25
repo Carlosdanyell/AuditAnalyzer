@@ -1,16 +1,39 @@
 {
   "schemaVersion": 1,
   "table": "CT2",
-  "reportColumns": [
-    "Campo",
-    "Vlr Antigo",
-    "Vlr Atualizado",
-    "Tipo Dados",
-    "Recno",
-    "Usuario",
-    "Operacao",
-    "Data Hora",
-    "Situacao",
-    "Tipo Dado Protegido"
-  ]
+  "workbook": {
+    "parametersSheet": "Parametros",
+    "reportSheetContains": "Relatório de auditoria"
+  },
+  "columns": {
+    "field": "Campo",
+    "oldValue": "Vlr Antigo",
+    "newValue": "Vlr Atualizado",
+    "dataType": "Tipo Dados",
+    "recno": "Recno",
+    "user": "Usuario",
+    "operation": "Operacao",
+    "dateTime": "Data Hora",
+    "status": "Situacao",
+    "protectedType": "Tipo Dado Protegido"
+  },
+  "operations": {
+    "insert": "Inclusão",
+    "update": "Alteração",
+    "delete": "Exclusão",
+    "restore": "Recuperação"
+  },
+  "parameterChecks": {
+    "tableQuestions": ["Tabela início", "Tabela fim"],
+    "mustBeYes": [
+      "Operação de inclusão",
+      "Operação de alteração",
+      "Operação de exclusão",
+      "Operação de Recuperação",
+      "Exclui campos não alterados"
+    ],
+    "yesValue": "Sim",
+    "startDateQuestion": "Data inicial",
+    "endDateQuestion": "Data final"
+  }
 }

@@ -17,6 +17,8 @@
   --ok-soft: #e7f4ec;
   --error: #a4262c;
   --error-soft: #fbeaea;
+  --warn: #7a4d00;
+  --warn-soft: #fdf3e1;
 
   --radius: 8px;
   --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
@@ -41,6 +43,8 @@
     --ok-soft: #173024;
     --error: #f08b8f;
     --error-soft: #3a1e20;
+    --warn: #f0c170;
+    --warn-soft: #362a14;
     --shadow: none;
 
     color-scheme: dark;

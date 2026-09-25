@@ -48,6 +48,11 @@ páginas de linhas para as tabelas virtualizadas.
   `field`, `oldVal`, `newVal`, `user`, `op`, `dateTime`, `recno`, `source`, `ord`.
   (`Tipo Dados`, `Situacao`, `Tipo Dado Protegido`: guardar só contagens para a reconciliação, salvo necessidade.)
 - Estimativa: 1,3 milhão de linhas × 9 colunas × 4 bytes ≈ 47 MB.
+- Implementação (Fase 1, `store/columns.ts`): `ord` é a própria posição da linha na base (leitura em ordem:
+  arquivo 1 inteiro, depois arquivo 2), sem coluna própria. `op` e `source` são `Uint8Array`; `dateTime` já
+  guarda os segundos (inválido = `INVALID_TIME`). Total ≈ 26 bytes por linha (~34 MB para 1,3 milhão).
+- A aba do relatório é lida direto nos **bytes** UTF-8 (`ingest/sheetStream.ts`), sem decodificar o XML inteiro
+  em texto; só strings inline e valores `t="str"` são decodificados. A sharedStrings é lida como texto.
 - Atributos por id do dicionário calculados uma vez: `dateTime` em segundos, `isNoise`, `isKeep`, código da operação,
   valor em centavos.
 - Ao terminar a ingestão de um arquivo, descartar buffers intermediários.

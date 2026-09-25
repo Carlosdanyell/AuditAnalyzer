@@ -33,7 +33,7 @@
 
 .main {
   width: 100%;
-  max-width: 880px;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 28px 16px 48px;
   display: flex;
@@ -212,4 +212,23 @@
   .card {
     padding: 16px;
   }
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar h2 {
+  font-size: 20px;
+}
+
+.info {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 14px;
 }
