@@ -1,0 +1,8 @@
+node_modules/
+dist/
+/local/
+*.xlsx
+!tests/synthetic/**/*.xlsx
+.env*
+.DS_Store
+coverage/

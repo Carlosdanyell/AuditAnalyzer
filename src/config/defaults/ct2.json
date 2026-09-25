@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "table": "CT2",
+  "reportColumns": [
+    "Campo",
+    "Vlr Antigo",
+    "Vlr Atualizado",
+    "Tipo Dados",
+    "Recno",
+    "Usuario",
+    "Operacao",
+    "Data Hora",
+    "Situacao",
+    "Tipo Dado Protegido"
+  ]
+}
