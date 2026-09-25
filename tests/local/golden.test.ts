@@ -88,10 +88,8 @@ function ingest(files: GoldenFile[]): Promise<IngestionResult> {
       const started = performance.now();
       const result = await runIngestion(inputs, defaultConfig(), () => {});
       const ms = performance.now() - started;
-      const rows = result.reconciliation.files.reduce((n, f) => n + f.rows.totalRows, 0);
       console.log(
         `[medição] ${key}: ${(ms / 1000).toFixed(1)} s, ` +
-          `${Math.round(rows / (ms / 1000)).toLocaleString('pt-BR')} linhas/s, ` +
           `RSS ${Math.round(process.memoryUsage().rss / 2 ** 20)} MB, heap ${Math.round(process.memoryUsage().heapUsed / 2 ** 20)} MB; ` +
           `etapas: ${result.reconciliation.files.map((f) => f.timings.map((t) => `${t.stage} ${t.ms} ms`).join(', ')).join(' | ')}`,
       );
