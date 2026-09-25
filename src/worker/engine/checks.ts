@@ -1,7 +1,8 @@
 /**
  * Engine invariants of a scope (docs/REGRAS_CFGR700.md, section 11):
  * 3. discarded + effective alterations = Alteração events;
- * 4. every CT2_TPSALD transition in alterations is the expected one (9 → 1);
+ * 4. every Alteração event discarded as "efetivação" has only the expected CT2_TPSALD transition (9 → 1),
+ *    which holds by construction of the classification;
  * 5. the records of each document are contiguous in the base;
  * 6. a partition of the log into periods (one per day) adds up to the full log.
  */
@@ -11,9 +12,23 @@ import { FULL_PERIOD, periodPanel, type CategoryPanel, type PeriodPanel } from '
 
 export interface ScopeCheckResults {
   alterationsReconcile: boolean;
-  balanceTypeAllExpected: boolean;
+  discardedBalanceTypeExpected: boolean;
   baseContiguous: boolean;
   periodsPartition: boolean;
+}
+
+function discardedActivationsExpected(scope: ScopeAnalysis): boolean {
+  const { details: d, dict, config, fields } = scope.log;
+  const { expectedFrom, expectedTo } = config.balanceType;
+  return scope.alterationEvents
+    .filter((e) => e.kind === 'activation')
+    .every((e) =>
+      e.rows.every(
+        (i) =>
+          d.field[i] !== fields.balanceTypeField ||
+          (dict.get(d.oldVal[i]!).trim() === expectedFrom && dict.get(d.newVal[i]!).trim() === expectedTo),
+      ),
+    );
 }
 
 function baseIsContiguous(scope: ScopeAnalysis): boolean {
@@ -70,12 +85,12 @@ function periodsAddUp(scope: ScopeAnalysis): boolean {
 }
 
 export function scopeChecks(scope: ScopeAnalysis, updateEvents: number): ScopeCheckResults {
-  const { alterations, balanceType } = scope.stats;
+  const { alterations } = scope.stats;
   return {
     alterationsReconcile:
       alterations.effective + alterations.activation + alterations.stamp === alterations.total &&
       alterations.total === updateEvents,
-    balanceTypeAllExpected: balanceType.expected === balanceType.total,
+    discardedBalanceTypeExpected: discardedActivationsExpected(scope),
     baseContiguous: baseIsContiguous(scope),
     periodsPartition: periodsAddUp(scope),
   };

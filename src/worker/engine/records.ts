@@ -1,5 +1,7 @@
 /**
- * Records (docs/REGRAS_CFGR700.md, section 5) and alteration classification (section 6).
+ * Records (docs/REGRAS_CFGR700.md, section 5) and alteration classification (section 6): an Alteração
+ * event is discarded as "efetivação" only when its CT2_TPSALD transitions are all the expected one (9 → 1)
+ * and it has no other non-noise field.
  *
  * One record per Recno of the scope. Kept fields take the last value in (Recno, dataHora, ord), where the
  * value is Vlr Antigo for Exclusão and Vlr Atualizado otherwise. Events (Recno, dataHora, Operacao,
@@ -62,7 +64,10 @@ export interface AlterationEvent {
 export interface RecordsResult {
   records: RecordInfo[];
   alterationEvents: AlterationEvent[];
-  /** Rows of the Alteracoes tab: non-noise fields of effective events. */
+  /**
+   * Rows of the Alteracoes tab: fields of effective events that are not noise, plus CT2_TPSALD rows whose
+   * transition is not the expected one.
+   */
   effectiveChangeRows: number[];
   balanceType: { total: number; expected: number };
 }
@@ -159,17 +164,23 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
         r.deletionOrd = maxOrd;
       }
     } else if (op === OP_UPDATE) {
+      // A row "counts" when its field is not noise, or when it is CT2_TPSALD with a transition other than
+      // the expected one (9 → 1): only the expected transition is discarded as "efetivação".
+      const counts = (i: number): boolean => {
+        const f = d.field[i]!;
+        if (f === fields.balanceTypeField) {
+          return !(dict.get(d.oldVal[i]!).trim() === expectedFrom && dict.get(d.newVal[i]!).trim() === expectedTo);
+        }
+        return !fields.noise.has(f);
+      };
       let effective = false;
       let hasBalanceType = false;
       for (const i of group) {
-        const f = d.field[i]!;
-        if (!fields.noise.has(f)) effective = true;
-        if (f === fields.balanceTypeField) {
+        if (counts(i)) effective = true;
+        if (d.field[i] === fields.balanceTypeField) {
           hasBalanceType = true;
           balanceType.total++;
-          if (dict.get(d.oldVal[i]!).trim() === expectedFrom && dict.get(d.newVal[i]!).trim() === expectedTo) {
-            balanceType.expected++;
-          }
+          if (!counts(i)) balanceType.expected++;
         }
       }
       const kind: AlterationKind = effective ? 'effective' : hasBalanceType ? 'activation' : 'stamp';
@@ -177,7 +188,7 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
       if (kind === 'effective') {
         r.changeCount++;
         for (const i of group) {
-          if (!fields.noise.has(d.field[i]!)) effectiveChangeRows.push(i);
+          if (counts(i)) effectiveChangeRows.push(i);
           const s = d.source[i]!;
           if (r.lastChangeBySource[s] === INVALID_TIME || time > r.lastChangeBySource[s]!) r.lastChangeBySource[s] = time;
         }

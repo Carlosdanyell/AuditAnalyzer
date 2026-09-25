@@ -53,11 +53,33 @@ describe('analysis after ingesting two synthetic .xlsx files', () => {
       'events-by-operation': true,
       'alteration-classification': true,
       'balance-type': true,
+      'balance-type-other': true,
       'base-contiguity': true,
       'period-partition': true,
       'data-quality': true,
     });
     expect(result.summary.scopes).toHaveLength(1);
+  });
+
+  it('a CT2_TPSALD transition other than 9 → 1 is an effective change and raises a non-blocking alert', async () => {
+    const odd = EVENTS.filter((e) => (e.source ?? 0) === 0).map((e) =>
+      e.recno === 42 ? { ...e, fields: { CT2_TPSALD: ['1', '9'] as [string, string] } } : e,
+    );
+    const result = await runIngestion(
+      [{ name: 'a.xlsx', blob: synthBlob({ rows: toReportRows(odd) }) }],
+      defaultConfig(),
+      () => {},
+    );
+    const byId = Object.fromEntries(result.reconciliation.checks.map((c) => [c.id, c]));
+    expect(byId['balance-type']!.passed).toBe(true);
+    expect(byId['balance-type-other']).toMatchObject({
+      passed: false,
+      severity: 'warning',
+      message: 'a.xlsx: 1 de 2 transição(ões) de CT2_TPSALD diferente(s) de 9 → 1, classificada(s) como alteração efetiva.',
+    });
+    const stats = result.summary.scopes[0]!.stats;
+    expect(stats.alterations).toMatchObject({ effective: 4, activation: 1 });
+    expect(stats.effectiveChangeRows).toBe(4);
   });
 
   it('fails "Valores legíveis" on an unreadable CT2_VALOR', async () => {

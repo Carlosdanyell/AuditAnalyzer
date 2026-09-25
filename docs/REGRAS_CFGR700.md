@@ -157,16 +157,21 @@ Para cada evento de Alteração, `ef` = campos do evento que não são ruído.
 
 | Tipo | Regra | Tratamento |
 |---|---|---|
-| Efetivação do tipo de saldo (9 → 1) | `ef` vazio e o evento contém CT2_TPSALD | Descartado |
+| Efetivação do tipo de saldo (9 → 1) | `ef` vazio e o evento contém CT2_TPSALD, com todas as transições `9 → 1` | Descartado |
 | Somente carimbo de usuário (CT2_USERGA) | `ef` vazio e não contém CT2_TPSALD | Descartado |
-| Alteração efetiva | `ef` não vazio | Considerado |
+| Alteração efetiva | `ef` não vazio, **ou** CT2_TPSALD com transição diferente de `9 → 1` | Considerado |
+
+**Decisão registrada (Fase 2):** só a transição `9 → 1` de CT2_TPSALD é descartada como efetivação. Qualquer
+outra transição é tratada como campo alterado: o evento é "Alteração efetiva", a linha de CT2_TPSALD entra na aba
+Alteracoes e o registro entra nas contagens de alterados do painel. Além disso, gera um alerta não bloqueante
+("Outras transições do tipo de saldo"), com a quantidade por arquivo.
 
 Invariantes:
-- Todas as ocorrências de CT2_TPSALD em alterações devem ser `9 → 1`. Qualquer outra transição é alerta
-  (verificação de nível "alerta": aparece na tela e na exportação, mas não bloqueia).
+- Todo evento descartado como efetivação tem CT2_TPSALD `9 → 1` (vale por construção da classificação acima).
 - `descartados + efetivos = total de eventos de Alteração`, por arquivo e no total.
 
-Aba "Alteracoes" da exportação: uma linha por **campo** alterado (não por evento), apenas campos fora do ruído.
+Aba "Alteracoes" da exportação: uma linha por **campo** alterado (não por evento), apenas campos fora do ruído,
+mais as linhas de CT2_TPSALD com transição diferente de `9 → 1`.
 
 ---
 
@@ -262,7 +267,8 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
 1. Reconciliação de linhas por arquivo (seção 1).
 2. Eventos por operação somam o número de eventos distintos.
 3. Alterações: descartados + efetivos = total, por arquivo.
-4. CT2_TPSALD: 100% das transições são 9 → 1.
+4. CT2_TPSALD: todo evento descartado como efetivação do tipo de saldo tem transição 9 → 1 (vale por construção;
+   transições diferentes são alteração efetiva e geram alerta não bloqueante — seção 6).
 5. Registros de cada documento contíguos na base de linhas.
 6. Soma de lançamentos por período (presets que particionam o log) = total do log completo.
 7. Totais do quadro de competência = totais das categorias + não identificados.
@@ -273,8 +279,8 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
     ou referência a string compartilhada inexistente (seção 1).
 
 Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2), verificados por arquivo e no consolidado.
-- O invariante 4 é de nível "alerta" (seção 6). Os alertas de parâmetros (seção 1) e de cobertura entre
-  extrações (seção 3) também são de nível "alerta" e não bloqueiam a exportação.
+- Verificações de nível "alerta", que não bloqueiam a exportação: outras transições de CT2_TPSALD (seção 6),
+  parâmetros do relatório (seção 1) e cobertura entre extrações (seção 3).
 - Invariante 6: o log é particionado em dias (do primeiro ao último evento); a soma dos dias deve ser igual ao
   log completo em todas as categorias, colunas (lançamentos, documentos, valor) e origens.
 - Invariante 11 inclui, desde a Fase 2, CT2_VALOR ilegível (seção 2).

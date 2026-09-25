@@ -501,7 +501,8 @@ function buildChecks(
   const paramAlerts = files.filter((f) => f.alerts.some((a) => a.level === 'warning'));
   const failing = (key: keyof ScopeCheckResults) => scopes.filter((s) => !s.checks[key]);
   const alterations = failing('alterationsReconcile');
-  const balanceType = failing('balanceTypeAllExpected');
+  const discarded = failing('discardedBalanceTypeExpected');
+  const otherTransitions = scopes.filter((s) => s.analysis.stats.balanceType.expected < s.analysis.stats.balanceType.total);
   const contiguity = failing('baseContiguous');
   const partition = failing('periodsPartition');
   const transition = `${config.balanceType.expectedFrom} → ${config.balanceType.expectedTo}`;
@@ -538,16 +539,26 @@ function buildChecks(
     },
     {
       id: 'balance-type',
-      label: 'Transições do tipo de saldo',
-      severity: 'warning',
-      passed: balanceType.length === 0,
+      label: 'Efetivações do tipo de saldo',
+      severity: 'error',
+      passed: discarded.length === 0,
       message:
-        balanceType.length === 0
-          ? `Todas as alterações de ${config.balanceType.field} são ${transition}.`
-          : balanceType
+        discarded.length === 0
+          ? `Todo evento descartado como efetivação do tipo de saldo tem ${config.balanceType.field} ${transition}.`
+          : `Evento descartado como efetivação com transição diferente de ${transition} em: ${listScopes(discarded)}.`,
+    },
+    {
+      id: 'balance-type-other',
+      label: 'Outras transições do tipo de saldo',
+      severity: 'warning',
+      passed: otherTransitions.length === 0,
+      message:
+        otherTransitions.length === 0
+          ? `Nenhuma transição de ${config.balanceType.field} diferente de ${transition}.`
+          : otherTransitions
               .map((s) => {
                 const b = s.analysis.stats.balanceType;
-                return `${s.label}: ${b.total - b.expected} de ${b.total} transição(ões) diferente(s) de ${transition}`;
+                return `${s.label}: ${b.total - b.expected} de ${b.total} transição(ões) de ${config.balanceType.field} diferente(s) de ${transition}, classificada(s) como alteração efetiva`;
               })
               .join('; ') + '.',
     },

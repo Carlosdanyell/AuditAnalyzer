@@ -43,7 +43,7 @@ describe('engine invariants (§11)', () => {
     const all = analyze(EVENTS);
     expect(scopeChecks(all, 8)).toEqual({
       alterationsReconcile: true,
-      balanceTypeAllExpected: true,
+      discardedBalanceTypeExpected: true,
       baseContiguous: true,
       periodsPartition: true,
     });

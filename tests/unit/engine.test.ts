@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { INVALID_TIME, formatIsoDateTime } from '../../src/shared/dates';
 import { analyzeScope, type ScopeAnalysis } from '../../src/worker/engine/analysis';
 import { recordValue, type RecordInfo } from '../../src/worker/engine/records';
+import { FULL_PERIOD, periodPanel } from '../../src/worker/engine/periods';
+import { scopeChecks } from '../../src/worker/engine/checks';
 import { EVENTS, EXPECTED_BASE_ORDER, EXPECTED_DOCUMENT_ORDER, EXPECTED_STATS, KEYS } from '../synthetic/engineFixture';
 import { analyze, buildLog, ct2Line, type LogEvent } from '../synthetic/logBuilder';
 
@@ -42,11 +44,22 @@ describe('alteration classification (§6)', () => {
     expect(rows).toEqual(['CT2_HIST', 'CT2_HIST', 'CT2_INCONS']);
   });
 
-  it('counts CT2_TPSALD transitions and flags anything other than 9 → 1', () => {
+  it('counts CT2_TPSALD transitions', () => {
     expect(scope.stats.balanceType).toEqual({ total: 2, expected: 2 });
-    const odd = analyze([{ recno: 1, op: 'Alteração', at: '01/09/2026 10:00:00', fields: { CT2_TPSALD: ['1', '9'] } }]);
-    expect(odd.stats.balanceType).toEqual({ total: 1, expected: 0 });
-    expect(odd.stats.alterations.activation).toBe(1);
+  });
+
+  it('discards only 9 → 1; any other CT2_TPSALD transition is an effective change kept in Alteracoes', () => {
+    const odd = analyze([
+      { recno: 1, op: 'Inclusão', at: '01/09/2026 09:00:00', fields: ct2Line({ date: '01/09/2026', doc: '1', dc: '1', value: '1.00' }) },
+      { recno: 1, op: 'Alteração', at: '01/09/2026 10:00:00', fields: { CT2_TPSALD: ['1', '9'], CT2_USERGA: ['a', 'b'] } },
+      { recno: 2, op: 'Alteração', at: '01/09/2026 10:00:00', fields: { CT2_TPSALD: ['9', '1'], CT2_USERGA: ['a', 'b'] } },
+    ]);
+    expect(odd.stats.balanceType).toEqual({ total: 2, expected: 1 });
+    expect(odd.stats.alterations).toEqual({ effective: 1, activation: 1, stamp: 0, total: 2 });
+    expect(odd.effectiveChangeRows.map((i) => odd.log.dict.get(odd.log.details.field[i]!))).toEqual(['CT2_TPSALD']);
+    expect(rec(odd, 1).changeCount).toBe(1);
+    expect(periodPanel(odd, FULL_PERIOD).changed.manual).toEqual({ lines: 1, documents: 1, debitCents: 100 });
+    expect(scopeChecks(odd, 2).discardedBalanceTypeExpected).toBe(true);
   });
 });
 
