@@ -1,6 +1,6 @@
 /**
  * Streaming SpreadsheetML worksheet parser working directly on UTF-8 bytes (docs/ARQUITETURA.md, 1.2).
- * The report sheet is ~225 MB of XML where almost every cell is a shared-string index, so bytes are
+ * The report sheet is hundreds of MB of XML where almost every cell is a shared-string index, so bytes are
  * scanned without decoding the whole text. Only complete <row>…</row> elements are parsed; the
  * incomplete tail of a chunk is carried over to the next one.
  *
