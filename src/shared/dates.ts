@@ -111,3 +111,9 @@ export function formatDateTime(seconds: number): string {
   const rest = seconds - day * 86400;
   return `${formatDay(day)} ${pad(Math.floor(rest / 3600))}:${pad(Math.floor(rest / 60) % 60)}:${pad(rest % 60)}`;
 }
+
+/** Day number of the last day of the month of `day`. */
+export function lastDayOfMonth(day: number): number {
+  const [y, m] = dateParts(day);
+  return daysFromCivil(y, m, daysInMonth(y, m)) - DAYS_1970_TO_2000;
+}

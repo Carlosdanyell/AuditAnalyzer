@@ -79,6 +79,29 @@ describe('WorkerClient', () => {
     ]);
   });
 
+  it('query() assigns request ids and resolves with the matching answer', async () => {
+    const { client, workers } = setup();
+    const a = client.query({ type: 'page', scope: 0, table: 'documents', offset: 0, limit: 10 });
+    const b = client.query({ type: 'panel', scope: 0, period: null, cutoffDay: null });
+    const [first, second] = workers[0]!.sent as Extract<Command, { requestId: number }>[];
+    expect(first!.requestId).not.toBe(second!.requestId);
+    workers[0]!.emit({ type: 'panel', requestId: second!.requestId, data: {} as never });
+    workers[0]!.emit({ type: 'page', requestId: first!.requestId, table: 'documents', columns: [], rows: [], offset: 0, total: 0 });
+    await expect(a).resolves.toMatchObject({ type: 'page', total: 0 });
+    await expect(b).resolves.toMatchObject({ type: 'panel' });
+  });
+
+  it('query() rejects on an error for its request and when the worker is cancelled', async () => {
+    const { client, workers } = setup();
+    const a = client.query({ type: 'panel', scope: 0, period: null, cutoffDay: null });
+    const id = (workers[0]!.sent[0] as Extract<Command, { requestId: number }>).requestId;
+    workers[0]!.emit({ type: 'error', stage: 'panel', message: 'sem sessão', requestId: id });
+    await expect(a).rejects.toThrow('sem sessão');
+    const b = client.query({ type: 'panel', scope: 0, period: null, cutoffDay: null });
+    client.cancel();
+    await expect(b).rejects.toThrow(/cancelad/);
+  });
+
   it('dispose terminates the worker and drops subscribers', () => {
     const { client, workers, received } = setup();
     client.send({ type: 'cancel' });

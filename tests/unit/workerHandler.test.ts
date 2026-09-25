@@ -34,13 +34,31 @@ describe('worker command handler', () => {
     expect(events[0]).toMatchObject({ type: 'error', message: 'Configuração inválida.' });
   });
 
+  it('answers panel and page queries after an ingestion, echoing the request id', async () => {
+    const { events, handle } = setup();
+    const file = new File([buildCfgr700(fileA()) as Uint8Array<ArrayBuffer>], 'a.xlsx');
+    await handle({ type: 'ingest', files: [file], config: defaultConfig() });
+    events.length = 0;
+    await handle({ type: 'panel', requestId: 7, scope: 0, period: null, cutoffDay: null });
+    await handle({ type: 'page', requestId: 8, scope: 0, table: 'baseRows', offset: 0, limit: 2 });
+    const [panel, page] = events;
+    expect(panel).toMatchObject({ type: 'panel', requestId: 7 });
+    expect(page).toMatchObject({ type: 'page', requestId: 8, table: 'baseRows', offset: 0 });
+    expect(page?.type === 'page' && page.rows).toHaveLength(2);
+  });
+
+  it('answers queries without an ingestion with an error carrying the request id', async () => {
+    const { events, handle } = setup();
+    await handle({ type: 'panel', requestId: 1, scope: 0, period: null, cutoffDay: null });
+    await handle({ type: 'page', requestId: 2, scope: 0, table: 'documents', offset: 0, limit: 50 });
+    expect(events.map((e) => e.type === 'error' && e.requestId)).toEqual([1, 2]);
+  });
+
   it('answers the not-yet-implemented commands with exactly one error event each', async () => {
     const { events, handle } = setup();
-    await handle({ type: 'panel', period: { start: 0, end: 0 } });
-    await handle({ type: 'page', table: 'documents', offset: 0, limit: 50 });
     await handle({ type: 'setJustifications', items: [] });
     await handle({ type: 'export', options: {} });
-    expect(events).toHaveLength(4);
+    expect(events).toHaveLength(2);
     expect(events.every((e) => e.type === 'error')).toBe(true);
   });
 

@@ -4,10 +4,12 @@
  * 4. every Alteração event discarded as "efetivação" has only the expected CT2_TPSALD transition (9 → 1),
  *    which holds by construction of the classification;
  * 5. the records of each document are contiguous in the base;
- * 6. a partition of the log into periods (one per day) adds up to the full log.
+ * 6. a partition of the log into periods (one per day) adds up to the full log;
+ * 7. the composition by entry date of the full log (default cutoff) adds up to the categories + unidentified.
  */
 import { INVALID_TIME, dayOfSeconds } from '../../shared/dates';
 import type { ScopeAnalysis } from './analysis';
+import { composition, compositionMatches, defaultCutoffDay, scopeBounds } from './panel';
 import { FULL_PERIOD, periodPanel, type CategoryPanel, type PeriodPanel } from './periods';
 
 export interface ScopeCheckResults {
@@ -15,6 +17,7 @@ export interface ScopeCheckResults {
   discardedBalanceTypeExpected: boolean;
   baseContiguous: boolean;
   periodsPartition: boolean;
+  competenceMatches: boolean;
 }
 
 function discardedActivationsExpected(scope: ScopeAnalysis): boolean {
@@ -93,5 +96,9 @@ export function scopeChecks(scope: ScopeAnalysis, updateEvents: number): ScopeCh
     discardedBalanceTypeExpected: discardedActivationsExpected(scope),
     baseContiguous: baseIsContiguous(scope),
     periodsPartition: periodsAddUp(scope),
+    competenceMatches: compositionMatches(
+      periodPanel(scope, FULL_PERIOD),
+      composition(scope, FULL_PERIOD, defaultCutoffDay(scopeBounds(scope))),
+    ),
   };
 }

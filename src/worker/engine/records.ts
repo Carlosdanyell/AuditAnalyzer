@@ -7,7 +7,7 @@
  * value is Vlr Antigo for Exclusão and Vlr Atualizado otherwise. Events (Recno, dataHora, Operacao,
  * Usuario) give inclusion/deletion user and time and the alteration classification.
  */
-import { INVALID_TIME } from '../../shared/dates';
+import { INVALID_TIME, parseDate } from '../../shared/dates';
 import { MONEY_EMPTY, MONEY_INVALID, parseCents } from '../../shared/money';
 import { OP_DELETE, OP_INSERT, OP_UPDATE, sameEvent } from './events';
 import type { LogIndex } from './analysis';
@@ -40,6 +40,8 @@ export interface RecordInfo {
   origin: Origin;
   /** CT2_DC value. */
   nature: string;
+  /** Day number of the entry date (CT2_DATA); INVALID_TIME when absent or unreadable. */
+  entryDay: number;
   lineType: LineType;
   valueCents: number | null;
   valueStatus: 'ok' | 'empty' | 'invalid';
@@ -108,6 +110,7 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
         lastChangeBySource: new Int32Array(sourceCount).fill(INVALID_TIME),
         origin: 'unidentified',
         nature: '',
+        entryDay: INVALID_TIME,
         lineType: 'undefined',
         valueCents: null,
         valueStatus: 'empty',
@@ -217,6 +220,7 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
     const manual = text(r, fields.originKeep);
     r.origin = o.manual.includes(manual) ? 'manual' : o.automatic.includes(manual) ? 'automatic' : 'unidentified';
     r.nature = text(r, fields.natureKeep);
+    r.entryDay = parseDate(text(r, fields.dateKeep));
     r.lineType = n.accounting.includes(r.nature) ? 'accounting' : n.complement.includes(r.nature) ? 'complement' : 'undefined';
 
     const cents = r.values[fields.valueKeep]! >= 0 ? parseCents(dict.get(r.values[fields.valueKeep]!)) : MONEY_EMPTY;

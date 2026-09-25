@@ -24,7 +24,10 @@
     "restore": "Recuperação"
   },
   "parameterChecks": {
-    "tableQuestions": ["Tabela início", "Tabela fim"],
+    "tableQuestions": [
+      "Tabela início",
+      "Tabela fim"
+    ],
     "mustBeYes": [
       "Operação de inclusão",
       "Operação de alteração",
@@ -61,7 +64,10 @@
       "CT2_ITEMD",
       "CT2_ITEMC"
     ],
-    "noise": ["CT2_TPSALD", "CT2_USERGA"],
+    "noise": [
+      "CT2_TPSALD",
+      "CT2_USERGA"
+    ],
     "date": "CT2_DATA",
     "line": "CT2_LINHA",
     "value": "CT2_VALOR",
@@ -73,14 +79,23 @@
     "expectedTo": "1"
   },
   "documentKey": {
-    "fields": ["CT2_DATA", "CT2_LOTE", "CT2_SBLOTE", "CT2_DOC"],
+    "fields": [
+      "CT2_DATA",
+      "CT2_LOTE",
+      "CT2_SBLOTE",
+      "CT2_DOC"
+    ],
     "separator": "|",
     "unidentified": "SEM IDENTIFICACAO"
   },
   "origin": {
     "field": "CT2_MANUAL",
-    "manual": ["1"],
-    "automatic": ["2"]
+    "manual": [
+      "1"
+    ],
+    "automatic": [
+      "2"
+    ]
   },
   "nature": {
     "field": "CT2_DC",
@@ -90,14 +105,99 @@
       "3": "Débito e Crédito",
       "4": "Complemento de histórico"
     },
-    "debit": ["1", "3"],
-    "credit": ["2", "3"],
-    "accounting": ["1", "2", "3"],
-    "complement": ["4"]
+    "debit": [
+      "1",
+      "3"
+    ],
+    "credit": [
+      "2",
+      "3"
+    ],
+    "accounting": [
+      "1",
+      "2",
+      "3"
+    ],
+    "complement": [
+      "4"
+    ]
   },
   "inconsistency": {
     "flagValue": "1"
   },
   "balanceToleranceCents": 1,
-  "emptyUserLabel": "(sem usuário no log)"
+  "emptyUserLabel": "(sem usuário no log)",
+  "fieldLabels": {
+    "CT2_DATA": "Data do lançamento",
+    "CT2_LOTE": "Lote",
+    "CT2_SBLOTE": "Sublote",
+    "CT2_DOC": "Documento",
+    "CT2_LINHA": "Linha",
+    "CT2_MANUAL": "Lançamento manual",
+    "CT2_VALOR": "Valor",
+    "CT2_DEBITO": "Conta débito",
+    "CT2_CREDIT": "Conta crédito",
+    "CT2_DC": "Tipo de lançamento",
+    "CT2_HIST": "Histórico",
+    "CT2_ROTINA": "Rotina",
+    "CT2_LP": "Lançamento padrão",
+    "CT2_ORIGEM": "Origem",
+    "CT2_INCONS": "Inconsistência",
+    "CT2_TPSALD": "Tipo de saldo",
+    "CT2_ESTCAN": "Estorno",
+    "CT2_MOEDLC": "Moeda",
+    "CT2_CCD": "Centro de custo débito",
+    "CT2_CCC": "Centro de custo crédito",
+    "CT2_ITEMD": "Item contábil débito",
+    "CT2_ITEMC": "Item contábil crédito",
+    "CT2_USERGA": "Usuário/data da gravação"
+  },
+  "tables": {
+    "baseRowsExtraFields": [
+      "CT2_DEBITO",
+      "CT2_CREDIT",
+      "CT2_HIST"
+    ]
+  },
+  "panel": {
+    "periodPresets": [],
+    "signals": {
+      "unbalancedDocuments": {
+        "label": "Documentos desbalanceados",
+        "requiresAction": "always",
+        "text": "{n} documento(s) desbalanceado(s)",
+        "none": "Nenhum documento desbalanceado"
+      },
+      "unjustifiedDocuments": {
+        "label": "Documentos excluídos ou alterados sem justificativa",
+        "requiresAction": "always",
+        "text": "{n} documento(s) com justificativa pendente",
+        "none": "Nenhum documento com justificativa pendente"
+      },
+      "unidentifiedChanges": {
+        "label": "Registros alterados sem identificação de documento",
+        "requiresAction": "never",
+        "text": "{n} registro(s) alterado(s) sem identificação de documento",
+        "none": "Nenhum registro alterado sem identificação de documento"
+      },
+      "inconsistentEntries": {
+        "label": "Lançamentos gravados como inconsistentes",
+        "requiresAction": "ifPending",
+        "text": "{n} lançamento(s) gravado(s) como inconsistente(s): {pendentes} pendente(s), {corrigidos} corrigido(s)",
+        "none": "Nenhum lançamento gravado como inconsistente"
+      },
+      "noUserInclusions": {
+        "label": "Lançamentos incluídos sem usuário no log",
+        "requiresAction": "never",
+        "text": "{n} lançamento(s) incluído(s) sem usuário no log",
+        "none": "Nenhum lançamento incluído sem usuário no log"
+      },
+      "daysWithoutEvents": {
+        "label": "Dias úteis do período sem nenhum evento",
+        "requiresAction": "always",
+        "text": "{n} dia(s) útil(eis) sem nenhum evento: {dias}",
+        "none": "Nenhum dia útil sem evento"
+      }
+    }
+  }
 }

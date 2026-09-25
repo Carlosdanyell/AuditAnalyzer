@@ -236,6 +236,34 @@ Para o período filtrado, separar lançamentos, documentos e valor por data cont
 Redação das situações: neutra e factual (ex.: "3 documento(s) com justificativa pendente"), sem verbos como
 "investigar" ou "requer".
 
+### Decisões da Fase 3 (provisórias — adotadas por delegação, a confirmar pelo usuário)
+
+**Os números do painel só são considerados validados depois que a Fase 2 passar no `golden.json` com os dois
+arquivos** (agosto sozinho, setembro sozinho, consolidado e todos os painéis). O teste local compara o painel
+servido à tela (`Session.panel`) com o golden.
+
+- **Presets de período:** "Log completo" (do primeiro ao último dia com evento do escopo); um por arquivo, com o
+  intervalo pedido nos parâmetros do relatório (na falta, do primeiro ao último evento do arquivo); as janelas
+  fixas de `panel.periodPresets` na configuração (vazia por padrão, sem datas reais); e período personalizado.
+- **Data de corte da competência:** por padrão, o último dia do mês do primeiro evento do escopo; editável na tela.
+- **Composição por data contábil:** linhas pela CT2_DATA do registro; documentos pela CT2_DATA do documento.
+  Linhas identificadas com CT2_DATA ilegível aparecem numa coluna própria ("Data contábil ilegível").
+- **Período × demais dias × log completo:** demais dias = log completo − período, categoria por categoria.
+- **Sinalizações, calculadas sobre o período selecionado:**
+  - Documentos desbalanceados: documentos da categoria Desbalanceado no período.
+  - Sem justificativa: documentos distintos das categorias Excluído ou Alterado no período sem justificativa
+    (até a Fase 4, todos pendentes).
+  - Alterados sem identificação: registros não identificados distintos com alteração efetiva no período.
+  - Inconsistentes: lançamentos postados no período com inconsistência "pendente" ou "corrigido"; exige ação só se
+    houver algum pendente.
+  - Sem usuário: lançamentos postados no período cuja inclusão não tem usuário no log.
+  - Dias úteis sem evento: segunda a sexta (sem feriados), dentro do período **e** do intervalo pedido nos
+    parâmetros de algum arquivo do escopo, sem nenhum evento de qualquer operação.
+- **Movimento diário:** por dia, as linhas contadas em Postado, Excluído e Alterado (alterações por arquivo) e o
+  número de eventos distintos do dia.
+- **Tabelas abertas pelo painel:** têm exatamente o número clicado. Na categoria Alterado, a tabela tem uma linha
+  por (registro, arquivo) ou (documento, arquivo), com a coluna "Arquivo da alteração".
+
 ---
 
 ## 9. Justificativas
@@ -278,7 +306,9 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
 11. Valores legíveis: nenhuma linha de detalhe com Recno inválido, operação não reconhecida, Data Hora inválida
     ou referência a string compartilhada inexistente (seção 1).
 
-Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2), verificados por arquivo e no consolidado.
+Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2); 7 (Fase 3: log completo com a data de corte padrão,
+por escopo, na reconciliação; e para o período e o corte escolhidos, como indicador no painel). Todos verificados
+por arquivo e no consolidado.
 - Verificações de nível "alerta", que não bloqueiam a exportação: outras transições de CT2_TPSALD (seção 6),
   parâmetros do relatório (seção 1) e cobertura entre extrações (seção 3).
 - Invariante 6: o log é particionado em dias (do primeiro ao último evento); a soma dos dias deve ser igual ao

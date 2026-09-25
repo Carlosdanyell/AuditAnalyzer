@@ -2,7 +2,7 @@
  * Several extractions (docs/REGRAS_CFGR700.md, section 3) and the period panel (section 8).
  * Coverage: alert when the event intervals of two files overlap or leave weekdays uncovered.
  */
-import type { Alert } from '../../shared/protocol';
+import type { Alert, Category, CategoryPanel, OriginCell, Period, PeriodPanel } from '../../shared/protocol';
 import { INVALID_TIME, dayOfSeconds, formatDay, weekday } from '../../shared/dates';
 import type { ScopeAnalysis } from './analysis';
 import type { DocumentInfo } from './documents';
@@ -56,37 +56,59 @@ export function coverageAlerts(files: FileInterval[]): Alert[] {
 // ── Period panel (docs/REGRAS_CFGR700.md, section 8) ──
 
 /** Event-date interval in day numbers, both ends included. */
-export interface DayPeriod {
-  startDay: number;
-  endDay: number;
-}
+export type DayPeriod = Period;
+export type { CategoryPanel, OriginCell, PeriodPanel };
 
 export const FULL_PERIOD: DayPeriod = { startDay: -2147483648, endDay: 2147483647 };
 
-export interface OriginCell {
-  lines: number;
-  documents: number;
-  /** Sum of the debits of the lines counted. */
-  debitCents: number;
+/**
+ * Receives every line and document counted in a period, per category. `source` is the source file of the
+ * change for the "changed" category (a record changed in two files is visited once per file), else -1.
+ */
+export interface PeriodVisitor {
+  line(category: Category, record: RecordInfo, recordIndex: number, source: number): void;
+  document(category: Category, document: DocumentInfo, documentIndex: number, source: number): void;
 }
 
-export interface CategoryPanel {
-  manual: OriginCell;
-  automatic: OriginCell;
-  mixedDocuments: number;
-  totalDocuments: number;
-  /** Lines of unidentified records: outside the Manual/Automático columns. */
-  unidentifiedLines: number;
+/**
+ * The allocation rules of the panel. Deletions and postings count each document once, in the period of its
+ * first event; changes use the date of each source file, so a record changed in two files appears in both
+ * periods and the periods add up to the full log.
+ */
+export function visitPeriod(scope: ScopeAnalysis, period: DayPeriod, visitor: PeriodVisitor): void {
+  const inPeriod = (t: number) => {
+    const day = dayOfSeconds(t);
+    return day >= period.startDay && day <= period.endDay;
+  };
+  const { records, documents, sources } = scope;
+
+  records.forEach((r, index) => {
+    if (r.deleted && inPeriod(r.deletionTime)) visitor.line('deleted', r, index, -1);
+    if (r.included && inPeriod(r.inclusionTime)) visitor.line('posted', r, index, -1);
+    for (const s of sources) {
+      const t = r.lastChangeBySource[s]!;
+      if (t !== INVALID_TIME && inPeriod(t)) visitor.line('changed', r, index, s);
+    }
+  });
+  documents.forEach((d, index) => {
+    if (d.deletedLines > 0 && inPeriod(d.firstDeletion)) visitor.document('deleted', d, index, -1);
+    const posted = d.firstPosting !== INVALID_TIME && inPeriod(d.firstPosting);
+    if (posted) visitor.document('posted', d, index, -1);
+    for (const s of sources) {
+      const t = d.lastChangeBySource[s]!;
+      if (t !== INVALID_TIME && inPeriod(t)) visitor.document('changed', d, index, s);
+    }
+    if (d.unbalanced === 'yes') {
+      for (const recordIndex of d.records) {
+        const r = records[recordIndex]!;
+        if (r.included && inPeriod(r.inclusionTime)) visitor.line('unbalanced', r, recordIndex, -1);
+      }
+      if (posted) visitor.document('unbalanced', d, index, -1);
+    }
+  });
 }
 
-export interface PeriodPanel {
-  deleted: CategoryPanel;
-  changed: CategoryPanel;
-  unbalanced: CategoryPanel;
-  posted: CategoryPanel;
-}
-
-const emptyCategory = (): CategoryPanel => ({
+export const emptyCategory = (): CategoryPanel => ({
   manual: { lines: 0, documents: 0, debitCents: 0 },
   automatic: { lines: 0, documents: 0, debitCents: 0 },
   mixedDocuments: 0,
@@ -94,63 +116,33 @@ const emptyCategory = (): CategoryPanel => ({
   unidentifiedLines: 0,
 });
 
-function addLine(cat: CategoryPanel, r: RecordInfo): void {
-  if (r.origin === 'unidentified') {
-    cat.unidentifiedLines++;
-    return;
-  }
-  const cell = r.origin === 'manual' ? cat.manual : cat.automatic;
-  cell.lines++;
-  cell.debitCents += r.debitCents;
-}
+export const emptyPanel = (): PeriodPanel => ({
+  deleted: emptyCategory(),
+  changed: emptyCategory(),
+  unbalanced: emptyCategory(),
+  posted: emptyCategory(),
+});
 
-function addDocument(cat: CategoryPanel, d: DocumentInfo): void {
-  if (d.origin === 'mixed') cat.mixedDocuments++;
-  else (d.origin === 'manual' ? cat.manual : cat.automatic).documents++;
-  cat.totalDocuments++;
-}
-
-/**
- * Categories of a period (event dates). Deletions and postings count each document once, in the period
- * of its first event; changes use the date of each source file, so a record changed in two files
- * appears in both periods and the periods add up to the full log.
- */
+/** Categories of a period (event dates), by origin. */
 export function periodPanel(scope: ScopeAnalysis, period: DayPeriod): PeriodPanel {
-  const inPeriod = (t: number) => {
-    const day = dayOfSeconds(t);
-    return day >= period.startDay && day <= period.endDay;
-  };
-  const panel: PeriodPanel = {
-    deleted: emptyCategory(),
-    changed: emptyCategory(),
-    unbalanced: emptyCategory(),
-    posted: emptyCategory(),
-  };
-  const { records, documents, sources } = scope;
-
-  for (const r of records) {
-    if (r.deleted && inPeriod(r.deletionTime)) addLine(panel.deleted, r);
-    if (r.included && inPeriod(r.inclusionTime)) addLine(panel.posted, r);
-    for (const s of sources) {
-      const t = r.lastChangeBySource[s]!;
-      if (t !== INVALID_TIME && inPeriod(t)) addLine(panel.changed, r);
-    }
-  }
-  for (const d of documents) {
-    if (d.deletedLines > 0 && inPeriod(d.firstDeletion)) addDocument(panel.deleted, d);
-    const posted = d.firstPosting !== INVALID_TIME && inPeriod(d.firstPosting);
-    if (posted) addDocument(panel.posted, d);
-    for (const s of sources) {
-      const t = d.lastChangeBySource[s]!;
-      if (t !== INVALID_TIME && inPeriod(t)) addDocument(panel.changed, d);
-    }
-    if (d.unbalanced === 'yes') {
-      for (const index of d.records) {
-        const r = records[index]!;
-        if (r.included && inPeriod(r.inclusionTime)) addLine(panel.unbalanced, r);
+  const panel = emptyPanel();
+  visitPeriod(scope, period, {
+    line(category, r) {
+      const cat = panel[category];
+      if (r.origin === 'unidentified') {
+        cat.unidentifiedLines++;
+        return;
       }
-      if (posted) addDocument(panel.unbalanced, d);
-    }
-  }
+      const cell = r.origin === 'manual' ? cat.manual : cat.automatic;
+      cell.lines++;
+      cell.debitCents += r.debitCents;
+    },
+    document(category, d) {
+      const cat = panel[category];
+      if (d.origin === 'mixed') cat.mixedDocuments++;
+      else (d.origin === 'manual' ? cat.manual : cat.automatic).documents++;
+      cat.totalDocuments++;
+    },
+  });
   return panel;
 }

@@ -23,6 +23,7 @@ export interface FieldSetup {
   natureKeep: number;
   valueKeep: number;
   lineKeep: number;
+  dateKeep: number;
   inconsistencyKeep: number;
   documentKeyKeeps: number[];
 }
@@ -67,6 +68,7 @@ function resolveFields(config: AnalyzerConfig, dict: Dictionary): FieldSetup {
     natureKeep: keepOf(config.nature.field),
     valueKeep: keepOf(config.fields.value),
     lineKeep: keepOf(config.fields.line),
+    dateKeep: keepOf(config.fields.date),
     inconsistencyKeep: keepOf(config.fields.inconsistency),
     documentKeyKeeps: config.documentKey.fields.map(keepOf),
   };

@@ -22,10 +22,10 @@ export const PIPELINE_STAGES = [
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 export type Stage = PipelineStage | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
 
-/** Event-date interval, in days since the project's fixed epoch (no time zone). */
+/** Event-date interval in day numbers (days since 2000-01-01, see shared/dates.ts), both ends included. */
 export interface Period {
-  start: number;
-  end: number;
+  startDay: number;
+  endDay: number;
 }
 
 export type TableId =
@@ -36,14 +36,128 @@ export type TableId =
   | 'unbalanced'
   | 'discardedChanges';
 
-export interface Filter {
+/** Panel categories (docs/REGRAS_CFGR700.md, section 8). */
+export type Category = 'deleted' | 'changed' | 'unbalanced' | 'posted';
+export type OriginFilter = 'manual' | 'automatic' | 'mixed' | 'unidentified';
+
+export interface TableFilter {
+  /** Case- and accent-insensitive text search over the text columns. */
   search?: string;
-  columns?: Record<string, string>;
+  origin?: OriginFilter;
+  /**
+   * Only the rows counted in this panel category for `period` (lines or documents, depending on the table),
+   * so a table opened from a panel number has exactly that number of rows.
+   */
+  category?: Category;
+  /** Without a category: event date of the row (deletion, change, discarded event) in the period. */
+  period?: Period;
 }
 
 export interface Sort {
   column: string;
   direction: 'asc' | 'desc';
+}
+
+export interface ColumnSpec {
+  id: string;
+  header: string;
+  /** money = integer cents; datetime = seconds and date = day number, both since 2000-01-01. */
+  type: 'text' | 'int' | 'money' | 'datetime' | 'date';
+  /** Suggested width in pixels. */
+  width: number;
+}
+
+export type Cell = string | number | null;
+
+// ── Panel (docs/REGRAS_CFGR700.md, section 8) ──
+
+export interface OriginCell {
+  lines: number;
+  documents: number;
+  /** Sum of the debits of the lines counted. */
+  debitCents: number;
+}
+
+export interface CategoryPanel {
+  manual: OriginCell;
+  automatic: OriginCell;
+  mixedDocuments: number;
+  totalDocuments: number;
+  /** Lines of unidentified records: outside the Manual/Automático columns. */
+  unidentifiedLines: number;
+}
+
+export interface PeriodPanel {
+  deleted: CategoryPanel;
+  changed: CategoryPanel;
+  unbalanced: CategoryPanel;
+  posted: CategoryPanel;
+}
+
+export interface CompositionCell {
+  lines: number;
+  documents: number;
+  debitCents: number;
+}
+
+/** Lines and documents of a category in the period, by entry date (CT2_DATA) against the cutoff date. */
+export interface CategoryComposition {
+  upToCutoff: CompositionCell;
+  afterCutoff: CompositionCell;
+  /** Identified lines whose CT2_DATA could not be read. */
+  unreadableDate: CompositionCell;
+  /** "Sem identificação". */
+  unidentifiedLines: number;
+}
+
+export interface Composition {
+  deleted: CategoryComposition;
+  changed: CategoryComposition;
+  unbalanced: CategoryComposition;
+  posted: CategoryComposition;
+}
+
+export interface Signal {
+  id: string;
+  label: string;
+  requiresAction: boolean;
+  count: number;
+  /** Neutral, factual text (docs/REGRAS_CFGR700.md, section 8). */
+  text: string;
+}
+
+export interface DailyRow {
+  day: number;
+  /** Lines counted per category on that day (changes: per source file). */
+  posted: number;
+  deleted: number;
+  changed: number;
+  /** Distinct events of any operation on that day. */
+  events: number;
+}
+
+export interface PeriodPreset {
+  id: string;
+  label: string;
+  period: Period;
+}
+
+export interface PanelData {
+  scope: number;
+  period: Period;
+  cutoffDay: number;
+  /** First and last event day of the scope; null when it has no valid event. */
+  bounds: Period | null;
+  presets: PeriodPreset[];
+  panel: PeriodPanel;
+  /** Full log minus the period. */
+  otherDays: PeriodPanel;
+  full: PeriodPanel;
+  composition: Composition;
+  /** Invariant 7 for this view: composition totals = category totals + unidentified. */
+  compositionMatches: boolean;
+  signals: Signal[];
+  daily: DailyRow[];
 }
 
 /** Phase 4. */
@@ -194,16 +308,24 @@ export interface CheckResult {
   severity: 'error' | 'warning';
   message: string;
 }
-/** Phase 3. */
-export type PanelData = Record<string, never>;
 /** Phase 5. */
 export type Traceability = Record<string, never>;
 
 export type Command =
   | { type: 'ingest'; files: File[]; config: AnalyzerConfig }
   | { type: 'cancel' }
-  | { type: 'panel'; period: Period }
-  | { type: 'page'; table: TableId; filter?: Filter; sort?: Sort; offset: number; limit: number }
+  /** `period` null = full log; `cutoffDay` null = default cutoff. */
+  | { type: 'panel'; requestId: number; scope: number; period: Period | null; cutoffDay: number | null }
+  | {
+      type: 'page';
+      requestId: number;
+      scope: number;
+      table: TableId;
+      filter?: TableFilter;
+      sort?: Sort;
+      offset: number;
+      limit: number;
+    }
   | { type: 'setJustifications'; items: Justification[] }
   | { type: 'export'; options: ExportOptions };
 
@@ -221,7 +343,7 @@ export type WorkerEvent =
     }
   | { type: 'reconciliation'; data: Reconciliation }
   | { type: 'ready'; summary: Summary; checks: CheckResult[] }
-  | { type: 'panel'; data: PanelData }
-  | { type: 'page'; rows: unknown[]; total: number }
+  | { type: 'panel'; requestId: number; data: PanelData }
+  | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
   | { type: 'exported'; blob: Blob; fileName: string; traceability: Traceability }
-  | { type: 'error'; stage: Stage; message: string; detail?: string };
+  | { type: 'error'; stage: Stage; message: string; detail?: string; requestId?: number };

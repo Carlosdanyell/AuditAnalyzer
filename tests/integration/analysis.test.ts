@@ -56,6 +56,7 @@ describe('analysis after ingesting two synthetic .xlsx files', () => {
       'balance-type-other': true,
       'base-contiguity': true,
       'period-partition': true,
+      competence: true,
       'data-quality': true,
     });
     expect(result.summary.scopes).toHaveLength(1);

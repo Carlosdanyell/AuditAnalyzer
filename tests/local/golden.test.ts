@@ -12,6 +12,7 @@ import type { FileReconciliation, OperationCount, ScopeStats } from '../../src/s
 import type { ScopeAnalysis } from '../../src/worker/engine/analysis';
 import { FULL_PERIOD, periodPanel, type CategoryPanel, type DayPeriod } from '../../src/worker/engine/periods';
 import { runIngestion, type IngestionResult } from '../../src/worker/ingest/pipeline';
+import { Session } from '../../src/worker/session';
 
 const localDir = join(import.meta.dirname, '..', '..', 'local');
 const goldenPath = join(localDir, 'golden.json');
@@ -174,7 +175,13 @@ function periodOf(key: string, year: string): DayPeriod {
   return { startDay: parseDate(`${m[1]}/${m[3]}/${year}`), endDay: parseDate(`${m[2]}/${m[3]}/${year}`) };
 }
 
-function comparePanels(expected: Record<string, GoldenPanel>, scope: ScopeAnalysis, year: string): string[] {
+/**
+ * Compares the panels served to the screen (Session.panel, the exact path of the UI) with golden.json,
+ * and checks that they are identical to the engine's periodPanel.
+ */
+function comparePanels(expected: Record<string, GoldenPanel>, result: IngestionResult, scopeIndex: number, year: string): string[] {
+  const scope: ScopeAnalysis = result.analyses[scopeIndex]!;
+  const session = new Session(result, defaultConfig());
   const cell = (c: CategoryPanel['manual']): GoldenCell => ({
     lancamentos: c.lines,
     documentos: c.documents,
@@ -187,7 +194,9 @@ function comparePanels(expected: Record<string, GoldenPanel>, scope: ScopeAnalys
   });
   const out: string[] = [];
   for (const [key, g] of Object.entries(expected)) {
-    const p = periodPanel(scope, periodOf(key, year));
+    const period = periodOf(key, year);
+    const p = session.panel(scopeIndex, key === 'log_completo' ? null : period, null).panel;
+    if (JSON.stringify(p) !== JSON.stringify(periodPanel(scope, period))) out.push(`${key}: painel da tela difere do motor`);
     const actual: GoldenPanel = { excluido: category(p.deleted), alterado: category(p.changed), postado: category(p.posted) };
     for (const cat of ['excluido', 'alterado', 'postado'] as const) {
       for (const col of ['manual', 'automatico', 'documentos_mistos'] as const) {
@@ -246,7 +255,7 @@ describe.skipIf(!golden)('local golden reference', () => {
 
     it('August-only panels match golden.json', async () => {
       const result = await ingest([golden!.arquivo_agosto]);
-      expect(comparePanels(golden!.paineis_somente_agosto, result.analyses[0]!, yearOf(golden!)), 'painéis divergentes').toEqual([]);
+      expect(comparePanels(golden!.paineis_somente_agosto, result, 0, yearOf(golden!)), 'painéis divergentes').toEqual([]);
     });
   });
 
@@ -288,7 +297,7 @@ describe.skipIf(!golden)('local golden reference', () => {
 
     it('consolidated panels match golden.json', async () => {
       const result = await both();
-      expect(comparePanels(golden!.paineis_consolidado, result.analyses.at(-1)!, yearOf(golden!)), 'painéis divergentes').toEqual([]);
+      expect(comparePanels(golden!.paineis_consolidado, result, result.analyses.length - 1, yearOf(golden!)), 'painéis divergentes').toEqual([]);
     });
 
     it('point cases match golden.json', async () => {

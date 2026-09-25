@@ -505,6 +505,7 @@ function buildChecks(
   const otherTransitions = scopes.filter((s) => s.analysis.stats.balanceType.expected < s.analysis.stats.balanceType.total);
   const contiguity = failing('baseContiguous');
   const partition = failing('periodsPartition');
+  const competence = failing('competenceMatches');
   const transition = `${config.balanceType.expectedFrom} → ${config.balanceType.expectedTo}`;
   const readable = withInvalid.length === 0 && consolidatedInvalid === 0;
   return [
@@ -581,6 +582,16 @@ function buildChecks(
         partition.length === 0
           ? 'A soma dos períodos diários é igual ao log completo, em todas as categorias.'
           : `A soma dos períodos difere do log completo em: ${listScopes(partition)}.`,
+    },
+    {
+      id: 'competence',
+      label: 'Quadro de competência',
+      severity: 'error',
+      passed: competence.length === 0,
+      message:
+        competence.length === 0
+          ? 'A composição por data contábil do log completo soma as categorias mais os não identificados.'
+          : `A composição por data contábil não fecha com as categorias em: ${listScopes(competence)}.`,
     },
     {
       id: 'zip-integrity',

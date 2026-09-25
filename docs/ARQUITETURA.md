@@ -104,6 +104,12 @@ type WorkerEvent =
 
 Progresso enviado no máximo a cada ~100 ms. Cancelar = `worker.terminate()` e criar um novo worker.
 
+Implementação (Fase 3): `panel` e `page` levam `requestId` e `scope` (índice do escopo: cada arquivo e, com mais de
+um arquivo, o consolidado); a resposta, ou o erro, devolve o mesmo `requestId` (`WorkerClient.query`). O período é
+`{ startDay, endDay }` em números de dia. As tabelas são filtradas, ordenadas e paginadas no worker
+(`engine/tables.ts`, com cache das últimas consultas); a tela só virtualiza as linhas (TanStack Virtual). O TanStack
+Table não foi adotado: com ordenação, filtro e paginação no worker, ele não teria função.
+
 ## 4. Progresso na interface
 
 Etapas exibidas como lista vertical com status (aguardando, em andamento, concluída, erro):

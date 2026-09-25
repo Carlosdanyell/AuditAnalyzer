@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INVALID_TIME, parseDate } from '../shared/dates';
 import ct2Defaults from './defaults/ct2.json';
 
 /**
@@ -24,6 +25,28 @@ export type ReportColumnRole = (typeof REPORT_COLUMN_ROLES)[number];
 /** Operation codes stored in the columnar store; 0 = operation not recognized. */
 export const OPERATION_KEYS = ['insert', 'update', 'delete', 'restore'] as const;
 export type OperationKey = (typeof OPERATION_KEYS)[number];
+
+/** Signals of the panel (docs/REGRAS_CFGR700.md, section 8), in display order. */
+export const SIGNAL_IDS = [
+  'unbalancedDocuments',
+  'unjustifiedDocuments',
+  'unidentifiedChanges',
+  'inconsistentEntries',
+  'noUserInclusions',
+  'daysWithoutEvents',
+] as const;
+export type SignalId = (typeof SIGNAL_IDS)[number];
+
+const signalSchema = z.object({
+  label: text,
+  /** always = action when the count is above zero; ifPending = only when an entry is still pending. */
+  requiresAction: z.enum(['always', 'never', 'ifPending']),
+  /** Placeholders: {n}; inconsistentEntries also {pendentes} and {corrigidos}; daysWithoutEvents also {dias}. */
+  text: text,
+  none: text,
+});
+
+const dateText = z.string().refine((s) => parseDate(s) !== INVALID_TIME, 'Data inválida (use dd/mm/aaaa).');
 
 export const analyzerConfigSchema = z.object({
   schemaVersion: z.literal(1),
@@ -68,6 +91,20 @@ export const analyzerConfigSchema = z.object({
   inconsistency: z.object({ flagValue: text }),
   balanceToleranceCents: z.number().int().min(1),
   emptyUserLabel: text,
+  /** Descriptions of the fields, shown in the tables and the export. */
+  fieldLabels: z.record(z.string(), text),
+  tables: z.object({
+    /** Kept fields shown as extra columns in the base of lines. */
+    baseRowsExtraFields: z.array(text),
+  }),
+  /** docs/REGRAS_CFGR700.md, section 8. */
+  panel: z.object({
+    /** Fixed event-date windows offered as presets, besides the full log and each file. */
+    periodPresets: z.array(z.object({ label: text, start: dateText, end: dateText })),
+    signals: z.object(
+      Object.fromEntries(SIGNAL_IDS.map((id) => [id, signalSchema])) as Record<SignalId, typeof signalSchema>,
+    ),
+  }),
 }).superRefine((c, ctx) => {
   const keep = new Set(c.fields.keep);
   const mustKeep = [
@@ -84,6 +121,9 @@ export const analyzerConfigSchema = z.object({
   }
   if (!c.fields.noise.includes(c.balanceType.field)) {
     ctx.addIssue({ code: 'custom', message: `O campo ${c.balanceType.field} precisa estar em fields.noise.`, path: ['fields', 'noise'] });
+  }
+  for (const f of c.tables.baseRowsExtraFields) {
+    if (!keep.has(f)) ctx.addIssue({ code: 'custom', message: `O campo ${f} precisa estar em fields.keep.`, path: ['tables'] });
   }
   if (c.origin.manual.some((v) => c.origin.automatic.includes(v))) {
     ctx.addIssue({ code: 'custom', message: 'Valor de origem classificado como manual e automático.', path: ['origin'] });

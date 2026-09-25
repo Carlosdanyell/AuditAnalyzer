@@ -33,7 +33,7 @@
 
 .main {
   width: 100%;
-  max-width: 1040px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 28px 16px 48px;
   display: flex;
@@ -231,4 +231,59 @@
   border-radius: var(--radius);
   background: var(--accent-soft);
   font-size: 14px;
+}
+
+.views {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.viewTab,
+.activeView {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: none;
+  color: var(--text-muted);
+}
+
+.viewTab:hover {
+  color: var(--text);
+}
+
+.activeView {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.toolbarEnd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.scope select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 5px 8px;
 }

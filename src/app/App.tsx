@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig } from '../config/schema';
-import type { Reconciliation, Summary, WorkerEvent } from '../shared/protocol';
+import type { Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
 import { formatBytes } from '../shared/format';
+import { PanelView } from './views/PanelView';
+import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import styles from './App.module.css';
 
@@ -18,6 +20,13 @@ interface Run {
 }
 
 type Phase = 'select' | 'running' | 'done';
+type View = 'reconciliation' | 'panel' | 'tables';
+
+const VIEWS: { id: View; label: string }[] = [
+  { id: 'reconciliation', label: 'Reconciliação' },
+  { id: 'panel', label: 'Painel' },
+  { id: 'tables', label: 'Tabelas' },
+];
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
@@ -31,6 +40,14 @@ export function App() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<WorkerError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [view, setView] = useState<View>('reconciliation');
+  const [scope, setScope] = useState(0);
+  const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
+
+  const openTable = useCallback((table: TableId, filter: TableFilter) => {
+    setTableRequest({ table, filter });
+    setView('tables');
+  }, []);
 
   function client(): WorkerClient {
     if (!clientRef.current) {
@@ -50,6 +67,9 @@ export function App() {
             break;
           case 'ready':
             setSummary(event.summary);
+            setScope(Math.max(0, event.summary.scopes.length - 1));
+            setView('reconciliation');
+            setTableRequest({ table: 'documents', filter: {} });
             setPhase('done');
             break;
           case 'error':
@@ -211,12 +231,42 @@ export function App() {
         {phase === 'done' && reconciliation && (
           <>
             <div className={styles.toolbar}>
-              <h2>Reconciliação</h2>
-              <button type="button" className={styles.secondary} onClick={newAnalysis}>
-                Nova análise
-              </button>
+              <nav className={styles.views} aria-label="Visões">
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={v.id === view ? styles.activeView : styles.viewTab}
+                    aria-current={v.id === view ? 'page' : undefined}
+                    onClick={() => setView(v.id)}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </nav>
+              <div className={styles.toolbarEnd}>
+                {view !== 'reconciliation' && summary && summary.scopes.length > 1 && (
+                  <label className={styles.scope}>
+                    Escopo
+                    <select value={scope} onChange={(e) => setScope(Number(e.target.value))}>
+                      {summary.scopes.map((s, i) => (
+                        <option key={s.label} value={i}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button type="button" className={styles.secondary} onClick={newAnalysis}>
+                  Nova análise
+                </button>
+              </div>
             </div>
-            <ReconciliationView data={reconciliation} summary={summary} />
+            {view === 'reconciliation' && <ReconciliationView data={reconciliation} summary={summary} />}
+            {view === 'panel' && <PanelView client={client()} scope={scope} onOpenTable={openTable} />}
+            {view === 'tables' && (
+              <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />
+            )}
           </>
         )}
       </main>

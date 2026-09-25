@@ -50,3 +50,15 @@ describe('date parsing without time zone', () => {
     expect(dayOfSeconds(parseDateTime('01/09/2026 23:59:59'))).toBe(parseDate('01/09/2026'));
   });
 });
+
+describe('presentation helpers', () => {
+  it('formats cents and converts date inputs without Date objects', async () => {
+    const { formatCents, dayToInput, inputToDay, weekdayName } = await import('../../src/shared/format');
+    expect(formatCents(123456)).toBe('1.234,56');
+    expect(formatCents(-5)).toBe('-0,05');
+    expect(dayToInput(parseDate('04/09/2026'))).toBe('2026-09-04');
+    expect(inputToDay('2026-09-04')).toBe(parseDate('04/09/2026'));
+    expect(inputToDay('2026-02-30')).toBeNull();
+    expect(weekdayName(parseDate('01/09/2026'))).toBe('ter');
+  });
+});

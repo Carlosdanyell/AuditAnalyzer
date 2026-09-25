@@ -46,6 +46,7 @@ describe('engine invariants (§11)', () => {
       discardedBalanceTypeExpected: true,
       baseContiguous: true,
       periodsPartition: true,
+      competenceMatches: true,
     });
   });
 

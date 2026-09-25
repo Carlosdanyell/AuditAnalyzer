@@ -31,6 +31,18 @@ thread principal foi de 6 ms (medido por cadeia de `MessageChannel`, que não so
 No Node, tudo o que vem depois da leitura (eventos, registros, documentos e invariantes, incluindo a partição
 diária do invariante 6) somou cerca de 0,3 s neste arquivo.
 
+## 2026-09-25 — Fase 3 (painel e tabelas), mesma máquina e arquivo, navegador (`npm run dev`)
+
+| Operação | Tempo |
+|---|---|
+| Painel completo (categorias, comparação, composição, sinalizações, movimento diário) | 33 ms |
+| Primeira página de cada tabela (6 tabelas) | 0–33 ms |
+| Ordenar a base de linhas por valor (asc / desc) | 54 / 44 ms |
+| Busca sem resultado na base de linhas | ~120 ms (além dos 250 ms de espera da digitação) |
+| Salto de rolagem de milhares de linhas: linhas na tela / dados preenchidos | 37–89 ms / 63–153 ms |
+
+Maior bloqueio da thread principal durante a navegação: 44 ms.
+
 ### Pendente
 
 - **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo
