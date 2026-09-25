@@ -1,4 +1,4 @@
-import type { CheckResult, FileReconciliation, OperationCount, Reconciliation, Stage } from '../shared/protocol';
+import type { CheckResult, FileReconciliation, OperationCount, Reconciliation, ScopeStats, Stage, Summary } from '../shared/protocol';
 import { formatBytes, formatCrc, formatDateTime, formatElapsed, formatInteger } from '../shared/format';
 import styles from './ReconciliationView.module.css';
 
@@ -12,11 +12,12 @@ const STAGE_NAMES: Partial<Record<Stage, string>> = {
 
 const when = (t: number | null) => (t === null ? '—' : formatDateTime(t));
 
-export function ReconciliationView({ data }: { data: Reconciliation }) {
+export function ReconciliationView({ data, summary }: { data: Reconciliation; summary?: Summary | null }) {
   const multi = data.files.length > 1;
   return (
     <div className={styles.view}>
       <Checks checks={data.checks} totalMs={data.totalMs} />
+      {summary && summary.scopes.length > 0 && <AnalysisSummary summary={summary} />}
 
       {multi && (
         <section className={styles.card}>
@@ -241,6 +242,85 @@ function FileCard({ file }: { file: FileReconciliation }) {
       <p className={styles.timings}>
         Tempos: {file.timings.map((t) => `${STAGE_NAMES[t.stage] ?? t.stage} ${formatElapsed(t.ms)}`).join(' · ')}
       </p>
+    </section>
+  );
+}
+
+interface SummaryRow {
+  label: string;
+  hint?: string;
+  value: (s: ScopeStats) => string;
+  detail?: (s: ScopeStats) => string | null;
+}
+
+const SUMMARY_ROWS: SummaryRow[] = [
+  { label: 'Registros distintos (Recno)', value: (s) => n(s.records) },
+  { label: 'Documentos identificados', value: (s) => n(s.documents) },
+  { label: 'Alterações efetivas', hint: 'eventos', value: (s) => n(s.alterations.effective) },
+  { label: 'Efetivação do tipo de saldo', hint: 'eventos descartados', value: (s) => n(s.alterations.activation) },
+  { label: 'Somente carimbo de usuário', hint: 'eventos descartados', value: (s) => n(s.alterations.stamp) },
+  {
+    label: 'Transições de tipo de saldo esperadas',
+    value: (s) => `${n(s.balanceType.expected)} de ${n(s.balanceType.total)}`,
+  },
+  {
+    label: 'Registros não identificados',
+    value: (s) => n(s.unidentifiedRecords),
+    detail: (s) =>
+      s.unidentifiedRecords > 0
+        ? `${n(s.unidentified.contentChange)} com alteração de conteúdo · ${n(s.unidentified.onlyActivation)} só efetivação · ${n(s.unidentified.onlyStamp)} só carimbo`
+        : null,
+  },
+  { label: 'Documentos de base parcial', hint: 'desbalanceamento não avaliável', value: (s) => n(s.partialBaseDocuments) },
+  { label: 'Documentos desbalanceados', hint: 'base completa', value: (s) => n(s.unbalancedCompleteDocuments) },
+  {
+    label: 'Partidas excluídas',
+    hint: 'registros com exclusão, todos os tipos de linha',
+    value: (s) => n(s.deletedRecords),
+    detail: (s) => (s.deletedRecords > 0 ? `${n(s.deletedAccountingRecords)} linhas contábeis` : null),
+  },
+  { label: 'Linhas da aba Alteracoes', hint: 'um campo alterado por linha', value: (s) => n(s.effectiveChangeRows) },
+  { label: 'Registros em mais de uma extração', value: (s) => n(s.recordsInSeveralFiles) },
+  { label: 'Valores ilegíveis em CT2_VALOR', value: (s) => n(s.invalidValues) },
+];
+
+function AnalysisSummary({ summary }: { summary: Summary }) {
+  return (
+    <section className={styles.card}>
+      <h2>Resumo da análise</h2>
+      <div className={styles.scroll}>
+        <table className={`${styles.table} ${styles.summary}`}>
+          <thead>
+            <tr>
+              <th />
+              {summary.scopes.map((s) => (
+                <th key={s.label} scope="col">
+                  {s.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {SUMMARY_ROWS.map((row) => (
+              <tr key={row.label}>
+                <th scope="row">
+                  {row.label}
+                  {row.hint && <small>{row.hint}</small>}
+                </th>
+                {summary.scopes.map((s) => {
+                  const detail = row.detail?.(s.stats);
+                  return (
+                    <td key={s.label}>
+                      {row.value(s.stats)}
+                      {detail?.split(' · ').map((part) => <small key={part}>{part}</small>)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

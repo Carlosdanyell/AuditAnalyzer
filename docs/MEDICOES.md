@@ -21,6 +21,16 @@ Arquivo: uma extração real, dentro da faixa típica descrita em ARQUITETURA.md
 Responsividade da interface (navegador): durante o processamento, o maior intervalo entre duas tarefas da
 thread principal foi de 6 ms (medido por cadeia de `MessageChannel`, que não sofre com janela em segundo plano).
 
+## 2026-09-25 — Fase 2 (motor), mesma máquina e arquivo
+
+| Ambiente | Tempo total | Observação |
+|---|---|---|
+| Node 24 (`npm run test:local`) | 5,5 s | leitura 5,2 s + eventos, registros, documentos e invariantes |
+| Navegador (`npm run dev`) | 6,5 s | maior bloqueio da thread principal: 32 ms (renderização final das tabelas) |
+
+No Node, tudo o que vem depois da leitura (eventos, registros, documentos e invariantes, incluindo a partição
+diária do invariante 6) somou cerca de 0,3 s neste arquivo.
+
 ### Pendente
 
 - **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo

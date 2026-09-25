@@ -3,7 +3,7 @@ import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig } from '../config/schema';
-import type { Reconciliation, WorkerEvent } from '../shared/protocol';
+import type { Reconciliation, Summary, WorkerEvent } from '../shared/protocol';
 import { formatBytes } from '../shared/format';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import styles from './App.module.css';
@@ -28,6 +28,7 @@ export function App() {
   const [run, setRun] = useState<Run | null>(null);
   const [now, setNow] = useState(0);
   const [reconciliation, setReconciliation] = useState<Reconciliation | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<WorkerError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export function App() {
             setReconciliation(event.data);
             break;
           case 'ready':
+            setSummary(event.summary);
             setPhase('done');
             break;
           case 'error':
@@ -91,6 +93,7 @@ export function App() {
     setError(null);
     setNotice(null);
     setReconciliation(null);
+    setSummary(null);
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
     client().send({ type: 'ingest', files, config: defaultConfig() });
@@ -106,6 +109,7 @@ export function App() {
   function newAnalysis() {
     clientRef.current?.cancel();
     setReconciliation(null);
+    setSummary(null);
     setRun(null);
     setPhase('select');
   }
@@ -115,6 +119,7 @@ export function App() {
     setFiles([]);
     setRun(null);
     setReconciliation(null);
+    setSummary(null);
     setPhase('select');
     setError(null);
     setNotice(null);
@@ -211,7 +216,7 @@ export function App() {
                 Nova análise
               </button>
             </div>
-            <ReconciliationView data={reconciliation} />
+            <ReconciliationView data={reconciliation} summary={summary} />
           </>
         )}
       </main>

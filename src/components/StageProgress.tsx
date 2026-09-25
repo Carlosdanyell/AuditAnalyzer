@@ -11,12 +11,12 @@ const LABELS: Record<PipelineStage, string> = {
   rows: 'Leitura das linhas',
   reconciliation: 'Reconciliação de linhas',
   events: 'Montagem de eventos',
-  documents: 'Documentos e classificação',
+  documents: 'Registros, documentos e classificação',
   checks: 'Verificação dos invariantes',
 };
 
 /** Stages not executed in this version of the tool. */
-const NOT_AVAILABLE = new Set<PipelineStage>(['documents']);
+const NOT_AVAILABLE = new Set<PipelineStage>();
 /** Stages repeated for each file; the others run once for all files. */
 const PER_FILE = 4;
 

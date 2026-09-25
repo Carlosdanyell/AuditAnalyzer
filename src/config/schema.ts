@@ -45,6 +45,49 @@ export const analyzerConfigSchema = z.object({
     startDateQuestion: text,
     endDateQuestion: text,
   }),
+  /** docs/REGRAS_CFGR700.md, sections 5 and 6. */
+  fields: z.object({
+    keep: z.array(text).min(1),
+    noise: z.array(text),
+    date: text,
+    line: text,
+    value: text,
+    inconsistency: text,
+  }),
+  balanceType: z.object({ field: text, expectedFrom: text, expectedTo: text }),
+  documentKey: z.object({ fields: z.array(text).min(1), separator: z.string().min(1), unidentified: text }),
+  origin: z.object({ field: text, manual: z.array(text).min(1), automatic: z.array(text).min(1) }),
+  nature: z.object({
+    field: text,
+    labels: z.record(z.string(), text),
+    debit: z.array(text),
+    credit: z.array(text),
+    accounting: z.array(text),
+    complement: z.array(text),
+  }),
+  inconsistency: z.object({ flagValue: text }),
+  balanceToleranceCents: z.number().int().min(1),
+  emptyUserLabel: text,
+}).superRefine((c, ctx) => {
+  const keep = new Set(c.fields.keep);
+  const mustKeep = [
+    c.fields.date,
+    c.fields.line,
+    c.fields.value,
+    c.fields.inconsistency,
+    c.origin.field,
+    c.nature.field,
+    ...c.documentKey.fields,
+  ];
+  for (const f of mustKeep) {
+    if (!keep.has(f)) ctx.addIssue({ code: 'custom', message: `O campo ${f} precisa estar em fields.keep.`, path: ['fields', 'keep'] });
+  }
+  if (!c.fields.noise.includes(c.balanceType.field)) {
+    ctx.addIssue({ code: 'custom', message: `O campo ${c.balanceType.field} precisa estar em fields.noise.`, path: ['fields', 'noise'] });
+  }
+  if (c.origin.manual.some((v) => c.origin.automatic.includes(v))) {
+    ctx.addIssue({ code: 'custom', message: 'Valor de origem classificado como manual e automático.', path: ['origin'] });
+  }
 });
 
 export type AnalyzerConfig = z.infer<typeof analyzerConfigSchema>;

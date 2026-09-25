@@ -275,3 +275,21 @@
     overflow-x: auto;
   }
 }
+
+.scroll {
+  overflow-x: auto;
+}
+
+.summary thead th {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary td small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: normal;
+  max-width: 220px;
+  margin-left: auto;
+}

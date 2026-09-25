@@ -35,7 +35,16 @@ export function sortByEventKey(cols: DetailColumns): Uint32Array {
   return order;
 }
 
-function sameEvent(cols: DetailColumns, a: number, b: number): boolean {
+/** Row indices sorted by (Recno, dataHora, ord): the order that defines the final values of a record. */
+export function sortByTime(cols: DetailColumns): Uint32Array {
+  const { recno, dateTime } = cols;
+  const order = new Uint32Array(cols.length);
+  for (let i = 0; i < order.length; i++) order[i] = i;
+  order.sort((a, b) => recno[a]! - recno[b]! || dateTime[a]! - dateTime[b]! || a - b);
+  return order;
+}
+
+export function sameEvent(cols: DetailColumns, a: number, b: number): boolean {
   return (
     cols.recno[a] === cols.recno[b] &&
     cols.dateTime[a] === cols.dateTime[b] &&

@@ -67,6 +67,11 @@ Ler e exibir todos os pares. Validar e alertar se:
 ## 2. Valores monetários e datas
 
 - `CT2_VALOR` vem como texto com ponto decimal (`1234567.89`). Converter para centavos inteiros.
+  **Decisão registrada (Fase 2):** formatos aceitos são inteiro (`1234`) e até duas casas decimais com ponto
+  (`1234.56`); espaços nas pontas são ignorados. Valor vazio é esperado só em registros "Não identificado":
+  ficam sem valor e não falham nenhum invariante. Qualquer outro formato (vírgula, mais de duas casas, texto não
+  numérico, sinal) ou valor vazio em registro identificado é **ilegível**: conta no invariante 11 e bloqueia a
+  exportação. Nunca arredondar nem corrigir silenciosamente.
 - `Data Hora` no formato `dd/mm/aaaa hh:mm:ss`; `CT2_DATA` no formato `dd/mm/aaaa`. Parse manual, sem fuso.
 - Parsear cada string de data uma única vez (cache por id do dicionário).
 
@@ -132,6 +137,15 @@ Atributos derivados por registro:
 | qtde alterações | número de eventos de alteração efetiva |
 | chave do documento | `CT2_DATA|CT2_LOTE|CT2_SBLOTE|CT2_DOC` se origem identificada; senão `SEM IDENTIFICACAO` |
 | inconsistência | CT2_INCONS na inclusão = 1 e valor final = 1 → "pendente"; na inclusão = 1 e final ≠ 1 → "corrigido"; senão "Não" |
+| partidas excluídas | registros com evento de Exclusão, **de qualquer tipo de linha** (inclui complemento de histórico, DC 4) |
+
+Decisões registradas (Fase 2):
+- **CT2_INCONS "na inclusão"**: primeiro valor de CT2_INCONS nas linhas de Inclusão, em ordem cronológica
+  (data/hora do evento e, no mesmo segundo, ordem de leitura). Vale também quando a inclusão é gravada em etapas.
+- **Partidas excluídas** (número comparado com o `golden.json`): todos os registros com evento de Exclusão,
+  inclusive linhas de complemento de histórico. As linhas contábeis excluídas são exibidas à parte, como detalhe.
+- Primeira Inclusão e última Exclusão: por data/hora do evento e, no mesmo segundo, pela ordem de leitura.
+- Débito e crédito usam o valor final do registro; linha com valor ilegível entra com zero (e o invariante 11 falha).
 
 ---
 
@@ -148,7 +162,8 @@ Para cada evento de Alteração, `ef` = campos do evento que não são ruído.
 | Alteração efetiva | `ef` não vazio | Considerado |
 
 Invariantes:
-- Todas as ocorrências de CT2_TPSALD em alterações devem ser `9 → 1`. Qualquer outra transição é alerta.
+- Todas as ocorrências de CT2_TPSALD em alterações devem ser `9 → 1`. Qualquer outra transição é alerta
+  (verificação de nível "alerta": aparece na tela e na exportação, mas não bloqueia).
 - `descartados + efetivos = total de eventos de Alteração`, por arquivo e no total.
 
 Aba "Alteracoes" da exportação: uma linha por **campo** alterado (não por evento), apenas campos fora do ruído.
@@ -172,6 +187,9 @@ Agrupar registros identificados pela chave do documento. Por documento:
 | Data da 1ª exclusão / última exclusão | mín./máx. das datas de exclusão das linhas |
 | Data da última alteração efetiva | **uma coluna por arquivo de origem**: máx. da data das alterações efetivas daquele arquivo |
 | Data da 1ª postagem | mín. da data de inclusão das linhas |
+
+"Desbalanceados de base completa" (comparado com o `golden.json`) = documentos com Desbalanceado = Sim, o que
+já pressupõe base Completa.
 
 Ordenação: por data do lançamento, lote, sublote, documento. Na Base_Linhas, os registros de um documento ficam
 contíguos (as fórmulas do Excel usam o intervalo inicial–final de cada documento).
@@ -254,5 +272,9 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
 11. Valores legíveis: nenhuma linha de detalhe com Recno inválido, operação não reconhecida, Data Hora inválida
     ou referência a string compartilhada inexistente (seção 1).
 
-Implementados na Fase 1: 1, 2, 8 e 11. Os alertas de parâmetros (seção 1) e de cobertura entre extrações
-(seção 3) aparecem como verificações de nível "alerta", que não bloqueiam a exportação.
+Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2), verificados por arquivo e no consolidado.
+- O invariante 4 é de nível "alerta" (seção 6). Os alertas de parâmetros (seção 1) e de cobertura entre
+  extrações (seção 3) também são de nível "alerta" e não bloqueiam a exportação.
+- Invariante 6: o log é particionado em dias (do primeiro ao último evento); a soma dos dias deve ser igual ao
+  log completo em todas as categorias, colunas (lançamentos, documentos, valor) e origens.
+- Invariante 11 inclui, desde a Fase 2, CT2_VALOR ilegível (seção 2).

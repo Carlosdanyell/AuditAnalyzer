@@ -30,6 +30,17 @@ describe('analyzer configuration', () => {
     expect(() => parseConfig({ ...config, columns: { ...config.columns, user: 'Campo' } })).toThrow();
   });
 
+  it('requires the document key and value fields to be kept', () => {
+    const config = defaultConfig();
+    const keep = config.fields.keep.filter((f) => f !== 'CT2_LOTE');
+    expect(() => parseConfig({ ...config, fields: { ...config.fields, keep } })).toThrow(/CT2_LOTE/);
+  });
+
+  it('requires the balance-type field to be a noise field', () => {
+    const config = defaultConfig();
+    expect(() => parseConfig({ ...config, fields: { ...config.fields, noise: ['CT2_USERGA'] } })).toThrow(/CT2_TPSALD/);
+  });
+
   it('rejects a missing operation label', () => {
     const config = defaultConfig();
     expect(() => parseConfig({ ...config, operations: { ...config.operations, restore: '' } })).toThrow();

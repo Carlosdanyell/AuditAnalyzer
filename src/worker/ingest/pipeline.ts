@@ -1,7 +1,8 @@
 /**
  * Ingestion of one or more CFGR700 files (docs/ARQUITETURA.md, section 1; docs/REGRAS_CFGR700.md,
- * sections 1–4): integrity, parameters, shared strings, streamed report rows into the columnar store,
- * row reconciliation, events per operation and the phase-1 invariants.
+ * sections 1–8): integrity, parameters, shared strings, streamed report rows into the columnar store,
+ * row reconciliation, events per operation, the analysis of each file and of the consolidated base,
+ * and the invariants of section 11.
  *
  * Runs in the worker, but only depends on Blob/streams, so tests run it directly in Node.
  */
@@ -17,9 +18,12 @@ import type {
   ParameterPair,
   Reconciliation,
   Stage,
+  Summary,
   WorkerEvent,
 } from '../../shared/protocol';
-import { countEvents, sortByEventKey, OP_UNKNOWN, type EventCounts } from '../engine/events';
+import { analyzeScope, buildLogIndex, type ScopeAnalysis } from '../engine/analysis';
+import { scopeChecks, type ScopeCheckResults } from '../engine/checks';
+import { countEvents, sortByEventKey, OP_UNKNOWN, OP_UPDATE, type EventCounts } from '../engine/events';
 import { coverageAlerts } from '../engine/periods';
 import { DetailColumns } from '../store/columns';
 import { Dictionary, EMPTY_ID } from '../store/dictionary';
@@ -54,6 +58,9 @@ export interface IngestOptions {
 
 export interface IngestionResult {
   reconciliation: Reconciliation;
+  summary: Summary;
+  /** One analysis per file, plus the consolidated one when there are several files (same order as summary.scopes). */
+  analyses: ScopeAnalysis[];
   dictionary: Dictionary;
   details: DetailColumns;
 }
@@ -244,7 +251,7 @@ async function ingestFile(
     for (let i = 0; i < strings.length; i++) remap[i] = dict.intern(strings[i]!);
   }
 
-  const invalid = { dateTime: 0, recno: 0, operation: 0, sharedStringIndex: 0 };
+  const invalid = { dateTime: 0, recno: 0, operation: 0, sharedStringIndex: 0, value: 0 };
   const cellId = (row: { kind: ArrayLike<number>; sharedIndex: ArrayLike<number>; text: ArrayLike<string> }, c: number): number => {
     switch (row.kind[c]) {
       case CellKind.Empty:
@@ -456,13 +463,49 @@ function operationCounts(counts: EventCounts, config: AnalyzerConfig): Operation
   return list;
 }
 
-function buildChecks(files: FileReconciliation[], consolidated: Reconciliation['consolidated'], counts: EventCounts[], all: EventCounts): CheckResult[] {
+interface ScopeRun {
+  label: string;
+  analysis: ScopeAnalysis;
+  checks: ScopeCheckResults;
+}
+
+function invalidDescription(invalid: FileReconciliation['invalid']): string {
+  const parts = [
+    [invalid.recno, 'Recno inválido(s)'],
+    [invalid.operation, 'operação(ões) não reconhecida(s)'],
+    [invalid.dateTime, 'Data Hora inválida(s)'],
+    [invalid.sharedStringIndex, 'referência(s) de string inexistente(s)'],
+    [invalid.value, 'valor(es) ilegível(is) em CT2_VALOR'],
+  ] as const;
+  return parts
+    .filter(([n]) => n > 0)
+    .map(([n, what]) => `${n} ${what}`)
+    .join(', ');
+}
+
+function buildChecks(
+  files: FileReconciliation[],
+  consolidated: Reconciliation['consolidated'],
+  counts: EventCounts[],
+  all: EventCounts,
+  scopes: ScopeRun[],
+  config: AnalyzerConfig,
+): CheckResult[] {
   const listFiles = (bad: FileReconciliation[]) => bad.map((f) => f.name).join(', ');
+  const listScopes = (bad: ScopeRun[]) => bad.map((s) => s.label).join(', ');
   const unbalanced = files.filter((f) => !f.rows.balanced);
   const sums = [...counts, all].every((c) => c.byOperation.reduce((a, b) => a + b, 0) === c.total);
   const corrupted = files.filter((f) => f.entries.some((e) => !e.ok));
   const withInvalid = files.filter((f) => Object.values(f.invalid).some((n) => n > 0));
+  const consolidatedInvalid = scopes.length > files.length ? scopes.at(-1)!.analysis.stats.invalidValues : 0;
   const paramAlerts = files.filter((f) => f.alerts.some((a) => a.level === 'warning'));
+  const failing = (key: keyof ScopeCheckResults) => scopes.filter((s) => !s.checks[key]);
+  const alterations = failing('alterationsReconcile');
+  const balanceType = failing('balanceTypeAllExpected');
+  const contiguity = failing('baseContiguous');
+  const partition = failing('periodsPartition');
+  const transition = `${config.balanceType.expectedFrom} → ${config.balanceType.expectedTo}`;
+  const readable = withInvalid.length === 0 && consolidatedInvalid === 0;
   return [
     {
       id: 'rows-reconciliation',
@@ -484,6 +527,51 @@ function buildChecks(files: FileReconciliation[], consolidated: Reconciliation['
         : 'A soma dos eventos por operação difere do número de eventos distintos.',
     },
     {
+      id: 'alteration-classification',
+      label: 'Classificação das alterações',
+      severity: 'error',
+      passed: alterations.length === 0,
+      message:
+        alterations.length === 0
+          ? 'Descartadas (efetivação e carimbo) + efetivas = eventos de Alteração, por arquivo e no total.'
+          : `A classificação das alterações não fecha com os eventos de Alteração em: ${listScopes(alterations)}.`,
+    },
+    {
+      id: 'balance-type',
+      label: 'Transições do tipo de saldo',
+      severity: 'warning',
+      passed: balanceType.length === 0,
+      message:
+        balanceType.length === 0
+          ? `Todas as alterações de ${config.balanceType.field} são ${transition}.`
+          : balanceType
+              .map((s) => {
+                const b = s.analysis.stats.balanceType;
+                return `${s.label}: ${b.total - b.expected} de ${b.total} transição(ões) diferente(s) de ${transition}`;
+              })
+              .join('; ') + '.',
+    },
+    {
+      id: 'base-contiguity',
+      label: 'Documentos contíguos na base',
+      severity: 'error',
+      passed: contiguity.length === 0,
+      message:
+        contiguity.length === 0
+          ? 'As linhas de cada documento estão contíguas na base de linhas.'
+          : `Documento com linhas não contíguas na base em: ${listScopes(contiguity)}.`,
+    },
+    {
+      id: 'period-partition',
+      label: 'Soma dos períodos',
+      severity: 'error',
+      passed: partition.length === 0,
+      message:
+        partition.length === 0
+          ? 'A soma dos períodos diários é igual ao log completo, em todas as categorias.'
+          : `A soma dos períodos difere do log completo em: ${listScopes(partition)}.`,
+    },
+    {
       id: 'zip-integrity',
       label: 'Integridade do arquivo',
       severity: 'error',
@@ -497,17 +585,13 @@ function buildChecks(files: FileReconciliation[], consolidated: Reconciliation['
       id: 'data-quality',
       label: 'Valores legíveis',
       severity: 'error',
-      passed: withInvalid.length === 0,
-      message:
-        withInvalid.length === 0
-          ? 'Todas as linhas de detalhe têm Recno, Operacao e Data Hora válidos.'
-          : withInvalid
-              .map(
-                (f) =>
-                  `${f.name}: ${f.invalid.recno} Recno inválido(s), ${f.invalid.operation} operação(ões) não reconhecida(s), ` +
-                  `${f.invalid.dateTime} Data Hora inválida(s), ${f.invalid.sharedStringIndex} referência(s) de string inexistente(s)`,
-              )
-              .join('; ') + '.',
+      passed: readable,
+      message: readable
+        ? 'Recno, Operacao e Data Hora válidos em todas as linhas de detalhe; CT2_VALOR legível em todos os registros identificados.'
+        : [
+            ...withInvalid.map((f) => `${f.name}: ${invalidDescription(f.invalid)}`),
+            ...(consolidatedInvalid > 0 ? [`Consolidado: ${consolidatedInvalid} valor(es) ilegível(is) em CT2_VALOR`] : []),
+          ].join('; ') + '.',
     },
     {
       id: 'parameters',
@@ -578,12 +662,29 @@ export async function runIngestion(
     alerts: coverageAlerts(files.map((f) => ({ name: f.name, first: f.firstEvent, last: f.lastEvent }))),
   };
 
+  const scopeDefs = files.map((f, i) => ({ label: f.name, sources: [i], updateEvents: perSource[i]!.byOperation[OP_UPDATE]! }));
+  if (files.length > 1) {
+    scopeDefs.push({ label: 'Consolidado', sources: files.map((_, i) => i), updateEvents: all.byOperation[OP_UPDATE]! });
+  }
+  progress.begin('documents', undefined, scopeDefs.length, 'steps', 'Montando registros e documentos');
+  const log = buildLogIndex(details, dict, config, files.length, order);
+  const scopes: ScopeRun[] = scopeDefs.map((def, k) => {
+    const analysis = analyzeScope(log, def.sources);
+    progress.update(k + 1);
+    return { label: def.label, analysis, checks: scopeChecks(analysis, def.updateEvents) };
+  });
+  files.forEach((f, i) => {
+    f.invalid.value = scopes[i]!.analysis.stats.invalidValues;
+  });
+
   progress.begin('checks', undefined, 1, 'steps', 'Verificando os invariantes');
-  const checks = buildChecks(files, consolidated, perSource, all);
+  const checks = buildChecks(files, consolidated, perSource, all, scopes, config);
   progress.closeStage();
 
   return {
     reconciliation: { files, consolidated, checks, totalMs: Math.round(now() - started) },
+    summary: { scopes: scopes.map((s) => ({ label: s.label, sources: s.analysis.sources, stats: s.analysis.stats })) },
+    analyses: scopes.map((s) => s.analysis),
     dictionary: dict,
     details,
   };

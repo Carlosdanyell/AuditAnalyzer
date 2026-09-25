@@ -9,7 +9,7 @@ import { fileA, fileB } from '../synthetic/fixtures';
 
 describe('reconciliation screen', () => {
   it('shows checks, the consolidated base and one card per file', async () => {
-    const { reconciliation } = await runIngestion(
+    const { reconciliation, summary } = await runIngestion(
       [
         { name: 'a.xlsx', blob: synthBlob(fileA()) },
         { name: 'b.xlsx', blob: synthBlob(fileB()) },
@@ -17,7 +17,9 @@ describe('reconciliation screen', () => {
       defaultConfig(),
       () => {},
     );
-    const html = renderToStaticMarkup(<ReconciliationView data={reconciliation} />);
+    const html = renderToStaticMarkup(<ReconciliationView data={reconciliation} summary={summary} />);
+    expect(html).toContain('Resumo da análise');
+    expect(html).toContain('Partidas excluídas');
     expect(html).toContain('Verificações');
     expect(html).toContain('Consolidado (2 arquivos)');
     expect(html).toContain('a.xlsx');
@@ -47,7 +49,7 @@ describe('progress screen', () => {
     expect(html).toContain('300.000 linhas');
     expect(html).toContain('30.000 linhas/s');
     expect(html).toContain('restante ~0:10');
-    expect(html).toContain('disponível na próxima versão');
+    expect(html).toContain('Registros, documentos e classificação');
     expect(html).toContain('Cancelar');
   });
 });

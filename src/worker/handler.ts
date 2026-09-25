@@ -50,7 +50,7 @@ export function createCommandHandler(
             options,
           );
           post({ type: 'reconciliation', data: session.reconciliation });
-          post({ type: 'ready', summary: {}, checks: session.reconciliation.checks });
+          post({ type: 'ready', summary: session.summary, checks: session.reconciliation.checks });
         } catch (e) {
           post(errorEvent(e));
         }

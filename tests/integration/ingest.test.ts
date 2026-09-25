@@ -43,7 +43,7 @@ function expectFileA(file: FileReconciliation) {
   expect(file.totalEvents).toBe(FILE_A_EXPECTED.totalEvents);
   expect(formatIsoDateTime(file.firstEvent!)).toBe(FILE_A_EXPECTED.firstEvent);
   expect(formatIsoDateTime(file.lastEvent!)).toBe(FILE_A_EXPECTED.lastEvent);
-  expect(file.invalid).toEqual({ dateTime: 0, recno: 0, operation: 0, sharedStringIndex: 0 });
+  expect(file.invalid).toEqual({ dateTime: 0, recno: 0, operation: 0, sharedStringIndex: 0, value: 0 });
 }
 
 function trickyValueStored(result: IngestionResult): boolean {
@@ -104,7 +104,7 @@ describe('ingestion of a synthetic CFGR700 file', () => {
   it('emits throttled progress through the documented stages', async () => {
     const { events } = await ingest([['a.xlsx', fileA()]]);
     const stages = [...new Set(events.filter((e) => e.type === 'progress').map((e) => e.stage))];
-    expect(stages).toEqual(['fileCheck', 'parameters', 'sharedStrings', 'rows', 'reconciliation', 'events', 'checks']);
+    expect(stages).toEqual(['fileCheck', 'parameters', 'sharedStrings', 'rows', 'reconciliation', 'events', 'documents', 'checks']);
   });
 });
 

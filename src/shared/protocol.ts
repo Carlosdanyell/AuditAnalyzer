@@ -108,6 +108,8 @@ export interface InvalidCounts {
   recno: number;
   operation: number;
   sharedStringIndex: number;
+  /** CT2_VALOR unreadable, or empty on an identified record (docs/REGRAS_CFGR700.md, section 2). */
+  value: number;
 }
 
 export interface ValueCount {
@@ -151,8 +153,38 @@ export interface Reconciliation {
   totalMs: number;
 }
 
-/** Phase 2. */
-export type Summary = Record<string, never>;
+/** Statistics of a scope (docs/REGRAS_CFGR700.md, sections 5–7), compared with the reference numbers. */
+export interface ScopeStats {
+  records: number;
+  documents: number;
+  alterations: { effective: number; activation: number; stamp: number; total: number };
+  /** CT2_TPSALD rows in Alteração events, and those with the expected transition (9 → 1). */
+  balanceType: { total: number; expected: number };
+  unidentifiedRecords: number;
+  /** Unidentified records by what happened to them (section 10). */
+  unidentified: { contentChange: number; onlyActivation: number; onlyStamp: number; other: number };
+  partialBaseDocuments: number;
+  unbalancedCompleteDocuments: number;
+  /** Records with a deletion event, any line type ("partidas excluídas"). */
+  deletedRecords: number;
+  deletedAccountingRecords: number;
+  /** Rows of the Alteracoes tab (one per non-noise field of effective alteration events). */
+  effectiveChangeRows: number;
+  recordsInSeveralFiles: number;
+  invalidValues: number;
+}
+
+export interface ScopeSummary {
+  /** File name, or "Consolidado". */
+  label: string;
+  sources: number[];
+  stats: ScopeStats;
+}
+
+export interface Summary {
+  /** One scope per file, plus the consolidated scope when there is more than one file. */
+  scopes: ScopeSummary[];
+}
 
 export interface CheckResult {
   id: string;
