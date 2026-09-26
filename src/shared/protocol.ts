@@ -34,7 +34,9 @@ export type TableId =
   | 'deletions'
   | 'changes'
   | 'unbalanced'
-  | 'discardedChanges';
+  | 'discardedChanges'
+  | 'deletionJustifications'
+  | 'changeJustifications';
 
 /** Panel categories (docs/REGRAS_CFGR700.md, section 8). */
 export type Category = 'deleted' | 'changed' | 'unbalanced' | 'posted';
@@ -51,6 +53,8 @@ export interface TableFilter {
   category?: Category;
   /** Without a category: event date of the row (deletion, change, discarded event) in the period. */
   period?: Period;
+  /** Justification lists only. */
+  status?: JustificationStatus;
 }
 
 export interface Sort {
@@ -164,16 +168,68 @@ export interface PanelData {
   compositionMatches: boolean;
   signals: Signal[];
   daily: DailyRow[];
-  /** False until justifications are loaded (phase 4): "sem justificativa" then shows every document as pending. */
+  /** False while no justification is loaded: "sem justificativa" then shows every document as pending. */
   justificationsLoaded: boolean;
+  /** Justification coverage of the documents of the period (distinct documents). */
+  coverage: { deleted: CoverageCount; changed: CoverageCount };
   settings: PanelSettings;
 }
 
-/** Phase 4. */
+// ── Justifications (docs/REGRAS_CFGR700.md, section 9) ──
+
+export type JustificationKind = 'deletion' | 'change';
+export type JustificationStatus = 'pending' | 'justified' | 'moved';
+
+/** Files (names) and last event (seconds since 2000-01-01) covered by a justification. */
+export interface JustificationCoverage {
+  files: string[];
+  lastEvent: number | null;
+}
+
+/** One justification per document and kind. Kept even when the document is not in the current log. */
 export interface Justification {
   documentKey: string;
-  kind: 'deletion' | 'change';
+  kind: JustificationKind;
   text: string;
+  /** Optional. */
+  responsible: string;
+  coverage: JustificationCoverage;
+  /** Last edit on this computer (milliseconds, UI metadata: used to warn about changes without a JSON copy). */
+  updatedAt: number;
+}
+
+/** A justification read from a previous export or a JSON file, before merging. */
+export interface ImportedJustification {
+  documentKey: string;
+  kind: JustificationKind;
+  text: string;
+  responsible: string;
+  /** The note "… abrange o novo evento": coverage already confirmed for the current files. */
+  confirmed: boolean;
+  /** Present in JSON files exported by the tool. */
+  coverage?: JustificationCoverage;
+}
+
+export interface LoadedFileInfo {
+  name: string;
+  firstEvent: number | null;
+  lastEvent: number | null;
+}
+
+export interface JustificationImportPreview {
+  items: ImportedJustification[];
+  /** Coverage deduced from the imported file (the user can change it). */
+  coverage: JustificationCoverage & { method: 'rastreabilidade' | 'eventos' | 'json' | 'nenhum' };
+  loadedFiles: LoadedFileInfo[];
+  /** Items whose document (of that kind) is not in the current log: kept, not discarded. */
+  unknownKeys: number;
+}
+
+export interface CoverageCount {
+  total: number;
+  justified: number;
+  moved: number;
+  pending: number;
 }
 
 /** Phase 5. */
@@ -336,7 +392,9 @@ export type Command =
       offset: number;
       limit: number;
     }
-  | { type: 'setJustifications'; items: Justification[] }
+  /** replace = the list is the complete set; otherwise the items are upserted. */
+  | { type: 'setJustifications'; requestId: number; items: Justification[]; replace: boolean }
+  | { type: 'importJustifications'; requestId: number; file: File }
   | { type: 'export'; options: ExportOptions };
 
 export type WorkerEvent =
@@ -355,6 +413,9 @@ export type WorkerEvent =
   | { type: 'ready'; summary: Summary; checks: CheckResult[] }
   | { type: 'panel'; requestId: number; data: PanelData }
   | { type: 'settings'; requestId: number; settings: PanelSettings }
+  /** unknown = justifications whose document (of that kind) is not in the current log (kept, not discarded). */
+  | { type: 'justificationsSet'; requestId: number; count: number; unknown: number }
+  | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
   | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
   | { type: 'exported'; blob: Blob; fileName: string; traceability: Traceability }
   | { type: 'error'; stage: Stage; message: string; detail?: string; requestId?: number };

@@ -37,7 +37,11 @@ export class WorkerClient {
   query(command: Query<'panel'>): Promise<Answer<'panel'>>;
   query(command: Query<'page'>): Promise<Answer<'page'>>;
   query(command: Query<'settings'>): Promise<Answer<'settings'>>;
-  query(command: Query<'panel'> | Query<'page'> | Query<'settings'>): Promise<WorkerEvent> {
+  query(command: Query<'setJustifications'>): Promise<Answer<'justificationsSet'>>;
+  query(command: Query<'importJustifications'>): Promise<Answer<'justificationImport'>>;
+  query(
+    command: Query<'panel'> | Query<'page'> | Query<'settings'> | Query<'setJustifications'> | Query<'importJustifications'>,
+  ): Promise<WorkerEvent> {
     const requestId = this.nextRequestId++;
     return new Promise<WorkerEvent>((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });

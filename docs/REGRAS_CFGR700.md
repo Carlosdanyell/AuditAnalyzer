@@ -288,6 +288,37 @@ composição fecha.
 - Na exportação: células vazias destacadas por formatação condicional (não por preenchimento fixo), e observação
   "Justificativa pendente" por fórmula, para sumirem quando o usuário preencher no Excel.
 
+### Decisões registradas (Fase 4)
+
+- **Uma justificativa por documento e por tipo** (exclusão, alteração). Um documento com exclusão e alteração
+  aparece nas duas listas; a tela oferece "copiar da outra lista". Campo opcional **Responsável**.
+- **Cobertura:** cada justificativa guarda os arquivos (nomes) e o último evento que cobre. Justificativa nova feita
+  na tela cobre os arquivos em que o documento tem movimento daquele tipo e o último desses eventos.
+- **Situação** de cada documento, por tipo: *Pendente* (sem texto); *Justificado*; *Movimentado após a justificativa*
+  — o documento tem exclusão (ou alteração efetiva, conforme o tipo) num arquivo não coberto, depois do último evento
+  coberto. "Abrange o novo evento" estende a cobertura aos arquivos e ao último evento atuais. Na sinalização
+  "sem justificativa" e na cobertura do painel, *movimentado* conta como pendente até a confirmação.
+- **Cobertura por período** (painel): documentos distintos das categorias Excluído e Alterado do período (mesma
+  regra de alocação), por situação; cobertura = justificados ÷ documentos do período.
+- **Importação de uma exportação anterior** (abas "Justificativa da Exclusao" e "Justificativa da Alteração"; cabeçalho
+  com uma coluna "Justificativa …" além da coluna A; chave na coluna A; opcionais "Responsável" e "Observação"). A
+  cobertura é deduzida da planilha: (a) arquivos listados na aba Rastreabilidade (comparados pelo nome, sem
+  diferenciar maiúsculas); (b) sem Rastreabilidade, arquivos cujo primeiro evento é anterior ou igual à data do último
+  evento encontrada nas colunas de data de evento de Documentos ou Base_Linhas (exclusão, alteração, inclusão,
+  postagem; datas contábeis ignoradas; data sem hora vale até o fim do dia; datas seriais do Excel aceitas). O usuário
+  pode alterar a escolha na tela. A observação contendo **"abrange o novo evento"** marca a cobertura como confirmada
+  (todos os arquivos carregados).
+- **Importação de JSON** exportado pela ferramenta: cada justificativa traz sua cobertura. Lista simples de
+  {documentKey, kind, text} também é aceita (cobertura escolhida na tela).
+- **Conflitos:** documento que já tem outro texto — mantém o atual e lista os conflitos com os dois textos lado a lado,
+  com "substituir" por item ou todos. Diferenças só de espaços e quebras de linha não são conflito.
+- **Chaves inexistentes no log atual:** guardadas, não descartadas; voltam a valer quando os arquivos
+  correspondentes forem carregados. A tela informa quantas são.
+- **Guarda:** IndexedDB neste computador. A tela mostra a data da última cópia em JSON e avisa quando há alterações
+  sem cópia (os dados do navegador podem ser apagados).
+- **Fase 5 (exportação):** gravar, para cada justificativa, a cobertura — arquivos e último evento cobertos — além
+  do texto, do responsável e da situação, para que a importação de uma exportação futura recupere a cobertura exata.
+
 ---
 
 ## 10. Limitações a declarar na exportação

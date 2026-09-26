@@ -4,6 +4,7 @@ import type { WorkerEvent } from '../../src/shared/protocol';
 import { defaultConfig } from '../../src/config/schema';
 import { buildCfgr700 } from '../synthetic/cfgr700';
 import { fileA } from '../synthetic/fixtures';
+import { buildWorkbook } from '../synthetic/workbook';
 
 function setup() {
   const events: WorkerEvent[] = [];
@@ -68,12 +69,38 @@ describe('worker command handler', () => {
     expect(events.map((e) => e.type === 'error' && e.requestId)).toEqual([1, 2]);
   });
 
-  it('answers the not-yet-implemented commands with exactly one error event each', async () => {
+  it('applies justifications and previews an import of a previous export', async () => {
     const { events, handle } = setup();
-    await handle({ type: 'setJustifications', items: [] });
+    const file = new File([buildCfgr700(fileA()) as Uint8Array<ArrayBuffer>], 'a.xlsx');
+    await handle({ type: 'ingest', files: [file], config: defaultConfig() });
+    events.length = 0;
+    const justification = {
+      documentKey: 'x',
+      kind: 'deletion' as const,
+      text: 'Motivo',
+      responsible: '',
+      coverage: { files: ['a.xlsx'], lastEvent: null },
+      updatedAt: 1,
+    };
+    await handle({ type: 'setJustifications', requestId: 5, items: [justification], replace: true });
+    expect(events[0]).toEqual({ type: 'justificationsSet', requestId: 5, count: 1, unknown: 1 });
+    const previous = new File(
+      [buildWorkbook({ 'Justificativa da Exclusao': [['Documento', 'Justificativa da exclusão'], ['x', 'Motivo']] }) as Uint8Array<ArrayBuffer>],
+      'anterior.xlsx',
+    );
+    await handle({ type: 'importJustifications', requestId: 6, file: previous });
+    expect(events[1]).toMatchObject({
+      type: 'justificationImport',
+      requestId: 6,
+      preview: { items: [{ documentKey: 'x', kind: 'deletion' }], coverage: { method: 'nenhum' }, unknownKeys: 1 },
+    });
+  });
+
+  it('answers the export command (phase 5) with an error', async () => {
+    const { events, handle } = setup();
     await handle({ type: 'export', options: {} });
-    expect(events).toHaveLength(2);
-    expect(events.every((e) => e.type === 'error')).toBe(true);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe('error');
   });
 
   it('ignores cancel (cancellation is done by terminating the worker)', async () => {

@@ -169,3 +169,16 @@
   color: var(--error);
   margin: 0;
 }
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: var(--accent-soft);
+}
+
+.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}

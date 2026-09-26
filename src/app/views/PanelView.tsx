@@ -34,9 +34,12 @@ interface PanelViewProps {
   onOpenTable: OpenTable;
   /** Saves the user's presets and holidays; resolves with whether they were saved on this computer. */
   onSettingsChange: (settings: PanelSettings) => Promise<boolean>;
+  onOpenJustifications: OpenTable;
+  /** Changing it reloads the panel (e.g. after a justification is saved). */
+  refreshKey?: number;
 }
 
-export function PanelView({ client, scope, onOpenTable, onSettingsChange }: PanelViewProps) {
+export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0 }: PanelViewProps) {
   const [period, setPeriod] = useState<Period | null>(null);
   const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
@@ -65,7 +68,7 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange }: Pane
     return () => {
       current = false;
     };
-  }, [client, scope, period, cutoffDay, version]);
+  }, [client, scope, period, cutoffDay, version, refreshKey]);
 
   async function changeSettings(settings: PanelSettings): Promise<boolean> {
     const saved = await onSettingsChange(settings);
@@ -237,6 +240,11 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange }: Pane
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Cobertura das justificativas</h2>
+        <Coverage data={data} onOpen={onOpenJustifications} />
       </section>
 
       <section className={styles.card}>
@@ -497,5 +505,50 @@ function Settings({ data, onChange }: { data: PanelData; onChange: (s: PanelSett
         {status && <p className={styles.note}>{status}</p>}
       </div>
     </details>
+  );
+}
+
+function Coverage({ data, onOpen }: { data: PanelData; onOpen: OpenTable }) {
+  const rows: { id: 'deleted' | 'changed'; label: string; table: TableId }[] = [
+    { id: 'deleted', label: 'Excluídos', table: 'deletionJustifications' },
+    { id: 'changed', label: 'Alterados', table: 'changeJustifications' },
+  ];
+  const pct = (a: number, b: number) => (b === 0 ? '—' : `${Math.round((a / b) * 100)}%`);
+  return (
+    <div className={styles.scroll}>
+      <table className={styles.matrix}>
+        <thead>
+          <tr>
+            <th />
+            <th>Documentos no período</th>
+            <th>Justificados</th>
+            <th>Movimentados após a justificativa</th>
+            <th>Pendentes</th>
+            <th>Cobertura</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ id, label, table }) => {
+            const c = data.coverage[id];
+            const open = (status?: 'pending' | 'justified' | 'moved') =>
+              onOpen(table, { category: id, period: data.period, ...(status && { status }) });
+            return (
+              <tr key={id}>
+                <th scope="row">{label}</th>
+                <Num value={c.total} onClick={() => open()} />
+                <Num value={c.justified} onClick={() => open('justified')} />
+                <Num value={c.moved} onClick={() => open('moved')} />
+                <Num value={c.pending} onClick={() => open('pending')} />
+                <td>{pct(c.justified, c.total)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className={styles.note}>
+        Documentos distintos do período (a mesma regra de alocação das categorias). Movimentado após a justificativa = o documento teve
+        exclusão ou alteração num arquivo que a justificativa não cobre; conta como pendente até a confirmação.
+      </p>
+    </div>
   );
 }

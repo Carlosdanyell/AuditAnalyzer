@@ -154,6 +154,9 @@ Exportar/importar pelo usuário; cópia em IndexedDB. O hash da configuração v
 Implementado (Fase 3): atalhos de período próprios e feriados são salvos em IndexedDB (`src/app/settings.ts`,
 banco `auditanalyzer`, store `config`), aplicados à configuração de cada análise e enviados ao worker pelo comando
 `settings` durante a sessão, sem reprocessar os arquivos. Dados do log nunca vão para o IndexedDB.
+Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave `tipo|documento`) e, no store
+`config`, a data da última cópia em JSON e da última alteração. A tela envia as justificativas ao worker
+(`setJustifications`); a importação de planilha é lida no worker (`importJustifications`, mesmo leitor de ZIP/XML).
 
 ## 7. Segurança e privacidade
 

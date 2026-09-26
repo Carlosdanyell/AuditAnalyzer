@@ -3,8 +3,7 @@ import type { Command, Stage, WorkerEvent } from '../shared/protocol';
 import { IngestError, runIngestion, type IngestOptions } from './ingest/pipeline';
 import { Session } from './session';
 
-const NOT_IMPLEMENTED: Record<'setJustifications' | 'export', { stage: Stage; message: string }> = {
-  setJustifications: { stage: 'justifications', message: 'Justificativas ainda não implementadas nesta versão.' },
+const NOT_IMPLEMENTED: Record<'export', { stage: Stage; message: string }> = {
   export: { stage: 'export', message: 'Exportação ainda não implementada nesta versão.' },
 };
 
@@ -66,6 +65,29 @@ export function createCommandHandler(
           return;
         }
         post({ type: 'settings', requestId: command.requestId, settings: session.updateSettings(command.settings) });
+        return;
+      }
+
+      case 'setJustifications': {
+        if (!session) {
+          post({ type: 'error', stage: 'justifications', message: NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        post({ type: 'justificationsSet', requestId: command.requestId, ...session.setJustifications(command.items, command.replace) });
+        return;
+      }
+
+      case 'importJustifications': {
+        if (!session) {
+          post({ type: 'error', stage: 'justifications', message: NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'justificationImport', requestId: command.requestId, preview: await session.previewImport(command.file) });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          post({ type: 'error', stage: 'justifications', message: `Não foi possível ler as justificativas: ${message}`, requestId: command.requestId });
+        }
         return;
       }
 

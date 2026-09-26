@@ -3,7 +3,10 @@ import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig } from '../config/schema';
-import type { PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import type { Justification, PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import { buildJsonExport, justificationKey } from '../shared/justifications';
+import { loadJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
+import { JustificationsView } from './views/JustificationsView';
 import { applySettings, loadSettings, saveSettings } from './settings';
 import { formatBytes } from '../shared/format';
 import { PanelView } from './views/PanelView';
@@ -21,13 +24,25 @@ interface Run {
 }
 
 type Phase = 'select' | 'running' | 'done';
-type View = 'reconciliation' | 'panel' | 'tables';
+type View = 'reconciliation' | 'panel' | 'tables' | 'justifications';
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'reconciliation', label: 'Reconciliação' },
   { id: 'panel', label: 'Painel' },
   { id: 'tables', label: 'Tabelas' },
+  { id: 'justifications', label: 'Justificativas' },
 ];
+
+const stamp = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'medium' });
+
+function download(text: string, fileName: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
@@ -45,6 +60,72 @@ export function App() {
   const [scope, setScope] = useState(0);
   const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
   const [settings, setSettings] = useState<PanelSettings | null>(null);
+  const [justifications, setJustifications] = useState<Map<string, Justification>>(new Map());
+  const justificationsRef = useRef(justifications);
+  const [meta, setMeta] = useState<JustificationMeta>({ lastExportAt: null, lastChangeAt: null });
+  const [unknownCount, setUnknownCount] = useState(0);
+  const [justRequest, setJustRequest] = useState<TableRequest>({ table: 'deletionJustifications', filter: {} });
+  const [justRefresh, setJustRefresh] = useState(0);
+
+  // Justifications saved on this computer (IndexedDB).
+  useEffect(() => {
+    void loadJustifications().then((stored) => {
+      if (!stored) return;
+      const map = new Map(stored.items.map((j) => [justificationKey(j.kind, j.documentKey), j]));
+      justificationsRef.current = map;
+      setJustifications(map);
+      setMeta(stored.meta);
+    });
+  }, []);
+
+  const sendJustifications = useCallback(async (items: Justification[], replace: boolean) => {
+    const answer = await clientRef.current?.query({ type: 'setJustifications', items, replace });
+    if (answer) setUnknownCount(answer.unknown);
+    setJustRefresh((v) => v + 1);
+  }, []);
+
+  const saveItems = useCallback(
+    async (items: Justification[]): Promise<boolean> => {
+      const map = new Map(justificationsRef.current);
+      for (const j of items) map.set(justificationKey(j.kind, j.documentKey), j);
+      justificationsRef.current = map;
+      setJustifications(map);
+      const nextMeta = { ...meta, lastChangeAt: Date.now() };
+      setMeta(nextMeta);
+      const saved = await saveJustifications(items, nextMeta);
+      await sendJustifications(items, false);
+      return saved;
+    },
+    [meta, sendJustifications],
+  );
+
+  const replaceAll = useCallback(
+    async (items: Justification[]): Promise<boolean> => {
+      const map = new Map(items.map((j) => [justificationKey(j.kind, j.documentKey), j]));
+      justificationsRef.current = map;
+      setJustifications(map);
+      const nextMeta = { ...meta, lastChangeAt: Date.now() };
+      setMeta(nextMeta);
+      const saved = await saveJustifications(items, nextMeta);
+      await sendJustifications(items, true);
+      return saved;
+    },
+    [meta, sendJustifications],
+  );
+
+  const exportJson = useCallback(() => {
+    const now = Date.now();
+    const text = buildJsonExport([...justificationsRef.current.values()], stamp.format(now));
+    download(text, `justificativas-${stamp.format(now).slice(0, 10)}.json`);
+    const nextMeta = { ...meta, lastExportAt: now };
+    setMeta(nextMeta);
+    void saveMeta(nextMeta);
+  }, [meta]);
+
+  const openJustifications = useCallback((table: TableId, filter: TableFilter) => {
+    setJustRequest({ table, filter });
+    setView('justifications');
+  }, []);
 
   // Presets and holidays saved on this computer (IndexedDB), applied to every analysis.
   useEffect(() => {
@@ -80,6 +161,7 @@ export function App() {
             setReconciliation(event.data);
             break;
           case 'ready':
+            void sendJustifications([...justificationsRef.current.values()], true);
             setSummary(event.summary);
             setScope(Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
@@ -278,10 +360,32 @@ export function App() {
             </div>
             {view === 'reconciliation' && <ReconciliationView data={reconciliation} summary={summary} />}
             {view === 'panel' && (
-              <PanelView client={client()} scope={scope} onOpenTable={openTable} onSettingsChange={changeSettings} />
+              <PanelView
+                client={client()}
+                scope={scope}
+                onOpenTable={openTable}
+                onOpenJustifications={openJustifications}
+                onSettingsChange={changeSettings}
+                refreshKey={justRefresh}
+              />
             )}
             {view === 'tables' && (
               <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />
+            )}
+            {view === 'justifications' && (
+              <JustificationsView
+                client={client()}
+                scope={scope}
+                request={justRequest}
+                onRequest={setJustRequest}
+                justifications={justifications}
+                meta={meta}
+                unknownCount={unknownCount}
+                refreshKey={justRefresh}
+                onSave={saveItems}
+                onReplaceAll={replaceAll}
+                onExport={exportJson}
+              />
             )}
           </>
         )}

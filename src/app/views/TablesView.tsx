@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Cell, ColumnSpec, OriginFilter, Sort, TableFilter, TableId } from '../../shared/protocol';
 import { formatCents, formatDateTime, formatDay, formatInteger } from '../../shared/format';
 import type { WorkerClient } from '../workerClient';
@@ -53,9 +53,19 @@ interface TablesViewProps {
   scope: number;
   request: TableRequest;
   onRequest: (request: TableRequest) => void;
+  /** Tabs shown above the grid (default: the six analysis tables). */
+  tabs?: { id: TableId; label: string }[];
+  /** Makes rows clickable; receives the row as { columnId: value }. */
+  onRowClick?: (row: Record<string, Cell>) => void;
+  /** Value of the "documento" column of the highlighted row. */
+  selectedKey?: string | null;
+  /** Extra controls in the toolbar. */
+  toolbar?: ReactNode;
+  /** Changing it reloads the current rows (e.g. after editing a justification). */
+  refreshKey?: number;
 }
 
-export function TablesView({ client, scope, request, onRequest }: TablesViewProps) {
+export function TablesView({ client, scope, request, onRequest, tabs = TABLES, onRowClick, selectedKey, toolbar, refreshKey = 0 }: TablesViewProps) {
   const [columns, setColumns] = useState<ColumnSpec[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +75,7 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
   const generation = useRef(0);
   const [, setVersion] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastQuery = useRef('');
 
   // Debounced search → request.
   useEffect(() => {
@@ -77,7 +88,7 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
     return () => clearTimeout(id);
   }, [search, request, onRequest]);
 
-  const key = useMemo(() => JSON.stringify([scope, request]), [scope, request]);
+  const key = useMemo(() => JSON.stringify([scope, request, refreshKey]), [scope, request, refreshKey]);
 
   const loadPage = (page: number, gen: number) => {
     if (requested.current.has(page)) return;
@@ -97,11 +108,14 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
 
   // New table, filter or sort: start over from the first page.
   useEffect(() => {
+    const sameQuery = lastQuery.current === JSON.stringify([scope, request]);
+    lastQuery.current = JSON.stringify([scope, request]);
     generation.current++;
     pages.current = new Map();
     requested.current = new Set();
     setTotal(null);
-    scrollRef.current?.scrollTo({ top: 0 });
+    // A refresh of the same query keeps the scroll position.
+    if (!sameQuery) scrollRef.current?.scrollTo({ top: 0 });
     loadPage(0, generation.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -134,7 +148,7 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
   return (
     <div className={styles.view}>
       <nav className={styles.tabs} aria-label="Tabelas">
-        {TABLES.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -193,6 +207,7 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
             </button>
           </span>
         )}
+        {toolbar}
         <span className={styles.count} aria-live="polite">
           {total === null ? 'Carregando…' : `${formatInteger(total)} linha(s)`}
         </span>
@@ -224,13 +239,24 @@ export function TablesView({ client, scope, request, onRequest }: TablesViewProp
         <div style={{ height: virtualizer.getTotalSize(), width, position: 'relative' }}>
           {items.map((item) => {
             const row = pages.current.get(Math.floor(item.index / PAGE))?.[item.index % PAGE];
+            const docAt = columns.findIndex((c) => c.id === 'documento');
+            const selected = !!row && selectedKey != null && docAt >= 0 && row[docAt] === selectedKey;
             return (
               <div
                 key={item.key}
                 role="row"
                 aria-rowindex={item.index + 2}
-                className={`${styles.row} ${item.index % 2 ? styles.odd : ''}`}
+                aria-selected={onRowClick ? selected : undefined}
+                tabIndex={onRowClick && row ? 0 : undefined}
+                className={`${styles.row} ${item.index % 2 ? styles.odd : ''} ${onRowClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
                 style={{ transform: `translateY(${item.start}px)`, height: ROW_HEIGHT }}
+                onClick={() => row && onRowClick?.(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])))}
+                onKeyDown={(e) => {
+                  if (row && onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onRowClick(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])));
+                  }
+                }}
               >
                 {columns.map((c, i) => {
                   const text = row ? formatCell(row[i] ?? null, c.type) : '';

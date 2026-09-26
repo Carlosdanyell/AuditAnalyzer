@@ -25,7 +25,7 @@ const context: PanelContext = {
     { startDay: day('17/08/2026'), endDay: day('31/08/2026') },
     { startDay: day('01/09/2026'), endDay: day('04/09/2026') },
   ],
-  justifiedDocuments: new Set(),
+  justifications: new Map(),
   justificationsLoaded: false,
   holidays: new Set(),
   userPresets: [],
@@ -104,7 +104,14 @@ describe('signals', () => {
   });
 
   it('justified documents are not pending', () => {
-    const justified = periodSignals(all, FULL_PERIOD, { ...context, justifiedDocuments: new Set(['17/08/2026|000001|001|000001']) });
+    const key = '17/08/2026|000001|001|000001';
+    const justifications = new Map([
+      [
+        `change|${key}`,
+        { documentKey: key, kind: 'change' as const, text: 'Motivo', responsible: '', coverage: { files: ['agosto.xlsx', 'setembro.xlsx'], lastEvent: null }, updatedAt: 1 },
+      ],
+    ]);
+    const justified = periodSignals(all, FULL_PERIOD, { ...context, justifications, justificationsLoaded: true });
     expect(justified.find((s) => s.id === 'unjustifiedDocuments')?.count).toBe(5);
   });
 

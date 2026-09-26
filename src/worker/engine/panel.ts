@@ -11,6 +11,7 @@ import type {
   Composition,
   CompositionCell,
   DailyRow,
+  Justification,
   PanelData,
   Period,
   PeriodPanel,
@@ -20,6 +21,8 @@ import type {
 import { EMPTY_ID } from '../store/dictionary';
 import type { ScopeAnalysis } from './analysis';
 import { sameEvent } from './events';
+import { coverageCounts, justificationStatus } from './justifications';
+import { justificationKey } from '../../shared/justifications';
 import { FULL_PERIOD, emptyPanel, isBusinessDay, periodPanel, visitPeriod } from './periods';
 
 export interface PanelContext {
@@ -27,9 +30,9 @@ export interface PanelContext {
   sourceNames: string[];
   /** Event-date interval requested in the parameters of each source (global index); null when unknown. */
   requestedIntervals: (Period | null)[];
-  /** Document keys with a justification (phase 4). */
-  justifiedDocuments: Set<string>;
-  /** False until justifications are loaded (phase 4). */
+  /** Justifications by justificationKey(kind, documentKey). */
+  justifications: ReadonlyMap<string, Justification>;
+  /** False while no justification is loaded. */
   justificationsLoaded: boolean;
   /** Day numbers of the configured holidays. */
   holidays: ReadonlySet<number>;
@@ -199,7 +202,10 @@ export function periodSignals(scope: ScopeAnalysis, period: Period, context: Pan
       }
     },
     document(category, d) {
-      if ((category === 'deleted' || category === 'changed') && !context.justifiedDocuments.has(d.key)) pendingDocs.add(d.key);
+      if (category !== 'deleted' && category !== 'changed') return;
+      const kind = category === 'deleted' ? 'deletion' : 'change';
+      const status = justificationStatus(scope, d, kind, context.sourceNames, context.justifications.get(justificationKey(kind, d.key)));
+      if (status !== 'justified') pendingDocs.add(d.key);
     },
   });
 
@@ -289,5 +295,6 @@ export function buildPanel(
     signals: periodSignals(scope, period, context),
     daily: dailyMovement(scope),
     justificationsLoaded: context.justificationsLoaded,
+    coverage: coverageCounts(scope, period, context.justifications, context.sourceNames),
   };
 }

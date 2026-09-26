@@ -29,6 +29,8 @@ export interface RecordInfo {
   deleted: boolean;
   deletionTime: number;
   deletionUser: number;
+  /** Source file of the last deletion event; -1 when not deleted. */
+  deletionSource: number;
 
   /** Effective alteration events. */
   changeCount: number;
@@ -103,6 +105,7 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
         deleted: false,
         deletionTime: INVALID_TIME,
         deletionUser: -1,
+        deletionSource: -1,
         deletionOrd: -1,
         changeCount: 0,
         activationCount: 0,
@@ -164,6 +167,7 @@ export function buildRecords(log: LogIndex, inScope: Uint8Array): RecordsResult 
         r.deleted = true;
         r.deletionTime = time;
         r.deletionUser = user;
+        r.deletionSource = d.source[maxOrd]!;
         r.deletionOrd = maxOrd;
       }
     } else if (op === OP_UPDATE) {

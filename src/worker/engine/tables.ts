@@ -4,8 +4,21 @@
  * visitPeriod, the same allocation as the panel, so a table opened from a panel number has exactly that
  * number of rows. Results are cached per (table, filter, sort).
  */
-import { INVALID_TIME, dayOfSeconds } from '../../shared/dates';
-import type { Category, Cell, ColumnSpec, OriginFilter, Period, Sort, TableFilter, TableId } from '../../shared/protocol';
+import { INVALID_TIME, dayOfSeconds, formatDateTime } from '../../shared/dates';
+import type {
+  Category,
+  Cell,
+  ColumnSpec,
+  Justification,
+  JustificationKind,
+  JustificationStatus,
+  OriginFilter,
+  Period,
+  Sort,
+  TableFilter,
+  TableId,
+} from '../../shared/protocol';
+import { documentMovement, justificationStatus } from './justifications';
 import { EMPTY_ID } from '../store/dictionary';
 import type { ScopeAnalysis } from './analysis';
 import type { DocumentInfo } from './documents';
@@ -26,6 +39,8 @@ interface TableDef {
   byCategory(category: Category, period: Period): Ref[];
   /** Event time used to filter by period when no category is given; null = not filterable by period. */
   eventTime(ref: Ref): number | null;
+  /** Justification lists only. */
+  status?(ref: Ref): JustificationStatus;
   origin(ref: Ref): OriginFilter;
   cell(ref: Ref, column: string): Cell;
 }
@@ -42,6 +57,13 @@ const EXCLUDED: Record<DocumentInfo['excluded'], string> = { no: 'Não', total: 
 const UNBALANCED: Record<DocumentInfo['unbalanced'], string> = { yes: 'Sim', no: 'Não', 'not-evaluable': 'Não avaliável' };
 const INCONSISTENCY: Record<RecordInfo['inconsistency'], string> = { no: 'Não', pending: 'Pendente', corrected: 'Corrigido' };
 const DISCARDED: Record<string, string> = { activation: 'Efetivação do tipo de saldo', stamp: 'Somente carimbo de usuário' };
+const STATUS: Record<JustificationStatus, string> = {
+  pending: 'Pendente',
+  justified: 'Justificado',
+  moved: 'Movimentado após a justificativa',
+};
+
+export type JustificationLookup = (kind: JustificationKind, documentKey: string) => Justification | undefined;
 
 const normalize = (s: string) =>
   s
@@ -62,6 +84,7 @@ export class TableQueries {
   constructor(
     private readonly scope: ScopeAnalysis,
     private readonly sourceNames: string[],
+    private readonly justification: JustificationLookup = () => undefined,
   ) {
     this.basePosition = new Int32Array(scope.records.length);
     scope.baseOrder.forEach((recordIndex, position) => (this.basePosition[recordIndex] = position));
@@ -73,6 +96,8 @@ export class TableQueries {
       deletions: this.recordsTable((r) => r.deleted, 'deleted'),
       changes: this.changesTable(),
       discardedChanges: this.discardedTable(),
+      deletionJustifications: this.justificationTable('deletion'),
+      changeJustifications: this.justificationTable('change'),
     };
   }
 
@@ -104,6 +129,7 @@ export class TableQueries {
       });
     }
     if (filter.origin) refs = refs.filter((ref) => def.origin(ref) === filter.origin);
+    if (filter.status && def.status) refs = refs.filter((ref) => def.status!(ref) === filter.status);
     if (filter.search && filter.search.trim()) {
       const needle = normalize(filter.search.trim());
       const columns = def.columns(filter).filter((c) => c.type === 'text');
@@ -408,6 +434,85 @@ export class TableQueries {
           case 'tipo': return DISCARDED[e.kind] ?? e.kind;
           case 'campos': return [...new Set(e.rows.map((i) => dict.get(d.field[i]!)))].join(', ');
           case 'arquivo': return [...new Set(e.rows.map((i) => this.sourceNames[d.source[i]!] ?? ''))].join(', ');
+          default: return null;
+        }
+      },
+    };
+  }
+
+  private justificationTable(kind: JustificationKind): TableDef {
+    const { documents } = this.scope;
+    const category: Category = kind === 'deletion' ? 'deleted' : 'changed';
+    const include = (d: DocumentInfo) => (kind === 'deletion' ? d.deletedLines > 0 : d.changedLines > 0);
+    const movement = new Map<number, ReturnType<typeof documentMovement>>();
+    const movementOf = (index: number) => {
+      let m = movement.get(index);
+      if (!m) {
+        m = documentMovement(this.scope, documents[index]!, kind);
+        movement.set(index, m);
+      }
+      return m;
+    };
+    const justificationOf = (index: number) => this.justification(kind, documents[index]!.key);
+    const status = (ref: Ref) => {
+      const index = refIndex(ref);
+      return justificationStatus(this.scope, documents[index]!, kind, this.sourceNames, justificationOf(index));
+    };
+    const keyFields = this.config.documentKey.fields;
+    const labels = this.config.fieldLabels;
+    return {
+      columns: () => [
+        col('documento', 'Documento', 'text', 230),
+        col('situacao', 'Situação', 'text', 210),
+        col('justificativa', kind === 'deletion' ? 'Justificativa da exclusão' : 'Justificativa da alteração', 'text', 340),
+        col('responsavel', 'Responsável', 'text', 140),
+        ...keyFields
+          .filter((f) => f === this.config.fields.date)
+          .map((f) => col('data', labels[f] ?? f, 'date', 100)),
+        col('origem', 'Origem', 'text', 100),
+        col('linhas', kind === 'deletion' ? 'Linhas excluídas' : 'Linhas alteradas', 'int', 110),
+        ...(kind === 'deletion'
+          ? [col('primeiraExclusao', '1ª exclusão', 'datetime', 160), col('ultimaExclusao', 'Última exclusão', 'datetime', 160)]
+          : []),
+        col('arquivosMovimento', kind === 'deletion' ? 'Arquivos com exclusão' : 'Arquivos com alteração', 'text', 200),
+        col('ultimoEvento', kind === 'deletion' ? 'Última exclusão (evento)' : 'Última alteração efetiva', 'datetime', 170),
+        col('cobertura', 'Cobertura da justificativa', 'text', 260),
+      ],
+      all: () => documents.flatMap((d, i) => (include(d) ? [makeRef(i)] : [])),
+      byCategory: (c, period) => {
+        const seen = new Set<number>();
+        visitPeriod(this.scope, period, {
+          line() {},
+          document(cat, d, index) {
+            if (cat === category && cat === c && include(d)) seen.add(index);
+          },
+        });
+        return [...seen].sort((a, b) => a - b).map((i) => makeRef(i));
+      },
+      eventTime: () => null,
+      origin: (ref) => documents[refIndex(ref)]!.origin,
+      status,
+      cell: (ref, id) => {
+        const index = refIndex(ref);
+        const d = documents[index]!;
+        const j = justificationOf(index);
+        switch (id) {
+          case 'documento': return d.key;
+          case 'situacao': return STATUS[status(ref)];
+          case 'justificativa': return j?.text ?? '';
+          case 'responsavel': return j?.responsible ?? '';
+          case 'data': return time(d.entryDay);
+          case 'origem': return ORIGIN_LABEL[d.origin];
+          case 'linhas': return kind === 'deletion' ? d.deletedLines : d.changedLines;
+          case 'primeiraExclusao': return time(d.firstDeletion);
+          case 'ultimaExclusao': return time(d.lastDeletion);
+          case 'arquivosMovimento': return movementOf(index).files.map((s) => this.sourceNames[s] ?? String(s + 1)).join(', ');
+          case 'ultimoEvento': return time(movementOf(index).lastEvent);
+          case 'cobertura': {
+            if (!j || !j.text.trim()) return '';
+            const files = j.coverage.files.join(', ') || 'nenhum arquivo';
+            return j.coverage.lastEvent === null ? files : `${files} · até ${formatDateTime(j.coverage.lastEvent)}`;
+          }
           default: return null;
         }
       },
