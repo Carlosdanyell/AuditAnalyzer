@@ -356,8 +356,24 @@ describe.skipIf(!golden)('local golden reference', () => {
           datasDaNota: noteDates.length === 2 && doc !== undefined && dayOfSeconds(doc.firstDeletion) === noteDates[0] && dayOfSeconds(doc.lastDeletion) === noteDates[1],
           contadoSoNaJanela1: countedIn(w1) && !countedIn(w2),
         },
-        'documento com exclusão em duas janelas (se falhar, ver local/divergencia-caso-pontual.txt: possível erro no CT2_DOC da referência)',
+        'documento com exclusão em duas janelas',
       ).toEqual({ encontrado: true, primeiraNaJanela1: true, ultimaNaJanela2: true, datasDaNota: true, contadoSoNaJanela1: true });
+
+      // Record seen only with the user stamp (CT2_USERGA): no document, only stamp-only alteration events.
+      const stampRecno = Number(/(\d+)/.exec(cases.registro_so_com_carimbo)?.[1]);
+      const stamped = scope.records.find((r) => r.recno === stampRecno);
+      expect(
+        stamped && {
+          origin: stamped.origin,
+          document: stamped.documentIndex,
+          changes: stamped.changeCount,
+          activations: stamped.activationCount,
+          included: stamped.included,
+          deleted: stamped.deleted,
+          stamps: stamped.stampCount > 0,
+        },
+        'registro só com carimbo',
+      ).toEqual({ origin: 'unidentified', document: -1, changes: 0, activations: 0, included: false, deleted: false, stamps: true });
 
       const deleted = periodPanel(scope, w1).deleted;
       expect(

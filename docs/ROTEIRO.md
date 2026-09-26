@@ -3,6 +3,21 @@
 Cada fase é uma sessão (ou poucas) no Claude Code. Em cada uma: pedir o plano primeiro, revisar, aprovar,
 e só então implementar. Fazer commit ao final de cada fase com os testes passando.
 
+## Situação
+
+| Fase | Situação |
+|---|---|
+| 0 — Estrutura | concluída |
+| 1 — Leitura | concluída; `golden.json` confere com os dois arquivos |
+| 2 — Motor | concluída em 26/09/2026; todos os números do `golden.json` conferem (arquivos sozinhos, consolidado, painéis e casos pontuais) |
+| 3 — Painel e tabelas | concluída; painéis da tela conferem com o golden |
+| 4 — Justificativas | implementada; falta testar a importação com uma exportação anterior real |
+| 5 — Exportação XLSX | a planejar |
+| 6 — Configuração | a planejar |
+
+Pendente fora das fases: pico de memória do worker com os dois arquivos (Gerenciador de tarefas do navegador),
+nesta máquina e na do trabalho.
+
 ---
 
 ## Fase 0 — Estrutura do projeto

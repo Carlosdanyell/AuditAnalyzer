@@ -237,11 +237,12 @@ Redação das situações: neutra e factual (ex.: "3 documento(s) com justificat
 
 ### Decisões registradas (Fase 3)
 
-**Os números do painel só são considerados validados depois que a Fase 2 passar no `golden.json` com os dois
-arquivos** (agosto sozinho, setembro sozinho, consolidado e todos os painéis). O teste local compara com o golden o
-painel exatamente como é servido à tela (`Session.panel`). Com um arquivo só, o teste local confere a consistência
-interna nos dados reais: cada número do painel é igual ao total da tabela aberta por ele, em todos os presets, e a
-composição fecha.
+**Validado em 26/09/2026:** com os dois arquivos, o teste local confere com o `golden.json` a leitura, a análise e
+os painéis de agosto sozinho, de setembro sozinho e do consolidado (17–24/08, 25–31/08, 01–04/09 e log completo),
+pelo mesmo caminho que a tela usa (`Session.panel`), e os três casos pontuais. Nenhuma regra foi alterada para isso;
+a única divergência encontrada estava na referência (número do documento de um caso pontual) e foi corrigida no
+`golden.json` pelo usuário. Com um arquivo só, o teste local também confere a consistência interna: cada número do
+painel é igual ao total da tabela aberta por ele, em todos os presets, e a composição fecha.
 
 - **Atalhos de período** gerados a partir dos arquivos carregados: "Log completo" (do primeiro ao último evento do
   escopo); um por extração, com o intervalo pedido nos parâmetros do arquivo (na falta, do primeiro ao último evento
