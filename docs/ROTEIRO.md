@@ -11,8 +11,8 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 1 — Leitura | concluída; `golden.json` confere com os dois arquivos |
 | 2 — Motor | concluída em 26/09/2026; todos os números do `golden.json` conferem (arquivos sozinhos, consolidado, painéis e casos pontuais) |
 | 3 — Painel e tabelas | concluída; painéis da tela conferem com o golden |
-| 4 — Justificativas | implementada; falta testar a importação com uma exportação anterior real |
-| 5 — Exportação XLSX | a planejar |
+| 4 — Justificativas | concluída; importação testada com o papel de trabalho anterior real |
+| 5 — Exportação XLSX | concluída em 26/09/2026; Resumo = ferramenta em todos os atalhos (arquivos reais, PT e EN); Excel recalcula sem erros e sem reparo |
 | 6 — Configuração | a planejar |
 
 Pendente fora das fases: repetir tempos e memória no computador do trabalho (nesta máquina: worker até ~98 MB com os

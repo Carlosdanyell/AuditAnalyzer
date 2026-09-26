@@ -12,6 +12,8 @@ import { formatBytes } from '../shared/format';
 import { PanelView } from './views/PanelView';
 import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
+import { downloadBlob } from './download';
+import { ExportView } from './views/ExportView';
 import styles from './App.module.css';
 
 type WorkerError = Extract<WorkerEvent, { type: 'error' }>;
@@ -24,29 +26,19 @@ interface Run {
 }
 
 type Phase = 'select' | 'running' | 'done';
-type View = 'reconciliation' | 'panel' | 'tables' | 'justifications';
+type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'reconciliation', label: 'Reconciliação' },
   { id: 'panel', label: 'Painel' },
   { id: 'tables', label: 'Tabelas' },
   { id: 'justifications', label: 'Justificativas' },
+  { id: 'export', label: 'Exportação' },
 ];
 
 const stamp = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'medium' });
 
-function download(text: string, fileName: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.style.display = 'none';
-  // Attached to the document: some browsers ignore clicks on detached links.
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
+const download = (text: string, fileName: string) => downloadBlob(new Blob([text], { type: 'application/json' }), fileName);
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
@@ -348,7 +340,7 @@ export function App() {
                 ))}
               </nav>
               <div className={styles.toolbarEnd}>
-                {view !== 'reconciliation' && summary && summary.scopes.length > 1 && (
+                {view !== 'reconciliation' && view !== 'export' && summary && summary.scopes.length > 1 && (
                   <label className={styles.scope}>
                     Escopo
                     <select value={scope} onChange={(e) => setScope(Number(e.target.value))}>
@@ -359,6 +351,11 @@ export function App() {
                       ))}
                     </select>
                   </label>
+                )}
+                {view !== 'export' && (
+                  <button type="button" className={styles.primary} onClick={() => setView('export')}>
+                    Exportar planilha
+                  </button>
                 )}
                 <button type="button" className={styles.secondary} onClick={newAnalysis}>
                   Nova análise
@@ -392,6 +389,17 @@ export function App() {
                 onSave={saveItems}
                 onReplaceAll={replaceAll}
                 onExport={exportJson}
+              />
+            )}
+            {view === 'export' && summary && (
+              <ExportView
+                client={client()}
+                summary={summary}
+                scope={scope}
+                onScopeChange={setScope}
+                failures={reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
+                justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
+                onOpenJustifications={() => setView('justifications')}
               />
             )}
           </>

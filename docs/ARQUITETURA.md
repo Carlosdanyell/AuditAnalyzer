@@ -90,7 +90,7 @@ type Command =
   | { type: 'panel'; period: Period }
   | { type: 'page'; table: TableId; filter?: Filter; sort?: Sort; offset: number; limit: number }
   | { type: 'setJustifications'; items: Justification[] }
-  | { type: 'export'; options: ExportOptions };
+  | { type: 'export'; requestId: number; options: ExportOptions };
 
 type WorkerEvent =
   | { type: 'progress'; stage: Stage; fileIndex?: number; done: number; total: number; unit: 'bytes'|'rows'|'steps'; message: string }
@@ -98,7 +98,8 @@ type WorkerEvent =
   | { type: 'ready'; summary: Summary; checks: CheckResult[] }
   | { type: 'panel'; data: PanelData }
   | { type: 'page'; rows: unknown[]; total: number }
-  | { type: 'exported'; blob: Blob; fileName: string; traceability: Traceability }
+  | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
+  | { type: 'exportBlocked'; requestId: number; failures: CheckResult[] }
   | { type: 'error'; stage: Stage; message: string; detail?: string };
 ```
 
@@ -140,6 +141,14 @@ Gerador próprio em fluxo:
   Rastreabilidade, Auxiliar.
 - Saída: `Blob` → `URL.createObjectURL` → download; revogar a URL em seguida.
 
+Implementação (Fase 5): `export/xlsxWriter.ts` (gerador: pedaços de 64 KB por aba, data fixa nas entradas do ZIP
+para saída determinística, limite de 1.048.576 linhas por aba), `export/labels.ts` (textos em português e inglês,
+inclusive os valores que as fórmulas comparam) e `export/paperwork.ts` (montagem das abas). `ExportOptions` =
+`{ scope, language: 'pt' | 'en', confirmFailures, generatedAt }`; o worker responde `exportBlocked` quando há
+verificação bloqueante falhando sem confirmação. A versão (commit curto) vem do build (`__APP_VERSION__`), e o
+SHA-256 da configuração é calculado na exportação. Na tela, a visão **Exportação** escolhe escopo e idioma, mostra as
+falhas bloqueantes com a caixa de confirmação, o progresso por etapa e o resultado.
+
 ### Aba Rastreabilidade (obrigatória)
 Versão da ferramenta (commit), data/hora da execução, hash da configuração, e por arquivo: nome, tamanho,
 SHA-256, parâmetros do relatório, primeiro/último evento, reconciliação de linhas, eventos por operação,
@@ -173,5 +182,10 @@ Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave
   recuperação no mesmo segundo, inclusão duplicada, exclusão dupla, TPSALD 9→1, só USERGA, registro só com
   USERGA, documento misto, documento de base parcial, desbalanceado, usuário vazio, dois arquivos com o mesmo Recno.
 - **Locais (não versionados):** `local/*.xlsx` + `local/golden.json`. `npm run test:local` pula se a pasta não existir.
-- **Exportação:** reabrir o XLSX gerado (ex.: com SheetJS em teste) e conferir abas, cabeçalhos, fórmulas,
-  ausência de mesclagens sobrepostas e de datas zeradas.
+- **Exportação:** `tests/support/xlsxEval.ts` relê o XLSX gerado e avalia as fórmulas (subconjunto do Excel usado
+  pela planilha). Os testes sintéticos conferem o Resumo com o painel para cada atalho, períodos personalizados e
+  data de corte, nos dois idiomas; as fórmulas das justificativas (inclusive a confirmação no Excel), a volta das
+  justificativas pela importação, o determinismo, o bloqueio por verificação e os invariantes 9 e 10.
+  Local: `tests/local/paperwork.test.ts` faz o mesmo com os arquivos reais (e as justificativas de uma planilha
+  anterior em `local/`), e `tests/local/excel.test.ts` (Windows, `EXCEL_CHECK=1`) abre a planilha no Excel por
+  automação, recalcula cada atalho e confere célula a célula, sem erros de fórmula e sem reparo ao abrir.

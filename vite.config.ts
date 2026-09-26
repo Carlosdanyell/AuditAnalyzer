@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -16,7 +17,19 @@ function devCspRelax(): Plugin {
   };
 }
 
+/** Short commit of the build, written to the Rastreabilidade tab of the exported workbook. */
+function appVersion(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion()),
+  },
   // GitHub Pages serves the site under /<repository>/.
   base: '/AuditAnalyzer/',
   plugins: [react(), devCspRelax()],

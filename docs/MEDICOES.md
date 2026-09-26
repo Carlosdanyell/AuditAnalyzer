@@ -68,9 +68,23 @@ A API só responde após uma coleta de lixo, então as amostras não pegam neces
 folga para a meta de 400 MB é grande. O RSS do processo Node (tabela acima) não é comparável, porque inclui o Node e o
 Vitest.
 
+## 2026-09-26 — Fase 5 (exportação), mesma máquina, os dois arquivos, escopo consolidado
+
+| Ambiente | Tempo | Responsividade / observações |
+|---|---|---|
+| Navegador (`npm run dev`), planilha em inglês | 3,4 s a 4,1 s | maior intervalo sem resposta da thread principal durante a exportação: 5 ms |
+| Node 24 (`npm run test:local`), português e inglês | 3,4 s a 5,6 s | — |
+| Excel 16 (automação, teste local): abrir, recalcular 4 períodos e ler o Resumo | ~25 s por idioma | nenhuma célula com erro de fórmula; sem reparo ao abrir |
+
+O gerador grava cada aba em pedaços de 64 KB comprimidos na hora; a memória adicional do worker durante a exportação
+fica limitada ao arquivo comprimido e aos pedaços em trânsito. A medição direta da memória do worker (API
+`measureUserAgentSpecificMemory`) não foi possível desta vez: o painel do navegador estava oculto e a API exige a
+página visível.
+
 ### Pendente
 
 - **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo
   Gerenciador de tarefas do navegador (Shift+Esc → linha "Dedicated worker" ou a aba). O navegador não expõe a
   memória do worker para a página, então essa medição é manual.
 - **Computador do trabalho:** repetir tempos e memória (Gerenciador de tarefas do navegador, Shift+Esc).
+- **Exportação:** memória do worker durante a exportação (Chrome com a página visível, ou Gerenciador de tarefas).

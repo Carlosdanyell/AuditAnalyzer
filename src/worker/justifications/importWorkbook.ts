@@ -2,7 +2,8 @@
  * Reads justifications from a previous export (docs/REGRAS_CFGR700.md, section 9): tabs "Justificativa da
  * Exclusao" and "Justificativa da Alteração" (key in column A, text in the column "Justificativa …", optional
  * "Responsável" and "Observação"), plus what is needed to deduce the coverage: the files listed in the
- * Rastreabilidade tab, or the last event date found in Documentos / Base_Linhas.
+ * Rastreabilidade tab, or the last event date found in Documentos / Base_Linhas. Workbooks exported by the tool
+ * (Portuguese or English) also carry the coverage of each justification and the "Abrange o novo evento?" column.
  */
 import { INVALID_TIME, parseDate, parseDateTime } from '../../shared/dates';
 import type { ImportedJustification, JustificationCoverage, JustificationKind, LoadedFileInfo } from '../../shared/protocol';
@@ -23,6 +24,9 @@ export interface JustificationWorkbook {
 }
 
 const EXCEL_SERIAL_2000 = 36526;
+/** Notes that confirm the coverage of a justification moved after it was written. */
+const CONFIRMATION_NOTES = ['abrange o novo evento', 'covers the new event'];
+const YES = new Set(['sim', 'yes', 's', 'y', 'x']);
 const WIDTH = 40;
 
 async function readSheets(blob: Blob): Promise<Map<string, Cell[][]>> {
@@ -75,31 +79,43 @@ function findSheet(sheets: Map<string, Cell[][]>, test: (normalized: string) => 
   return undefined;
 }
 
+const isTextHeader = (h: string) => h.startsWith('justificativa') || / justification$/.test(h);
+
 function readJustifications(rows: Cell[][], kind: JustificationKind): ImportedJustification[] {
-  const headerIndex = rows.findIndex(
-    (row) => nonEmpty(row) >= 2 && row.some((c, i) => i > 0 && normalizeLabel(str(c)).startsWith('justificativa')),
-  );
+  const headerIndex = rows.findIndex((row) => nonEmpty(row) >= 2 && row.some((c, i) => i > 0 && isTextHeader(normalizeLabel(str(c)))));
   if (headerIndex < 0) return [];
   const header = rows[headerIndex]!.map((c) => normalizeLabel(str(c)));
-  const textCol = header.findIndex((h, i) => i > 0 && h.startsWith('justificativa'));
-  const responsibleCol = header.findIndex((h) => h.startsWith('responsavel'));
-  const noteCol = header.findIndex((h) => h.startsWith('observa'));
+  const col = (...prefixes: string[]) => header.findIndex((h) => prefixes.some((p) => h.startsWith(p)));
+  const textCol = header.findIndex((h, i) => i > 0 && isTextHeader(h));
+  const responsibleCol = col('responsavel', 'responsible');
+  const noteCol = col('observa', 'note');
+  const confirmCol = col(...CONFIRMATION_NOTES);
+  const filesCol = col('arquivos cobertos', 'files covered');
+  const lastCol = col('ultimo evento coberto', 'last event covered');
   const items: ImportedJustification[] = [];
   for (const row of rows.slice(headerIndex + 1)) {
     const documentKey = str(row[0]);
     if (!documentKey) continue;
-    items.push({
+    const note = noteCol >= 0 ? normalizeLabel(str(row[noteCol])) : '';
+    const item: ImportedJustification = {
       documentKey,
       kind,
       text: str(row[textCol]),
       responsible: responsibleCol >= 0 ? str(row[responsibleCol]) : '',
-      confirmed: noteCol >= 0 && normalizeLabel(str(row[noteCol])).includes('abrange o novo evento'),
-    });
+      confirmed:
+        CONFIRMATION_NOTES.some((n) => note.includes(n)) || (confirmCol >= 0 && YES.has(normalizeLabel(str(row[confirmCol])))),
+    };
+    // Coverage written by the tool's export: file names separated by "; " and the last event covered.
+    const files = filesCol >= 0 ? str(row[filesCol]).split(/\s*;\s*/).filter(Boolean) : [];
+    const lastEvent = lastCol >= 0 ? eventSeconds(row[lastCol], false) : null;
+    if (files.length > 0 || lastEvent !== null) item.coverage = { files, lastEvent };
+    items.push(item);
   }
   return items;
 }
 
-function eventSeconds(cell: Cell | undefined): number | null {
+/** Seconds of an event date cell; a date alone covers the whole day unless endOfDay is false. */
+function eventSeconds(cell: Cell | undefined, endOfDay = true): number | null {
   if (typeof cell === 'number') {
     if (!(cell > 1 && cell < 2958466)) return null;
     return Math.round((cell - EXCEL_SERIAL_2000) * 86400);
@@ -109,7 +125,7 @@ function eventSeconds(cell: Cell | undefined): number | null {
   const dt = parseDateTime(s);
   if (dt !== INVALID_TIME) return dt;
   const day = parseDate(s);
-  return day === INVALID_TIME ? null : day * 86400 + 86399; // a date alone covers the whole day
+  return day === INVALID_TIME ? null : day * 86400 + (endOfDay ? 86399 : 0);
 }
 
 /** Latest event date in the date columns of an analysis tab (ignores accounting dates). */
@@ -119,8 +135,11 @@ function lastEventIn(rows: Cell[][] | undefined): number | null {
   if (headerIndex < 0) return null;
   const columns = rows[headerIndex]!.flatMap((c, i) => {
     const h = normalizeLabel(str(c));
-    const isEvent = h.includes('data') && ['exclus', 'altera', 'postagem', 'inclus', 'evento'].some((w) => h.includes(w));
-    const isAccounting = h.includes('lancamento') || h.includes('contabil');
+    const isEvent =
+      (h.includes('data') && ['exclus', 'altera', 'postagem', 'inclus', 'evento'].some((w) => h.includes(w))) ||
+      h.startsWith('ultima alteracao efetiva') ||
+      ['first deletion', 'last deletion', 'last effective change', 'first posting', 'insert time', 'delete time'].some((w) => h.startsWith(w));
+    const isAccounting = h.includes('lancamento') || h.includes('contabil') || h.includes('accounting');
     return isEvent && !isAccounting ? [i] : [];
   });
   let last: number | null = null;
@@ -135,14 +154,14 @@ function lastEventIn(rows: Cell[][] | undefined): number | null {
 
 export async function readJustificationWorkbook(blob: Blob): Promise<JustificationWorkbook> {
   const sheets = await readSheets(blob);
-  const deletion = findSheet(sheets, (n) => n.includes('justificativa da exclusao'));
-  const change = findSheet(sheets, (n) => n.includes('justificativa da alteracao'));
+  const deletion = findSheet(sheets, (n) => n.includes('justificativa da exclusao') || n === 'deletion justifications');
+  const change = findSheet(sheets, (n) => n.includes('justificativa da alteracao') || n === 'change justifications');
   if (!deletion && !change) {
     throw new Error('a planilha não tem as abas "Justificativa da Exclusao" nem "Justificativa da Alteração".');
   }
   const items = [...(deletion ? readJustifications(deletion, 'deletion') : []), ...(change ? readJustifications(change, 'change') : [])];
 
-  const trace = findSheet(sheets, (n) => n.includes('rastreabilidade'));
+  const trace = findSheet(sheets, (n) => n.includes('rastreabilidade') || n === 'traceability');
   let rastreabilidadeFiles: string[] | null = null;
   if (trace) {
     const names = new Set<string>();
@@ -155,7 +174,10 @@ export async function readJustificationWorkbook(blob: Blob): Promise<Justificati
     rastreabilidadeFiles = names.size ? [...names] : null;
   }
 
-  const candidates = [findSheet(sheets, (n) => n === 'documentos'), findSheet(sheets, (n) => n === 'base linhas')];
+  const candidates = [
+    findSheet(sheets, (n) => n === 'documentos' || n === 'documents'),
+    findSheet(sheets, (n) => n === 'base linhas' || n === 'lines'),
+  ];
   const lasts = candidates.map(lastEventIn).filter((t): t is number => t !== null);
   return { items, rastreabilidadeFiles, lastEvent: lasts.length ? Math.max(...lasts) : null };
 }

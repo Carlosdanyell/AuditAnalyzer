@@ -96,11 +96,19 @@ describe('worker command handler', () => {
     });
   });
 
-  it('answers the export command (phase 5) with an error', async () => {
+  it('answers the export command with the workbook, echoing the request id', async () => {
     const { events, handle } = setup();
-    await handle({ type: 'export', options: {} });
-    expect(events).toHaveLength(1);
-    expect(events[0]!.type).toBe('error');
+    const options = { scope: 0, language: 'pt' as const, confirmFailures: false, generatedAt: '26/09/2026 10:00:00' };
+    await handle({ type: 'export', requestId: 7, options });
+    expect(events).toEqual([{ type: 'error', stage: 'export', message: expect.stringContaining('Nenhuma análise'), requestId: 7 }]);
+    events.length = 0;
+    const file = new File([buildCfgr700(fileA()) as Uint8Array<ArrayBuffer>], 'a.xlsx');
+    await handle({ type: 'ingest', files: [file], config: defaultConfig() });
+    events.length = 0;
+    await handle({ type: 'export', requestId: 8, options });
+    const done = events.filter((e) => e.type !== 'progress');
+    expect(done).toEqual([{ type: 'exported', requestId: 8, blob: expect.any(Blob), fileName: 'Papel de trabalho CFGR700 - a - 2026-09-26.xlsx' }]);
+    expect(events.some((e) => e.type === 'progress' && e.stage === 'export')).toBe(true);
   });
 
   it('ignores cancel (cancellation is done by terminating the worker)', async () => {

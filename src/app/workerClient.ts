@@ -33,14 +33,21 @@ export class WorkerClient {
     this.ensureWorker().postMessage(command);
   }
 
-  /** Sends a query (panel, page) and resolves with the answer carrying the same request id. */
+  /** Sends a query (panel, page, export…) and resolves with the answer carrying the same request id. */
   query(command: Query<'panel'>): Promise<Answer<'panel'>>;
   query(command: Query<'page'>): Promise<Answer<'page'>>;
   query(command: Query<'settings'>): Promise<Answer<'settings'>>;
   query(command: Query<'setJustifications'>): Promise<Answer<'justificationsSet'>>;
   query(command: Query<'importJustifications'>): Promise<Answer<'justificationImport'>>;
+  query(command: Query<'export'>): Promise<Answer<'exported'> | Answer<'exportBlocked'>>;
   query(
-    command: Query<'panel'> | Query<'page'> | Query<'settings'> | Query<'setJustifications'> | Query<'importJustifications'>,
+    command:
+      | Query<'panel'>
+      | Query<'page'>
+      | Query<'settings'>
+      | Query<'setJustifications'>
+      | Query<'importJustifications'>
+      | Query<'export'>,
   ): Promise<WorkerEvent> {
     const requestId = this.nextRequestId++;
     return new Promise<WorkerEvent>((resolve, reject) => {

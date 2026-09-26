@@ -29,7 +29,8 @@ describe('no data leaves the machine', () => {
 
   it('source code has no external URLs or network APIs', () => {
     const offenders = filesUnder(join(root, 'src')).filter((file) => {
-      const text = readFileSync(file, 'utf8');
+      // XML namespace names of the Office Open XML format are identifiers, never fetched.
+      const text = readFileSync(file, 'utf8').replace(/http:\/\/schemas\.openxmlformats\.org\/[\w/.-]+/g, '');
       return /https?:\/\//.test(text) || /\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(/.test(text);
     });
     expect(offenders).toEqual([]);

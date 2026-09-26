@@ -3,10 +3,6 @@ import type { Command, Stage, WorkerEvent } from '../shared/protocol';
 import { IngestError, runIngestion, type IngestOptions } from './ingest/pipeline';
 import { Session } from './session';
 
-const NOT_IMPLEMENTED: Record<'export', { stage: Stage; message: string }> = {
-  export: { stage: 'export', message: 'Exportação ainda não implementada nesta versão.' },
-};
-
 function errorEvent(e: unknown, stage: Stage = 'worker', requestId?: number): WorkerEvent {
   const id = requestId !== undefined ? { requestId } : {};
   if (e instanceof IngestError) {
@@ -118,21 +114,32 @@ export function createCommandHandler(
         return;
       }
 
-      default: {
-        const stub = NOT_IMPLEMENTED[command.type as keyof typeof NOT_IMPLEMENTED] as
-          | (typeof NOT_IMPLEMENTED)[keyof typeof NOT_IMPLEMENTED]
-          | undefined;
-        if (!stub) {
-          post({
-            type: 'error',
-            stage: 'worker',
-            message: 'Comando desconhecido recebido pelo processamento.',
-            detail: JSON.stringify((command as { type?: unknown }).type),
-          });
+      case 'export': {
+        if (!session) {
+          post({ type: 'error', stage: 'export', message: NO_SESSION, requestId: command.requestId });
           return;
         }
-        post({ type: 'error', stage: stub.stage, message: stub.message });
+        const { requestId } = command;
+        try {
+          const out = await session.export(command.options, (done, total) =>
+            post({ type: 'progress', stage: 'export', done, total, unit: 'steps', message: 'Gerando a planilha' }),
+          );
+          if ('blocked' in out) post({ type: 'exportBlocked', requestId, failures: out.blocked });
+          else post({ type: 'exported', requestId, blob: out.blob, fileName: out.fileName });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          post({ type: 'error', stage: 'export', message: `Não foi possível gerar a planilha: ${message}`, requestId });
+        }
+        return;
       }
+
+      default:
+        post({
+          type: 'error',
+          stage: 'worker',
+          message: 'Comando desconhecido recebido pelo processamento.',
+          detail: JSON.stringify((command as { type?: unknown }).type),
+        });
     }
   };
 }

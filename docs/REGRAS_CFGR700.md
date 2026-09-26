@@ -319,6 +319,20 @@ painel é igual ao total da tabela aberta por ele, em todos os presets, e a comp
   sem cópia (os dados do navegador podem ser apagados).
 - **Fase 5 (exportação):** gravar, para cada justificativa, a cobertura — arquivos e último evento cobertos — além
   do texto, do responsável e da situação, para que a importação de uma exportação futura recupere a cobertura exata.
+  Implementado: colunas "Arquivos cobertos" (nomes separados por "; ") e "Último evento coberto" nas abas de
+  justificativa; a importação de uma planilha exportada pela ferramenta usa a cobertura de cada linha e só aplica a
+  escolha da tela às justificativas sem cobertura (textos novos escritos no Excel).
+
+---
+
+### Decisões registradas (Fase 5)
+
+- **Confirmação no Excel:** as abas de justificativa têm a coluna editável **"Abrange o novo evento?"** (Sim/Não).
+  Com "Sim", um documento movimentado após a justificativa passa a *Justificado* na planilha; ao importar, "Sim" (ou a
+  observação contendo "abrange o novo evento") estende a cobertura a todos os arquivos carregados — inclusive quando o
+  texto não mudou.
+- **Idioma:** a planilha pode ser gerada em português ou inglês (nomes de abas, cabeçalhos e valores). A importação
+  reconhece os dois idiomas.
 
 ---
 
@@ -349,10 +363,37 @@ painel é igual ao total da tabela aberta por ele, em todos os presets, e a comp
     ou referência a string compartilhada inexistente (seção 1).
 
 Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2); 7 (Fase 3: log completo com a data de corte padrão,
-por escopo, na reconciliação; e para o período e o corte escolhidos, como indicador no painel). Todos verificados
-por arquivo e no consolidado.
+por escopo, na reconciliação; e para o período e o corte escolhidos, como indicador no painel); 9 e 10 (Fase 5, na
+geração da planilha: data vazia nunca é gravada como zero e a menor data gravada é conferida; mesclagem sobreposta é
+recusada pelo gerador). Os invariantes 1–8 e 11 são verificados por arquivo e no consolidado; 9 e 10, em cada
+exportação — se falharem, a planilha não é gerada.
+- Exportação com invariante bloqueante falhando: só com confirmação explícita do usuário, registrada na faixa do
+  Resumo e na aba Rastreabilidade (data e hora da exportação e lista das verificações).
 - Verificações de nível "alerta", que não bloqueiam a exportação: outras transições de CT2_TPSALD (seção 6),
   parâmetros do relatório (seção 1) e cobertura entre extrações (seção 3).
 - Invariante 6: o log é particionado em dias (do primeiro ao último evento); a soma dos dias deve ser igual ao
   log completo em todas as categorias, colunas (lançamentos, documentos, valor) e origens.
 - Invariante 11 inclui, desde a Fase 2, CT2_VALOR ilegível (seção 2).
+
+---
+
+## 12. Planilha exportada (Fase 5)
+
+- **Escopo e idioma** escolhidos na tela (padrão: o escopo selecionado, normalmente o consolidado; português).
+- **Resumo vivo:** todos os quadros são fórmulas (COUNTIFS/SUMIFS, compatíveis com o Excel 2016) sobre Documentos e
+  Base_Linhas, com a mesma regra de alocação do painel (seção 8): exclusões e postagens pela data do primeiro evento
+  do documento e pela data do evento de cada linha; alterações pela data da última alteração efetiva **de cada
+  arquivo** (uma coluna por arquivo). O período vem do atalho escolhido na lista suspensa (mesmos atalhos da tela:
+  "Log completo" = primeiro ao último dia com evento; um por extração; os do usuário) ou de "Personalizado" com as
+  datas digitadas. A data de corte começa com a última exibida no painel para o escopo e pode ser alterada.
+- **Quadros:** 1 categorias por origem; 2 período × demais dias × log completo; 3 composição por data contábil;
+  4 sinalizações (as listas de dias ficam no movimento diário); 5 cobertura das justificativas; 6 critério de corte
+  das alterações por extração; 7 movimento diário; 8 onde conferir.
+- **Justificativas no Excel:** situação e observação por fórmula (pendente enquanto o texto estiver vazio;
+  movimentado após a justificativa — calculado na exportação — até a confirmação em "Abrange o novo evento?").
+  Documentos, sinalização "sem justificativa" e cobertura do Resumo seguem o que for digitado.
+- **Datas** gravadas como número serial com formato de célula; dinheiro em reais a partir dos centavos; fórmulas sem
+  valor em cache e recálculo ao abrir.
+- **Conferência automática:** os testes avaliam as fórmulas do Resumo para cada atalho e para períodos personalizados
+  e comparam com o painel da ferramenta; com os arquivos reais, o teste local também abre a planilha no Excel,
+  recalcula e confere célula a célula (seção 8 de ARQUITETURA.md).

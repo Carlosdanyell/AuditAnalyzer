@@ -2,9 +2,12 @@
  * What the worker keeps after an ingestion: the analyses of each scope and what the panel and the tables
  * need to answer queries. Lives only in the worker's memory for the session (CLAUDE.md, restriction 4).
  */
+import { sha256 } from 'hash-wasm';
 import type { AnalyzerConfig } from '../config/schema';
 import { INVALID_TIME, dayOfSeconds, parseDate } from '../shared/dates';
 import type {
+  CheckResult,
+  ExportOptions,
   ImportedJustification,
   Justification,
   JustificationImportPreview,
@@ -22,6 +25,11 @@ import { buildPanel, type PanelContext } from './engine/panel';
 import { TableQueries } from './engine/tables';
 import type { IngestionResult } from './ingest/pipeline';
 import { normalizeLabel } from './ingest/parametros';
+import { buildPaperwork, type PaperworkOutput } from './export/paperwork';
+import { APP_VERSION } from '../shared/version';
+
+/** Invariant 9: 01/01/1901 as an Excel serial; no exported date may be earlier (or an empty date written as 0). */
+const FIRST_EXPORTABLE_SERIAL = 367;
 
 export class Session {
   private readonly tables = new Map<number, TableQueries>();
@@ -33,7 +41,7 @@ export class Session {
 
   constructor(
     readonly result: IngestionResult,
-    config: AnalyzerConfig,
+    private readonly config: AnalyzerConfig,
   ) {
     const files = result.reconciliation.files;
     this.settings = settingsFromConfig(config);
@@ -91,7 +99,9 @@ export class Session {
     } else {
       const book = await readJustificationWorkbook(file);
       items = book.items;
-      coverage = deduceCoverage(book, loadedFiles);
+      const deduced = deduceCoverage(book, loadedFiles);
+      // Exported by the tool: each justification brings its coverage; the deduced one is for new texts.
+      coverage = items.some((i) => i.coverage) ? { ...deduced, method: 'ferramenta' } : deduced;
     }
     const known = this.knownDocuments();
     const unknownKeys = items.filter((i) => !known[i.kind].has(i.documentKey)).length;
@@ -126,5 +136,37 @@ export class Session {
       this.tables.set(scopeIndex, queries);
     }
     return queries.page(table, filter, sort, Math.max(0, offset), Math.min(Math.max(0, limit), 2000));
+  }
+
+  /**
+   * Builds the workpaper of a scope (docs/ARQUITETURA.md, section 5). Failing blocking checks stop the export
+   * unless the user confirmed; the confirmation is then written to the Resumo banner and the Rastreabilidade tab.
+   */
+  async export(
+    options: ExportOptions,
+    onProgress: (done: number, total: number) => void = () => {},
+  ): Promise<PaperworkOutput | { blocked: CheckResult[] }> {
+    const failures = this.result.reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed);
+    if (failures.length > 0 && !options.confirmFailures) return { blocked: failures };
+    this.scope(options.scope);
+    const out = await buildPaperwork(
+      {
+        result: this.result,
+        config: this.config,
+        scopeIndex: options.scope,
+        context: this.context,
+        cutoffDay: this.usedCutoffs.get(options.scope) ?? null,
+        language: options.language,
+        generatedAt: options.generatedAt,
+        appVersion: APP_VERSION,
+        configHash: await sha256(JSON.stringify(this.config)),
+        confirmedFailures: failures,
+      },
+      onProgress,
+    );
+    if (out.minDateSerial !== null && out.minDateSerial < FIRST_EXPORTABLE_SERIAL) {
+      throw new Error(`Invariante 9: data anterior a 01/01/1901 na planilha exportada (serial ${out.minDateSerial}).`);
+    }
+    return out;
   }
 }

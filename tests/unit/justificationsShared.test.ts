@@ -71,7 +71,7 @@ describe('merging an import', () => {
 
   it('keeps existing texts in conflicts unless replaced, adds new ones and skips empty ones', () => {
     const kept = mergeImport(existing, imported, { coverage, confirmedCoverage, replace: new Set(), now: 9 });
-    expect(kept.summary).toEqual({ added: 1, replaced: 0, kept: 1, unchanged: 1, empty: 1 });
+    expect(kept.summary).toEqual({ added: 1, replaced: 0, kept: 1, unchanged: 1, confirmed: 0, empty: 1 });
     expect(kept.items.find((x) => x.documentKey === 'D1')?.text).toBe('Texto atual');
     const d3 = kept.items.find((x) => x.documentKey === 'D3')!;
     expect(d3.coverage).toEqual(confirmedCoverage);
@@ -80,5 +80,14 @@ describe('merging an import', () => {
     const replaced = mergeImport(existing, imported, { coverage, confirmedCoverage, replace: 'all', now: 9 });
     expect(replaced.summary.replaced).toBe(1);
     expect(replaced.items.find((x) => x.documentKey === 'D1')).toMatchObject({ text: 'Texto importado', responsible: 'Ana', coverage });
+  });
+
+  it('the same text confirmed as covering the new event ("Abrange o novo evento?") extends the coverage', () => {
+    const confirmedSame = [{ documentKey: 'D2', kind: 'deletion' as const, text: 'Mesmo texto', responsible: '', confirmed: true }];
+    const merged = mergeImport(existing, confirmedSame, { coverage, confirmedCoverage, replace: new Set(), now: 9 });
+    expect(merged.summary).toMatchObject({ confirmed: 1, unchanged: 0 });
+    expect(merged.items.find((x) => x.documentKey === 'D2')).toMatchObject({ text: 'Mesmo  texto', coverage: confirmedCoverage, updatedAt: 9 });
+    const again = mergeImport(merged.items, confirmedSame, { coverage, confirmedCoverage, replace: new Set(), now: 10 });
+    expect(again.summary).toMatchObject({ confirmed: 0, unchanged: 1 });
   });
 });

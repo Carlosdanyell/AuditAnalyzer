@@ -154,7 +154,7 @@ export function JustificationsView(props: JustificationsViewProps) {
             setPreview(null);
             setMessage(
               `Importação aplicada: ${summary.added} nova(s), ${summary.replaced} substituída(s), ${summary.kept} mantida(s) por conflito, ` +
-                `${summary.unchanged} igual(is), ${summary.empty} vazia(s) ignorada(s).` +
+                `${summary.unchanged} igual(is), ${summary.confirmed} com cobertura confirmada, ${summary.empty} vazia(s) ignorada(s).` +
                 (saved ? '' : ' Não foi possível salvar neste computador; vale apenas nesta sessão.'),
             );
           }}
@@ -355,6 +355,8 @@ function ImportPreview({
         ? `deduzida pela data do último evento encontrada em Documentos/Base_Linhas (${formatDateTime(preview.coverage.lastEvent)}).`
         : 'deduzida pelos eventos da planilha.',
     json: 'cada justificativa do JSON traz a sua; a escolha abaixo vale só para as que não trazem.',
+    ferramenta:
+      'cada justificativa exportada pela ferramenta traz a sua; a escolha abaixo vale só para as que não trazem (textos novos escritos no Excel).',
     nenhum: 'não foi possível deduzir (a planilha não tem Rastreabilidade nem datas de evento). Escolha os arquivos abaixo.',
   }[preview.coverage.method];
 

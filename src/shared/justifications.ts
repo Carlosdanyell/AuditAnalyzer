@@ -105,7 +105,7 @@ export interface MergeOptions {
 
 export function mergeImport(existing: Justification[], imported: ImportedJustification[], options: MergeOptions) {
   const result = new Map(existing.map((j) => [justificationKey(j.kind, j.documentKey), j]));
-  const summary = { added: 0, replaced: 0, kept: 0, unchanged: 0, empty: 0 };
+  const summary = { added: 0, replaced: 0, kept: 0, unchanged: 0, confirmed: 0, empty: 0 };
   for (const i of imported) {
     if (!normalizeText(i.text)) {
       summary.empty++;
@@ -126,7 +126,10 @@ export function mergeImport(existing: Justification[], imported: ImportedJustifi
       result.set(key, next);
       summary.added++;
     } else if (sameText(current.text, i.text)) {
-      summary.unchanged++;
+      // Same text confirmed as covering the new event ("Abrange o novo evento?" in the exported workbook).
+      const extended = i.confirmed && JSON.stringify(current.coverage) !== JSON.stringify(coverage);
+      if (extended) result.set(key, { ...current, coverage, updatedAt: options.now });
+      summary[extended ? 'confirmed' : 'unchanged']++;
     } else if (options.replace === 'all' || options.replace.has(key)) {
       result.set(key, next);
       summary.replaced++;

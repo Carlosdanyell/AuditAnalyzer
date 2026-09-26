@@ -219,7 +219,7 @@ export interface LoadedFileInfo {
 export interface JustificationImportPreview {
   items: ImportedJustification[];
   /** Coverage deduced from the imported file (the user can change it). */
-  coverage: JustificationCoverage & { method: 'rastreabilidade' | 'eventos' | 'json' | 'nenhum' };
+  coverage: JustificationCoverage & { method: 'rastreabilidade' | 'eventos' | 'json' | 'ferramenta' | 'nenhum' };
   loadedFiles: LoadedFileInfo[];
   /** Items whose document (of that kind) is not in the current log: kept, not discarded. */
   unknownKeys: number;
@@ -232,8 +232,14 @@ export interface CoverageCount {
   pending: number;
 }
 
-/** Phase 5. */
-export type ExportOptions = Record<string, never>;
+export interface ExportOptions {
+  scope: number;
+  language: 'pt' | 'en';
+  /** Export despite failing blocking checks; the confirmation is recorded in the workbook. */
+  confirmFailures: boolean;
+  /** Local date and time of the export (dd/mm/aaaa hh:mm:ss), shown in the workbook. */
+  generatedAt: string;
+}
 
 /** CRC32 and size of a ZIP entry, checked against the central directory. */
 export interface EntryIntegrity {
@@ -373,9 +379,6 @@ export interface CheckResult {
   severity: 'error' | 'warning';
   message: string;
 }
-/** Phase 5. */
-export type Traceability = Record<string, never>;
-
 export type Command =
   | { type: 'ingest'; files: File[]; config: AnalyzerConfig }
   | { type: 'cancel' }
@@ -395,7 +398,7 @@ export type Command =
   /** replace = the list is the complete set; otherwise the items are upserted. */
   | { type: 'setJustifications'; requestId: number; items: Justification[]; replace: boolean }
   | { type: 'importJustifications'; requestId: number; file: File }
-  | { type: 'export'; options: ExportOptions };
+  | { type: 'export'; requestId: number; options: ExportOptions };
 
 export type WorkerEvent =
   | {
@@ -417,5 +420,7 @@ export type WorkerEvent =
   | { type: 'justificationsSet'; requestId: number; count: number; unknown: number }
   | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
   | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
-  | { type: 'exported'; blob: Blob; fileName: string; traceability: Traceability }
+  | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
+  /** Failing blocking checks: the export needs the user's explicit confirmation. */
+  | { type: 'exportBlocked'; requestId: number; failures: CheckResult[] }
   | { type: 'error'; stage: Stage; message: string; detail?: string; requestId?: number };
