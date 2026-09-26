@@ -105,6 +105,7 @@ npm run dev        # servidor de desenvolvimento
 npm run build      # build de produção (GitHub Pages, base configurada no vite.config.ts)
 npm run test       # testes sintéticos (rodam no CI)
 npm run test:local # testes com arquivos reais em local/ (só na máquina do desenvolvedor)
+npm run test:e2e   # ponta a ponta no navegador (Playwright, build de produção; rodam no CI)
 npm run lint
 ```
 

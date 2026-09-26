@@ -26,7 +26,7 @@ import { TableQueries } from './engine/tables';
 import type { IngestionResult } from './ingest/pipeline';
 import { normalizeLabel } from './ingest/parametros';
 import { buildPaperwork, type PaperworkOutput } from './export/paperwork';
-import { APP_VERSION } from '../shared/version';
+import { APP_VERSION_LABEL } from '../shared/version';
 
 /** Invariant 9: 01/01/1901 as an Excel serial; no exported date may be earlier (or an empty date written as 0). */
 const FIRST_EXPORTABLE_SERIAL = 367;
@@ -163,7 +163,7 @@ export class Session {
         cutoffDay: this.usedCutoffs.get(options.scope) ?? null,
         language: options.language,
         generatedAt: options.generatedAt,
-        appVersion: APP_VERSION,
+        appVersion: APP_VERSION_LABEL,
         configHash: await configHash(config),
         configDifferences: configDiff(config),
         confirmedFailures: failures,

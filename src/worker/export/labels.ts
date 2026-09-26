@@ -200,7 +200,7 @@ const pt = {
   trace: {
     title: 'Rastreabilidade',
     tool: 'Ferramenta',
-    version: 'Versão (commit)',
+    version: 'Versão da ferramenta',
     generated: 'Gerado em',
     language: 'Idioma',
     scope: 'Escopo exportado',
@@ -432,7 +432,7 @@ const en: Labels = {
   trace: {
     title: 'Traceability',
     tool: 'Tool',
-    version: 'Version (commit)',
+    version: 'Tool version',
     generated: 'Generated on',
     language: 'Language',
     scope: 'Exported scope',

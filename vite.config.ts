@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -29,6 +30,7 @@ function appVersion(): string {
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion()),
+    __APP_SEMVER__: JSON.stringify((JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version),
   },
   // GitHub Pages serves the site under /<repository>/.
   base: '/AuditAnalyzer/',

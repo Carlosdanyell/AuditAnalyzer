@@ -198,3 +198,8 @@ Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave
   Local: `tests/local/paperwork.test.ts` faz o mesmo com os arquivos reais (e as justificativas de uma planilha
   anterior em `local/`), e `tests/local/excel.test.ts` (Windows, `EXCEL_CHECK=1`) abre a planilha no Excel por
   automação, recalcula cada atalho e confere célula a célula, sem erros de fórmula e sem reparo ao abrir.
+- **Ponta a ponta (Fase 7, rodam no CI):** Playwright (`tests/e2e/`) sobre o build de produção servido pelo
+  `vite preview`, com a CSP real e arquivos sintéticos: arquivos e processamento, cancelar, painel (número → tabela,
+  orientação de alterados sem documento), justificativas (escrever, JSON, importar), exportação em PT e EN com o
+  Resumo conferido pelo avaliador, configuração (salvar, reprocessar, persistir, cópia de segurança) e ajuda. Todo
+  teste reprova requisição fora da origem e erro não tratado. Localmente usam o Chrome instalado (`E2E_CHANNEL`).

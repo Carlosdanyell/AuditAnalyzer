@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <title>Ajuda — AuditAnalyzer</title>
+    <style>
+      :root {
+        --text: #1b2430;
+        --muted: #5a6677;
+        --accent: #1f4e79;
+        --soft: #e8f0f8;
+        --border: #d9dee6;
+        --warn: #7a4d00;
+        --warn-soft: #fdf3e1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Aptos, 'Segoe UI', system-ui, sans-serif;
+        color: var(--text);
+        background: #f4f6f9;
+        line-height: 1.55;
+      }
+      header {
+        background: #fff;
+        border-bottom: 1px solid var(--border);
+        padding: 16px 32px;
+      }
+      header h1 { margin: 0; font-size: 22px; color: var(--accent); font-family: 'Aptos Display', Aptos, 'Segoe UI', system-ui, sans-serif; }
+      header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+      .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; max-width: 1180px; margin: 0 auto; padding: 24px 32px 64px; }
+      nav { position: sticky; top: 16px; align-self: start; font-size: 14px; }
+      nav ol { margin: 0; padding-left: 20px; }
+      nav a { color: var(--accent); text-decoration: none; }
+      nav a:hover { text-decoration: underline; }
+      main section { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 18px 24px; margin-bottom: 16px; }
+      h2 { margin: 0 0 8px; font-size: 19px; color: var(--accent); font-family: 'Aptos Display', Aptos, 'Segoe UI', system-ui, sans-serif; }
+      h3 { margin: 16px 0 6px; font-size: 16px; }
+      table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+      th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      th { background: var(--soft); }
+      code { font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace; font-size: 13px; background: var(--soft); padding: 0 4px; border-radius: 4px; }
+      .note { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px 12px; }
+      @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } nav { position: static; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>AuditAnalyzer — ajuda</h1>
+      <p>Análise do log de auditoria CFGR700 (Protheus) da tabela CT2 e papel de trabalho em Excel.</p>
+    </header>
+    <div class="layout">
+      <nav aria-label="Conteúdo">
+        <ol>
+          <li><a href="#para-que-serve">Para que serve</a></li>
+          <li><a href="#extracao">Extração do CFGR700</a></li>
+          <li><a href="#passo-a-passo">Passo a passo</a></li>
+          <li><a href="#ciclo-mensal">Ciclo mensal</a></li>
+          <li><a href="#planilha">A planilha exportada</a></li>
+          <li><a href="#verificacoes">Verificações</a></li>
+          <li><a href="#sinalizacoes">Sinalizações do painel</a></li>
+          <li><a href="#limitacoes">Limitações</a></li>
+          <li><a href="#privacidade">Privacidade e cópias</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section id="para-que-serve">
+          <h2>1. Para que serve</h2>
+          <p>
+            A ferramenta lê um ou mais arquivos <code>.xlsx</code> do relatório CFGR700 (log de auditoria) da tabela CT2 e responde:
+            quais lançamentos foram <strong>excluídos</strong>, <strong>alterados</strong>, <strong>postados</strong> e quais documentos
+            estão <strong>desbalanceados</strong>, por período e por origem manual ou automática. O resultado é um papel de trabalho em
+            Excel com as justificativas e a reconciliação que prova que nenhuma linha do relatório ficou de fora.
+          </p>
+          <p>Tudo roda no navegador deste computador; os arquivos não são enviados para lugar nenhum.</p>
+        </section>
+
+        <section id="extracao">
+          <h2>2. Extração do CFGR700</h2>
+          <p>Emita o relatório de log de auditoria (CFGR700) em Excel com os parâmetros abaixo. A ferramenta confere estes parâmetros na aba de parâmetros de cada arquivo e avisa se algum estiver diferente.</p>
+          <table>
+            <thead><tr><th>Parâmetro</th><th>Valor</th><th>Por quê</th></tr></thead>
+            <tbody>
+              <tr><td>Tabela início / Tabela fim</td><td><code>CT2</code></td><td>A análise é da tabela de lançamentos contábeis.</td></tr>
+              <tr><td>Data inicial / Data final</td><td>intervalo da extração</td><td>Define o período coberto pelo arquivo (atalho "Arquivo N" no painel).</td></tr>
+              <tr><td>Operação de inclusão, alteração, exclusão e Recuperação</td><td>Sim</td><td>Sem uma delas, a contagem de postados, alterados ou excluídos fica incompleta.</td></tr>
+              <tr><td>Exclui campos não alterados</td><td>Sim</td><td>Formato validado: cada alteração traz só o campo alterado (ver <a href="#limitacoes">Limitações</a>).</td></tr>
+            </tbody>
+          </table>
+          <p>
+            Com mais de uma extração, emita intervalos contínuos: sem sobreposição e sem dias úteis de fora. A ferramenta aponta sobreposições e
+            lacunas na verificação "Cobertura entre extrações" e na sinalização "Dias do período sem cobertura de extração".
+          </p>
+          <p class="note">Use o arquivo exatamente como o Protheus gerou. O SHA-256 registrado na Rastreabilidade identifica esse arquivo; abrir e salvar no Excel gera outro arquivo, com outro SHA-256.</p>
+        </section>
+
+        <section id="passo-a-passo">
+          <h2>3. Passo a passo</h2>
+          <h3>Arquivos e processamento</h3>
+          <p>Arraste ou escolha os arquivos; a ordem define a ordem das fontes (use a ordem cronológica). Clique em <strong>Analisar</strong>. A tela mostra a etapa, o progresso, as linhas por segundo e o tempo; <strong>Cancelar</strong> descarta o que foi lido.</p>
+          <h3>Reconciliação</h3>
+          <p>Por arquivo: SHA-256, integridade do arquivo, parâmetros, reconciliação das linhas do relatório e eventos por operação, além das verificações (seção 6). Confira que as verificações bloqueantes estão OK antes de seguir.</p>
+          <h3>Painel</h3>
+          <ul>
+            <li><strong>Escopo:</strong> cada arquivo e o Consolidado (todos juntos). Para contar documentos alterados corretamente, use o Consolidado quando houver mais de um arquivo.</li>
+            <li><strong>Período:</strong> "Log completo", um atalho por extração, atalhos próprios ou datas livres. O filtro usa a data do evento.</li>
+            <li><strong>Data de corte:</strong> separa os lançamentos pela data contábil (competência).</li>
+            <li>Cada número abre a tabela com exatamente aquelas linhas ou documentos.</li>
+            <li>Se houver registros alterados sem documento, o painel explica a causa e o que fazer (carregar a extração anterior ou abrir o Consolidado no mesmo período).</li>
+          </ul>
+          <h3>Tabelas</h3>
+          <p>Documentos, base de linhas, exclusões, alterações, desbalanceados e alterações descartadas, com busca, ordenação e filtros.</p>
+          <h3>Justificativas</h3>
+          <p>Uma justificativa por documento e por tipo (exclusão ou alteração). A lista mostra o valor do documento, o valor excluído e o histórico da 1ª linha para facilitar a identificação. É possível importar as justificativas de uma planilha exportada antes (ou de um JSON) e guardar uma cópia em JSON.</p>
+          <h3>Exportação</h3>
+          <p>Escolha o escopo e o idioma (português ou inglês) e clique em <strong>Gerar planilha</strong>. Se alguma verificação bloqueante tiver falhado, a exportação só sai com confirmação, que fica registrada no Resumo e na Rastreabilidade.</p>
+          <h3>Configuração</h3>
+          <p>Regras da análise (campos, chave do documento, origem, natureza, tolerância de balanceamento, sinalizações, feriados e atalhos). As mudanças ficam salvas neste computador e entram na Rastreabilidade; com uma análise na tela, a ferramenta oferece reprocessar. Na mesma tela: exportar/importar a configuração e a cópia de segurança.</p>
+        </section>
+
+        <section id="ciclo-mensal">
+          <h2>4. Ciclo mensal recomendado</h2>
+          <ol>
+            <li>Carregue a extração do mês e, se houver alterações em lançamentos de meses anteriores, também a extração anterior (a chave do documento vem da inclusão).</li>
+            <li>Em Justificativas, importe a planilha exportada no mês anterior: as justificativas voltam com a cobertura (arquivos e último evento).</li>
+            <li>Documentos movimentados depois da justificativa aparecem como "Movimentado após a justificativa": revise o texto e confirme se ele abrange o novo evento.</li>
+            <li>Escreva as justificativas pendentes (na ferramenta ou direto na planilha exportada).</li>
+            <li>Gere a planilha e guarde uma cópia de segurança.</li>
+          </ol>
+        </section>
+
+        <section id="planilha">
+          <h2>5. A planilha exportada</h2>
+          <table>
+            <thead><tr><th>Aba</th><th>Conteúdo</th></tr></thead>
+            <tbody>
+              <tr><td>Resumo</td><td>Quadros por fórmula: escolha o período (lista ou "Personalizado") e a data de corte nos campos em amarelo e tudo recalcula.</td></tr>
+              <tr><td>Justificativas (exclusão e alteração)</td><td>Texto e responsável editáveis; situação e observação por fórmula; coluna "Abrange o novo evento?" para confirmar documentos movimentados depois da justificativa.</td></tr>
+              <tr><td>Documentos e Base_Linhas</td><td>Um documento e um registro por linha. As colunas de cabeçalho cinza ("No período do Resumo") dizem se a linha entra no período escolhido.</td></tr>
+              <tr><td>Exclusões, Alterações, Desbalanceados</td><td>Detalhe de cada categoria.</td></tr>
+              <tr><td>Alterações descartadas</td><td>Eventos descartados pelo critério de corte (efetivação do tipo de saldo e carimbo de usuário), em detalhe e resumidos.</td></tr>
+              <tr><td>Critérios</td><td>Premissas, definições e limitações.</td></tr>
+              <tr><td>Rastreabilidade</td><td>Arquivos (SHA-256), reconciliação, verificações, parâmetros, configuração usada e suas diferenças em relação ao padrão.</td></tr>
+              <tr><td>Auxiliar</td><td>Parâmetros do filtro, atalhos, feriados e movimento diário que alimentam o Resumo.</td></tr>
+            </tbody>
+          </table>
+          <p>Negativos aparecem entre parênteses e zero como traço. O carimbo de usuário (CT2_USERGA), gravado de forma codificada pelo Protheus, aparece como "—".</p>
+        </section>
+
+        <section id="verificacoes">
+          <h2>6. Verificações</h2>
+          <p>Bloqueantes impedem a exportação sem confirmação; alertas apenas informam.</p>
+          <table>
+            <thead><tr><th>Verificação</th><th>Nível</th><th>O que confere</th></tr></thead>
+            <tbody>
+              <tr><td>Reconciliação de linhas</td><td>Bloqueante</td><td>Linhas após o 1º cabeçalho − cabeçalhos repetidos − linhas em branco = linhas de detalhe.</td></tr>
+              <tr><td>Eventos por operação</td><td>Bloqueante</td><td>A soma por operação é igual ao número de eventos distintos.</td></tr>
+              <tr><td>Classificação das alterações</td><td>Bloqueante</td><td>Descartadas + efetivas = eventos de alteração.</td></tr>
+              <tr><td>Efetivações do tipo de saldo</td><td>Bloqueante</td><td>Todo evento descartado como efetivação tem a transição 9 → 1.</td></tr>
+              <tr><td>Outras transições do tipo de saldo</td><td>Alerta</td><td>Transições diferentes de 9 → 1 (tratadas como alteração efetiva).</td></tr>
+              <tr><td>Documentos contíguos na base</td><td>Bloqueante</td><td>As linhas de cada documento estão juntas na base de linhas.</td></tr>
+              <tr><td>Soma dos períodos</td><td>Bloqueante</td><td>A soma dos dias é igual ao log completo.</td></tr>
+              <tr><td>Quadro de competência</td><td>Bloqueante</td><td>A composição por data contábil fecha com as categorias.</td></tr>
+              <tr><td>Integridade do arquivo</td><td>Bloqueante</td><td>CRC32 e tamanho de cada parte do arquivo conferem.</td></tr>
+              <tr><td>Valores legíveis</td><td>Bloqueante</td><td>Recno, operação, data/hora e valor legíveis em todas as linhas.</td></tr>
+              <tr><td>Parâmetros do relatório</td><td>Alerta</td><td>Parâmetros da seção 2.</td></tr>
+              <tr><td>Cobertura entre extrações</td><td>Alerta</td><td>Sobreposição ou dias úteis sem extração entre arquivos.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="sinalizacoes">
+          <h2>7. Sinalizações do painel</h2>
+          <table>
+            <thead><tr><th>Sinalização</th><th>Exige ação</th></tr></thead>
+            <tbody>
+              <tr><td>Documentos desbalanceados</td><td>Sim, quando houver</td></tr>
+              <tr><td>Documentos excluídos ou alterados sem justificativa</td><td>Sim, quando houver</td></tr>
+              <tr><td>Registros alterados sem identificação de documento</td><td>Informativo</td></tr>
+              <tr><td>Lançamentos gravados como inconsistentes</td><td>Só com inconsistência pendente</td></tr>
+              <tr><td>Lançamentos incluídos sem usuário no log</td><td>Informativo</td></tr>
+              <tr><td>Dias do período sem cobertura de extração</td><td>Sim, quando houver</td></tr>
+              <tr><td>Dias úteis do período sem nenhum evento</td><td>Sim, quando houver (feriados configurados não contam)</td></tr>
+            </tbody>
+          </table>
+          <p>Os textos e o nível de cada sinalização podem ser ajustados na Configuração.</p>
+        </section>
+
+        <section id="limitacoes">
+          <h2>8. Limitações</h2>
+          <ul>
+            <li>O log contém só o que foi movimentado no intervalo extraído; não é a população da razão.</li>
+            <li>Com "Exclui campos não alterados = Sim", a alteração traz só o campo modificado. A chave do documento vem da inclusão: lançamentos incluídos antes do início das extrações carregadas aparecem como "Não identificado". Carregue a extração anterior ou consulte a CT2 pelo Recno.</li>
+            <li>Documentos com alguma linha sem inclusão no log têm base parcial: o desbalanceamento fica "Não avaliável".</li>
+            <li>Analisando um arquivo só, documentos alterados cuja inclusão está em outra extração não são contados como documentos; use os dois arquivos e o escopo Consolidado.</li>
+          </ul>
+        </section>
+
+        <section id="privacidade">
+          <h2>9. Privacidade e cópias</h2>
+          <ul>
+            <li>Os arquivos do log são lidos só na memória desta aba e descartados ao encerrar a sessão ou fechar a aba.</li>
+            <li>Ficam salvas neste navegador apenas a configuração e as justificativas. Limpar os dados do navegador as apaga: guarde a <strong>cópia de segurança</strong> (Configuração → Cópia de segurança), que também serve para trocar de computador.</li>
+            <li><strong>Encerrar sessão</strong> descarta a análise da memória.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

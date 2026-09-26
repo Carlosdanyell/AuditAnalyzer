@@ -36,7 +36,7 @@ export function buildJsonExport(items: Justification[], exportedAt: string): str
 
 const isKind = (k: unknown): k is JustificationKind => k === 'deletion' || k === 'change';
 
-function readCoverage(value: unknown): JustificationCoverage | undefined {
+export function readCoverage(value: unknown): JustificationCoverage | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const { files, lastEvent } = value as Record<string, unknown>;
   if (!Array.isArray(files) || !files.every((f) => typeof f === 'string')) return undefined;

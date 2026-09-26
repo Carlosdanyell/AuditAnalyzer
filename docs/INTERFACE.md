@@ -60,13 +60,25 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 8. **Configuração** — seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
    padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App).
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
-   configuração"**, que reaproveita os arquivos carregados.
+   configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
+   configuração e as justificativas (`buildBackup`) e restaurar com confirmação (`readBackup`, `restoreBackup` do
+   App), substituindo tudo.
 9. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
-   aviso de configuração salva inválida, aviso de reprocessamento na tela principal.
+   aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
+   `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline) e **versão** no rodapé
+   (`APP_VERSION_LABEL`).
 
 ## Como validar
 
 - `npm run test`, `npm run lint` e `npm run build` passando (há testes de tela em `tests/unit/App.test.tsx` e
   `tests/unit/ReconciliationView.test.tsx`; ajuste-os ao novo layout sem remover o que verificam).
+- **`npm run test:e2e` passando** (Playwright, `tests/e2e/app.spec.ts`): é o critério de aceite da nova interface.
+  Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
+  "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
+  "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
+  "Aplicar importação", "Ver no Consolidado (mesmo período)", link "Ajuda"; campos "Escopo", "Período",
+  "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
+  citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Cada teste também reprova
+  qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

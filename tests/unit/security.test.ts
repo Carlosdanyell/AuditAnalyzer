@@ -27,6 +27,17 @@ describe('no data leaves the machine', () => {
     expect(indexHtml).not.toMatch(/(https?:)?\/\/[a-z0-9.-]+\.[a-z]{2,}/i);
   });
 
+  it('static pages (help) reference no external resource, run no script and declare a CSP', () => {
+    const pages = filesUnder(join(root, 'public')).filter((f) => f.endsWith('.html'));
+    expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) {
+      const html = readFileSync(page, 'utf8');
+      expect(html, page).not.toMatch(/(https?:)?\/\/[a-z0-9.-]+\.[a-z]{2,}/i);
+      expect(html, page).not.toMatch(/<script/i);
+      expect(html, page).toMatch(/http-equiv="Content-Security-Policy"[^>]*script-src 'none'/);
+    }
+  });
+
   it('source code has no external URLs or network APIs', () => {
     const offenders = filesUnder(join(root, 'src')).filter((file) => {
       // XML namespace names of the Office Open XML format are identifiers, never fetched.

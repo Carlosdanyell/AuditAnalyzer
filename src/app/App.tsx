@@ -5,7 +5,9 @@ import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
 import type { Justification, PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
-import { loadJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
+import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
+import { buildBackup } from '../shared/backup';
+import { APP_VERSION_LABEL } from '../shared/version';
 import { JustificationsView } from './views/JustificationsView';
 import { applySettings, settingsFromConfig } from '../shared/settings';
 import { configDiff } from '../shared/configTools';
@@ -110,7 +112,7 @@ export function App() {
       setJustifications(map);
       const nextMeta = { ...meta, lastChangeAt: Date.now() };
       setMeta(nextMeta);
-      const saved = await saveJustifications(items, nextMeta);
+      const saved = await replaceJustifications(items, nextMeta);
       await sendJustifications(items, true);
       return saved;
     },
@@ -155,6 +157,35 @@ export function App() {
 
   // Presets and holidays edited in the panel are part of the configuration.
   const changeSettings = useCallback((next: PanelSettings) => applyConfig(applySettings(configRef.current, next)), [applyConfig]);
+
+  /** One file with the configuration and the justifications; counts as a copy of the justifications. */
+  const createBackup = useCallback(() => {
+    const now = Date.now();
+    const items = [...justificationsRef.current.values()];
+    download(buildBackup(configRef.current, items, stamp.format(now)), `copia-de-seguranca-auditanalyzer-${stamp.format(now).slice(0, 10)}.json`);
+    const nextMeta = { ...meta, lastExportAt: now };
+    setMeta(nextMeta);
+    void saveMeta(nextMeta);
+    return items.length;
+  }, [meta]);
+
+  /** Replaces the configuration and every justification by those of a backup. */
+  const restoreBackup = useCallback(
+    async (restored: AnalyzerConfig, items: Justification[]): Promise<boolean> => {
+      const savedConfig = await applyConfig(restored);
+      const map = new Map(items.map((j) => [justificationKey(j.kind, j.documentKey), j]));
+      justificationsRef.current = map;
+      setJustifications(map);
+      const now = Date.now();
+      const nextMeta = { lastExportAt: now, lastChangeAt: now };
+      setMeta(nextMeta);
+      const savedItems = await replaceJustifications(items, nextMeta);
+      await sendJustifications(items, true);
+      return savedConfig && savedItems;
+    },
+    [applyConfig, sendJustifications],
+  );
+
 
   const openTable = useCallback((table: TableId, filter: TableFilter) => {
     setTableRequest({ table, filter });
@@ -275,6 +306,9 @@ export function App() {
           <span className={styles.subtitle}>Log de auditoria CFGR700 · Protheus</span>
         </div>
         <div className={styles.headerActions}>
+          <a className={styles.help} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
+            Ajuda
+          </a>
           <button
             type="button"
             className={screen === 'config' ? styles.configActive : styles.secondary}
@@ -313,6 +347,8 @@ export function App() {
             canReprocess={files.length > 0 && phase !== 'running'}
             onReprocess={reprocess}
             onClose={() => setScreen('main')}
+            onCreateBackup={createBackup}
+            onRestoreBackup={restoreBackup}
           />
         )}
 
@@ -472,6 +508,10 @@ export function App() {
           </>
         )}
       </main>
+
+      <footer className={styles.footer}>
+        AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados
+      </footer>
     </div>
   );
 }

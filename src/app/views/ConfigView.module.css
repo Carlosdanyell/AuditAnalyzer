@@ -336,3 +336,7 @@
   border-radius: var(--radius);
   box-shadow: 0 -2px 8px rgb(16 24 40 / 8%);
 }
+
+.card h3 {
+  font-size: 16px;
+}

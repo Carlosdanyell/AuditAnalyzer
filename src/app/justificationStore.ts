@@ -47,6 +47,23 @@ export async function saveJustifications(items: Justification[], meta: Justifica
   }
 }
 
+/** Replaces every saved justification by `items` (import merge, backup restore). */
+export async function replaceJustifications(items: Justification[], meta: JustificationMeta): Promise<boolean> {
+  try {
+    const db = await openDatabase();
+    const tx = db.transaction([STORE_JUSTIFICATIONS, STORE_CONFIG], 'readwrite');
+    const store = tx.objectStore(STORE_JUSTIFICATIONS);
+    store.clear();
+    for (const j of items) store.put(j, justificationKey(j.kind, j.documentKey));
+    tx.objectStore(STORE_CONFIG).put(meta, META);
+    await transactionDone(tx);
+    db.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveMeta(meta: JustificationMeta): Promise<boolean> {
   return saveJustifications([], meta);
 }

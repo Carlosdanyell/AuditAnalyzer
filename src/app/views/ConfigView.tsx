@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { SIGNAL_IDS, defaultConfig, type AnalyzerConfig } from '../../config/schema';
+import { readBackup } from '../../shared/backup';
 import { configDiff, configHash, configToJson, readConfig, type ConfigIssue } from '../../shared/configTools';
+import type { Justification } from '../../shared/protocol';
 import { formatInteger } from '../../shared/format';
 import { centsFromReais, formatList, getIn, issuesAt, parseList, reaisFromCents, setIn, type Draft, type Json } from '../configEditor';
 import { downloadBlob } from '../download';
@@ -17,6 +19,10 @@ interface Props {
   canReprocess: boolean;
   onReprocess: () => void;
   onClose: () => void;
+  /** Downloads one file with the configuration and the justifications; returns how many justifications. */
+  onCreateBackup: () => number;
+  /** Replaces the configuration and every justification; resolves with whether both were saved. */
+  onRestoreBackup: (config: AnalyzerConfig, justifications: Justification[]) => Promise<boolean>;
 }
 
 const toDraft = (c: AnalyzerConfig): Draft => structuredClone(c) as unknown as Draft;
@@ -29,13 +35,15 @@ const SIGNAL_ACTIONS: { value: string; label: string }[] = [
   { value: 'never', label: 'Nunca (informativo)' },
 ];
 
-export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, canReprocess, onReprocess, onClose }: Props) {
+export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, canReprocess, onReprocess, onClose, onCreateBackup, onRestoreBackup }: Props) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(config));
   const [message, setMessage] = useState<{ kind: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [hash, setHash] = useState('');
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [jsonIssues, setJsonIssues] = useState<ConfigIssue[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
+  const [pendingRestore, setPendingRestore] = useState<{ name: string; createdAt: string; config: AnalyzerConfig; justifications: Justification[] } | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -102,6 +110,30 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
   function exportJson() {
     downloadBlob(new Blob([configToJson(config)], { type: 'application/json' }), `configuracao-auditanalyzer-${today()}.json`);
     setMessage({ kind: 'ok', text: dirty ? 'Exportada a configuração salva (as alterações do rascunho não foram incluídas).' : 'Configuração exportada.' });
+  }
+
+  async function chooseBackup(file: File) {
+    const result = readBackup(await file.text());
+    if (!result.ok) {
+      setPendingRestore(null);
+      setMessage({ kind: 'error', text: `"${file.name}" não pode ser restaurado: ${result.errors.join('; ')}` });
+      return;
+    }
+    setMessage(null);
+    setPendingRestore({ name: file.name, createdAt: result.createdAt, config: result.config, justifications: result.justifications });
+  }
+
+  async function confirmRestore() {
+    if (!pendingRestore) return;
+    const saved = await onRestoreBackup(pendingRestore.config, pendingRestore.justifications);
+    setDraft(toDraft(pendingRestore.config));
+    setJsonText(null);
+    setMessage(
+      saved
+        ? { kind: 'ok', text: `Cópia restaurada: configuração e ${formatInteger(pendingRestore.justifications.length)} justificativa(s).` }
+        : { kind: 'error', text: 'A cópia foi aplicada nesta sessão, mas não foi possível salvar neste computador.' },
+    );
+    setPendingRestore(null);
   }
 
   function applyJson() {
@@ -223,6 +255,58 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
             <button type="button" className={styles.primary} onClick={onReprocess} disabled={!canReprocess}>
               Reprocessar com esta configuração
             </button>
+          </div>
+        )}
+      </section>
+
+      <section className={styles.card} aria-labelledby="backup-title">
+        <h3 id="backup-title">Cópia de segurança</h3>
+        <p className={styles.muted}>
+          Um arquivo com a configuração e as justificativas guardadas neste computador — para trocar de computador ou recuperar se os dados
+          do navegador forem apagados. Não contém dados do log.
+        </p>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.button}
+            onClick={() => {
+              const n = onCreateBackup();
+              setMessage({ kind: 'ok', text: `Cópia de segurança baixada: configuração e ${formatInteger(n)} justificativa(s).` });
+            }}
+          >
+            Baixar cópia de segurança
+          </button>
+          <button type="button" className={styles.button} onClick={() => backupInput.current?.click()}>
+            Restaurar cópia de segurança
+          </button>
+          <input
+            ref={backupInput}
+            type="file"
+            accept=".json,application/json"
+            className={styles.hidden}
+            aria-label="Arquivo da cópia de segurança"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) void chooseBackup(file);
+            }}
+          />
+        </div>
+        {pendingRestore && (
+          <div className={styles.reprocess} role="alertdialog" aria-label="Confirmar restauração">
+            <span>
+              Cópia "{pendingRestore.name}"{pendingRestore.createdAt ? ` de ${pendingRestore.createdAt}` : ''}: configuração com{' '}
+              {formatInteger(configDiff(pendingRestore.config).length)} diferença(s) do padrão e {formatInteger(pendingRestore.justifications.length)}{' '}
+              justificativa(s). Restaurar substitui a configuração e todas as justificativas salvas neste computador.
+            </span>
+            <div className={styles.actions}>
+              <button type="button" className={styles.primary} onClick={() => void confirmRestore()}>
+                Restaurar
+              </button>
+              <button type="button" className={styles.button} onClick={() => setPendingRestore(null)}>
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
       </section>

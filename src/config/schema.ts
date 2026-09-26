@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { INVALID_TIME, parseDate } from '../shared/dates';
-import ct2Defaults from './defaults/ct2.json';
+import ct2Defaults from './defaults/ct2.json' with { type: 'json' };
 
 /**
  * Analyzer configuration (docs/ARQUITETURA.md, section 6): how the report is read and every business rule of the

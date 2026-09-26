@@ -14,6 +14,7 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 4 — Justificativas | concluída; importação testada com o papel de trabalho anterior real |
 | 5 — Exportação XLSX | concluída em 26/09/2026; Resumo = ferramenta em todos os atalhos (arquivos reais, PT e EN); Excel recalcula sem erros e sem reparo |
 | 6 — Configuração | concluída em 26/09/2026 para a CT2 (tela, versões, importação/exportação); generalização para outras tabelas fora do escopo |
+| 7 — Entrega | concluída (testes de ponta a ponta no CI, ajuda, versão, cópia de segurança); release 1.0.0 depois da nova interface |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
@@ -118,6 +119,15 @@ mesmos números da ferramenta em todos os presets.
 escopo; se outra área precisar, será uma ferramenta própria. A Fase 6 entregou a configuração completa da CT2 e
 tirou dos textos os nomes de campo fixos. A interface poderá ser recriada por outro agente seguindo
 `docs/INTERFACE.md`.
+
+---
+
+## Fase 7 — Entrega (versão 1.0)
+
+Testes de ponta a ponta no navegador (Playwright, no CI) com guarda de privacidade, manual do usuário dentro do app,
+versão no rodapé e na rastreabilidade, cópia de segurança única (configuração + justificativas) e `CHANGELOG.md`.
+A interface será recriada por outro agente seguindo `docs/INTERFACE.md`; os testes de ponta a ponta são o critério de
+aceite. Depois disso: versão 1.0.0 em `package.json`, tag `v1.0.0` e release no GitHub.
 
 ---
 
