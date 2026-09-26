@@ -15,8 +15,8 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 5 — Exportação XLSX | concluída em 26/09/2026; Resumo = ferramenta em todos os atalhos (arquivos reais, PT e EN); Excel recalcula sem erros e sem reparo |
 | 6 — Configuração | concluída em 26/09/2026 para a CT2 (tela, versões, importação/exportação); generalização para outras tabelas fora do escopo |
 
-Pendente fora das fases: repetir tempos e memória no computador do trabalho (nesta máquina: worker até ~98 MB com os
-dois arquivos; ver MEDICOES.md).
+Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
+todos dentro do esperado (ver MEDICOES.md).
 
 ---
 

@@ -85,10 +85,7 @@ fica limitada ao arquivo comprimido e aos pedaços em trânsito. A medição dir
 `measureUserAgentSpecificMemory`) não foi possível desta vez: o painel do navegador estava oculto e a API exige a
 página visível.
 
-### Pendente
+### Computador do trabalho (26/09/2026)
 
-- **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo
-  Gerenciador de tarefas do navegador (Shift+Esc → linha "Dedicated worker" ou a aba). O navegador não expõe a
-  memória do worker para a página, então essa medição é manual.
-- **Computador do trabalho:** repetir tempos e memória (Gerenciador de tarefas do navegador, Shift+Esc).
-- **Exportação:** memória do worker durante a exportação (Chrome com a página visível, ou Gerenciador de tarefas).
+Verificado pelo usuário no Chrome/Edge corporativo: tempo de leitura, memória do worker (inclusive durante a
+exportação) e a planilha exportada aberta no Excel — todos dentro das metas. Os valores não foram registrados aqui.
