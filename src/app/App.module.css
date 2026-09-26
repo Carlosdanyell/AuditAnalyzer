@@ -14,6 +14,35 @@
   border-bottom: 1px solid var(--border);
 }
 
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.configActive {
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.reprocess {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+}
+
 .brand {
   display: flex;
   align-items: baseline;

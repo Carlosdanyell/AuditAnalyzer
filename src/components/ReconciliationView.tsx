@@ -12,12 +12,13 @@ const STAGE_NAMES: Partial<Record<Stage, string>> = {
 
 const when = (t: number | null) => (t === null ? '—' : formatDateTime(t));
 
-export function ReconciliationView({ data, summary }: { data: Reconciliation; summary?: Summary | null }) {
+/** `valueField`: the configured value field, named in the summary (default CT2_VALOR). */
+export function ReconciliationView({ data, summary, valueField = 'CT2_VALOR' }: { data: Reconciliation; summary?: Summary | null; valueField?: string }) {
   const multi = data.files.length > 1;
   return (
     <div className={styles.view}>
       <Checks checks={data.checks} totalMs={data.totalMs} />
-      {summary && summary.scopes.length > 0 && <AnalysisSummary summary={summary} />}
+      {summary && summary.scopes.length > 0 && <AnalysisSummary summary={summary} valueField={valueField} />}
 
       {multi && (
         <section className={styles.card}>
@@ -281,10 +282,10 @@ const SUMMARY_ROWS: SummaryRow[] = [
   },
   { label: 'Linhas da aba Alteracoes', hint: 'um campo alterado por linha', value: (s) => n(s.effectiveChangeRows) },
   { label: 'Registros em mais de uma extração', value: (s) => n(s.recordsInSeveralFiles) },
-  { label: 'Valores ilegíveis em CT2_VALOR', value: (s) => n(s.invalidValues) },
+  { label: 'Valores ilegíveis em {campo}', value: (s) => n(s.invalidValues) },
 ];
 
-function AnalysisSummary({ summary }: { summary: Summary }) {
+function AnalysisSummary({ summary, valueField }: { summary: Summary; valueField: string }) {
   return (
     <section className={styles.card}>
       <h2>Resumo da análise</h2>
@@ -304,7 +305,7 @@ function AnalysisSummary({ summary }: { summary: Summary }) {
             {SUMMARY_ROWS.map((row) => (
               <tr key={row.label}>
                 <th scope="row">
-                  {row.label}
+                  {row.label.replace('{campo}', valueField)}
                   {row.hint && <small>{row.hint}</small>}
                 </th>
                 {summary.scopes.map((s) => {

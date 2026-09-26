@@ -40,9 +40,11 @@ interface PanelViewProps {
   refreshKey?: number;
   /** Switches the scope (the panel keeps the current period). */
   onScopeChange?: (scope: number) => void;
+  /** Audited table (configuration), named in the guidance texts. */
+  table?: string;
 }
 
-export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0, onScopeChange }: PanelViewProps) {
+export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0, onScopeChange, table = 'CT2' }: PanelViewProps) {
   const [period, setPeriod] = useState<Period | null>(null);
   const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
@@ -249,6 +251,7 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
         {data.identification && (
           <IdentificationNote
             hint={data.identification}
+            table={table}
             onShowRecords={() => open('baseRows', 'changed', 'unidentified')}
             onShowConsolidated={
               onScopeChange && data.identification.recoverable
@@ -278,10 +281,12 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
 /** What to do about changed records without a document (docs/REGRAS_CFGR700.md, section 10). */
 function IdentificationNote({
   hint,
+  table,
   onShowRecords,
   onShowConsolidated,
 }: {
   hint: IdentificationHint;
+  table: string;
   onShowRecords: () => void;
   onShowConsolidated: (() => void) | undefined;
 }) {
@@ -311,13 +316,13 @@ function IdentificationNote({
       {hint.loadedFiles === 1 ? (
         <p>
           A inclusão desses lançamentos não está neste arquivo. Para identificar os documentos, faça uma <strong>Nova análise</strong>{' '}
-          carregando também a extração anterior (a que contém a inclusão), ou consulte a CT2 pelo Recno.
+          carregando também a extração anterior (a que contém a inclusão), ou consulte a {table} pelo Recno.
         </p>
       ) : (
         rest > 0 && (
           <p>
             {rec ? `Os demais ${n(rest)}` : 'Eles'} foram lançados antes do início das extrações carregadas: a inclusão não está em nenhum
-            arquivo. Carregue também uma extração anterior ou consulte a CT2 pelo Recno.
+            arquivo. Carregue também uma extração anterior ou consulte a {table} pelo Recno.
           </p>
         )
       )}

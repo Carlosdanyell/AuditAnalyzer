@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
-import { defaultConfig } from '../config/schema';
+import { defaultConfig, type AnalyzerConfig } from '../config/schema';
 import type { Justification, PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { JustificationsView } from './views/JustificationsView';
-import { applySettings, loadSettings, saveSettings } from './settings';
+import { applySettings, settingsFromConfig } from '../shared/settings';
+import { configDiff } from '../shared/configTools';
+import { loadConfig, saveConfig } from './configStore';
+import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
 import { PanelView } from './views/PanelView';
 import { TablesView, type TableRequest } from './views/TablesView';
@@ -55,7 +58,12 @@ export function App() {
   const [view, setView] = useState<View>('reconciliation');
   const [scope, setScope] = useState(0);
   const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
-  const [settings, setSettings] = useState<PanelSettings | null>(null);
+  // Configuration saved on this computer (IndexedDB) and the one used by the analysis on screen.
+  const [config, setConfig] = useState<AnalyzerConfig>(defaultConfig);
+  const configRef = useRef(config);
+  const [configNotice, setConfigNotice] = useState<string | null>(null);
+  const [analyzedConfig, setAnalyzedConfig] = useState<AnalyzerConfig | null>(null);
+  const [screen, setScreen] = useState<'main' | 'config'>('main');
   const [justifications, setJustifications] = useState<Map<string, Justification>>(new Map());
   const justificationsRef = useRef(justifications);
   const [meta, setMeta] = useState<JustificationMeta>({ lastExportAt: null, lastChangeAt: null });
@@ -126,17 +134,27 @@ export function App() {
     setView('justifications');
   }, []);
 
-  // Presets and holidays saved on this computer (IndexedDB), applied to every analysis.
   useEffect(() => {
-    void loadSettings().then((saved) => saved && setSettings(saved));
+    void loadConfig().then(({ config: loaded, notice: problem }) => {
+      configRef.current = loaded;
+      setConfig(loaded);
+      setConfigNotice(problem);
+    });
   }, []);
 
-  const changeSettings = useCallback(async (next: PanelSettings): Promise<boolean> => {
-    setSettings(next);
-    const saved = await saveSettings(next);
-    await clientRef.current?.query({ type: 'settings', settings: next });
+  /** Saves the configuration; presets and holidays also apply at once to the analysis on screen. */
+  const applyConfig = useCallback(async (next: AnalyzerConfig): Promise<boolean> => {
+    configRef.current = next;
+    setConfig(next);
+    const settings = settingsFromConfig(next);
+    setAnalyzedConfig((current) => current && applySettings(current, settings));
+    const saved = await saveConfig(next);
+    await clientRef.current?.query({ type: 'settings', settings }).catch(() => undefined);
     return saved;
   }, []);
+
+  // Presets and holidays edited in the panel are part of the configuration.
+  const changeSettings = useCallback((next: PanelSettings) => applyConfig(applySettings(configRef.current, next)), [applyConfig]);
 
   const openTable = useCallback((table: TableId, filter: TableFilter) => {
     setTableRequest({ table, filter });
@@ -211,7 +229,8 @@ export function App() {
     setSummary(null);
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
-    client().send({ type: 'ingest', files, config: settings ? applySettings(defaultConfig(), settings) : defaultConfig() });
+    setAnalyzedConfig(configRef.current);
+    client().send({ type: 'ingest', files, config: configRef.current });
   }
 
   function cancel() {
@@ -227,6 +246,14 @@ export function App() {
     setSummary(null);
     setRun(null);
     setPhase('select');
+  }
+
+  // Rules changed after the analysis on screen (presets and holidays apply without reprocessing).
+  const needsReprocess = phase === 'done' && analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0;
+
+  function reprocess() {
+    setScreen('main');
+    analyze();
   }
 
   function endSession() {
@@ -247,9 +274,19 @@ export function App() {
           <h1>AuditAnalyzer</h1>
           <span className={styles.subtitle}>Log de auditoria CFGR700 · Protheus</span>
         </div>
-        <button type="button" className={styles.secondary} onClick={endSession}>
-          Encerrar sessão
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={screen === 'config' ? styles.configActive : styles.secondary}
+            aria-pressed={screen === 'config'}
+            onClick={() => setScreen((s) => (s === 'config' ? 'main' : 'config'))}
+          >
+            Configuração
+          </button>
+          <button type="button" className={styles.secondary} onClick={endSession}>
+            Encerrar sessão
+          </button>
+        </div>
       </header>
 
       <main className={styles.main}>
@@ -261,7 +298,25 @@ export function App() {
           Os arquivos são processados neste computador e não são enviados para nenhum servidor.
         </p>
 
-        {phase === 'select' && (
+        {configNotice && (
+          <p className={styles.error} role="alert">
+            {configNotice}
+          </p>
+        )}
+
+        {screen === 'config' && (
+          <ConfigView
+            config={config}
+            onSave={applyConfig}
+            analysisLoaded={phase === 'done'}
+            needsReprocess={needsReprocess}
+            canReprocess={files.length > 0 && phase !== 'running'}
+            onReprocess={reprocess}
+            onClose={() => setScreen('main')}
+          />
+        )}
+
+        {screen === 'main' && phase === 'select' && (
           <section className={styles.card} aria-labelledby="upload-title">
             <h2 id="upload-title">Arquivos do log</h2>
             <p className={styles.lead}>
@@ -312,7 +367,7 @@ export function App() {
           </section>
         )}
 
-        {phase === 'running' && run && (
+        {screen === 'main' && phase === 'running' && run && (
           <StageProgress
             fileNames={run.fileNames}
             progress={run.progress}
@@ -323,7 +378,7 @@ export function App() {
           />
         )}
 
-        {phase === 'done' && reconciliation && (
+        {screen === 'main' && phase === 'done' && reconciliation && (
           <>
             <div className={styles.toolbar}>
               <nav className={styles.views} aria-label="Visões">
@@ -362,7 +417,17 @@ export function App() {
                 </button>
               </div>
             </div>
-            {view === 'reconciliation' && <ReconciliationView data={reconciliation} summary={summary} />}
+            {needsReprocess && (
+              <div className={styles.reprocess} role="status">
+                <span>A configuração mudou depois desta análise; os números na tela ainda usam a configuração anterior.</span>
+                <button type="button" className={styles.primary} onClick={reprocess} disabled={files.length === 0}>
+                  Reprocessar com a nova configuração
+                </button>
+              </div>
+            )}
+            {view === 'reconciliation' && (
+              <ReconciliationView data={reconciliation} summary={summary} valueField={(analyzedConfig ?? config).fields.value} />
+            )}
             {view === 'panel' && (
               <PanelView
                 client={client()}
@@ -372,6 +437,7 @@ export function App() {
                 onSettingsChange={changeSettings}
                 refreshKey={justRefresh}
                 onScopeChange={setScope}
+                table={(analyzedConfig ?? config).table}
               />
             )}
             {view === 'tables' && (

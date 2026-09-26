@@ -4,7 +4,7 @@ import { defaultConfig, parseConfig } from '../../src/config/schema';
 describe('analyzer configuration', () => {
   it('default CT2 configuration is valid', () => {
     const config = defaultConfig();
-    expect(config.schemaVersion).toBe(1);
+    expect(config.schemaVersion).toBe(2);
     expect(config.table).toBe('CT2');
     expect(Object.values(config.columns)).toEqual([
       'Campo',
@@ -22,7 +22,7 @@ describe('analyzer configuration', () => {
   });
 
   it('rejects an unknown schema version', () => {
-    expect(() => parseConfig({ ...defaultConfig(), schemaVersion: 2 })).toThrow();
+    expect(() => parseConfig({ ...defaultConfig(), schemaVersion: 3 })).toThrow();
   });
 
   it('rejects two roles mapped to the same report column', () => {

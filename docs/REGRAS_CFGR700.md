@@ -418,6 +418,8 @@ exportação — se falharem, a planilha não é gerada.
   dias sem extração em vermelho-claro.
 - **Datas** gravadas como número serial com formato de célula; dinheiro em reais a partir dos centavos; fórmulas sem
   valor em cache e recálculo ao abrir. Datas personalizadas vazias ficam vazias (nunca 00/01/1900).
+- **Configuração na Rastreabilidade:** SHA-256 da configuração usada e a lista do que difere do padrão CT2 (item,
+  valor padrão, valor usado), incluindo atalhos e feriados; "sem alterações" quando é o padrão.
 - **Conferência automática:** os testes avaliam as fórmulas do Resumo para cada atalho e para períodos personalizados
   e comparam com o painel da ferramenta; com os arquivos reais, o teste local também abre a planilha no Excel,
   recalcula e confere célula a célula (seção 8 de ARQUITETURA.md).

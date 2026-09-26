@@ -328,6 +328,31 @@ describe('export of a single file and with failing checks', () => {
   });
 });
 
+describe('configuration in the Rastreabilidade tab', () => {
+  it('says the default configuration was used, or lists what differs from it', async () => {
+    const texts = async (session: Session) => {
+      const out = await exportBook(session, 'pt', session.result.analyses.length - 1);
+      const book = await Workbook.read(out.blob, [LABELS.pt.sheets.trace]);
+      return [...book.sheets.get(LABELS.pt.sheets.trace)!.values()].map((c) => c.v);
+    };
+    const plain = async (config: ReturnType<typeof defaultConfig>) => {
+      const result = await runIngestion(
+        [{ name: 'agosto.xlsx', blob: synthBlob({ rows: toReportRows(EVENTS, 0), parameters: { 'Data inicial': '17/08/2026', 'Data final': '31/08/2026' } }) }],
+        config,
+        () => {},
+      );
+      return new Session(result, config);
+    };
+    expect(await texts(await plain(defaultConfig()))).toContain(LABELS.pt.trace.configDefault);
+
+    const changed = await texts(await plain({ ...defaultConfig(), balanceToleranceCents: 5 }));
+    expect(changed).not.toContain(LABELS.pt.trace.configDefault);
+    expect(changed).toEqual(expect.arrayContaining(['balanceToleranceCents', '1', '5']));
+    // Presets and holidays changed during the session count too.
+    expect(await texts(await makeSession())).toEqual(expect.arrayContaining(['calendar.holidays', 'panel.periodPresets']));
+  });
+});
+
 describe('importing justifications from an English workbook', () => {
   it('reads the English sheets, the confirmation column and the coverage columns', async () => {
     const blob = new Blob([

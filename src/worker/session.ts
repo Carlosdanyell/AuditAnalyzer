@@ -2,7 +2,6 @@
  * What the worker keeps after an ingestion: the analyses of each scope and what the panel and the tables
  * need to answer queries. Lives only in the worker's memory for the session (CLAUDE.md, restriction 4).
  */
-import { sha256 } from 'hash-wasm';
 import type { AnalyzerConfig } from '../config/schema';
 import { INVALID_TIME, dayOfSeconds, parseDate } from '../shared/dates';
 import type {
@@ -20,7 +19,8 @@ import type {
 } from '../shared/protocol';
 import { justificationKey, parseJsonImport } from '../shared/justifications';
 import { deduceCoverage, readJustificationWorkbook } from './justifications/importWorkbook';
-import { normalizeSettings, settingsForEngine, settingsFromConfig } from '../shared/settings';
+import { applySettings, normalizeSettings, settingsForEngine, settingsFromConfig } from '../shared/settings';
+import { configDiff, configHash } from '../shared/configTools';
 import { buildPanel, type PanelContext } from './engine/panel';
 import { TableQueries } from './engine/tables';
 import type { IngestionResult } from './ingest/pipeline';
@@ -152,17 +152,20 @@ export class Session {
     const failures = this.result.reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed);
     if (failures.length > 0 && !options.confirmFailures) return { blocked: failures };
     this.scope(options.scope);
+    // The configuration of the analysis with the presets and holidays changed during the session.
+    const config = applySettings(this.config, this.settings);
     const out = await buildPaperwork(
       {
         result: this.result,
-        config: this.config,
+        config,
         scopeIndex: options.scope,
         context: this.context,
         cutoffDay: this.usedCutoffs.get(options.scope) ?? null,
         language: options.language,
         generatedAt: options.generatedAt,
         appVersion: APP_VERSION,
-        configHash: await sha256(JSON.stringify(this.config)),
+        configHash: await configHash(config),
+        configDifferences: configDiff(config),
         confirmedFailures: failures,
       },
       onProgress,

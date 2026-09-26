@@ -162,9 +162,16 @@ JSON validado com zod, versionado (`schemaVersion`). Conteúdo: tabela, colunas 
 `noiseFields`, dicionário de campos (descrição), composição da chave do documento, mapas de origem e natureza,
 tolerância de balanceamento, presets de período, data de corte de competência, sinalizações, textos da planilha.
 Exportar/importar pelo usuário; cópia em IndexedDB. O hash da configuração vai para a Rastreabilidade.
-Implementado (Fase 3): atalhos de período próprios e feriados são salvos em IndexedDB (`src/app/settings.ts`,
-banco `auditanalyzer`, store `config`), aplicados à configuração de cada análise e enviados ao worker pelo comando
-`settings` durante a sessão, sem reprocessar os arquivos. Dados do log nunca vão para o IndexedDB.
+Implementado (Fase 3): atalhos de período próprios e feriados, enviados ao worker pelo comando `settings` durante a
+sessão, sem reprocessar os arquivos. Dados do log nunca vão para o IndexedDB.
+Fase 6: **uma configuração** guardada no IndexedDB (store `config`, chave `analyzerConfig`, `src/app/configStore.ts`),
+com atalhos e feriados dentro dela (os salvos à parte antes são migrados na primeira abertura). `schemaVersion` 2,
+com migração da versão 1 (`src/shared/configTools.ts`: `readConfig` valida e dá erros em português por campo;
+`configDiff` lista as diferenças em relação ao padrão; `configHash` é o SHA-256 do conteúdo com chaves ordenadas;
+`configToJson` exporta). Tela **Configuração** (`src/app/views/ConfigView.tsx`, auxiliares puros em
+`src/app/configEditor.ts`): formulário das regras, editor JSON para a estrutura do relatório, importar/exportar,
+restaurar padrão. A análise usa a configuração salva; mudou fora de atalhos e feriados, a tela oferece reprocessar
+com os mesmos arquivos. A Rastreabilidade da planilha traz o SHA-256 e a lista de diferenças em relação ao padrão.
 Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave `tipo|documento`) e, no store
 `config`, a data da última cópia em JSON e da última alteração. A tela envia as justificativas ao worker
 (`setJustifications`); a importação de planilha é lida no worker (`importJustifications`, mesmo leitor de ZIP/XML).

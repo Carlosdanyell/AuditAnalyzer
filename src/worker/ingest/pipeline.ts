@@ -469,13 +469,13 @@ interface ScopeRun {
   checks: ScopeCheckResults;
 }
 
-function invalidDescription(invalid: FileReconciliation['invalid']): string {
+function invalidDescription(invalid: FileReconciliation['invalid'], valueField: string): string {
   const parts = [
     [invalid.recno, 'Recno inválido(s)'],
     [invalid.operation, 'operação(ões) não reconhecida(s)'],
     [invalid.dateTime, 'Data Hora inválida(s)'],
     [invalid.sharedStringIndex, 'referência(s) de string inexistente(s)'],
-    [invalid.value, 'valor(es) ilegível(is) em CT2_VALOR'],
+    [invalid.value, `valor(es) ilegível(is) em ${valueField}`],
   ] as const;
   return parts
     .filter(([n]) => n > 0)
@@ -609,10 +609,10 @@ function buildChecks(
       severity: 'error',
       passed: readable,
       message: readable
-        ? 'Recno, Operacao e Data Hora válidos em todas as linhas de detalhe; CT2_VALOR legível em todos os registros identificados.'
+        ? `Recno, Operacao e Data Hora válidos em todas as linhas de detalhe; ${config.fields.value} legível em todos os registros identificados.`
         : [
-            ...withInvalid.map((f) => `${f.name}: ${invalidDescription(f.invalid)}`),
-            ...(consolidatedInvalid > 0 ? [`Consolidado: ${consolidatedInvalid} valor(es) ilegível(is) em CT2_VALOR`] : []),
+            ...withInvalid.map((f) => `${f.name}: ${invalidDescription(f.invalid, config.fields.value)}`),
+            ...(consolidatedInvalid > 0 ? [`Consolidado: ${consolidatedInvalid} valor(es) ilegível(is) em ${config.fields.value}`] : []),
           ].join('; ') + '.',
     },
     {

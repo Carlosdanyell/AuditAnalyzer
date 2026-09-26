@@ -64,7 +64,7 @@ src/
     store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts
     engine/            # events.ts, records.ts, documents.ts, classify.ts, periods.ts, checks.ts
     export/            # xlsxWriter.ts, styles.ts, sheets/*.ts, traceability.ts
-  config/              # schema.ts (zod), defaults/ct2.json
+  config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json; tela em app/views/ConfigView.tsx
   shared/              # tipos compartilhados, formatação pt-BR, datas, centavos
 tests/
   synthetic/           # gerador de CFGR700 sintético + respostas esperadas
@@ -118,6 +118,7 @@ npm run lint
 
 ## Como trabalhar neste repositório
 
+- Interface: comportamentos obrigatórios em `docs/INTERFACE.md` (vale também para quem recriar as telas).
 - Uma fase do `docs/ROTEIRO.md` por vez. Comece planejando, confirme o plano, depois implemente.
 - Escreva primeiro os testes com o resultado esperado; depois o código.
 - Em dúvida sobre uma regra de negócio, pergunte. Não invente critério contábil.

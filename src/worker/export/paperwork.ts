@@ -16,6 +16,7 @@ import { isBusinessDay } from '../engine/periods';
 import type { RecordInfo } from '../engine/records';
 import { displayValue } from '../engine/values';
 import type { IngestionResult } from '../ingest/pipeline';
+import type { ConfigDifference } from '../../shared/configTools';
 import { CODE_LABELS_EN, FIELD_LABELS_EN, LABELS, SIGNALS_EN, fill, type Language } from './labels';
 import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from './theme';
 import { XlsxWriter, colName, dateCell, dateTimeCell, type Cell, type CellInput, type SheetWriter } from './xlsxWriter';
@@ -31,6 +32,8 @@ export interface PaperworkInput {
   generatedAt: string;
   appVersion: string;
   configHash: string;
+  /** Differences from the default CT2 configuration (Rastreabilidade). */
+  configDifferences: ConfigDifference[];
   /** Blocking checks that failed and were confirmed by the user. */
   confirmedFailures: CheckResult[];
 }
@@ -419,7 +422,7 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
       { height: DATA_ROW },
     );
   }
-  note(L.summary.s3note);
+  note(fill(L.summary.s3note, { date: config.fields.date }));
 
   // 4. Signals
   section(L.summary.s4);
@@ -585,7 +588,7 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     ['helper', L.sheets.helper],
   ];
   for (const [key, sheet] of where) {
-    const r = sum.row([{ v: sheet, s: T.link }, { v: L.summary.where[key], s: T.desc }], { height: 18 });
+    const r = sum.row([{ v: sheet, s: T.link }, { v: fill(L.summary.where[key], { table: config.table }), s: T.desc }], { height: 18 });
     sum.merge(`B${r}:J${r}`);
     sum.link({ ref: `A${r}`, location: `${q(sheet)}!A1`, display: sheet });
   }
@@ -958,9 +961,9 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
             ['Desbalanceado', `|débito − crédito| ≥ R$ ${tol} no registrado (todas as linhas) ou no vigente (linhas não excluídas). "Não avaliável" quando alguma linha do documento não tem inclusão no log (base parcial).`],
             ['Período', 'Pela data do evento. Exclusões e postagens contam o documento no período do primeiro evento; alterações usam a data de cada arquivo (um registro alterado em dois arquivos aparece nos dois períodos).'],
             ['Colunas "No período do Resumo"', 'Em Documentos e Base_Linhas, as colunas de cabeçalho cinza (Sim/Não) indicam se a linha entra no período escolhido no Resumo; são recalculadas pelo Excel e alimentam os quadros.'],
-            ['Competência', 'A data contábil (CT2_DATA) de cada linha e de cada documento é comparada com a data de corte informada no Resumo.'],
+            ['Competência', `A data contábil (${config.fields.date}) de cada linha e de cada documento é comparada com a data de corte informada no Resumo.`],
             ['Justificativas', 'Uma por documento e por tipo (exclusão, alteração), identificada pela chave, pelo valor do documento e pelo histórico da 1ª linha. A cobertura (arquivos e último evento) fica nas abas de justificativa; "movimentado após a justificativa" indica movimento posterior num arquivo não coberto.'],
-            ['Limitações', `O log contém apenas o que foi movimentado no intervalo extraído — não é a população da razão. Com "Exclui campos não alterados = Sim", alterações trazem só o campo modificado: há documentos de base parcial (${stats.partialBaseDocuments}) e registros não identificados (${stats.unidentifiedRecords}: ${u.contentChange} com alteração de conteúdo, ${u.onlyActivation} só efetivação, ${u.onlyStamp} só carimbo). Estes podem ser associados a documentos consultando a CT2 pelo Recno.`],
+            ['Limitações', `O log contém apenas o que foi movimentado no intervalo extraído — não é a população da razão. Com "Exclui campos não alterados = Sim", alterações trazem só o campo modificado: há documentos de base parcial (${stats.partialBaseDocuments}) e registros não identificados (${stats.unidentifiedRecords}: ${u.contentChange} com alteração de conteúdo, ${u.onlyActivation} só efetivação, ${u.onlyStamp} só carimbo). Estes podem ser associados a documentos consultando a ${config.table} pelo Recno.`],
             ['Planilha', 'Valores em reais; negativos entre parênteses e zero como traço. Datas gravadas como datas do Excel. As fórmulas recalculam ao abrir; campos em amarelo são editáveis.'],
           ]
         : [
@@ -973,9 +976,9 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
             ['Unbalanced', `|debit − credit| ≥ ${tol} in the recorded amounts (all lines) or current amounts (lines not deleted). "Not evaluable" when a line of the document has no insert in the log (partial basis).`],
             ['Period', 'By event date. Deletions and postings count the document in the period of its first event; changes use the date of each file (a record changed in two files appears in both periods).'],
             ['"In the Summary period" columns', 'In Documents and Lines, the columns with a grey header (Yes/No) tell whether the row is in the period chosen in the Summary; Excel recalculates them and they feed the tables.'],
-            ['Accrual', 'The accounting date (CT2_DATA) of each line and document is compared with the cutoff date typed in the Summary.'],
+            ['Accrual', `The accounting date (${config.fields.date}) of each line and document is compared with the cutoff date typed in the Summary.`],
             ['Justifications', 'One per document and kind (deletion, change), identified by the key, the document amount and the history of the first line. The coverage (files and last event) is in the justification sheets; "moved after the justification" means a later movement in a file not covered.'],
-            ['Limitations', `The log holds only what moved in the extracted interval — it is not the ledger population. With "Exclude unchanged fields = Yes", changes bring only the modified field: there are partial-basis documents (${stats.partialBaseDocuments}) and unidentified records (${stats.unidentifiedRecords}: ${u.contentChange} with content changes, ${u.onlyActivation} activation only, ${u.onlyStamp} stamp only). They can be matched to documents by querying CT2 by Recno.`],
+            ['Limitations', `The log holds only what moved in the extracted interval — it is not the ledger population. With "Exclude unchanged fields = Yes", changes bring only the modified field: there are partial-basis documents (${stats.partialBaseDocuments}) and unidentified records (${stats.unidentifiedRecords}: ${u.contentChange} with content changes, ${u.onlyActivation} activation only, ${u.onlyStamp} stamp only). They can be matched to documents by querying ${config.table} by Recno.`],
             ['Workbook', 'Negative amounts in parentheses and zero as a dash. Dates stored as Excel dates. Formulas recalculate on open; yellow cells are editable.'],
           ];
     for (const [title, text] of paragraphs) {
@@ -1031,6 +1034,33 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     if (failed.length) {
       sheet.skip(1);
       cellsSpan([{ cell: { v: fill(TR.confirmed, { when: input.generatedAt }), s: T.fail }, span: 8 }], 22);
+    }
+    heading(TR.configDiff);
+    if (input.configDifferences.length === 0) {
+      cellsSpan([{ cell: { v: TR.configDefault, s: T.kvValue }, span: 8 }], 18);
+    } else {
+      cellsSpan(
+        [
+          { cell: { v: TR.configDiffCols[0]!, s: T.headSummary }, span: 2 },
+          { cell: { v: TR.configDiffCols[1]!, s: T.headSummary }, span: 3 },
+          { cell: { v: TR.configDiffCols[2]!, s: T.headSummary }, span: 3 },
+        ],
+        20,
+      );
+      const shownValue = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' ? v : JSON.stringify(v));
+      const diffWidth = TW.slice(2, 5).reduce((a, b) => a + b, 0);
+      for (const d of input.configDifferences) {
+        const base = shownValue(d.base);
+        const used = shownValue(d.value);
+        cellsSpan(
+          [
+            { cell: { v: d.path, s: T.text }, span: 2 },
+            { cell: { v: base, s: T.text }, span: 3 },
+            { cell: { v: used, s: T.text }, span: 3 },
+          ],
+          Math.max(18, textHeight(base, diffWidth, 10), textHeight(used, diffWidth, 10)),
+        );
+      }
     }
     heading(TR.files);
     const fileOrder = [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2];

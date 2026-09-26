@@ -3,8 +3,8 @@ import { INVALID_TIME, parseDate } from '../shared/dates';
 import ct2Defaults from './defaults/ct2.json';
 
 /**
- * Analyzer configuration (docs/ARQUITETURA.md, section 6). Versioned by `schemaVersion`.
- * Phase 1 covers how the report is read; the business rules of the engine arrive in phase 2.
+ * Analyzer configuration (docs/ARQUITETURA.md, section 6): how the report is read and every business rule of the
+ * engine. Versioned by `schemaVersion`; older versions are migrated by src/shared/configTools.ts.
  */
 const text = z.string().trim().min(1);
 
@@ -50,7 +50,7 @@ const signalSchema = z.object({
 const dateText = z.string().refine((s) => parseDate(s) !== INVALID_TIME, 'Data inválida (use dd/mm/aaaa).');
 
 export const analyzerConfigSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   table: text,
   workbook: z.object({
     parametersSheet: text,

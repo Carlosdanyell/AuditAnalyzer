@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySettings, normalizeSettings } from '../../src/app/settings';
+import { applySettings, normalizeSettings } from '../../src/shared/settings';
 import { defaultConfig } from '../../src/config/schema';
 
 describe('user settings (presets and holidays)', () => {
