@@ -231,6 +231,37 @@ describe.skipIf(!golden)('local golden reference', () => {
       expect(compareStats(golden!.arquivo_setembro, result.summary.scopes[0]!.stats), 'campos divergentes').toEqual([]);
     });
 
+    it('panel and tables are consistent on the real data (no reference numbers needed)', async () => {
+      const result = await ingest([golden!.arquivo_setembro]);
+      const session = new Session(result, defaultConfig());
+      const full = session.panel(0, null, null);
+      const periods = [full.period, ...full.presets.map((p) => p.period)];
+      const problems: string[] = [];
+      if (!full.compositionMatches) problems.push('composição do log completo');
+      for (const period of periods) {
+        const data = session.panel(0, period, null);
+        if (!data.compositionMatches) problems.push('composição de um período');
+        for (const category of ['deleted', 'changed', 'unbalanced', 'posted'] as const) {
+          const c = data.panel[category];
+          const lines = (origin: 'manual' | 'automatic' | 'unidentified') =>
+            session.page(0, 'baseRows', { category, period, origin }, undefined, 0, 0).total;
+          const docsTable = category === 'unbalanced' ? 'unbalanced' : 'documents';
+          const docs = (origin?: 'manual' | 'automatic' | 'mixed') =>
+            session.page(0, docsTable, { category, period, ...(origin && { origin }) }, undefined, 0, 0).total;
+          if (lines('manual') !== c.manual.lines || lines('automatic') !== c.automatic.lines || lines('unidentified') !== c.unidentifiedLines) {
+            problems.push(`${category}: lançamentos`);
+          }
+          if (docs('manual') !== c.manual.documents || docs('automatic') !== c.automatic.documents || docs('mixed') !== c.mixedDocuments || docs() !== c.totalDocuments) {
+            problems.push(`${category}: documentos`);
+          }
+        }
+      }
+      // Other days + period = full log, and the daily movement adds up to the events of the scope.
+      const events = full.daily.reduce((n, d) => n + d.events, 0);
+      if (events !== result.reconciliation.files[0]!.totalEvents) problems.push('movimento diário × eventos');
+      expect(problems, 'inconsistências (nomes apenas)').toEqual([]);
+    });
+
     it('point case "registro só com carimbo", when its Recno is in this file', async () => {
       const recno = Number(/(\d+)/.exec(golden!.casos_pontuais.registro_so_com_carimbo)?.[1]);
       const scope = (await ingest([golden!.arquivo_setembro])).analyses[0]!;

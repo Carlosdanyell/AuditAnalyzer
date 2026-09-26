@@ -192,6 +192,12 @@
         "text": "{n} lançamento(s) incluído(s) sem usuário no log",
         "none": "Nenhum lançamento incluído sem usuário no log"
       },
+      "uncoveredDays": {
+        "label": "Dias do período sem cobertura de extração",
+        "requiresAction": "always",
+        "text": "{n} dia(s) do período sem cobertura de extração: {dias}",
+        "none": "Todos os dias do período estão cobertos por alguma extração"
+      },
       "daysWithoutEvents": {
         "label": "Dias úteis do período sem nenhum evento",
         "requiresAction": "always",
@@ -199,5 +205,8 @@
         "none": "Nenhum dia útil sem evento"
       }
     }
+  },
+  "calendar": {
+    "holidays": []
   }
 }

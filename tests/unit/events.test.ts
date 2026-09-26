@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { countEvents, OP_DELETE, OP_INSERT, OP_RESTORE, OP_UPDATE } from '../../src/worker/engine/events';
 import { coverageAlerts } from '../../src/worker/engine/periods';
 import { DetailColumns } from '../../src/worker/store/columns';
-import { parseDateTime } from '../../src/shared/dates';
+import { parseDate, parseDateTime } from '../../src/shared/dates';
 
 function store(rows: [source: number, recno: number, op: number, user: number, time: string][]) {
   const cols = new DetailColumns(2);
@@ -67,6 +67,19 @@ describe('coverage between extractions', () => {
     ]);
     expect(alerts.map((a) => a.message)).toEqual([
       '3 dia(s) útil(eis) (segunda a sexta) sem extração entre "a.xlsx" e "b.xlsx": 04/09/2026, 07/09/2026, 08/09/2026.',
+    ]);
+  });
+
+  it('does not count configured holidays as uncovered weekdays', () => {
+    const alerts = coverageAlerts(
+      [
+        { name: 'a.xlsx', first: t('01/09/2026 08:00:00'), last: t('03/09/2026 12:00:00') },
+        { name: 'b.xlsx', first: t('09/09/2026 08:00:00'), last: t('09/09/2026 08:00:00') },
+      ],
+      new Set([parseDate('07/09/2026')]),
+    );
+    expect(alerts.map((a) => a.message)).toEqual([
+      '2 dia(s) útil(eis) (segunda a sexta) sem extração entre "a.xlsx" e "b.xlsx": 04/09/2026, 08/09/2026.',
     ]);
   });
 

@@ -142,6 +142,12 @@ export interface PeriodPreset {
   period: Period;
 }
 
+/** Panel settings the user can change during the session (saved in IndexedDB by the UI). Dates are dd/mm/aaaa. */
+export interface PanelSettings {
+  periodPresets: { label: string; start: string; end: string }[];
+  holidays: string[];
+}
+
 export interface PanelData {
   scope: number;
   period: Period;
@@ -158,6 +164,9 @@ export interface PanelData {
   compositionMatches: boolean;
   signals: Signal[];
   daily: DailyRow[];
+  /** False until justifications are loaded (phase 4): "sem justificativa" then shows every document as pending. */
+  justificationsLoaded: boolean;
+  settings: PanelSettings;
 }
 
 /** Phase 4. */
@@ -314,6 +323,7 @@ export type Traceability = Record<string, never>;
 export type Command =
   | { type: 'ingest'; files: File[]; config: AnalyzerConfig }
   | { type: 'cancel' }
+  | { type: 'settings'; requestId: number; settings: PanelSettings }
   /** `period` null = full log; `cutoffDay` null = default cutoff. */
   | { type: 'panel'; requestId: number; scope: number; period: Period | null; cutoffDay: number | null }
   | {
@@ -344,6 +354,7 @@ export type WorkerEvent =
   | { type: 'reconciliation'; data: Reconciliation }
   | { type: 'ready'; summary: Summary; checks: CheckResult[] }
   | { type: 'panel'; requestId: number; data: PanelData }
+  | { type: 'settings'; requestId: number; settings: PanelSettings }
   | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
   | { type: 'exported'; blob: Blob; fileName: string; traceability: Traceability }
   | { type: 'error'; stage: Stage; message: string; detail?: string; requestId?: number };

@@ -33,6 +33,7 @@ export const SIGNAL_IDS = [
   'unidentifiedChanges',
   'inconsistentEntries',
   'noUserInclusions',
+  'uncoveredDays',
   'daysWithoutEvents',
 ] as const;
 export type SignalId = (typeof SIGNAL_IDS)[number];
@@ -41,7 +42,7 @@ const signalSchema = z.object({
   label: text,
   /** always = action when the count is above zero; ifPending = only when an entry is still pending. */
   requiresAction: z.enum(['always', 'never', 'ifPending']),
-  /** Placeholders: {n}; inconsistentEntries also {pendentes} and {corrigidos}; daysWithoutEvents also {dias}. */
+  /** Placeholders: {n}; inconsistentEntries also {pendentes} and {corrigidos}; uncoveredDays and daysWithoutEvents also {dias}. */
   text: text,
   none: text,
 });
@@ -97,9 +98,11 @@ export const analyzerConfigSchema = z.object({
     /** Kept fields shown as extra columns in the base of lines. */
     baseRowsExtraFields: z.array(text),
   }),
+  /** Holidays (dd/mm/aaaa), not counted as business days (docs/REGRAS_CFGR700.md, sections 3 and 8). */
+  calendar: z.object({ holidays: z.array(dateText) }),
   /** docs/REGRAS_CFGR700.md, section 8. */
   panel: z.object({
-    /** Fixed event-date windows offered as presets, besides the full log and each file. */
+    /** Presets saved by the user (event-date windows), besides the full log and each extraction. Empty by default. */
     periodPresets: z.array(z.object({ label: text, start: dateText, end: dateText })),
     signals: z.object(
       Object.fromEntries(SIGNAL_IDS.map((id) => [id, signalSchema])) as Record<SignalId, typeof signalSchema>,

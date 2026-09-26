@@ -4,7 +4,8 @@
  */
 import type { AnalyzerConfig } from '../config/schema';
 import { INVALID_TIME, dayOfSeconds, parseDate } from '../shared/dates';
-import type { PanelData, Period, Sort, TableFilter, TableId } from '../shared/protocol';
+import type { PanelData, PanelSettings, Period, Sort, TableFilter, TableId } from '../shared/protocol';
+import { normalizeSettings, settingsForEngine, settingsFromConfig } from '../shared/settings';
 import { buildPanel, type PanelContext } from './engine/panel';
 import { TableQueries } from './engine/tables';
 import type { IngestionResult } from './ingest/pipeline';
@@ -12,13 +13,17 @@ import { normalizeLabel } from './ingest/parametros';
 
 export class Session {
   private readonly tables = new Map<number, TableQueries>();
+  private settings: PanelSettings;
   readonly context: PanelContext;
+  /** Last cutoff date shown per scope: written to the Rastreabilidade tab of the export (phase 5). */
+  readonly usedCutoffs = new Map<number, number>();
 
   constructor(
     readonly result: IngestionResult,
     config: AnalyzerConfig,
   ) {
     const files = result.reconciliation.files;
+    this.settings = settingsFromConfig(config);
     this.context = {
       sourceNames: files.map((f) => f.name),
       requestedIntervals: files.map((f) => {
@@ -33,7 +38,16 @@ export class Session {
         return null;
       }),
       justifiedDocuments: new Set(),
+      justificationsLoaded: false,
+      ...settingsForEngine(this.settings),
     };
+  }
+
+  /** Applies new presets and holidays to the session; returns them normalized. */
+  updateSettings(input: PanelSettings): PanelSettings {
+    this.settings = normalizeSettings(input);
+    Object.assign(this.context, settingsForEngine(this.settings));
+    return this.settings;
   }
 
   private scope(index: number) {
@@ -43,7 +57,9 @@ export class Session {
   }
 
   panel(scopeIndex: number, period: Period | null, cutoffDay: number | null): PanelData {
-    return buildPanel(this.scope(scopeIndex), scopeIndex, { period, cutoffDay }, this.context);
+    const data = buildPanel(this.scope(scopeIndex), scopeIndex, { period, cutoffDay }, this.context);
+    this.usedCutoffs.set(scopeIndex, data.cutoffDay);
+    return { ...data, settings: this.settings };
   }
 
   page(scopeIndex: number, table: TableId, filter: TableFilter | undefined, sort: Sort | undefined, offset: number, limit: number) {

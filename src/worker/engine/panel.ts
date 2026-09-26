@@ -4,7 +4,7 @@
  * Every number comes from visitPeriod, the same allocation used by the tables.
  */
 import { SIGNAL_IDS, type SignalId } from '../../config/schema';
-import { INVALID_TIME, dayOfSeconds, formatDay, lastDayOfMonth, parseDate, weekday } from '../../shared/dates';
+import { INVALID_TIME, dayOfSeconds, formatDay, lastDayOfMonth } from '../../shared/dates';
 import type {
   CategoryComposition,
   CategoryPanel,
@@ -20,7 +20,7 @@ import type {
 import { EMPTY_ID } from '../store/dictionary';
 import type { ScopeAnalysis } from './analysis';
 import { sameEvent } from './events';
-import { FULL_PERIOD, emptyPanel, periodPanel, visitPeriod } from './periods';
+import { FULL_PERIOD, emptyPanel, isBusinessDay, periodPanel, visitPeriod } from './periods';
 
 export interface PanelContext {
   /** File name of each source (global index). */
@@ -29,6 +29,12 @@ export interface PanelContext {
   requestedIntervals: (Period | null)[];
   /** Document keys with a justification (phase 4). */
   justifiedDocuments: Set<string>;
+  /** False until justifications are loaded (phase 4). */
+  justificationsLoaded: boolean;
+  /** Day numbers of the configured holidays. */
+  holidays: ReadonlySet<number>;
+  /** Presets saved by the user. */
+  userPresets: { label: string; period: Period }[];
 }
 
 const CATEGORIES = ['deleted', 'changed', 'unbalanced', 'posted'] as const;
@@ -158,6 +164,18 @@ export function dailyMovement(scope: ScopeAnalysis): DailyRow[] {
 
 // ── Signals ──
 
+/** Consecutive days as ranges: "15/08/2026 a 16/08/2026, 05/09/2026". */
+function formatDayRanges(days: number[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < days.length; ) {
+    let j = i;
+    while (j + 1 < days.length && days[j + 1] === days[j]! + 1) j++;
+    parts.push(i === j ? formatDay(days[i]!) : `${formatDay(days[i]!)} a ${formatDay(days[j]!)}`);
+    i = j + 1;
+  }
+  return parts.join(', ');
+}
+
 function fill(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (m, key: string) => (key in values ? String(values[key]) : m));
 }
@@ -185,17 +203,23 @@ export function periodSignals(scope: ScopeAnalysis, period: Period, context: Pan
     },
   });
 
-  // Weekdays of the period, within the intervals requested in the parameters, without any event.
+  // Days of the period outside every extraction (any day of the week), and business days inside an extraction
+  // without any event. An unbounded end of the period (full log) is replaced by the first/last day known to the
+  // scope (requested intervals and events); a bounded period is examined entirely.
   const requested = scope.sources.map((s) => context.requestedIntervals[s]).filter((p): p is Period => !!p);
+  const bounds = scopeBounds(scope);
+  const known = [...requested, ...(bounds ? [bounds] : [])];
   const events = eventsPerDay(scope);
   const quietDays: number[] = [];
-  const from = Math.max(period.startDay, Math.min(...requested.map((p) => p.startDay)));
-  const to = Math.min(period.endDay, Math.max(...requested.map((p) => p.endDay)));
-  for (let day = from; day <= to && requested.length > 0; day++) {
-    const w = weekday(day);
-    if (w === 0 || w === 6) continue;
-    if (!requested.some((p) => day >= p.startDay && day <= p.endDay)) continue;
-    if (!events.get(day)) quietDays.push(day);
+  const uncovered: number[] = [];
+  if (known.length > 0) {
+    const start = period.startDay === FULL_PERIOD.startDay ? Math.min(...known.map((p) => p.startDay)) : period.startDay;
+    const end = period.endDay === FULL_PERIOD.endDay ? Math.max(...known.map((p) => p.endDay)) : period.endDay;
+    for (let day = start; day <= end; day++) {
+      const covered = requested.some((p) => day >= p.startDay && day <= p.endDay);
+      if (!covered) uncovered.push(day);
+      else if (isBusinessDay(day, context.holidays) && !events.get(day)) quietDays.push(day);
+    }
   }
 
   const counts: Record<SignalId, { n: number; action: boolean; values?: Record<string, string | number> }> = {
@@ -204,6 +228,7 @@ export function periodSignals(scope: ScopeAnalysis, period: Period, context: Pan
     unidentifiedChanges: { n: unidentifiedChanged.size, action: true },
     inconsistentEntries: { n: pending + corrected, action: pending > 0, values: { pendentes: pending, corrigidos: corrected } },
     noUserInclusions: { n: noUser, action: true },
+    uncoveredDays: { n: uncovered.length, action: true, values: { dias: formatDayRanges(uncovered) } },
     daysWithoutEvents: { n: quietDays.length, action: true, values: { dias: quietDays.map(formatDay).join(', ') } },
   };
 
@@ -234,9 +259,7 @@ export function periodPresets(scope: ScopeAnalysis, bounds: Period | null, conte
     const interval = context.requestedIntervals[s];
     if (interval) presets.push({ id: `file-${s}`, label: `Arquivo ${s + 1} — ${context.sourceNames[s] ?? ''}`, period: interval });
   }
-  scope.log.config.panel.periodPresets.forEach((p, i) => {
-    presets.push({ id: `config-${i}`, label: p.label, period: { startDay: parseDate(p.start), endDay: parseDate(p.end) } });
-  });
+  context.userPresets.forEach((p, i) => presets.push({ id: `user-${i}`, label: p.label, period: p.period }));
   return presets;
 }
 
@@ -245,7 +268,7 @@ export function buildPanel(
   scopeIndex: number,
   request: { period: Period | null; cutoffDay: number | null },
   context: PanelContext,
-): PanelData {
+): Omit<PanelData, 'settings'> {
   const bounds = scopeBounds(scope);
   const period = request.period ?? bounds ?? FULL_PERIOD;
   const cutoffDay = request.cutoffDay ?? defaultCutoffDay(bounds);
@@ -265,5 +288,6 @@ export function buildPanel(
     compositionMatches: compositionMatches(panel, comp),
     signals: periodSignals(scope, period, context),
     daily: dailyMovement(scope),
+    justificationsLoaded: context.justificationsLoaded,
   };
 }

@@ -151,6 +151,9 @@ JSON validado com zod, versionado (`schemaVersion`). Conteúdo: tabela, colunas 
 `noiseFields`, dicionário de campos (descrição), composição da chave do documento, mapas de origem e natureza,
 tolerância de balanceamento, presets de período, data de corte de competência, sinalizações, textos da planilha.
 Exportar/importar pelo usuário; cópia em IndexedDB. O hash da configuração vai para a Rastreabilidade.
+Implementado (Fase 3): atalhos de período próprios e feriados são salvos em IndexedDB (`src/app/settings.ts`,
+banco `auditanalyzer`, store `config`), aplicados à configuração de cada análise e enviados ao worker pelo comando
+`settings` durante a sessão, sem reprocessar os arquivos. Dados do log nunca vão para o IndexedDB.
 
 ## 7. Segurança e privacidade
 

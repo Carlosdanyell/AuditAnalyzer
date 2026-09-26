@@ -47,6 +47,20 @@ describe('worker command handler', () => {
     expect(page?.type === 'page' && page.rows).toHaveLength(2);
   });
 
+  it('applies new presets and holidays without reprocessing the files', async () => {
+    const { events, handle } = setup();
+    const file = new File([buildCfgr700(fileA()) as Uint8Array<ArrayBuffer>], 'a.xlsx');
+    await handle({ type: 'ingest', files: [file], config: defaultConfig() });
+    events.length = 0;
+    const settings = { periodPresets: [{ label: 'Início', start: '01/09/2026', end: '02/09/2026' }], holidays: ['07/09/2026'] };
+    await handle({ type: 'settings', requestId: 3, settings });
+    await handle({ type: 'panel', requestId: 4, scope: 0, period: null, cutoffDay: null });
+    const [answer, panel] = events;
+    expect(answer).toEqual({ type: 'settings', requestId: 3, settings });
+    expect(panel?.type === 'panel' && panel.data.presets.map((p) => p.label)).toContain('Início');
+    expect(panel?.type === 'panel' && panel.data.settings).toEqual(settings);
+  });
+
   it('answers queries without an ingestion with an error carrying the request id', async () => {
     const { events, handle } = setup();
     await handle({ type: 'panel', requestId: 1, scope: 0, period: null, cutoffDay: null });

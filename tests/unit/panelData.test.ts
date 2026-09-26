@@ -26,6 +26,9 @@ const context: PanelContext = {
     { startDay: day('01/09/2026'), endDay: day('04/09/2026') },
   ],
   justifiedDocuments: new Set(),
+  justificationsLoaded: false,
+  holidays: new Set(),
+  userPresets: [],
 };
 const cell = (lines: number, documents: number, debitCents: number) => ({ lines, documents, debitCents });
 const none = cell(0, 0, 0);
@@ -67,6 +70,7 @@ describe('signals', () => {
       ['unidentifiedChanges', false, '1 registro(s) alterado(s) sem identificação de documento'],
       ['inconsistentEntries', true, '2 lançamento(s) gravado(s) como inconsistente(s): 1 pendente(s), 1 corrigido(s)'],
       ['noUserInclusions', false, 'Nenhum lançamento incluído sem usuário no log'],
+      ['uncoveredDays', false, 'Todos os dias do período estão cobertos por alguma extração'],
       ['daysWithoutEvents', true, '2 dia(s) útil(eis) sem nenhum evento: 28/08/2026, 31/08/2026'],
     ]);
   });
@@ -78,8 +82,25 @@ describe('signals', () => {
       ['unidentifiedChanges', false, '1 registro(s) alterado(s) sem identificação de documento'],
       ['inconsistentEntries', true, '2 lançamento(s) gravado(s) como inconsistente(s): 1 pendente(s), 1 corrigido(s)'],
       ['noUserInclusions', false, 'Nenhum lançamento incluído sem usuário no log'],
+      ['uncoveredDays', false, 'Todos os dias do período estão cobertos por alguma extração'],
       ['daysWithoutEvents', false, 'Nenhum dia útil sem evento'],
     ]);
+  });
+
+  it('flags days of the period not covered by any extraction, separately from quiet weekdays', () => {
+    const wide = { startDay: day('15/08/2026'), endDay: day('05/09/2026') };
+    const signals = periodSignals(all, wide, context);
+    expect(signals.find((s) => s.id === 'uncoveredDays')).toMatchObject({
+      count: 3,
+      requiresAction: true,
+      text: '3 dia(s) do período sem cobertura de extração: 15/08/2026 a 16/08/2026, 05/09/2026',
+    });
+    expect(signals.find((s) => s.id === 'daysWithoutEvents')?.count).toBe(2);
+  });
+
+  it('excludes configured holidays from the quiet weekdays', () => {
+    const withHoliday = periodSignals(all, FULL_PERIOD, { ...context, holidays: new Set([day('31/08/2026')]) });
+    expect(withHoliday.find((s) => s.id === 'daysWithoutEvents')?.text).toBe('1 dia(s) útil(eis) sem nenhum evento: 28/08/2026');
   });
 
   it('justified documents are not pending', () => {
@@ -127,13 +148,16 @@ describe('panel data', () => {
     expect(data.panel).toEqual(periodPanel(all, FULL_PERIOD));
   });
 
-  it('offers the full log and each file as presets', () => {
-    const data = buildPanel(all, 2, { period: PERIODS.P1, cutoffDay: day('20/08/2026') }, context);
+  it('offers the full log, each extraction and the user presets', () => {
+    const userPresets = [{ label: 'Semana 1', period: PERIODS.P1 }];
+    const data = buildPanel(all, 2, { period: PERIODS.P1, cutoffDay: day('20/08/2026') }, { ...context, userPresets });
     expect(data.presets).toEqual([
       { id: 'full', label: 'Log completo', period: { startDay: day('17/08/2026'), endDay: day('04/09/2026') } },
       { id: 'file-0', label: 'Arquivo 1 — agosto.xlsx', period: context.requestedIntervals[0] },
       { id: 'file-1', label: 'Arquivo 2 — setembro.xlsx', period: context.requestedIntervals[1] },
+      { id: 'user-0', label: 'Semana 1', period: PERIODS.P1 },
     ]);
+    expect(data.justificationsLoaded).toBe(false);
     expect(data.panel).toEqual(periodPanel(all, PERIODS.P1));
     expect(data.cutoffDay).toBe(day('20/08/2026'));
   });

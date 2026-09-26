@@ -60,6 +60,15 @@ export function createCommandHandler(
         return;
       }
 
+      case 'settings': {
+        if (!session) {
+          post({ type: 'error', stage: 'panel', message: NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        post({ type: 'settings', requestId: command.requestId, settings: session.updateSettings(command.settings) });
+        return;
+      }
+
       case 'panel': {
         if (!session) {
           post({ type: 'error', stage: 'panel', message: NO_SESSION, requestId: command.requestId });

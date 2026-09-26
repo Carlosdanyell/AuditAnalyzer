@@ -4,6 +4,7 @@ import type {
   CategoryPanel,
   OriginFilter,
   PanelData,
+  PanelSettings,
   Period,
   PeriodPanel,
   TableFilter,
@@ -31,14 +32,18 @@ interface PanelViewProps {
   client: WorkerClient;
   scope: number;
   onOpenTable: OpenTable;
+  /** Saves the user's presets and holidays; resolves with whether they were saved on this computer. */
+  onSettingsChange: (settings: PanelSettings) => Promise<boolean>;
 }
 
-export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
+export function PanelView({ client, scope, onOpenTable, onSettingsChange }: PanelViewProps) {
   const [period, setPeriod] = useState<Period | null>(null);
   const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const [custom, setCustom] = useState(false);
 
   useEffect(() => {
     setPeriod(null);
@@ -60,12 +65,19 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
     return () => {
       current = false;
     };
-  }, [client, scope, period, cutoffDay]);
+  }, [client, scope, period, cutoffDay, version]);
+
+  async function changeSettings(settings: PanelSettings): Promise<boolean> {
+    const saved = await onSettingsChange(settings);
+    setVersion((v) => v + 1);
+    return saved;
+  }
 
   if (error) return <p className={styles.error}>{error}</p>;
   if (!data) return <p className={styles.muted}>Carregando o painel…</p>;
 
-  const preset = data.presets.find((p) => samePeriod(p.period, data.period))?.id ?? 'custom';
+  const matching = data.presets.find((p) => samePeriod(p.period, data.period))?.id;
+  const preset = custom || !matching ? 'custom' : matching;
   const open = (table: TableId, category: Category, origin?: OriginFilter) =>
     onOpenTable(table, { category, period: data.period, ...(origin && { origin }) });
 
@@ -78,6 +90,7 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
             value={preset}
             onChange={(e) => {
               const p = data.presets.find((x) => x.id === e.target.value);
+              setCustom(!p);
               if (p) setPeriod(p.period);
             }}
           >
@@ -86,7 +99,7 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
                 {p.label} ({formatDay(p.period.startDay)} a {formatDay(p.period.endDay)})
               </option>
             ))}
-            {preset === 'custom' && <option value="custom">Personalizado</option>}
+            <option value="custom">Personalizado</option>
           </select>
         </label>
         <label>
@@ -96,7 +109,10 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
             value={dayToInput(data.period.startDay)}
             onChange={(e) => {
               const day = inputToDay(e.target.value);
-              if (day !== null) setPeriod({ startDay: day, endDay: Math.max(day, data.period.endDay) });
+              if (day !== null) {
+                setCustom(true);
+                setPeriod({ startDay: day, endDay: Math.max(day, data.period.endDay) });
+              }
             }}
           />
         </label>
@@ -107,7 +123,10 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
             value={dayToInput(data.period.endDay)}
             onChange={(e) => {
               const day = inputToDay(e.target.value);
-              if (day !== null) setPeriod({ startDay: Math.min(day, data.period.startDay), endDay: day });
+              if (day !== null) {
+                setCustom(true);
+                setPeriod({ startDay: Math.min(day, data.period.startDay), endDay: day });
+              }
             }}
           />
         </label>
@@ -123,6 +142,7 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
           />
         </label>
         <p className={styles.note}>Filtro pela data do evento (inclusão, alteração ou exclusão), não pela data contábil.</p>
+        <Settings data={data} onChange={changeSettings} />
       </section>
 
       <section className={styles.card}>
@@ -191,10 +211,20 @@ export function PanelView({ client, scope, onOpenTable }: PanelViewProps) {
           </span>
         </h2>
         <Composition data={data} />
+        <p className={styles.note}>
+          Data de corte usada: {formatDay(data.cutoffDay)} (padrão: último dia do mês do primeiro evento; editável acima). Este valor é
+          registrado na aba Rastreabilidade da exportação.
+        </p>
       </section>
 
       <section className={styles.card}>
         <h2>Sinalizações</h2>
+        {!data.justificationsLoaded && (
+          <p className={styles.warning} role="note">
+            As justificativas ainda não foram carregadas. A sinalização de justificativa pendente mostra todos os documentos excluídos ou
+            alterados do período; não é um resultado da análise.
+          </p>
+        )}
         <ul className={styles.signals}>
           {data.signals.map((s) => (
             <li key={s.id}>
@@ -364,5 +394,108 @@ function Daily({ data }: { data: PanelData }) {
       </table>
       <p className={styles.note}>Linhas destacadas: dias dentro do período selecionado.</p>
     </div>
+  );
+}
+
+function Settings({ data, onChange }: { data: PanelData; onChange: (s: PanelSettings) => Promise<boolean> }) {
+  const [label, setLabel] = useState('');
+  const [holiday, setHoliday] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const { periodPresets, holidays } = data.settings;
+
+  async function save(next: PanelSettings, done: string) {
+    const saved = await onChange(next);
+    setStatus(saved ? done : 'Não foi possível salvar neste computador; vale apenas nesta sessão.');
+  }
+
+  return (
+    <details className={styles.settings}>
+      <summary>
+        Atalhos e feriados ({periodPresets.length} atalho(s), {holidays.length} feriado(s))
+      </summary>
+      <div className={styles.settingsBody}>
+        <div>
+          <h3>Atalhos próprios</h3>
+          <form
+            className={styles.inline}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!label.trim()) return;
+              void save(
+                {
+                  holidays,
+                  periodPresets: [
+                    ...periodPresets,
+                    { label: label.trim(), start: formatDay(data.period.startDay), end: formatDay(data.period.endDay) },
+                  ],
+                },
+                'Atalho salvo neste computador.',
+              );
+              setLabel('');
+            }}
+          >
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nome do atalho" aria-label="Nome do atalho" />
+            <button type="submit" disabled={!label.trim()}>
+              Salvar o período atual ({formatDay(data.period.startDay)} a {formatDay(data.period.endDay)})
+            </button>
+          </form>
+          {periodPresets.length > 0 && (
+            <ul className={styles.items}>
+              {periodPresets.map((p, i) => (
+                <li key={`${p.label}-${i}`}>
+                  {p.label} <span className={styles.muted}>({p.start} a {p.end})</span>
+                  <button
+                    type="button"
+                    aria-label={`Remover o atalho ${p.label}`}
+                    onClick={() => void save({ holidays, periodPresets: periodPresets.filter((_, j) => j !== i) }, 'Atalho removido.')}
+                  >
+                    Remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <h3>Feriados</h3>
+          <form
+            className={styles.inline}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const day = inputToDay(holiday);
+              if (day === null) return;
+              void save({ periodPresets, holidays: [...holidays, formatDay(day)] }, 'Feriado salvo neste computador.');
+              setHoliday('');
+            }}
+          >
+            <input type="date" value={holiday} onChange={(e) => setHoliday(e.target.value)} aria-label="Data do feriado" />
+            <button type="submit" disabled={inputToDay(holiday) === null}>
+              Adicionar feriado
+            </button>
+          </form>
+          {holidays.length > 0 && (
+            <ul className={styles.items}>
+              {holidays.map((h) => (
+                <li key={h}>
+                  {h}
+                  <button
+                    type="button"
+                    aria-label={`Remover o feriado ${h}`}
+                    onClick={() => void save({ periodPresets, holidays: holidays.filter((x) => x !== h) }, 'Feriado removido.')}
+                  >
+                    Remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className={styles.note}>
+            Feriados não contam como dias úteis nas sinalizações. Nos alertas de cobertura da reconciliação, passam a valer na próxima
+            análise.
+          </p>
+        </div>
+        {status && <p className={styles.note}>{status}</p>}
+      </div>
+    </details>
   );
 }

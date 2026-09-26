@@ -8,7 +8,7 @@
  */
 import { createSHA256 } from 'hash-wasm';
 import { OPERATION_KEYS, REPORT_COLUMN_ROLES, type AnalyzerConfig, type ReportColumnRole } from '../../config/schema';
-import { INVALID_TIME, parseDateTime } from '../../shared/dates';
+import { INVALID_TIME, parseDate, parseDateTime } from '../../shared/dates';
 import type {
   Alert,
   CheckResult,
@@ -681,7 +681,10 @@ export async function runIngestion(
     totalEvents: all.total,
     firstEvent: firsts.length ? Math.min(...firsts) : null,
     lastEvent: lasts.length ? Math.max(...lasts) : null,
-    alerts: coverageAlerts(files.map((f) => ({ name: f.name, first: f.firstEvent, last: f.lastEvent }))),
+    alerts: coverageAlerts(
+      files.map((f) => ({ name: f.name, first: f.firstEvent, last: f.lastEvent })),
+      new Set(config.calendar.holidays.map(parseDate)),
+    ),
   };
 
   const scopeDefs = files.map((f, i) => ({ label: f.name, sources: [i], updateEvents: perSource[i]!.byOperation[OP_UPDATE]! }));

@@ -84,7 +84,7 @@ O usuário pode carregar mais de um arquivo (ex.: 15–31/08 e 01–04/09). Regr
 - Os detalhes são unidos numa só base; `ord` é um contador global crescente na ordem de leitura (arquivo 1 inteiro,
   depois arquivo 2...).
 - Alertar se os intervalos de evento se sobrepõem ou se há intervalo descoberto entre eles (dias úteis).
-  Dias úteis = segunda a sexta, sem calendário de feriados; o alerta lista as datas descobertas.
+  Dias úteis = segunda a sexta, exceto os feriados da configuração (seção 8); o alerta lista as datas descobertas.
 - A informação de um arquivo completa registros do outro (ex.: exclusão em setembro revela os dados de um registro
   que em agosto só aparecia por alteração).
 
@@ -236,29 +236,40 @@ Para o período filtrado, separar lançamentos, documentos e valor por data cont
 Redação das situações: neutra e factual (ex.: "3 documento(s) com justificativa pendente"), sem verbos como
 "investigar" ou "requer".
 
-### Decisões da Fase 3 (provisórias — adotadas por delegação, a confirmar pelo usuário)
+### Decisões registradas (Fase 3)
 
 **Os números do painel só são considerados validados depois que a Fase 2 passar no `golden.json` com os dois
-arquivos** (agosto sozinho, setembro sozinho, consolidado e todos os painéis). O teste local compara o painel
-servido à tela (`Session.panel`) com o golden.
+arquivos** (agosto sozinho, setembro sozinho, consolidado e todos os painéis). O teste local compara com o golden o
+painel exatamente como é servido à tela (`Session.panel`). Com um arquivo só, o teste local confere a consistência
+interna nos dados reais: cada número do painel é igual ao total da tabela aberta por ele, em todos os presets, e a
+composição fecha.
 
-- **Presets de período:** "Log completo" (do primeiro ao último dia com evento do escopo); um por arquivo, com o
-  intervalo pedido nos parâmetros do relatório (na falta, do primeiro ao último evento do arquivo); as janelas
-  fixas de `panel.periodPresets` na configuração (vazia por padrão, sem datas reais); e período personalizado.
-- **Data de corte da competência:** por padrão, o último dia do mês do primeiro evento do escopo; editável na tela.
+- **Atalhos de período** gerados a partir dos arquivos carregados: "Log completo" (do primeiro ao último evento do
+  escopo); um por extração, com o intervalo pedido nos parâmetros do arquivo (na falta, do primeiro ao último evento
+  do arquivo); e "Personalizado". O usuário pode salvar atalhos próprios (nome + período), guardados na configuração
+  (`panel.periodPresets`) em IndexedDB neste computador. **Nenhum recorte fixo no padrão.**
+- **Data de corte da competência:** padrão = último dia do mês do primeiro evento do escopo. Exibida e editável no
+  painel; o valor usado é guardado na sessão e gravado na aba Rastreabilidade da exportação (Fase 5).
 - **Composição por data contábil:** linhas pela CT2_DATA do registro; documentos pela CT2_DATA do documento.
   Linhas identificadas com CT2_DATA ilegível aparecem numa coluna própria ("Data contábil ilegível").
 - **Período × demais dias × log completo:** demais dias = log completo − período, categoria por categoria.
+- **Feriados:** lista editável na configuração (`calendar.holidays`, dd/mm/aaaa; vazia por padrão), guardada em
+  IndexedDB. Feriados não contam como dias úteis nas sinalizações nem nos alertas de cobertura entre extrações
+  (seção 3; estes valem a partir da análise seguinte à mudança).
 - **Sinalizações, calculadas sobre o período selecionado:**
   - Documentos desbalanceados: documentos da categoria Desbalanceado no período.
-  - Sem justificativa: documentos distintos das categorias Excluído ou Alterado no período sem justificativa
-    (até a Fase 4, todos pendentes).
+  - Sem justificativa: documentos distintos das categorias Excluído ou Alterado no período sem justificativa.
+    Enquanto as justificativas não forem carregadas (Fase 4), todos aparecem como pendentes e o painel mostra um
+    aviso de que isso não é um resultado da análise.
   - Alterados sem identificação: registros não identificados distintos com alteração efetiva no período.
   - Inconsistentes: lançamentos postados no período com inconsistência "pendente" ou "corrigido"; exige ação só se
     houver algum pendente.
   - Sem usuário: lançamentos postados no período cuja inclusão não tem usuário no log.
-  - Dias úteis sem evento: segunda a sexta (sem feriados), dentro do período **e** do intervalo pedido nos
-    parâmetros de algum arquivo do escopo, sem nenhum evento de qualquer operação.
+  - **Dias sem cobertura de extração** (exige ação): dias do período, de qualquer dia da semana, fora do intervalo
+    pedido nos parâmetros de todos os arquivos do escopo. Listados em intervalos (ex.: "15/08/2026 a 16/08/2026").
+    No "Log completo", o exame vai do primeiro ao último dia conhecido (parâmetros e eventos).
+  - Dias úteis sem evento (exige ação): dias úteis (segunda a sexta, exceto feriados) do período, cobertos por
+    alguma extração, sem nenhum evento de qualquer operação.
 - **Movimento diário:** por dia, as linhas contadas em Postado, Excluído e Alterado (alterações por arquivo) e o
   número de eventos distintos do dia.
 - **Tabelas abertas pelo painel:** têm exatamente o número clicado. Na categoria Alterado, a tabela tem uma linha

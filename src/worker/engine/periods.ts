@@ -14,17 +14,20 @@ export interface FileInterval {
   last: number | null;
 }
 
-/** Weekdays (Monday to Friday) strictly between two days. Holidays are not considered. */
-function weekdaysBetween(fromDay: number, toDay: number): number[] {
+/** Business day: Monday to Friday, not a configured holiday. */
+export function isBusinessDay(day: number, holidays: ReadonlySet<number>): boolean {
+  const w = weekday(day);
+  return w !== 0 && w !== 6 && !holidays.has(day);
+}
+
+/** Business days strictly between two days. */
+function businessDaysBetween(fromDay: number, toDay: number, holidays: ReadonlySet<number>): number[] {
   const days: number[] = [];
-  for (let d = fromDay + 1; d < toDay; d++) {
-    const w = weekday(d);
-    if (w !== 0 && w !== 6) days.push(d);
-  }
+  for (let d = fromDay + 1; d < toDay; d++) if (isBusinessDay(d, holidays)) days.push(d);
   return days;
 }
 
-export function coverageAlerts(files: FileInterval[]): Alert[] {
+export function coverageAlerts(files: FileInterval[], holidays: ReadonlySet<number> = new Set()): Alert[] {
   const withEvents = files
     .filter((f): f is FileInterval & { first: number; last: number } => f.first !== null && f.last !== null)
     .sort((a, b) => a.first - b.first || a.last - b.last);
@@ -40,7 +43,7 @@ export function coverageAlerts(files: FileInterval[]): Alert[] {
       });
       continue;
     }
-    const gap = weekdaysBetween(dayOfSeconds(a.last), dayOfSeconds(b.first));
+    const gap = businessDaysBetween(dayOfSeconds(a.last), dayOfSeconds(b.first), holidays);
     if (gap.length > 0) {
       alerts.push({
         level: 'warning',

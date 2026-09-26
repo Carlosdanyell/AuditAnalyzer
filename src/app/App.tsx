@@ -3,7 +3,8 @@ import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig } from '../config/schema';
-import type { Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import type { PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import { applySettings, loadSettings, saveSettings } from './settings';
 import { formatBytes } from '../shared/format';
 import { PanelView } from './views/PanelView';
 import { TablesView, type TableRequest } from './views/TablesView';
@@ -43,6 +44,19 @@ export function App() {
   const [view, setView] = useState<View>('reconciliation');
   const [scope, setScope] = useState(0);
   const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
+  const [settings, setSettings] = useState<PanelSettings | null>(null);
+
+  // Presets and holidays saved on this computer (IndexedDB), applied to every analysis.
+  useEffect(() => {
+    void loadSettings().then((saved) => saved && setSettings(saved));
+  }, []);
+
+  const changeSettings = useCallback(async (next: PanelSettings): Promise<boolean> => {
+    setSettings(next);
+    const saved = await saveSettings(next);
+    await clientRef.current?.query({ type: 'settings', settings: next });
+    return saved;
+  }, []);
 
   const openTable = useCallback((table: TableId, filter: TableFilter) => {
     setTableRequest({ table, filter });
@@ -116,7 +130,7 @@ export function App() {
     setSummary(null);
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
-    client().send({ type: 'ingest', files, config: defaultConfig() });
+    client().send({ type: 'ingest', files, config: settings ? applySettings(defaultConfig(), settings) : defaultConfig() });
   }
 
   function cancel() {
@@ -263,7 +277,9 @@ export function App() {
               </div>
             </div>
             {view === 'reconciliation' && <ReconciliationView data={reconciliation} summary={summary} />}
-            {view === 'panel' && <PanelView client={client()} scope={scope} onOpenTable={openTable} />}
+            {view === 'panel' && (
+              <PanelView client={client()} scope={scope} onOpenTable={openTable} onSettingsChange={changeSettings} />
+            )}
             {view === 'tables' && (
               <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />
             )}

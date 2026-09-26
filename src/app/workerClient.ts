@@ -36,7 +36,8 @@ export class WorkerClient {
   /** Sends a query (panel, page) and resolves with the answer carrying the same request id. */
   query(command: Query<'panel'>): Promise<Answer<'panel'>>;
   query(command: Query<'page'>): Promise<Answer<'page'>>;
-  query(command: Query<'panel'> | Query<'page'>): Promise<WorkerEvent> {
+  query(command: Query<'settings'>): Promise<Answer<'settings'>>;
+  query(command: Query<'panel'> | Query<'page'> | Query<'settings'>): Promise<WorkerEvent> {
     const requestId = this.nextRequestId++;
     return new Promise<WorkerEvent>((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });
