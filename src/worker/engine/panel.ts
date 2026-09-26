@@ -11,6 +11,7 @@ import type {
   Composition,
   CompositionCell,
   DailyRow,
+  IdentificationHint,
   Justification,
   PanelData,
   Period,
@@ -252,6 +253,46 @@ export function periodSignals(scope: ScopeAnalysis, period: Period, context: Pan
   });
 }
 
+// ── Records without a document ──
+
+const recordsByRecno = new WeakMap<ScopeAnalysis, Map<number, ScopeAnalysis['records'][number]>>();
+
+/**
+ * Changed records of the period without a document, and how many of them the consolidated scope identifies
+ * (docs/REGRAS_CFGR700.md, section 10). `consolidated` is omitted for the consolidated scope itself.
+ */
+export function identificationHint(
+  scope: ScopeAnalysis,
+  period: Period,
+  loadedFiles: number,
+  consolidated?: { index: number; scope: ScopeAnalysis },
+): IdentificationHint | null {
+  const recnos = new Set<number>();
+  visitPeriod(scope, period, {
+    line(category, r) {
+      if (category === 'changed' && r.origin === 'unidentified') recnos.add(r.recno);
+    },
+    document() {},
+  });
+  if (recnos.size === 0) return null;
+  let recoverable: IdentificationHint['recoverable'] = null;
+  if (consolidated) {
+    let byRecno = recordsByRecno.get(consolidated.scope);
+    if (!byRecno) recordsByRecno.set(consolidated.scope, (byRecno = new Map(consolidated.scope.records.map((r) => [r.recno, r]))));
+    const documents = new Set<string>();
+    let records = 0;
+    for (const recno of recnos) {
+      const r = byRecno.get(recno);
+      if (r && r.origin !== 'unidentified') {
+        records++;
+        documents.add(r.documentKey);
+      }
+    }
+    recoverable = { records, documents: documents.size, scope: consolidated.index };
+  }
+  return { records: recnos.size, recoverable, loadedFiles };
+}
+
 // ── Presets and panel ──
 
 export function defaultCutoffDay(bounds: Period | null): number {
@@ -274,6 +315,7 @@ export function buildPanel(
   scopeIndex: number,
   request: { period: Period | null; cutoffDay: number | null },
   context: PanelContext,
+  consolidated?: { index: number; scope: ScopeAnalysis },
 ): Omit<PanelData, 'settings'> {
   const bounds = scopeBounds(scope);
   const period = request.period ?? bounds ?? FULL_PERIOD;
@@ -296,5 +338,6 @@ export function buildPanel(
     daily: dailyMovement(scope),
     justificationsLoaded: context.justificationsLoaded,
     coverage: coverageCounts(scope, period, context.justifications, context.sourceNames),
+    identification: identificationHint(scope, period, context.sourceNames.length, consolidated),
   };
 }

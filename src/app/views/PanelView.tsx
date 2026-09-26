@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   Category,
   CategoryPanel,
+  IdentificationHint,
   OriginFilter,
   PanelData,
   PanelSettings,
@@ -37,9 +38,11 @@ interface PanelViewProps {
   onOpenJustifications: OpenTable;
   /** Changing it reloads the panel (e.g. after a justification is saved). */
   refreshKey?: number;
+  /** Switches the scope (the panel keeps the current period). */
+  onScopeChange?: (scope: number) => void;
 }
 
-export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0 }: PanelViewProps) {
+export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0, onScopeChange }: PanelViewProps) {
   const [period, setPeriod] = useState<Period | null>(null);
   const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
@@ -47,9 +50,12 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
   const [loading, setLoading] = useState(false);
   const [version, setVersion] = useState(0);
   const [custom, setCustom] = useState(false);
+  /** Period kept when the scope is switched from the panel itself. */
+  const carriedPeriod = useRef<Period | null>(null);
 
   useEffect(() => {
-    setPeriod(null);
+    setPeriod(carriedPeriod.current);
+    carriedPeriod.current = null;
     setCutoffDay(null);
   }, [scope]);
 
@@ -240,6 +246,20 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
             </li>
           ))}
         </ul>
+        {data.identification && (
+          <IdentificationNote
+            hint={data.identification}
+            onShowRecords={() => open('baseRows', 'changed', 'unidentified')}
+            onShowConsolidated={
+              onScopeChange && data.identification.recoverable
+                ? () => {
+                    carriedPeriod.current = data.period;
+                    onScopeChange(data.identification!.recoverable!.scope);
+                  }
+                : undefined
+            }
+          />
+        )}
       </section>
 
       <section className={styles.card}>
@@ -251,6 +271,61 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
         <h2>Movimento diário</h2>
         <Daily data={data} />
       </section>
+    </div>
+  );
+}
+
+/** What to do about changed records without a document (docs/REGRAS_CFGR700.md, section 10). */
+function IdentificationNote({
+  hint,
+  onShowRecords,
+  onShowConsolidated,
+}: {
+  hint: IdentificationHint;
+  onShowRecords: () => void;
+  onShowConsolidated: (() => void) | undefined;
+}) {
+  const why =
+    'O relatório traz só o campo alterado ("Exclui campos não alterados = Sim"); a data, o lote e o documento vêm da inclusão do lançamento.';
+  const rec = hint.recoverable;
+  const rest = hint.records - (rec?.records ?? 0);
+  return (
+    <div className={styles.hint} role="note">
+      <p>
+        <strong>
+          {n(hint.records)} registro(s) alterado(s) no período sem documento identificado.
+        </strong>{' '}
+        {why}
+      </p>
+      {rec && rec.records > 0 && (
+        <p>
+          {n(rec.records)} deles ({n(rec.documents)} documento(s)) são identificados no escopo Consolidado, porque a inclusão está em outro
+          arquivo carregado.{' '}
+          {onShowConsolidated && (
+            <button type="button" className={styles.hintButton} onClick={onShowConsolidated}>
+              Ver no Consolidado (mesmo período)
+            </button>
+          )}
+        </p>
+      )}
+      {hint.loadedFiles === 1 ? (
+        <p>
+          A inclusão desses lançamentos não está neste arquivo. Para identificar os documentos, faça uma <strong>Nova análise</strong>{' '}
+          carregando também a extração anterior (a que contém a inclusão), ou consulte a CT2 pelo Recno.
+        </p>
+      ) : (
+        rest > 0 && (
+          <p>
+            {rec ? `Os demais ${n(rest)}` : 'Eles'} foram lançados antes do início das extrações carregadas: a inclusão não está em nenhum
+            arquivo. Carregue também uma extração anterior ou consulte a CT2 pelo Recno.
+          </p>
+        )
+      )}
+      <p>
+        <button type="button" className={styles.link} onClick={onShowRecords}>
+          Ver os registros sem documento na base de linhas
+        </button>
+      </p>
     </div>
   );
 }

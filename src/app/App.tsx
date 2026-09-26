@@ -371,6 +371,7 @@ export function App() {
                 onOpenJustifications={openJustifications}
                 onSettingsChange={changeSettings}
                 refreshKey={justRefresh}
+                onScopeChange={setScope}
               />
             )}
             {view === 'tables' && (

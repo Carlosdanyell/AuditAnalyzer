@@ -122,7 +122,10 @@ export class Session {
   }
 
   panel(scopeIndex: number, period: Period | null, cutoffDay: number | null): PanelData {
-    const data = buildPanel(this.scope(scopeIndex), scopeIndex, { period, cutoffDay }, this.context);
+    const last = this.result.analyses.length - 1;
+    // A file scope can point to the consolidated one, which identifies records inserted in another loaded file.
+    const consolidated = last > 0 && scopeIndex !== last ? { index: last, scope: this.result.analyses[last]! } : undefined;
+    const data = buildPanel(this.scope(scopeIndex), scopeIndex, { period, cutoffDay }, this.context, consolidated);
     this.usedCutoffs.set(scopeIndex, data.cutoffDay);
     return { ...data, settings: this.settings };
   }

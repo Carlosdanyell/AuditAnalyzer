@@ -152,6 +152,19 @@ export interface PanelSettings {
   holidays: string[];
 }
 
+/**
+ * Changed records of the period without a document (docs/REGRAS_CFGR700.md, section 10): the report brings only the
+ * changed field, so the document is known only when the insert (or a deletion) of the record is in a loaded file.
+ */
+export interface IdentificationHint {
+  /** Changed records of the period without a document in this scope. */
+  records: number;
+  /** Of these, the ones identified in the consolidated scope (insert in another loaded file); null for the consolidated scope or a single file. */
+  recoverable: { records: number; documents: number; scope: number } | null;
+  /** Files loaded in the session. */
+  loadedFiles: number;
+}
+
 export interface PanelData {
   scope: number;
   period: Period;
@@ -172,6 +185,8 @@ export interface PanelData {
   justificationsLoaded: boolean;
   /** Justification coverage of the documents of the period (distinct documents). */
   coverage: { deleted: CoverageCount; changed: CoverageCount };
+  /** Null when every changed record of the period has a document. */
+  identification: IdentificationHint | null;
   settings: PanelSettings;
 }
 

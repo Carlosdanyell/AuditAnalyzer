@@ -245,6 +245,39 @@
   font-size: 13px;
 }
 
+.hint {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hint p {
+  margin: 0;
+}
+
+.hintButton {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.hintButton:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .settings {
   flex-basis: 100%;
   border-top: 1px solid var(--border);

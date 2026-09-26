@@ -343,6 +343,15 @@ painel é igual ao total da tabela aberta por ele, em todos os presets, e a comp
   documentos de base parcial ("Não avaliável") e registros "Não identificado" (lançados antes do início do log e
   só alterados). Para estes, informar quantos tiveram alteração de conteúdo, só efetivação e só carimbo.
 - Registros "Não identificado" podem ser associados a documentos consultando a CT2 pelo Recno.
+- **Análise de um arquivo só:** um lançamento incluído numa extração e alterado em outra só tem documento quando as
+  duas são carregadas juntas (a chave vem da inclusão). Analisado sozinho, o arquivo mais recente mostra esses
+  registros como "Não identificado", e a contagem de documentos alterados fica menor que a do consolidado. Exclusões
+  não são afetadas (o evento de exclusão traz todos os campos).
+- **Orientação no painel** (bloco "Sinalizações"), sempre que houver registros alterados sem documento no período:
+  com um arquivo só, orienta carregar também a extração anterior; no escopo de um arquivo, com outros carregados,
+  informa quantos registros e documentos o escopo Consolidado identifica e oferece abri-lo no mesmo período; os que
+  nenhum arquivo identifica foram lançados antes das extrações carregadas (extração anterior ou consulta à CT2 pelo
+  Recno).
 
 ---
 
