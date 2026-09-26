@@ -94,9 +94,12 @@ const pt = {
     deletionStatus: 'Situação da justificativa da exclusão',
     changeJust: 'Justificativa da alteração',
     changeStatus: 'Situação da justificativa da alteração',
-    deletedInPeriod: 'Excluído no período aplicado',
-    changedInPeriod: 'Alterado no período aplicado',
-    pendingInPeriod: 'Pendente no período aplicado',
+    deletedInPeriod: 'No período do Resumo: excluído?',
+    changedInPeriod: 'No período do Resumo: alterado?',
+    pendingInPeriod: 'No período do Resumo: justificativa pendente?',
+    documentValue: 'Valor do documento (R$)',
+    deletedValue: 'Valor excluído (R$)',
+    history: 'Histórico (1ª linha)',
     insertUser: 'Usuário da inclusão',
     insertTime: 'Data/hora da inclusão',
     deleteUser: 'Usuário da exclusão',
@@ -163,6 +166,7 @@ const pt = {
     s6total: 'Total de eventos de alteração',
     s7: '7. Movimento diário',
     s7cols: ['Data', 'Dia', 'Postados', 'Excluídos', 'Alterados', 'Eventos', 'No período', 'Dia útil', 'Coberto por extração'],
+    s7note: 'Texto em cinza: fora do período aplicado. Fundo cinza: sábado, domingo ou feriado. Fundo vermelho claro: dia sem extração.',
     s8: '8. Onde conferir',
     where: {
       deletionJust: 'Motivo de cada documento excluído; células vazias em amarelo.',
@@ -210,6 +214,7 @@ const pt = {
     paramCols: ['Arquivo', 'Pergunta', 'Parâmetro', 'Valor'],
     checks: 'Verificações',
     checkCols: ['Verificação', 'Nível', 'Resultado', 'Detalhe'],
+    kv: 'Execução',
     blocking: 'Bloqueante',
     warning: 'Alerta',
     passed: 'OK',
@@ -318,9 +323,12 @@ const en: Labels = {
     deletionStatus: 'Deletion justification status',
     changeJust: 'Change justification',
     changeStatus: 'Change justification status',
-    deletedInPeriod: 'Deleted in the applied period',
-    changedInPeriod: 'Changed in the applied period',
-    pendingInPeriod: 'Pending in the applied period',
+    deletedInPeriod: 'In the Summary period: deleted?',
+    changedInPeriod: 'In the Summary period: changed?',
+    pendingInPeriod: 'In the Summary period: justification pending?',
+    documentValue: 'Document amount',
+    deletedValue: 'Deleted amount',
+    history: 'History (first line)',
     insertUser: 'Insert user',
     insertTime: 'Insert time',
     deleteUser: 'Delete user',
@@ -387,6 +395,7 @@ const en: Labels = {
     s6total: 'Total change events',
     s7: '7. Daily movement',
     s7cols: ['Date', 'Day', 'Posted', 'Deleted', 'Changed', 'Events', 'In the period', 'Business day', 'Covered by an extraction'],
+    s7note: 'Grey text: outside the applied period. Grey background: Saturday, Sunday or holiday. Light red background: day without an extraction.',
     s8: '8. Where to check',
     where: {
       deletionJust: 'Reason for each deleted document; empty cells in yellow.',
@@ -434,6 +443,7 @@ const en: Labels = {
     paramCols: ['File', 'Question', 'Parameter', 'Value'],
     checks: 'Checks',
     checkCols: ['Check', 'Level', 'Result', 'Detail'],
+    kv: 'Run',
     blocking: 'Blocking',
     warning: 'Warning',
     passed: 'OK',
@@ -464,6 +474,12 @@ export const SIGNALS_EN: Record<SignalId, { label: string; text: string; none: s
   noUserInclusions: { label: 'Lines inserted without a user in the log', text: '{n} line(s) inserted without a user in the log', none: 'No line inserted without a user in the log' },
   uncoveredDays: { label: 'Days of the period not covered by any extraction', text: '{n} day(s) of the period not covered by any extraction', none: 'Every day of the period is covered by an extraction' },
   daysWithoutEvents: { label: 'Business days of the period without any event', text: '{n} business day(s) without any event: {dias}', none: 'No business day without events' },
+};
+
+/** English descriptions of the configured value codes (the configuration holds the Portuguese ones). */
+export const CODE_LABELS_EN: Record<string, string> = {
+  'Saldo real': 'Actual balance',
+  'Pré-lançamento': 'Pre-posting',
 };
 
 /** English field descriptions for the columns taken from kept fields. */

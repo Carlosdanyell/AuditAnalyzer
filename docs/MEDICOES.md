@@ -76,6 +76,10 @@ Vitest.
 | Node 24 (`npm run test:local`), português e inglês | 3,4 s a 5,6 s | — |
 | Excel 16 (automação, teste local): abrir, recalcular 4 períodos e ler o Resumo | ~25 s por idioma | nenhuma célula com erro de fórmula; sem reparo ao abrir |
 
+Depois do novo padrão visual (grade em todas as células, colunas de identificação e compressão nível 3): Node,
+3,7 s a 4,0 s por idioma. No painel do navegador oculto a mesma exportação levou 22,5 s (a página oculta tem o
+processamento limitado pelo navegador); repetir com a página visível no computador do trabalho.
+
 O gerador grava cada aba em pedaços de 64 KB comprimidos na hora; a memória adicional do worker durante a exportação
 fica limitada ao arquivo comprimido e aos pedaços em trânsito. A medição direta da memória do worker (API
 `measureUserAgentSpecificMemory`) não foi possível desta vez: o painel do navegador estava oculto e a API exige a

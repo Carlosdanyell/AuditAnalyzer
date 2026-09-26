@@ -392,8 +392,23 @@ exportação — se falharem, a planilha não é gerada.
 - **Justificativas no Excel:** situação e observação por fórmula (pendente enquanto o texto estiver vazio;
   movimentado após a justificativa — calculado na exportação — até a confirmação em "Abrange o novo evento?").
   Documentos, sinalização "sem justificativa" e cobertura do Resumo seguem o que for digitado.
+- **Identificação nas justificativas** (planilha e tela): além da chave, o **valor do documento** (débito de todas as
+  linhas registradas no log), o **valor excluído** (débito das linhas excluídas; só na lista de exclusões) e o
+  **histórico da 1ª linha** (primeiro CT2_HIST não vazio, em ordem de linha; campo `fields.history` da configuração).
+- **Valores exibidos nas alterações** (configuração `valueDisplay`): códigos com descrição configurada aparecem como
+  "código — descrição" (ex.: "9 — Pré-lançamento"; o tipo de lançamento usa as descrições da natureza); campos que o
+  Protheus grava codificados (`encoded`, hoje CT2_USERGA — usuário e data da gravação) aparecem como "—", porque o
+  conteúdo não é legível; o usuário e a data/hora do evento estão nas colunas próprias. O valor original não é alterado
+  na análise.
+- **Colunas auxiliares do filtro** (Documentos e Base_Linhas, cabeçalho cinza): "No período do Resumo: excluído?",
+  "alterado?", "justificativa pendente?", com **Sim/Não** (nunca 0/1), recalculadas pelo Excel.
+- **Padrão visual** (a partir do papel de trabalho de referência da equipe): cabeçalhos azul-marinho com texto branco
+  em 9 pt, grade fina, negativos entre parênteses e zero como traço, larguras que não quebram palavras, colunas
+  editáveis com cabeçalho dourado e colunas auxiliares com cabeçalho cinza; no Resumo, faixas de seção, linhas de
+  total em azul-claro, notas em cinza com altura calculada e movimento diário com fins de semana/feriados em cinza e
+  dias sem extração em vermelho-claro.
 - **Datas** gravadas como número serial com formato de célula; dinheiro em reais a partir dos centavos; fórmulas sem
-  valor em cache e recálculo ao abrir.
+  valor em cache e recálculo ao abrir. Datas personalizadas vazias ficam vazias (nunca 00/01/1900).
 - **Conferência automática:** os testes avaliam as fórmulas do Resumo para cada atalho e para períodos personalizados
   e comparam com o painel da ferramenta; com os arquivos reais, o teste local também abre a planilha no Excel,
   recalcula e confere célula a célula (seção 8 de ARQUITETURA.md).

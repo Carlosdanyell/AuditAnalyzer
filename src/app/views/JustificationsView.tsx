@@ -9,7 +9,7 @@ import type {
   JustificationStatus,
   TableId,
 } from '../../shared/protocol';
-import { formatDateTime, formatInteger } from '../../shared/format';
+import { formatCents, formatDateTime, formatInteger } from '../../shared/format';
 import type { JustificationMeta } from '../justificationStore';
 import type { WorkerClient } from '../workerClient';
 import { TablesView, type TableRequest } from './TablesView';
@@ -262,6 +262,16 @@ function Editor({
         <div>
           <h3>{kind === 'deletion' ? 'Justificativa da exclusão' : 'Justificativa da alteração'}</h3>
           <p className={styles.key}>{documentKey}</p>
+          <p className={styles.muted}>
+            Valor do documento: <strong>{typeof row.valorDocumento === 'number' ? formatCents(row.valorDocumento) : '—'}</strong>
+            {typeof row.valorExcluido === 'number' && (
+              <>
+                {' '}
+                · valor excluído: <strong>{formatCents(row.valorExcluido)}</strong>
+              </>
+            )}
+            {row.historico ? ` · ${String(row.historico)}` : ''}
+          </p>
           <p className={styles.muted}>
             Situação: <strong>{String(row.situacao)}</strong> · {kind === 'deletion' ? 'Exclusões' : 'Alterações'} em{' '}
             {String(row.arquivosMovimento || '—')}

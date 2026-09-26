@@ -143,7 +143,9 @@ Gerador próprio em fluxo:
 
 Implementação (Fase 5): `export/xlsxWriter.ts` (gerador: pedaços de 64 KB por aba, data fixa nas entradas do ZIP
 para saída determinística, limite de 1.048.576 linhas por aba), `export/labels.ts` (textos em português e inglês,
-inclusive os valores que as fórmulas comparam) e `export/paperwork.ts` (montagem das abas). `ExportOptions` =
+inclusive os valores que as fórmulas comparam), `export/theme.ts` (padrão visual: paleta, formatos e estilo por tipo
+de coluna — texto, quantidade, valor, data, Sim/Não; larguras e alturas calculadas) e `export/paperwork.ts`
+(montagem das abas). Compressão nível 3: a geração fica ~30% mais rápida que no nível 6, com arquivo um pouco maior. `ExportOptions` =
 `{ scope, language: 'pt' | 'en', confirmFailures, generatedAt }`; o worker responde `exportBlocked` quando há
 verificação bloqueante falhando sem confirmação. A versão (commit curto) vem do build (`__APP_VERSION__`), e o
 SHA-256 da configuração é calculado na exportação. Na tela, a visão **Exportação** escolhe escopo e idioma, mostra as

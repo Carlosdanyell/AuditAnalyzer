@@ -77,6 +77,8 @@ export const analyzerConfigSchema = z.object({
     line: text,
     value: text,
     inconsistency: text,
+    /** Description of the line (shown next to the document key in the justification lists). */
+    history: text,
   }),
   balanceType: z.object({ field: text, expectedFrom: text, expectedTo: text }),
   documentKey: z.object({ fields: z.array(text).min(1), separator: z.string().min(1), unidentified: text }),
@@ -94,6 +96,14 @@ export const analyzerConfigSchema = z.object({
   emptyUserLabel: text,
   /** Descriptions of the fields, shown in the tables and the export. */
   fieldLabels: z.record(z.string(), text),
+  /**
+   * How changed values are shown: codes with a description ("9 — Pré-lançamento") and fields whose content is an
+   * internal encoding of the system (shown as "—"; e.g. the user/date stamp).
+   */
+  valueDisplay: z.object({
+    codes: z.record(z.string(), z.record(z.string(), text)),
+    encoded: z.array(text),
+  }),
   tables: z.object({
     /** Kept fields shown as extra columns in the base of lines. */
     baseRowsExtraFields: z.array(text),
@@ -115,6 +125,7 @@ export const analyzerConfigSchema = z.object({
     c.fields.line,
     c.fields.value,
     c.fields.inconsistency,
+    c.fields.history,
     c.origin.field,
     c.nature.field,
     ...c.documentKey.fields,

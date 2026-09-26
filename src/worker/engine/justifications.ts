@@ -86,3 +86,27 @@ export function coverageCounts(
   };
   return { deleted: count(deleted, 'deletion'), changed: count(changed, 'change') };
 }
+
+/** What identifies a document in the justification lists, besides its key. */
+export interface DocumentIdentification {
+  /** Debit of all lines recorded in the log (cents). */
+  documentDebitCents: number;
+  /** Debit of the deleted lines (cents). */
+  deletedDebitCents: number;
+  /** First non-empty history among the lines, in line order; '' when none is in the log. */
+  history: string;
+}
+
+export function documentIdentification(scope: ScopeAnalysis, doc: DocumentInfo, historyField: string): DocumentIdentification {
+  const { dict, fields } = scope.log;
+  const fieldId = dict.find(historyField);
+  const keep = fieldId >= 0 ? fields.keepIndex.get(fieldId) : undefined;
+  let deleted = 0;
+  let history = '';
+  for (const index of doc.records) {
+    const r = scope.records[index]!;
+    if (r.deleted) deleted += r.debitCents;
+    if (!history && keep !== undefined && r.values[keep]! >= 0) history = dict.get(r.values[keep]!).trim();
+  }
+  return { documentDebitCents: doc.debitRecorded, deletedDebitCents: deleted, history };
+}

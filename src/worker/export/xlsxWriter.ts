@@ -37,6 +37,9 @@ export function dateTimeCell(seconds: number, s?: number): Cell | null {
   return { v: EXCEL_SERIAL_2000 + seconds / 86400, [DATE]: 'datetime', ...(s !== undefined && { s }) } as DateCell;
 }
 
+const colNames: string[] = [];
+const cachedColName = (index: number) => (colNames[index] ??= colName(index));
+
 export function colName(index: number): string {
   let n = index + 1;
   let s = '';
@@ -48,7 +51,10 @@ export function colName(index: number): string {
   return s;
 }
 
-const escapeText = (s: string) =>
+// eslint-disable-next-line no-control-regex
+const NEEDS_ESCAPE = /[&<>"_\u0000-\u001F￾￿]/;
+const escapeText = (s: string) => (NEEDS_ESCAPE.test(s) ? escapeSlow(s) : s);
+const escapeSlow = (s: string) =>
   s
     // A literal "_xHHHH_" would be read as an escape: protect it first.
     .replace(/_x([0-9A-Fa-f]{4})_/g, '_x005F_x$1_')
@@ -277,17 +283,25 @@ export class SheetWriter {
     return this.rowNumber + 1;
   }
 
-  /** Writes a row; returns its number. Null/undefined cells are skipped. */
-  row(cells: CellInput[], opts: { height?: number; style?: number } = {}): number {
+  /**
+   * Writes a row; returns its number. `styles` gives a default style per column: empty cells of a styled column are
+   * written empty with that style (grid lines), others are skipped.
+   */
+  row(cells: CellInput[], opts: { height?: number; style?: number; styles?: readonly (number | undefined)[] } = {}): number {
     const r = ++this.rowNumber;
     if (r > MAX_ROWS) throw new RangeError('Uma aba da planilha passaria do limite de 1.048.576 linhas do Excel.');
     let xml = `<row r="${r}"${opts.height ? ` ht="${opts.height}" customHeight="1"` : ''}>`;
+    const styles = opts.styles;
     for (let c = 0; c < cells.length; c++) {
       const input = cells[c];
-      if (input === null || input === undefined) continue;
+      const fallback = styles?.[c] ?? opts.style;
+      if (input === null || input === undefined || input === '') {
+        if (styles?.[c]) xml += `<c r="${cachedColName(c)}${r}" s="${styles[c]}"/>`;
+        continue;
+      }
       const cell: Cell = typeof input === 'object' ? input : { v: input };
-      const ref = `${colName(c)}${r}`;
-      let s = cell.s ?? opts.style;
+      const ref = `${cachedColName(c)}${r}`;
+      let s = cell.s ?? fallback;
       const kind = (cell as Partial<DateCell>)[DATE];
       if (kind) {
         s ??= kind === 'date' ? this.writer.dateStyle : this.writer.dateTimeStyle;
@@ -416,7 +430,7 @@ export class XlsxWriter {
   }
 
   private entry(name: string): ZipDeflate {
-    const file = new ZipDeflate(name, { level: 6 });
+    const file = new ZipDeflate(name, { level: 3 });
     file.mtime = ZIP_MTIME;
     this.zip.add(file);
     return file;

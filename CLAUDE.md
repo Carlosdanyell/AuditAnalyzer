@@ -93,6 +93,10 @@ docs/
 - Não gerar mesclagens sobrepostas (o Excel "repara" o arquivo e remove conteúdo). Validar antes de gravar.
 - Fórmulas com nomes de função em inglês e separador `,` no XML (o Excel converte para o idioma do usuário).
 - Fontes: Aptos (corpo) e Aptos Display (títulos).
+- Não exportar conteúdo codificado do Protheus (ex.: CT2_USERGA) nem códigos soltos: usar `valueDisplay` da
+  configuração ("—" para codificados, "código — descrição" para códigos).
+- Colunas de indicador sempre com Sim/Não e título explícito, nunca 0/1.
+- Padrão visual em `src/worker/export/theme.ts`; conferir o resultado renderizado (Excel → PDF) ao mudar o layout.
 
 ## Comandos
 

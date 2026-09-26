@@ -228,24 +228,36 @@ describe.each(['pt', 'en'] as const)('exported workpaper (%s)', (language) => {
   it('justification sheets: statuses by formula, confirmation in Excel, coverage per justification', async () => {
     const JE = L.sheets.deletionJust;
     const JA = L.sheets.changeJust;
-    const statusOf = (sheet: string, key: string) => book.value(sheet, `B${rowOf(book, sheet, key)}`);
+    /** Column letter of a header in row 1. */
+    const col = (sheet: string, header: string) => {
+      for (const [ref, cell] of book.sheets.get(sheet)!) if (/^[A-Z]+1$/.test(ref) && cell.v === header) return ref.slice(0, -1);
+      throw new Error(`cabeçalho ${header} ausente`);
+    };
+    const cellOf = (sheet: string, header: string, key: string) => `${col(sheet, header)}${rowOf(book, sheet, key)}`;
+    const statusOf = (sheet: string, key: string) => book.value(sheet, cellOf(sheet, L.cols.status, key));
     expect(statusOf(JE, KEYS.D3)).toBe(V.justified);
     expect(statusOf(JE, KEYS.D2)).toBe(V.moved);
     expect(statusOf(JE, KEYS.D7)).toBe(V.pending);
     expect(statusOf(JA, KEYS.D1)).toBe(V.moved);
-    expect(book.value(JE, `E${rowOf(book, JE, KEYS.D7)}`)).toBe(V.pendingNote);
-    expect(book.value(JE, `E${rowOf(book, JE, KEYS.D2)}`)).toBe(V.movedNote);
+    expect(book.value(JE, cellOf(JE, L.cols.note, KEYS.D7))).toBe(V.pendingNote);
+    expect(book.value(JE, cellOf(JE, L.cols.note, KEYS.D2))).toBe(V.movedNote);
+    // Identification: document amount, deleted amount and history of the first line.
+    expect(book.value(JE, cellOf(JE, L.cols.documentValue, KEYS.D3))).toBe(10);
+    expect(book.value(JE, cellOf(JE, L.cols.deletedValue, KEYS.D3))).toBe(10);
+    expect(book.value(JE, cellOf(JE, L.cols.deletedValue, KEYS.D2))).toBe(50);
+    expect(book.value(JA, cellOf(JA, L.cols.documentValue, KEYS.D1))).toBe(100);
+    expect(book.value(JA, cellOf(JA, L.cols.history, KEYS.D1))).toBe('HISTORICO');
 
     // The user types a justification and confirms a moved one directly in Excel: statuses and the Resumo follow.
     const S5 = rowOf(book, S, L.summary.s5) + 2;
     book.set(S, 'A8', V.fullLog);
     const pendingBefore = num(book.value(S, `E${S5}`));
     const movedBefore = num(book.value(S, `D${S5}`));
-    book.set(JE, `C${rowOf(book, JE, KEYS.D7)}`, 'Texto escrito no Excel');
-    book.set(JE, `F${rowOf(book, JE, KEYS.D2)}`, V.yes);
+    book.set(JE, cellOf(JE, L.cols.deletionJust, KEYS.D7), 'Texto escrito no Excel');
+    book.set(JE, cellOf(JE, L.cols.confirmNew, KEYS.D2), V.yes);
     expect(statusOf(JE, KEYS.D7)).toBe(V.justified);
     expect(statusOf(JE, KEYS.D2)).toBe(V.justified);
-    expect(book.value(JE, `E${rowOf(book, JE, KEYS.D2)}`)).toBe('');
+    expect(book.value(JE, cellOf(JE, L.cols.note, KEYS.D2))).toBe('');
     expect(num(book.value(S, `E${S5}`))).toBe(pendingBefore - 1);
     expect(num(book.value(S, `D${S5}`))).toBe(movedBefore - 1);
     expect(book.value(L.sheets.documents, `A${rowOf(book, L.sheets.documents, KEYS.D7)}`)).toBe(KEYS.D7);
@@ -260,6 +272,24 @@ describe.each(['pt', 'en'] as const)('exported workpaper (%s)', (language) => {
     }
     expect(byKey.get(`deletion|${KEYS.D7}`)).toEqual({ documentKey: KEYS.D7, kind: 'deletion', text: '', responsible: '', confirmed: false });
     expect(read.rastreabilidadeFiles?.sort()).toEqual(['agosto.xlsx', 'setembro.xlsx']);
+  });
+
+  it('shows readable values: encoded stamp as a dash, codes with description, Yes/No flags', () => {
+    const detail = [...book.sheets.get(L.sheets.discardedDetail)!.values()].map((c) => c.v);
+    expect(detail).toContain('—');
+    expect(detail).toContain(language === 'pt' ? '9 — Pré-lançamento' : '9 — Pre-posting');
+    expect(detail).toContain(language === 'pt' ? '1 — Saldo real' : '1 — Actual balance');
+    expect(detail.some((v) => typeof v === 'string' && /^[ab]$/.test(v))).toBe(false); // raw stamps of the fixture
+    book.set(S, 'A8', V.fullLog);
+    const flags = (sheet: string, header: string) => {
+      const cells = book.sheets.get(sheet)!;
+      const letter = [...cells].find(([ref, c]) => /^[A-Z]+1$/.test(ref) && c.v === header)![0].slice(0, -1);
+      return [...cells.keys()].filter((ref) => ref !== `${letter}1` && ref.replace(/\d+$/, '') === letter).map((ref) => book.value(sheet, ref));
+    };
+    for (const values of [flags(L.sheets.documents, L.cols.pendingInPeriod), flags(L.sheets.lines, L.cols.changedInPeriod)]) {
+      expect(values.length).toBeGreaterThan(0);
+      expect(values.every((v) => v === V.yes || v === V.no)).toBe(true);
+    }
   });
 
   it('is deterministic: same input and settings give the same bytes', async () => {

@@ -71,7 +71,8 @@
     "date": "CT2_DATA",
     "line": "CT2_LINHA",
     "value": "CT2_VALOR",
-    "inconsistency": "CT2_INCONS"
+    "inconsistency": "CT2_INCONS",
+    "history": "CT2_HIST"
   },
   "balanceType": {
     "field": "CT2_TPSALD",
@@ -151,6 +152,17 @@
     "CT2_ITEMD": "Item contábil débito",
     "CT2_ITEMC": "Item contábil crédito",
     "CT2_USERGA": "Usuário/data da gravação"
+  },
+  "valueDisplay": {
+    "codes": {
+      "CT2_TPSALD": {
+        "1": "Saldo real",
+        "9": "Pré-lançamento"
+      }
+    },
+    "encoded": [
+      "CT2_USERGA"
+    ]
   },
   "tables": {
     "baseRowsExtraFields": [

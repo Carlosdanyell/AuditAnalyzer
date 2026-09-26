@@ -18,7 +18,8 @@ import type {
   TableFilter,
   TableId,
 } from '../../shared/protocol';
-import { documentMovement, justificationStatus } from './justifications';
+import { documentIdentification, documentMovement, justificationStatus, type DocumentIdentification } from './justifications';
+import { displayValue } from './values';
 import { EMPTY_ID } from '../store/dictionary';
 import type { ScopeAnalysis } from './analysis';
 import type { DocumentInfo } from './documents';
@@ -396,8 +397,8 @@ export class TableQueries {
           case 'usuario': return this.user(d.user[row]!);
           case 'campo': return dict.get(d.field[row]!);
           case 'descricaoCampo': return labels[dict.get(d.field[row]!)] ?? null;
-          case 'valorAntigo': return dict.get(d.oldVal[row]!);
-          case 'valorNovo': return dict.get(d.newVal[row]!);
+          case 'valorAntigo': return displayValue(this.config, dict.get(d.field[row]!), dict.get(d.oldVal[row]!));
+          case 'valorNovo': return displayValue(this.config, dict.get(d.field[row]!), dict.get(d.newVal[row]!));
           case 'arquivo': return this.sourceNames[d.source[row]!] ?? null;
           default: return null;
         }
@@ -453,6 +454,15 @@ export class TableQueries {
       }
       return m;
     };
+    const identification = new Map<number, DocumentIdentification>();
+    const identificationOf = (index: number) => {
+      let id = identification.get(index);
+      if (!id) {
+        id = documentIdentification(this.scope, documents[index]!, this.config.fields.history);
+        identification.set(index, id);
+      }
+      return id;
+    };
     const justificationOf = (index: number) => this.justification(kind, documents[index]!.key);
     const status = (ref: Ref) => {
       const index = refIndex(ref);
@@ -463,6 +473,9 @@ export class TableQueries {
     return {
       columns: () => [
         col('documento', 'Documento', 'text', 230),
+        col('valorDocumento', 'Valor do documento', 'money', 130),
+        ...(kind === 'deletion' ? [col('valorExcluido', 'Valor excluído', 'money', 120)] : []),
+        col('historico', 'Histórico (1ª linha)', 'text', 240),
         col('situacao', 'Situação', 'text', 210),
         col('justificativa', kind === 'deletion' ? 'Justificativa da exclusão' : 'Justificativa da alteração', 'text', 340),
         col('responsavel', 'Responsável', 'text', 140),
@@ -498,6 +511,9 @@ export class TableQueries {
         const j = justificationOf(index);
         switch (id) {
           case 'documento': return d.key;
+          case 'valorDocumento': return identificationOf(index).documentDebitCents;
+          case 'valorExcluido': return identificationOf(index).deletedDebitCents;
+          case 'historico': return identificationOf(index).history || null;
           case 'situacao': return STATUS[status(ref)];
           case 'justificativa': return j?.text ?? '';
           case 'responsavel': return j?.responsible ?? '';
