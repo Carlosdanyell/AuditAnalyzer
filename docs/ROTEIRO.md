@@ -15,8 +15,8 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 5 — Exportação XLSX | a planejar |
 | 6 — Configuração | a planejar |
 
-Pendente fora das fases: pico de memória do worker com os dois arquivos (Gerenciador de tarefas do navegador),
-nesta máquina e na do trabalho.
+Pendente fora das fases: repetir tempos e memória no computador do trabalho (nesta máquina: worker até ~98 MB com os
+dois arquivos; ver MEDICOES.md).
 
 ---
 

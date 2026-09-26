@@ -39,7 +39,8 @@ interface JustificationsViewProps {
   refreshKey: number;
   onSave: (items: Justification[]) => Promise<boolean>;
   onReplaceAll: (items: Justification[]) => Promise<boolean>;
-  onExport: () => void;
+  /** Downloads the JSON copy; returns the file name and how many justifications it has, or null when there is none. */
+  onExport: () => { fileName: string; count: number } | null;
 }
 
 export function JustificationsView(props: JustificationsViewProps) {
@@ -60,8 +61,7 @@ export function JustificationsView(props: JustificationsViewProps) {
           <div>
             <h2>Justificativas</h2>
             <p className={styles.muted}>
-              Uma justificativa por documento e por tipo. Ficam guardadas neste computador, inclusive as de documentos que não estão no
-              log atual.
+              O motivo de cada documento excluído ou alterado. Clique numa linha da lista para escrever ou editar.
             </p>
           </div>
           <div className={styles.actions}>
@@ -84,11 +84,48 @@ export function JustificationsView(props: JustificationsViewProps) {
                 }}
               />
             </label>
-            <button type="button" className={styles.button} onClick={props.onExport} disabled={justifications.size === 0}>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => {
+                const result = props.onExport();
+                setMessage(
+                  result
+                    ? `Cópia exportada: ${result.fileName} (${formatInteger(result.count)} justificativa(s)). O arquivo foi para a pasta de downloads do navegador.`
+                    : 'Ainda não há justificativas para exportar. Escreva uma (clique numa linha da lista) ou importe uma planilha ou JSON; depois exporte a cópia.',
+                );
+              }}
+            >
               Exportar cópia em JSON
             </button>
           </div>
         </div>
+        <details className={styles.help}>
+          <summary>Como funciona</summary>
+          <ul>
+            <li>
+              <strong>Justificar:</strong> clique num documento da lista (Exclusões ou Alterações), escreva o motivo e clique em Salvar. Um
+              documento com exclusão e alteração tem uma justificativa em cada lista.
+            </li>
+            <li>
+              <strong>Onde ficam:</strong> neste computador, dentro do navegador. Não são enviadas a nenhum servidor e valem para as próximas
+              análises, mesmo com outros arquivos.
+            </li>
+            <li>
+              <strong>Exportar cópia em JSON:</strong> baixa um arquivo com todas as justificativas. Serve de backup (limpar os dados do
+              navegador apaga as justificativas) e para levá-las a outro computador.
+            </li>
+            <li>
+              <strong>Importar planilha ou JSON:</strong> traz justificativas já escritas, sem redigitar — de um papel de trabalho entregue
+              antes (a planilha .xlsx com as abas “Justificativa da Exclusao” e “Justificativa da Alteração”) ou de um JSON exportado aqui.
+              Antes de aplicar, a tela mostra o que será importado e os conflitos.
+            </li>
+            <li>
+              <strong>Movimentado após a justificativa:</strong> o documento teve nova exclusão ou alteração num arquivo que a justificativa
+              não cobria. Abra, confira e clique em “Abrange o novo evento” ou reescreva.
+            </li>
+          </ul>
+        </details>
         <p className={styles.muted}>
           {meta.lastExportAt === null ? 'Nenhuma cópia em JSON foi feita ainda.' : `Última cópia em JSON: ${msFormat.format(meta.lastExportAt)}.`}
         </p>
@@ -131,8 +168,10 @@ export function JustificationsView(props: JustificationsViewProps) {
           row={selected}
           justifications={justifications}
           onClose={() => setSelected(null)}
-          onSave={async (j) => {
+          onSave={async (j, situacao) => {
             const saved = await props.onSave([j]);
+            // Reflect the new status in the editor at once (the list reloads from the worker).
+            setSelected((row) => row && { ...row, situacao, justificativa: j.text, responsavel: j.responsible, cobertura: coverageText(j) });
             setMessage(saved ? 'Justificativa salva neste computador.' : 'Não foi possível salvar neste computador; vale apenas nesta sessão.');
           }}
         />
@@ -170,6 +209,13 @@ export function JustificationsView(props: JustificationsViewProps) {
   );
 }
 
+/** Same text as the "Cobertura da justificativa" column. */
+function coverageText(j: Justification): string {
+  if (!j.text.trim()) return '';
+  const files = j.coverage.files.join(', ') || 'nenhum arquivo';
+  return j.coverage.lastEvent === null ? files : `${files} · até ${formatDateTime(j.coverage.lastEvent)}`;
+}
+
 function coverageFromRow(row: Record<string, Cell>): JustificationCoverage {
   const files = String(row.arquivosMovimento ?? '')
     .split(', ')
@@ -187,7 +233,7 @@ function Editor({
   kind: JustificationKind;
   row: Record<string, Cell>;
   justifications: ReadonlyMap<string, Justification>;
-  onSave: (j: Justification) => Promise<void>;
+  onSave: (j: Justification, situacao: string) => Promise<void>;
   onClose: () => void;
 }) {
   const documentKey = String(row.documento);
@@ -259,11 +305,20 @@ function Editor({
             </button>
           )}
           {moved && (
-            <button type="button" className={styles.button} onClick={() => void onSave(build(coverageFromRow(row)))}>
+            <button type="button" className={styles.button} onClick={() => void onSave(build(coverageFromRow(row)), 'Justificado')}>
               Abrange o novo evento
             </button>
           )}
-          <button type="button" className={styles.primary} disabled={!dirty} onClick={() => void onSave(build(coverage))}>
+          <button
+            type="button"
+            className={styles.primary}
+            disabled={!dirty}
+            onClick={() => {
+              const j = build(coverage);
+              const situacao = !j.text ? 'Pendente' : moved && coverage === current?.coverage ? 'Movimentado após a justificativa' : 'Justificado';
+              void onSave(j, situacao);
+            }}
+          >
             Salvar
           </button>
         </div>

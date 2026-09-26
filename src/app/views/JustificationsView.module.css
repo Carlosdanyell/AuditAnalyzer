@@ -219,3 +219,23 @@
   width: 36%;
   white-space: pre-wrap;
 }
+
+.help {
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.help summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.help ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

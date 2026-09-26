@@ -40,8 +40,12 @@ function download(text: string, fileName: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
+  a.style.display = 'none';
+  // Attached to the document: some browsers ignore clicks on detached links.
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
@@ -114,12 +118,15 @@ export function App() {
   );
 
   const exportJson = useCallback(() => {
+    const items = [...justificationsRef.current.values()];
+    if (items.length === 0) return null;
     const now = Date.now();
-    const text = buildJsonExport([...justificationsRef.current.values()], stamp.format(now));
-    download(text, `justificativas-${stamp.format(now).slice(0, 10)}.json`);
+    const fileName = `justificativas-${stamp.format(now).slice(0, 10)}.json`;
+    download(buildJsonExport(items, stamp.format(now)), fileName);
     const nextMeta = { ...meta, lastExportAt: now };
     setMeta(nextMeta);
     void saveMeta(nextMeta);
+    return { fileName, count: items.length };
   }, [meta]);
 
   const openJustifications = useCallback((table: TableId, filter: TableFilter) => {

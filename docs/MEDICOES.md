@@ -53,14 +53,24 @@ Maior bloqueio da thread principal durante a navegação: 44 ms.
 
 Painel com os dois arquivos: 123 ms; primeira página da base de linhas: 33 ms.
 
-O pico de memória do **worker** no navegador ainda precisa ser lido no Gerenciador de tarefas (a página não tem
-acesso a esse número). A referência mais próxima é o heap do Node com os dois arquivos (168 MB), abaixo da meta de
-400 MB; o RSS do processo Node não é comparável, porque inclui o próprio Node e o Vitest.
+### Memória do worker no Chrome (2026-09-26, mesma máquina, os dois arquivos)
+
+Medida com `performance.measureUserAgentSpecificMemory()` numa página com isolamento de origem (servidor de
+desenvolvimento com os cabeçalhos COOP/COEP), que separa a memória por contexto:
+
+| Momento | Worker | Tela (thread principal) |
+|---|---|---|
+| Durante a leitura das linhas | 61 MB | — |
+| Logo após o processamento | 75 MB | — |
+| Depois de navegar pelas telas (caches de tabelas e painel) | 98 MB | 19 MB |
+
+A API só responde após uma coleta de lixo, então as amostras não pegam necessariamente o pico exato; ainda assim, a
+folga para a meta de 400 MB é grande. O RSS do processo Node (tabela acima) não é comparável, porque inclui o Node e o
+Vitest.
 
 ### Pendente
 
 - **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo
   Gerenciador de tarefas do navegador (Shift+Esc → linha "Dedicated worker" ou a aba). O navegador não expõe a
   memória do worker para a página, então essa medição é manual.
-- **Pico de memória do worker com os dois arquivos**, pelo Gerenciador de tarefas do navegador, nesta máquina e na do
-  trabalho.
+- **Computador do trabalho:** repetir tempos e memória (Gerenciador de tarefas do navegador, Shift+Esc).
