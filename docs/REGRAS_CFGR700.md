@@ -101,8 +101,7 @@ Usuário vazio no log é substituído pelo rótulo `(sem usuário no log)` (ocor
 Operações: `Inclusão`, `Alteração`, `Exclusão`, `Recuperação`.
 
 Na base consolidada (vários arquivos), linhas de arquivos diferentes com a mesma chave formam um único evento;
-nas contagens por arquivo, cada arquivo é agrupado separadamente. **A confirmar** contra o `golden.json`
-consolidado quando os dois arquivos estiverem disponíveis.
+nas contagens por arquivo, cada arquivo é agrupado separadamente. Confirmado contra o `golden.json` consolidado.
 - Recuperação grava valor anterior igual ao atualizado e não é alteração; não entra nas categorias.
 - Um mesmo Recno pode ter mais de uma Inclusão (a gravação ocorre em etapas); usar a primeira.
 - Um mesmo Recno pode ter duas Exclusões no mesmo segundo; tratar como um evento de exclusão (usar a última).

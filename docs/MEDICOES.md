@@ -43,9 +43,24 @@ diária do invariante 6) somou cerca de 0,3 s neste arquivo.
 
 Maior bloqueio da thread principal durante a navegação: 44 ms.
 
+## 2026-09-25 — Dois arquivos (agosto + setembro), mesma máquina
+
+| Ambiente | Tempo total | Memória / responsividade |
+|---|---|---|
+| Node 24, agosto sozinho (`npm run test:local`) | 8,4 s | RSS do processo 226 MB; heap 88 MB |
+| Node 24, os dois arquivos | 15,1 s | RSS do processo 423 MB (inclui Node, Vitest e as duas análises por arquivo + a consolidada); heap 168 MB |
+| Navegador (`npm run dev`), os dois arquivos | 17,5 s | thread principal: heap 18 MB; maior bloqueio 17 ms na leitura e 45 ms na navegação |
+
+Painel com os dois arquivos: 123 ms; primeira página da base de linhas: 33 ms.
+
+O pico de memória do **worker** no navegador ainda precisa ser lido no Gerenciador de tarefas (a página não tem
+acesso a esse número). A referência mais próxima é o heap do Node com os dois arquivos (168 MB), abaixo da meta de
+400 MB; o RSS do processo Node não é comparável, porque inclui o próprio Node e o Vitest.
+
 ### Pendente
 
 - **Computador do trabalho (Chrome/Edge corporativo):** tempo de leitura e pico de memória do worker pelo
   Gerenciador de tarefas do navegador (Shift+Esc → linha "Dedicated worker" ou a aba). O navegador não expõe a
   memória do worker para a página, então essa medição é manual.
-- **Dois arquivos:** repetir quando o arquivo de agosto estiver disponível.
+- **Pico de memória do worker com os dois arquivos**, pelo Gerenciador de tarefas do navegador, nesta máquina e na do
+  trabalho.

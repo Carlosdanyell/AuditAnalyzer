@@ -10,7 +10,7 @@ import { defaultConfig } from '../../src/config/schema';
 import { dayOfSeconds, formatIsoDateTime, parseDate } from '../../src/shared/dates';
 import type { FileReconciliation, OperationCount, ScopeStats } from '../../src/shared/protocol';
 import type { ScopeAnalysis } from '../../src/worker/engine/analysis';
-import { FULL_PERIOD, periodPanel, type CategoryPanel, type DayPeriod } from '../../src/worker/engine/periods';
+import { FULL_PERIOD, periodPanel, visitPeriod, type CategoryPanel, type DayPeriod } from '../../src/worker/engine/periods';
 import { runIngestion, type IngestionResult } from '../../src/worker/ingest/pipeline';
 import { Session } from '../../src/worker/session';
 
@@ -335,14 +335,29 @@ describe.skipIf(!golden)('local golden reference', () => {
       const scope = (await both()).analyses.at(-1)!;
       const year = yearOf(golden!);
       const cases = golden!.casos_pontuais;
-      const doc = scope.documents.find((d) => d.key === cases.documento_com_exclusao_em_duas_janelas);
+      // The golden value is "<document key> (<note with the two deletion dates, dd/mm>)".
+      const text = cases.documento_com_exclusao_em_duas_janelas;
+      const key = text.split(' (')[0]!.trim();
+      const noteDates = [...(text.slice(key.length).matchAll(/(\d{2})\/(\d{2})/g))].map((m) => parseDate(`${m[1]}/${m[2]}/${year}`));
+      const doc = scope.documents.find((d) => d.key === key);
       const w1 = periodOf('17_a_24_08', year);
       const w2 = periodOf('25_a_31_08', year);
       const within = (t: number, p: DayPeriod) => dayOfSeconds(t) >= p.startDay && dayOfSeconds(t) <= p.endDay;
+      const countedIn = (w: DayPeriod) => {
+        let found = false;
+        visitPeriod(scope, w, { line() {}, document(c, d) { if (c === 'deleted' && d.key === key) found = true; } });
+        return found;
+      };
       expect(
-        doc !== undefined && within(doc.firstDeletion, w1) && within(doc.lastDeletion, w2),
-        'documento com exclusão em duas janelas',
-      ).toBe(true);
+        {
+          encontrado: doc !== undefined,
+          primeiraNaJanela1: doc !== undefined && within(doc.firstDeletion, w1),
+          ultimaNaJanela2: doc !== undefined && within(doc.lastDeletion, w2),
+          datasDaNota: noteDates.length === 2 && doc !== undefined && dayOfSeconds(doc.firstDeletion) === noteDates[0] && dayOfSeconds(doc.lastDeletion) === noteDates[1],
+          contadoSoNaJanela1: countedIn(w1) && !countedIn(w2),
+        },
+        'documento com exclusão em duas janelas (se falhar, ver local/divergencia-caso-pontual.txt: possível erro no CT2_DOC da referência)',
+      ).toEqual({ encontrado: true, primeiraNaJanela1: true, ultimaNaJanela2: true, datasDaNota: true, contadoSoNaJanela1: true });
 
       const deleted = periodPanel(scope, w1).deleted;
       expect(
