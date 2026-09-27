@@ -28,7 +28,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   inteiro — só páginas (`page`) de até 2.000 linhas.
 - Thread principal abaixo de 150 MB e sem travar: nada de processamento pesado na tela.
 - Nenhum dado do log em `localStorage`, `sessionStorage`, Cache Storage ou service worker. IndexedDB só para
-  configuração e justificativas.
+  configuração e justificativas (a preferência de tema claro/escuro fica no mesmo store `config`, chave `uiTheme`).
 - Textos em português; fonte `Aptos, "Segoe UI", system-ui, sans-serif`; sem baixar fontes.
 - Aviso permanente: "Os arquivos são processados neste computador e não são enviados para nenhum servidor."
 
@@ -63,7 +63,10 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
    configuração e as justificativas (`buildBackup`) e restaurar com confirmação (`readBackup`, `restoreBackup` do
    App), substituindo tudo.
-9. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
+9. **Tema** — claro (padrão) e escuro, trocados na barra lateral (`src/app/themeStore.ts`: `<html data-theme>`,
+   preferência no IndexedDB). Cores só por tokens de `src/app/global.css`; os dois temas devem continuar legíveis.
+   Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
+10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
    `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline) e **versão** no rodapé
    (`APP_VERSION_LABEL`).

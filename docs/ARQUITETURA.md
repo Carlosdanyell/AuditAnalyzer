@@ -164,6 +164,7 @@ tolerância de balanceamento, presets de período, data de corte de competência
 Exportar/importar pelo usuário; cópia em IndexedDB. O hash da configuração vai para a Rastreabilidade.
 Implementado (Fase 3): atalhos de período próprios e feriados, enviados ao worker pelo comando `settings` durante a
 sessão, sem reprocessar os arquivos. Dados do log nunca vão para o IndexedDB.
+Interface: a preferência de tema (claro/escuro) fica no mesmo store `config`, chave `uiTheme` (`src/app/themeStore.ts`).
 Fase 6: **uma configuração** guardada no IndexedDB (store `config`, chave `analyzerConfig`, `src/app/configStore.ts`),
 com atalhos e feriados dentro dela (os salvos à parte antes são migrados na primeira abertura). `schemaVersion` 2,
 com migração da versão 1 (`src/shared/configTools.ts`: `readConfig` valida e dá erros em português por campo;

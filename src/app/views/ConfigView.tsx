@@ -6,7 +6,13 @@ import type { Justification } from '../../shared/protocol';
 import { formatInteger } from '../../shared/format';
 import { centsFromReais, formatList, getIn, issuesAt, parseList, reaisFromCents, setIn, type Draft, type Json } from '../configEditor';
 import { downloadBlob } from '../download';
+import { Icon, type IconName } from '../../components/Icon';
+import { cx } from '../../components/cx';
+import ui from '../../components/ui.module.css';
 import styles from './ConfigView.module.css';
+
+const BUTTON = cx(ui.btn, ui.secondary, ui.sm);
+const PRIMARY = cx(ui.btn, ui.primary, ui.sm);
 
 interface Props {
   /** Configuration saved on this computer. */
@@ -162,30 +168,40 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
     </Field>
   );
   const textInput = (path: string[], options: { list?: string } = {}) => (
-    <input className={styles.input} value={text(path)} list={options.list} onChange={(e) => set(path, e.target.value)} />
+    <input className={cx(ui.input, styles.input)} value={text(path)} list={options.list} onChange={(e) => set(path, e.target.value)} />
   );
   const listInput = (path: string[], rows = 3) => <ListInput value={list(path)} rows={rows} onChange={(items) => set(path, items)} />;
 
   return (
     <div className={styles.view}>
-      <section className={styles.card} aria-labelledby="config-title">
+      <section className={cx(ui.card, styles.card)} aria-labelledby="config-title">
         <div className={styles.head}>
-          <div>
+          <span className={ui.cardIcon}>
+            <Icon name="sliders" />
+          </span>
+          <div className={styles.headText}>
             <h2 id="config-title">Configuração da análise</h2>
             <p className={styles.muted}>
               Regras usadas na leitura do CFGR700 e na análise da tabela {text(['table']) || 'CT2'}. Fica salva neste computador e entra na
               Rastreabilidade da planilha (SHA-256 e diferenças em relação ao padrão).
             </p>
           </div>
-          <button type="button" className={styles.link} onClick={onClose}>
+          <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, styles.back)} onClick={onClose}>
+            <Icon name="arrowRight" size={15} className={styles.backIcon} />
             Voltar
           </button>
         </div>
         <p className={styles.status}>
           {differences.length === 0 ? (
-            <strong>Configuração padrão CT2, sem alterações.</strong>
+            <strong className={cx(ui.pill, styles.statusDefault)}>
+              <Icon name="checkCircle" size={16} />
+              Configuração padrão CT2, sem alterações.
+            </strong>
           ) : (
-            <strong>{formatInteger(differences.length)} diferença(s) em relação ao padrão CT2.</strong>
+            <strong className={cx(ui.pill, styles.statusChanged)}>
+              <Icon name="pen" size={15} />
+              {formatInteger(differences.length)} diferença(s) em relação ao padrão CT2.
+            </strong>
           )}{' '}
           <span className={styles.hash} title="SHA-256 da configuração salva">
             SHA-256 {hash ? `${hash.slice(0, 16)}…` : '…'}
@@ -193,7 +209,10 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         </p>
         {differences.length > 0 && (
           <details className={styles.diff}>
-            <summary>Ver diferenças</summary>
+            <summary>
+              <Icon name="chevronRight" size={15} />
+              Ver diferenças
+            </summary>
             <table>
               <thead>
                 <tr>
@@ -215,7 +234,8 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
           </details>
         )}
         <div className={styles.actions}>
-          <button type="button" className={styles.button} onClick={() => fileInput.current?.click()}>
+          <button type="button" className={BUTTON} onClick={() => fileInput.current?.click()}>
+            <Icon name="upload" size={15} />
             Importar JSON
           </button>
           <input
@@ -229,38 +249,47 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
               if (file) void importFile(file);
             }}
           />
-          <button type="button" className={styles.button} onClick={exportJson}>
+          <button type="button" className={BUTTON} onClick={exportJson}>
+            <Icon name="download" size={15} />
             Exportar JSON
           </button>
           <button
             type="button"
-            className={styles.button}
+            className={BUTTON}
             onClick={() => {
               setDraft(toDraft(defaultConfig()));
               setJsonText(null);
               setMessage({ kind: 'info', text: 'Padrão CT2 carregado no rascunho. Clique em Salvar para usá-lo.' });
             }}
           >
+            <Icon name="refresh" size={15} />
             Restaurar padrão
           </button>
         </div>
         {message && (
-          <p className={styles[message.kind]} role={message.kind === 'error' ? 'alert' : 'status'}>
-            {message.text}
+          <p className={cx(ui.alert, styles[message.kind])} role={message.kind === 'error' ? 'alert' : 'status'}>
+            <Icon name={message.kind === 'ok' ? 'checkCircle' : message.kind === 'error' ? 'xCircle' : 'info'} size={17} />
+            <span>{message.text}</span>
           </p>
         )}
         {analysisLoaded && needsReprocess && (
-          <div className={styles.reprocess} role="status">
+          <div className={cx(ui.alert, styles.reprocess)} role="status">
+            <Icon name="refresh" size={17} />
             <span>A análise na tela usa a configuração anterior.</span>
-            <button type="button" className={styles.primary} onClick={onReprocess} disabled={!canReprocess}>
+            <button type="button" className={PRIMARY} onClick={onReprocess} disabled={!canReprocess}>
               Reprocessar com esta configuração
             </button>
           </div>
         )}
       </section>
 
-      <section className={styles.card} aria-labelledby="backup-title">
-        <h3 id="backup-title">Cópia de segurança</h3>
+      <section className={cx(ui.card, styles.card)} aria-labelledby="backup-title">
+        <div className={styles.head}>
+          <span className={ui.cardIcon}>
+            <Icon name="database" />
+          </span>
+          <h3 id="backup-title">Cópia de segurança</h3>
+        </div>
         <p className={styles.muted}>
           Um arquivo com a configuração e as justificativas guardadas neste computador — para trocar de computador ou recuperar se os dados
           do navegador forem apagados. Não contém dados do log.
@@ -268,15 +297,17 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         <div className={styles.actions}>
           <button
             type="button"
-            className={styles.button}
+            className={BUTTON}
             onClick={() => {
               const n = onCreateBackup();
               setMessage({ kind: 'ok', text: `Cópia de segurança baixada: configuração e ${formatInteger(n)} justificativa(s).` });
             }}
           >
+            <Icon name="download" size={15} />
             Baixar cópia de segurança
           </button>
-          <button type="button" className={styles.button} onClick={() => backupInput.current?.click()}>
+          <button type="button" className={BUTTON} onClick={() => backupInput.current?.click()}>
+            <Icon name="upload" size={15} />
             Restaurar cópia de segurança
           </button>
           <input
@@ -293,17 +324,18 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
           />
         </div>
         {pendingRestore && (
-          <div className={styles.reprocess} role="alertdialog" aria-label="Confirmar restauração">
+          <div className={cx(ui.alert, styles.reprocess)} role="alertdialog" aria-label="Confirmar restauração">
+            <Icon name="alert" size={17} />
             <span>
               Cópia "{pendingRestore.name}"{pendingRestore.createdAt ? ` de ${pendingRestore.createdAt}` : ''}: configuração com{' '}
               {formatInteger(configDiff(pendingRestore.config).length)} diferença(s) do padrão e {formatInteger(pendingRestore.justifications.length)}{' '}
               justificativa(s). Restaurar substitui a configuração e todas as justificativas salvas neste computador.
             </span>
             <div className={styles.actions}>
-              <button type="button" className={styles.primary} onClick={() => void confirmRestore()}>
+              <button type="button" className={PRIMARY} onClick={() => void confirmRestore()}>
                 Restaurar
               </button>
-              <button type="button" className={styles.button} onClick={() => setPendingRestore(null)}>
+              <button type="button" className={BUTTON} onClick={() => setPendingRestore(null)}>
                 Cancelar
               </button>
             </div>
@@ -317,7 +349,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         ))}
       </datalist>
 
-      <Section title="Campos do log" open>
+      <Section title="Campos do log" icon="database" open>
         {field('Campos mantidos', ['fields', 'keep'], listInput(['fields', 'keep'], 8), 'Um por linha. Só estes campos são guardados na memória; os demais são descartados na leitura.')}
         {field('Campos de ruído', ['fields', 'noise'], listInput(['fields', 'noise']), 'Alterações só nestes campos não contam como alteração efetiva (ex.: carimbo de usuário e tipo de saldo).')}
         <div className={styles.grid}>
@@ -330,7 +362,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         {field('Colunas extras na base de linhas', ['tables', 'baseRowsExtraFields'], listInput(['tables', 'baseRowsExtraFields']))}
       </Section>
 
-      <Section title="Documento">
+      <Section title="Documento" icon="file">
         {field('Campos da chave, na ordem', ['documentKey', 'fields'], listInput(['documentKey', 'fields'], 4))}
         <div className={styles.grid}>
           {field('Separador', ['documentKey', 'separator'], textInput(['documentKey', 'separator']))}
@@ -338,7 +370,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         </div>
       </Section>
 
-      <Section title="Origem manual / automática">
+      <Section title="Origem manual / automática" icon="layers">
         <div className={styles.grid}>
           {field('Campo', ['origin', 'field'], textInput(['origin', 'field'], { list: 'config-keep-fields' }))}
           {field('Valores manuais', ['origin', 'manual'], listInput(['origin', 'manual'], 2))}
@@ -346,7 +378,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         </div>
       </Section>
 
-      <Section title="Natureza, débito/crédito e balanceamento">
+      <Section title="Natureza, débito/crédito e balanceamento" icon="activity">
         <div className={styles.grid}>
           {field('Campo da natureza', ['nature', 'field'], textInput(['nature', 'field'], { list: 'config-keep-fields' }))}
           {field('Códigos a débito', ['nature', 'debit'], listInput(['nature', 'debit'], 2))}
@@ -363,7 +395,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         {field('Descrição dos códigos da natureza', ['nature', 'labels'], <MapInput value={value(['nature', 'labels'])} keyLabel="Código" valueLabel="Descrição" onChange={(m) => set(['nature', 'labels'], m)} />)}
       </Section>
 
-      <Section title="Tipo de saldo, inconsistência e usuário">
+      <Section title="Tipo de saldo, inconsistência e usuário" icon="hash">
         <div className={styles.grid}>
           {field('Campo do tipo de saldo', ['balanceType', 'field'], textInput(['balanceType', 'field']))}
           {field('Transição descartada: de', ['balanceType', 'expectedFrom'], textInput(['balanceType', 'expectedFrom']))}
@@ -373,7 +405,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         </div>
       </Section>
 
-      <Section title="Exibição de valores nas alterações">
+      <Section title="Exibição de valores nas alterações" icon="table">
         {field('Campos codificados (mostrados como "—")', ['valueDisplay', 'encoded'], listInput(['valueDisplay', 'encoded'], 2), 'Conteúdo gravado pelo Protheus de forma ilegível, como o carimbo de usuário/data.')}
         {field(
           'Códigos com descrição, por campo',
@@ -383,11 +415,11 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         )}
       </Section>
 
-      <Section title="Descrições dos campos">
+      <Section title="Descrições dos campos" icon="pen">
         {field('Campo → descrição', ['fieldLabels'], <MapInput value={value(['fieldLabels'])} keyLabel="Campo" valueLabel="Descrição" onChange={(m) => set(['fieldLabels'], m)} />)}
       </Section>
 
-      <Section title="Sinalizações do painel">
+      <Section title="Sinalizações do painel" icon="flag">
         <p className={styles.muted}>
           Marcadores nos textos: {'{n}'} = ocorrências; nas inconsistências também {'{pendentes}'} e {'{corrigidos}'}; nos dias, {'{dias}'}.
         </p>
@@ -399,7 +431,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
               {field(
                 'Exige ação',
                 ['panel', 'signals', id, 'requiresAction'],
-                <select className={styles.input} value={text(['panel', 'signals', id, 'requiresAction'])} onChange={(e) => set(['panel', 'signals', id, 'requiresAction'], e.target.value)}>
+                <select className={cx(ui.input, styles.input)} value={text(['panel', 'signals', id, 'requiresAction'])} onChange={(e) => set(['panel', 'signals', id, 'requiresAction'], e.target.value)}>
                   {SIGNAL_ACTIONS.map((a) => (
                     <option key={a.value} value={a.value}>
                       {a.label}
@@ -414,30 +446,30 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         ))}
       </Section>
 
-      <Section title="Calendário e atalhos de período">
+      <Section title="Calendário e atalhos de período" icon="calendar">
         {field('Feriados (dd/mm/aaaa)', ['calendar', 'holidays'], listInput(['calendar', 'holidays'], 4), 'Não contam como dias úteis nas sinalizações.')}
         {field('Atalhos de período', ['panel', 'periodPresets'], <PresetsInput value={value(['panel', 'periodPresets'])} onChange={(p) => set(['panel', 'periodPresets'], p)} />, 'Também editáveis no painel.')}
       </Section>
 
-      <Section title="Avançado: estrutura do relatório e JSON completo">
+      <Section title="Avançado: estrutura do relatório e JSON completo" icon="sliders">
         <p className={styles.muted}>
           Colunas do relatório, operações, aba de parâmetros e perguntas conferidas raramente mudam; edite-as aqui, no JSON completo do rascunho.
         </p>
         {jsonText === null ? (
-          <button type="button" className={styles.button} onClick={() => setJsonText(configToJson(draft as unknown as AnalyzerConfig))}>
+          <button type="button" className={BUTTON} onClick={() => setJsonText(configToJson(draft as unknown as AnalyzerConfig))}>
             Editar o JSON do rascunho
           </button>
         ) : (
           <>
-            <textarea className={styles.json} value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label="JSON da configuração" />
+            <textarea className={cx(ui.input, styles.json)} value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label="JSON da configuração" />
             {jsonIssues.length > 0 && <IssueList issues={jsonIssues} />}
             <div className={styles.actions}>
-              <button type="button" className={styles.primary} onClick={applyJson}>
+              <button type="button" className={PRIMARY} onClick={applyJson}>
                 Aplicar ao rascunho
               </button>
               <button
                 type="button"
-                className={styles.button}
+                className={BUTTON}
                 onClick={() => {
                   setJsonText(null);
                   setJsonIssues([]);
@@ -451,12 +483,21 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
       </Section>
 
       <div className={styles.footer}>
-        {issues.length > 0 ? <IssueList issues={issues} /> : dirty ? <span className={styles.muted}>Alterações não salvas.</span> : <span className={styles.muted}>Sem alterações.</span>}
+        {issues.length > 0 ? (
+          <IssueList issues={issues} />
+        ) : dirty ? (
+          <span className={styles.dirty}>
+            <span className={styles.dirtyDot} aria-hidden="true" />
+            Alterações não salvas.
+          </span>
+        ) : (
+          <span className={styles.muted}>Sem alterações.</span>
+        )}
         <div className={styles.actions}>
-          <button type="button" className={styles.button} onClick={() => setDraft(toDraft(config))} disabled={!dirty}>
+          <button type="button" className={BUTTON} onClick={() => setDraft(toDraft(config))} disabled={!dirty}>
             Descartar alterações
           </button>
-          <button type="button" className={styles.primary} onClick={() => void save()} disabled={!dirty || issues.length > 0}>
+          <button type="button" className={PRIMARY} onClick={() => void save()} disabled={!dirty || issues.length > 0}>
             Salvar configuração
           </button>
         </div>
@@ -470,10 +511,16 @@ function shown(v: unknown): string {
   return typeof v === 'string' ? v : JSON.stringify(v);
 }
 
-function Section({ title, open, children }: { title: string; open?: boolean; children: ReactNode }) {
+function Section({ title, icon, open, children }: { title: string; icon: IconName; open?: boolean; children: ReactNode }) {
   return (
     <details className={styles.section} open={open}>
-      <summary>{title}</summary>
+      <summary>
+        <span className={styles.sectionIcon}>
+          <Icon name={icon} size={16} />
+        </span>
+        <span className={styles.sectionTitle}>{title}</span>
+        <Icon name="chevronDown" size={18} className={styles.chevron} />
+      </summary>
       <div className={styles.sectionBody}>{children}</div>
     </details>
   );
@@ -511,7 +558,7 @@ function ListInput({ value, rows, onChange }: { value: string[]; rows: number; o
   const [textValue, setTextValue] = useState(formatList(value));
   const joined = formatList(value);
   useEffect(() => setTextValue(joined), [joined]);
-  return <textarea className={styles.input} rows={rows} value={textValue} onChange={(e) => setTextValue(e.target.value)} onBlur={() => onChange(parseList(textValue))} />;
+  return <textarea className={cx(ui.input, styles.input)} rows={rows} value={textValue} onChange={(e) => setTextValue(e.target.value)} onBlur={() => onChange(parseList(textValue))} />;
 }
 
 function MoneyInput({ cents, onChange }: { cents: number; onChange: (cents: number) => void }) {
@@ -520,7 +567,7 @@ function MoneyInput({ cents, onChange }: { cents: number; onChange: (cents: numb
   const parsed = centsFromReais(textValue);
   return (
     <input
-      className={styles.input}
+      className={cx(ui.input, styles.input)}
       inputMode="decimal"
       value={textValue}
       aria-invalid={parsed === null}
@@ -549,14 +596,14 @@ function MapInput({ value, keyLabel, valueLabel, onChange }: { value: Json | und
       </div>
       {pairs.map(([k, v], i) => (
         <div key={i} className={styles.mapRow}>
-          <input className={styles.input} defaultValue={k} onBlur={(e) => commit(pairs.map((p, j) => (j === i ? [e.target.value, p[1]] : p)))} aria-label={keyLabel} />
-          <input className={styles.input} value={v} onChange={(e) => commit(pairs.map((p, j) => (j === i ? [p[0], e.target.value] : p)))} aria-label={valueLabel} />
+          <input className={cx(ui.input, styles.input)} defaultValue={k} onBlur={(e) => commit(pairs.map((p, j) => (j === i ? [e.target.value, p[1]] : p)))} aria-label={keyLabel} />
+          <input className={cx(ui.input, styles.input)} value={v} onChange={(e) => commit(pairs.map((p, j) => (j === i ? [p[0], e.target.value] : p)))} aria-label={valueLabel} />
           <button type="button" className={styles.remove} onClick={() => commit(pairs.filter((_, j) => j !== i))} aria-label={`Remover ${k}`}>
-            ×
+            <Icon name="x" size={14} />
           </button>
         </div>
       ))}
-      <button type="button" className={styles.link} onClick={() => onChange(Object.fromEntries([...pairs, [`NOVO_${pairs.length + 1}`, '']]))}>
+      <button type="button" className={cx(ui.link, styles.link)} onClick={() => onChange(Object.fromEntries([...pairs, [`NOVO_${pairs.length + 1}`, '']]))}>
         + adicionar
       </button>
     </div>
@@ -572,7 +619,7 @@ function NestedMapInput({ value, onChange }: { value: Json | undefined; onChange
         <div key={name} className={styles.nestedItem}>
           <div className={styles.nestedHead}>
             <code>{name}</code>
-            <button type="button" className={styles.link} onClick={() => onChange(Object.fromEntries(fields.filter(([n]) => n !== name)))}>
+            <button type="button" className={cx(ui.link, styles.link)} onClick={() => onChange(Object.fromEntries(fields.filter(([n]) => n !== name)))}>
               remover campo
             </button>
           </div>
@@ -580,10 +627,10 @@ function NestedMapInput({ value, onChange }: { value: Json | undefined; onChange
         </div>
       ))}
       <div className={styles.mapRow}>
-        <input className={styles.input} placeholder="Campo (ex.: CT2_TPSALD)" value={newField} onChange={(e) => setNewField(e.target.value)} />
+        <input className={cx(ui.input, styles.input)} placeholder="Campo (ex.: CT2_TPSALD)" value={newField} onChange={(e) => setNewField(e.target.value)} />
         <button
           type="button"
-          className={styles.button}
+          className={BUTTON}
           disabled={!newField.trim() || fields.some(([n]) => n === newField.trim())}
           onClick={() => {
             onChange(Object.fromEntries([...fields, [newField.trim(), {}]]));
@@ -624,18 +671,18 @@ function PresetsInput({ value, onChange }: { value: Json | undefined; onChange: 
           {(['label', 'start', 'end'] as const).map((k) => (
             <input
               key={k}
-              className={styles.input}
+              className={cx(ui.input, styles.input)}
               value={p[k]}
               placeholder={k === 'label' ? 'Nome' : 'dd/mm/aaaa'}
               onChange={(e) => commit(presets.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)))}
             />
           ))}
           <button type="button" className={styles.remove} onClick={() => commit(presets.filter((_, j) => j !== i))} aria-label={`Remover ${p.label}`}>
-            ×
+            <Icon name="x" size={14} />
           </button>
         </div>
       ))}
-      <button type="button" className={styles.link} onClick={() => commit([...presets, { label: '', start: '', end: '' }])}>
+      <button type="button" className={cx(ui.link, styles.link)} onClick={() => commit([...presets, { label: '', start: '', end: '' }])}>
         + adicionar atalho
       </button>
     </div>

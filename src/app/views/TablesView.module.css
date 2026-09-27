@@ -1,36 +1,12 @@
 .view {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.tab,
-.activeTab {
-  border: none;
-  background: none;
-  padding: 8px 14px;
-  font-size: 14px;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.activeTab {
-  color: var(--accent);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 .toolbar {
@@ -40,59 +16,93 @@
   gap: 10px;
 }
 
-.search,
-.toolbar select {
-  font: inherit;
-  font-size: 14px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 6px 10px;
-  min-height: 34px;
+.searchBox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 280px;
+  max-width: 440px;
+}
+
+.searchBox > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--text-subtle);
+  pointer-events: none;
 }
 
 .search {
-  flex: 1 1 260px;
-  max-width: 420px;
+  width: 100%;
+  padding-left: 36px;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 4px 3px 10px;
-  border-radius: 14px;
+  padding: 4px 4px 4px 11px;
+  border-radius: 999px;
   background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--accent);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
+  animation: chip-in 260ms var(--ease);
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
 }
 
 .chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   border: none;
+  border-radius: 50%;
   background: none;
   color: inherit;
-  font-size: 16px;
-  line-height: 1;
   cursor: pointer;
-  padding: 0 6px;
+  transition: background-color 150ms;
+}
+
+.chip button:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .count {
   margin-left: auto;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
   color: var(--text-muted);
   font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.counting {
+  animation: breathe 1.2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .grid {
   position: relative;
-  height: max(420px, calc(100vh - 300px));
+  height: max(440px, calc(100vh - 290px));
   overflow: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
   font-size: 13px;
 }
 
@@ -101,28 +111,86 @@
   top: 0;
   z-index: 1;
   display: flex;
+  min-width: 100%;
   background: var(--surface-muted);
   border-bottom: 1px solid var(--border-strong);
 }
 
 .th {
+  position: relative;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
   border: none;
   background: none;
-  padding: 8px 10px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-subtle);
   text-align: left;
   cursor: pointer;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  transition:
+    color 150ms,
+    background-color 150ms;
+}
+
+.th.num {
+  justify-content: flex-end;
+}
+
+.thLabel {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+}
+
+.th.num .thLabel {
+  text-align: right;
 }
 
 .th:hover {
   color: var(--text);
+  background: var(--surface-sunken);
+}
+
+.th[aria-sort='ascending'],
+.th[aria-sort='descending'] {
+  color: var(--accent);
+}
+
+/* Over the cell padding, so it never takes room from the title. */
+.sortIcon {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: grid;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 150ms;
+}
+
+.th.num .sortIcon {
+  right: auto;
+  left: 0;
+}
+
+.th:hover .sortIcon {
+  opacity: 0.45;
+}
+
+.sortActive,
+.th:hover .sortActive {
+  opacity: 1;
 }
 
 .row {
@@ -132,15 +200,20 @@
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
+  transition: background-color 100ms;
 }
 
 .odd {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+}
+
+.row:hover {
+  background: var(--surface-sunken);
 }
 
 .td {
   flex: none;
-  padding: 0 10px;
+  padding: 0 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -151,23 +224,47 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Rows not loaded yet: a pulsing placeholder instead of an empty grid (opacity only). */
 .placeholder {
   display: inline-block;
   width: 60%;
-  height: 8px;
-  border-radius: 4px;
+  height: 9px;
+  border-radius: 5px;
   background: var(--border);
+  animation: pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .empty {
+  position: absolute;
+  inset: 60px 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   padding: 24px;
-  color: var(--text-muted);
   text-align: center;
+  animation: chip-in 300ms var(--ease);
 }
 
-.error {
-  color: var(--error);
-  margin: 0;
+.empty > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .clickable {
@@ -178,7 +275,8 @@
   background: var(--accent-soft);
 }
 
-.selected {
-  background: var(--accent-soft);
+.selected,
+.selected:hover {
+  background: var(--accent-soft-strong);
   box-shadow: inset 3px 0 0 var(--accent);
 }

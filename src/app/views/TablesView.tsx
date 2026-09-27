@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Cell, ColumnSpec, OriginFilter, Sort, TableFilter, TableId } from '../../shared/protocol';
 import { formatCents, formatDateTime, formatDay, formatInteger } from '../../shared/format';
 import type { WorkerClient } from '../workerClient';
+import { Icon } from '../../components/Icon';
+import { cx } from '../../components/cx';
+import ui from '../../components/ui.module.css';
 import styles from './TablesView.module.css';
 
 export const TABLES: { id: TableId; label: string }[] = [
@@ -29,7 +32,7 @@ export interface TableRequest {
 }
 
 const PAGE = 200;
-const ROW_HEIGHT = 32;
+const ROW_HEIGHT = 34;
 
 function formatCell(value: Cell, type: ColumnSpec['type']): string {
   if (value === null || value === '') return '';
@@ -147,12 +150,12 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
 
   return (
     <div className={styles.view}>
-      <nav className={styles.tabs} aria-label="Tabelas">
+      <nav className={cx(ui.segmented, styles.tabs)} aria-label="Tabelas">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            className={t.id === request.table ? styles.activeTab : styles.tab}
+            className={t.id === request.table ? ui.segmentActive : ui.segment}
             aria-current={t.id === request.table ? 'page' : undefined}
             onClick={() => {
               setSearch('');
@@ -165,15 +168,19 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
       </nav>
 
       <div className={styles.toolbar}>
-        <input
-          type="search"
-          className={styles.search}
-          placeholder="Buscar nas colunas de texto…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Buscar"
-        />
+        <span className={styles.searchBox}>
+          <Icon name="search" size={16} />
+          <input
+            type="search"
+            className={cx(ui.input, styles.search)}
+            placeholder="Buscar nas colunas de texto…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Buscar"
+          />
+        </span>
         <select
+          className={ui.input}
           value={origin ?? ''}
           onChange={(e) => {
             const { origin: _o, ...rest } = request.filter;
@@ -191,6 +198,7 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
         </select>
         {(category || period) && (
           <span className={styles.chip}>
+            <Icon name="filter" size={13} />
             {category ? `${CATEGORY_LABEL[category]} ` : 'Eventos '}
             {period && period.startDay > -2147483648 ? `de ${formatDay(period.startDay)} a ${formatDay(period.endDay)}` : 'no log completo'}
             <button
@@ -203,17 +211,22 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
                 setFilter(rest);
               }}
             >
-              ×
+              <Icon name="x" size={13} strokeWidth={2.4} />
             </button>
           </span>
         )}
         {toolbar}
-        <span className={styles.count} aria-live="polite">
+        <span className={cx(styles.count, total === null && styles.counting)} aria-live="polite">
           {total === null ? 'Carregando…' : `${formatInteger(total)} linha(s)`}
         </span>
       </div>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <p className={cx(ui.alert, ui.error)} role="alert">
+          <Icon name="xCircle" size={17} />
+          <span>{error}</span>
+        </p>
+      )}
 
       <div className={styles.grid} ref={scrollRef} role="table" aria-rowcount={(total ?? 0) + 1}>
         <div className={styles.header} style={{ width }} role="row">
@@ -228,10 +241,12 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
                 className={`${styles.th} ${c.type === 'text' ? '' : styles.num}`}
                 style={{ width: c.width }}
                 onClick={() => toggleSort(c.id)}
-                title="Ordenar"
+                title={`${c.header} — clique para ordenar`}
               >
-                {c.header}
-                {active && <span aria-hidden="true">{request.sort!.direction === 'asc' ? ' ▲' : ' ▼'}</span>}
+                <span className={styles.thLabel}>{c.header}</span>
+                <span className={cx(styles.sortIcon, active && styles.sortActive)} aria-hidden="true">
+                  <Icon name={active && request.sort!.direction === 'desc' ? 'arrowDown' : 'arrowUp'} size={12} strokeWidth={2.4} />
+                </span>
               </button>
             );
           })}
@@ -276,7 +291,15 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
             );
           })}
         </div>
-        {total === 0 && <p className={styles.empty}>Nenhuma linha com esses filtros.</p>}
+        {total === 0 && (
+          <div className={styles.empty}>
+            <span>
+              <Icon name="search" size={22} />
+            </span>
+            <strong>Nenhuma linha com esses filtros.</strong>
+            <span className={ui.muted}>Ajuste a busca, a origem ou remova o filtro do painel.</span>
+          </div>
+        )}
       </div>
     </div>
   );

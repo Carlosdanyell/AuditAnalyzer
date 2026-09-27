@@ -31,6 +31,17 @@ Primeira versão para uso da contabilidade. Será publicada (tag e release) depo
 - Tela de configuração da CT2 com validação por campo, importar/exportar JSON, restaurar padrão, versão 2 do
   esquema com migração e diferenças em relação ao padrão na rastreabilidade.
 
+### Nova interface
+- Layout com barra lateral (sessão, visões, configuração, ajuda, tema) e barra superior fixa com escopo e ações.
+- Tema claro (padrão) e escuro, com troca animada; preferência salva no IndexedDB.
+- Tela inicial com área de envio, ordem dos arquivos ajustável (subir/descer) e guia do fluxo.
+- Processamento com percentual geral, linha do tempo das etapas e situação de cada arquivo.
+- Reconciliação com veredito de integridade, indicadores e verificações com falhas e alertas primeiro.
+- Painel com indicadores por categoria (divisão manual/automático/misto), gráfico diário empilhado com dica e
+  tabela alternativa, cobertura das justificativas em anéis, sinalizações com ícones e níveis.
+- Justificativas com editor lateral e importação em janela modal; exportação com escolha de idioma em cartões.
+- Componentes compartilhados (`src/components/ui.module.css`, ícones SVG próprios), sem novas dependências.
+
 ### Entrega (Fase 7)
 - Testes de ponta a ponta no navegador (Playwright) no CI, com guarda contra qualquer requisição externa.
 - Manual do usuário dentro do app (Ajuda), versão no rodapé e na rastreabilidade, cópia de segurança única da

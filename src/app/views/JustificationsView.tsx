@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { findConflicts, justificationKey, mergeImport, sameText } from '../../shared/justifications';
 import type {
   Cell,
@@ -13,6 +13,9 @@ import { formatCents, formatDateTime, formatInteger } from '../../shared/format'
 import type { JustificationMeta } from '../justificationStore';
 import type { WorkerClient } from '../workerClient';
 import { TablesView, type TableRequest } from './TablesView';
+import { Icon } from '../../components/Icon';
+import { cx } from '../../components/cx';
+import ui from '../../components/ui.module.css';
 import styles from './JustificationsView.module.css';
 
 const LISTS: { id: TableId; label: string }[] = [
@@ -56,16 +59,23 @@ export function JustificationsView(props: JustificationsViewProps) {
 
   return (
     <div className={styles.view}>
-      <section className={styles.card}>
-        <div className={styles.head}>
-          <div>
-            <h2>Justificativas</h2>
-            <p className={styles.muted}>
-              O motivo de cada documento excluído ou alterado. Clique numa linha da lista para escrever ou editar.
-            </p>
+      <section className={ui.card}>
+        <div className={ui.cardHead}>
+          <div className={styles.titleBlock}>
+            <span className={ui.cardIcon}>
+              <Icon name="justify" />
+            </span>
+            <div>
+              <h2 className={ui.cardTitle}>Guardadas neste computador</h2>
+              <p className={ui.sub}>
+                Clique numa linha da lista para escrever ou editar. Importe de um papel de trabalho anterior e exporte uma cópia para não
+                perder o trabalho.
+              </p>
+            </div>
           </div>
           <div className={styles.actions}>
-            <label className={styles.button}>
+            <label className={cx(ui.btn, ui.secondary, styles.fileButton)}>
+              <Icon name="upload" size={16} />
               Importar planilha ou JSON
               <input
                 type="file"
@@ -86,7 +96,7 @@ export function JustificationsView(props: JustificationsViewProps) {
             </label>
             <button
               type="button"
-              className={styles.button}
+              className={cx(ui.btn, ui.secondary)}
               onClick={() => {
                 const result = props.onExport();
                 setMessage(
@@ -96,12 +106,45 @@ export function JustificationsView(props: JustificationsViewProps) {
                 );
               }}
             >
+              <Icon name="download" size={16} />
               Exportar cópia em JSON
             </button>
           </div>
         </div>
+
+        <div className={styles.meta}>
+          <span className={cx(ui.pill, meta.lastExportAt === null ? ui.neutral : ui.ok)}>
+            <Icon name={meta.lastExportAt === null ? 'clock' : 'check'} size={13} />
+            {meta.lastExportAt === null ? 'Nenhuma cópia em JSON foi feita ainda.' : `Última cópia em JSON: ${msFormat.format(meta.lastExportAt)}.`}
+          </span>
+          <span className={cx(ui.pill, ui.info)}>{formatInteger(justifications.size)} justificativa(s) guardada(s)</span>
+        </div>
+        {unsaved && (
+          <p className={cx(ui.alert, ui.warn)} role="note">
+            <Icon name="alert" size={17} />
+            <span>
+              Há justificativas alteradas depois da última cópia em JSON. Os dados do navegador podem ser apagados (limpeza do navegador,
+              política da empresa): exporte uma cópia.
+            </span>
+          </p>
+        )}
+        {unknownCount > 0 && (
+          <p className={ui.note}>
+            {formatInteger(unknownCount)} justificativa(s) guardada(s) sem documento no log atual. Voltam a valer quando os arquivos
+            correspondentes forem carregados.
+          </p>
+        )}
+        {message && (
+          <p className={cx(ui.alert, ui.info)} role="status">
+            <Icon name="info" size={17} />
+            <span>{message}</span>
+          </p>
+        )}
         <details className={styles.help}>
-          <summary>Como funciona</summary>
+          <summary>
+            <Icon name="help" size={15} />
+            Como funciona
+          </summary>
           <ul>
             <li>
               <strong>Justificar:</strong> clique num documento da lista (Exclusões ou Alterações), escreva o motivo e clique em Salvar. Um
@@ -126,85 +169,100 @@ export function JustificationsView(props: JustificationsViewProps) {
             </li>
           </ul>
         </details>
-        <p className={styles.muted}>
-          {meta.lastExportAt === null ? 'Nenhuma cópia em JSON foi feita ainda.' : `Última cópia em JSON: ${msFormat.format(meta.lastExportAt)}.`}
-        </p>
-        {unsaved && (
-          <p className={styles.warning} role="note">
-            Há justificativas alteradas depois da última cópia em JSON. Os dados do navegador podem ser apagados (limpeza do navegador,
-            política da empresa): exporte uma cópia.
-          </p>
-        )}
-        {unknownCount > 0 && (
-          <p className={styles.muted}>
-            {formatInteger(unknownCount)} justificativa(s) guardada(s) sem documento no log atual. Voltam a valer quando os arquivos
-            correspondentes forem carregados.
-          </p>
-        )}
-        {message && <p className={styles.info}>{message}</p>}
       </section>
 
       {preview && (
-        <ImportPreview
-          preview={preview}
-          existing={[...justifications.values()]}
-          onCancel={() => setPreview(null)}
-          onApply={async (items, summary) => {
-            const saved = await props.onReplaceAll(items);
-            setPreview(null);
-            setMessage(
-              `Importação aplicada: ${summary.added} nova(s), ${summary.replaced} substituída(s), ${summary.kept} mantida(s) por conflito, ` +
-                `${summary.unchanged} igual(is), ${summary.confirmed} com cobertura confirmada, ${summary.empty} vazia(s) ignorada(s).` +
-                (saved ? '' : ' Não foi possível salvar neste computador; vale apenas nesta sessão.'),
-            );
-          }}
-        />
-      )}
-
-      {selected && (
-        <Editor
-          key={`${kind}|${String(selected.documento)}`}
-          kind={kind}
-          row={selected}
-          justifications={justifications}
-          onClose={() => setSelected(null)}
-          onSave={async (j, situacao) => {
-            const saved = await props.onSave([j]);
-            // Reflect the new status in the editor at once (the list reloads from the worker).
-            setSelected((row) => row && { ...row, situacao, justificativa: j.text, responsavel: j.responsible, cobertura: coverageText(j) });
-            setMessage(saved ? 'Justificativa salva neste computador.' : 'Não foi possível salvar neste computador; vale apenas nesta sessão.');
-          }}
-        />
-      )}
-
-      <TablesView
-        client={client}
-        scope={scope}
-        request={request}
-        onRequest={onRequest}
-        tabs={LISTS}
-        refreshKey={refreshKey}
-        selectedKey={selected ? String(selected.documento) : null}
-        onRowClick={setSelected}
-        toolbar={
-          <select
-            aria-label="Situação"
-            value={request.filter.status ?? ''}
-            onChange={(e) => {
-              const { status: _s, ...rest } = request.filter;
-              void _s;
-              onRequest({ ...request, filter: e.target.value ? { ...rest, status: e.target.value as JustificationStatus } : rest });
+        <Modal label="Importar justificativas" onClose={() => setPreview(null)}>
+          <ImportPreview
+            preview={preview}
+            existing={[...justifications.values()]}
+            onCancel={() => setPreview(null)}
+            onApply={async (items, summary) => {
+              const saved = await props.onReplaceAll(items);
+              setPreview(null);
+              setMessage(
+                `Importação aplicada: ${summary.added} nova(s), ${summary.replaced} substituída(s), ${summary.kept} mantida(s) por conflito, ` +
+                  `${summary.unchanged} igual(is), ${summary.confirmed} com cobertura confirmada, ${summary.empty} vazia(s) ignorada(s).` +
+                  (saved ? '' : ' Não foi possível salvar neste computador; vale apenas nesta sessão.'),
+              );
             }}
-          >
-            <option value="">Todas as situações</option>
-            {STATUS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        }
-      />
+          />
+        </Modal>
+      )}
+
+      <div className={cx(styles.workspace, selected && styles.withEditor)}>
+        <div className={styles.list}>
+          <TablesView
+            client={client}
+            scope={scope}
+            request={request}
+            onRequest={onRequest}
+            tabs={LISTS}
+            refreshKey={refreshKey}
+            selectedKey={selected ? String(selected.documento) : null}
+            onRowClick={setSelected}
+            toolbar={
+              <select
+                className={ui.input}
+                aria-label="Situação"
+                value={request.filter.status ?? ''}
+                onChange={(e) => {
+                  const { status: _s, ...rest } = request.filter;
+                  void _s;
+                  onRequest({ ...request, filter: e.target.value ? { ...rest, status: e.target.value as JustificationStatus } : rest });
+                }}
+              >
+                <option value="">Todas as situações</option>
+                {STATUS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+        </div>
+
+        {selected && (
+          <Editor
+            key={`${kind}|${String(selected.documento)}`}
+            kind={kind}
+            row={selected}
+            justifications={justifications}
+            onClose={() => setSelected(null)}
+            onSave={async (j, situacao) => {
+              const saved = await props.onSave([j]);
+              // Reflect the new status in the editor at once (the list reloads from the worker).
+              setSelected((row) => row && { ...row, situacao, justificativa: j.text, responsavel: j.responsible, cobertura: coverageText(j) });
+              setMessage(saved ? 'Justificativa salva neste computador.' : 'Não foi possível salvar neste computador; vale apenas nesta sessão.');
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Dialog over the page: Escape or a click on the backdrop closes it; focus moves into it. */
+function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close.current();
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, []);
+  return (
+    <div className={styles.backdrop} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={panel} className={styles.modal} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -256,82 +314,108 @@ function Editor({
   // A new justification covers the document's current movement; editing keeps the coverage until confirmed.
   const coverage = current && current.text.trim() ? current.coverage : coverageFromRow(row);
 
+  const statusTone = row.situacao === 'Justificado' ? ui.ok : moved ? ui.warn : ui.neutral;
+
   return (
-    <section className={styles.card} aria-label="Editar justificativa">
-      <div className={styles.head}>
-        <div>
+    <section className={cx(ui.card, styles.editor)} aria-label="Editar justificativa">
+      <div className={styles.editorHead}>
+        <div className={styles.editorTitle}>
+          <span className={styles.eyebrow}>{kind === 'deletion' ? 'Exclusão' : 'Alteração'}</span>
           <h3>{kind === 'deletion' ? 'Justificativa da exclusão' : 'Justificativa da alteração'}</h3>
           <p className={styles.key}>{documentKey}</p>
-          <p className={styles.muted}>
-            Valor do documento: <strong>{typeof row.valorDocumento === 'number' ? formatCents(row.valorDocumento) : '—'}</strong>
-            {typeof row.valorExcluido === 'number' && (
-              <>
-                {' '}
-                · valor excluído: <strong>{formatCents(row.valorExcluido)}</strong>
-              </>
-            )}
-            {row.historico ? ` · ${String(row.historico)}` : ''}
-          </p>
-          <p className={styles.muted}>
-            Situação: <strong>{String(row.situacao)}</strong> · {kind === 'deletion' ? 'Exclusões' : 'Alterações'} em{' '}
-            {String(row.arquivosMovimento || '—')}
-            {typeof row.ultimoEvento === 'number' && ` · último evento ${formatDateTime(row.ultimoEvento)}`}
-          </p>
-          {row.cobertura && <p className={styles.muted}>Cobertura atual: {String(row.cobertura)}</p>}
         </div>
-        <button type="button" className={styles.link} onClick={onClose}>
-          Fechar
+        <button type="button" className={cx(ui.btn, ui.ghost, ui.iconBtn)} onClick={onClose} aria-label="Fechar" title="Fechar">
+          <Icon name="x" size={18} />
         </button>
       </div>
+
+      <span className={cx(ui.pill, statusTone, styles.status)}>{String(row.situacao)}</span>
+
+      <dl className={styles.details}>
+        <div>
+          <dt>Valor do documento</dt>
+          <dd>{typeof row.valorDocumento === 'number' ? formatCents(row.valorDocumento) : '—'}</dd>
+        </div>
+        {typeof row.valorExcluido === 'number' && (
+          <div>
+            <dt>Valor excluído</dt>
+            <dd>{formatCents(row.valorExcluido)}</dd>
+          </div>
+        )}
+        <div>
+          <dt>{kind === 'deletion' ? 'Exclusões em' : 'Alterações em'}</dt>
+          <dd>{String(row.arquivosMovimento || '—')}</dd>
+        </div>
+        {typeof row.ultimoEvento === 'number' && (
+          <div>
+            <dt>Último evento</dt>
+            <dd>{formatDateTime(row.ultimoEvento)}</dd>
+          </div>
+        )}
+        {row.historico ? (
+          <div className={styles.wide}>
+            <dt>Histórico</dt>
+            <dd>{String(row.historico)}</dd>
+          </div>
+        ) : null}
+        {row.cobertura ? (
+          <div className={styles.wide}>
+            <dt>Cobertura atual</dt>
+            <dd>{String(row.cobertura)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
       {moved && (
-        <p className={styles.warning}>
-          O documento voltou a ser movimentado num arquivo não coberto por esta justificativa. Confirme se ela abrange o novo evento.
+        <p className={cx(ui.alert, ui.warn)}>
+          <Icon name="alert" size={17} />
+          <span>O documento voltou a ser movimentado num arquivo não coberto por esta justificativa. Confirme se ela abrange o novo evento.</span>
         </p>
       )}
       <textarea
-        className={styles.text}
+        className={cx(ui.input, styles.text)}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        rows={4}
+        rows={5}
         placeholder="Texto da justificativa"
         aria-label="Texto da justificativa"
       />
-      <div className={styles.row}>
-        <label className={styles.inline}>
-          Responsável (opcional)
-          <input value={responsible} onChange={(e) => setResponsible(e.target.value)} />
-        </label>
-        <div className={styles.actions}>
-          {other && other.text.trim() && !sameText(other.text, text) && (
-            <button
-              type="button"
-              className={styles.button}
-              onClick={() => {
-                setText(other.text);
-                if (!responsible.trim()) setResponsible(other.responsible);
-              }}
-            >
-              Copiar da lista de {otherKind === 'deletion' ? 'exclusões' : 'alterações'}
-            </button>
-          )}
-          {moved && (
-            <button type="button" className={styles.button} onClick={() => void onSave(build(coverageFromRow(row)), 'Justificado')}>
-              Abrange o novo evento
-            </button>
-          )}
+      <label className={ui.field}>
+        Responsável (opcional)
+        <input className={ui.input} value={responsible} onChange={(e) => setResponsible(e.target.value)} />
+      </label>
+      <div className={styles.editorActions}>
+        {other && other.text.trim() && !sameText(other.text, text) && (
           <button
             type="button"
-            className={styles.primary}
-            disabled={!dirty}
+            className={cx(ui.btn, ui.secondary, ui.sm)}
             onClick={() => {
-              const j = build(coverage);
-              const situacao = !j.text ? 'Pendente' : moved && coverage === current?.coverage ? 'Movimentado após a justificativa' : 'Justificado';
-              void onSave(j, situacao);
+              setText(other.text);
+              if (!responsible.trim()) setResponsible(other.responsible);
             }}
           >
-            Salvar
+            <Icon name="copy" size={15} />
+            Copiar da lista de {otherKind === 'deletion' ? 'exclusões' : 'alterações'}
           </button>
-        </div>
+        )}
+        {moved && (
+          <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} onClick={() => void onSave(build(coverageFromRow(row)), 'Justificado')}>
+            <Icon name="checkCircle" size={15} />
+            Abrange o novo evento
+          </button>
+        )}
+        <button
+          type="button"
+          className={cx(ui.btn, ui.primary, styles.save)}
+          disabled={!dirty}
+          onClick={() => {
+            const j = build(coverage);
+            const situacao = !j.text ? 'Pendente' : moved && coverage === current?.coverage ? 'Movimentado após a justificativa' : 'Justificado';
+            void onSave(j, situacao);
+          }}
+        >
+          Salvar
+        </button>
       </div>
     </section>
   );
@@ -371,9 +455,20 @@ function ImportPreview({
   }[preview.coverage.method];
 
   return (
-    <section className={styles.card} aria-label="Importar justificativas">
-      <h3>Importar justificativas</h3>
-      <p className={styles.muted}>
+    <section className={styles.importPanel}>
+      <div className={styles.importHead}>
+        <span className={ui.cardIcon}>
+          <Icon name="upload" />
+        </span>
+        <div>
+          <h3>Importar justificativas</h3>
+          <p className={ui.sub}>Revise a cobertura e os conflitos antes de aplicar.</p>
+        </div>
+        <button type="button" className={cx(ui.btn, ui.ghost, ui.iconBtn, styles.importClose)} onClick={onCancel} aria-label="Fechar a importação" title="Fechar">
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      <p className={styles.importStats}>
         {formatInteger(preview.items.length)} lida(s): {formatInteger(withText)} com texto, {formatInteger(preview.items.length - withText)} vazia(s),{' '}
         {formatInteger(confirmed)} com a observação “abrange o novo evento”, {formatInteger(preview.unknownKeys)} sem documento no log atual
         (guardadas mesmo assim).
@@ -402,13 +497,16 @@ function ImportPreview({
             )}
           </label>
         ))}
-        <p className={styles.muted}>As justificativas com a observação “abrange o novo evento” cobrem todos os arquivos carregados.</p>
+        <p className={ui.note}>As justificativas com a observação “abrange o novo evento” cobrem todos os arquivos carregados.</p>
       </fieldset>
 
       {conflicts.length > 0 && (
         <div className={styles.conflicts}>
-          <div className={styles.head}>
-            <h4>{formatInteger(conflicts.length)} conflito(s): o documento já tem outro texto</h4>
+          <div className={styles.conflictHead}>
+            <h4>
+              <Icon name="alert" size={16} />
+              {formatInteger(conflicts.length)} conflito(s): o documento já tem outro texto
+            </h4>
             <label className={styles.check}>
               <input
                 type="checkbox"
@@ -461,17 +559,17 @@ function ImportPreview({
               })}
             </tbody>
           </table>
-          <p className={styles.muted}>Diferenças só de espaços ou quebras de linha não contam como conflito.</p>
+          <p className={ui.note}>Diferenças só de espaços ou quebras de linha não contam como conflito.</p>
         </div>
       )}
 
-      <div className={styles.actions}>
-        <button type="button" className={styles.button} onClick={onCancel}>
+      <div className={styles.importActions}>
+        <button type="button" className={cx(ui.btn, ui.secondary)} onClick={onCancel}>
           Cancelar
         </button>
         <button
           type="button"
-          className={styles.primary}
+          className={cx(ui.btn, ui.primary)}
           onClick={() => {
             const all = preview.loadedFiles.map((f) => f.name);
             const result = mergeImport(existing, preview.items, {
