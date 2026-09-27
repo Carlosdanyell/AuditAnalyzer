@@ -2,9 +2,9 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as versões seguem SemVer.
 
-## [1.0.0] — a publicar
+## [1.0.0] — 2026-09-27
 
-Primeira versão para uso da contabilidade. Será publicada (tag e release) depois da nova interface.
+Primeira versão para uso da contabilidade.
 
 ### Leitura (Fase 1)
 - Leitura em fluxo do `.xlsx` do CFGR700 (ZIP com acesso aleatório, descompressão nativa, XML em partes) e
