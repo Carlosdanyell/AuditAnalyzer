@@ -13,8 +13,8 @@
       :root {
         --text: #1b2430;
         --muted: #5a6677;
-        --accent: #1f4e79;
-        --soft: #e8f0f8;
+        --accent: #2552d0;
+        --soft: #eaf0fd;
         --border: #d9dee6;
         --warn: #7a4d00;
         --warn-soft: #fdf3e1;
@@ -102,8 +102,10 @@
 
         <section id="passo-a-passo">
           <h2>3. Passo a passo</h2>
+          <h3>Navegação</h3>
+          <p>A barra lateral mostra a situação da sessão e dá acesso às visões da análise (liberadas ao fim do processamento), à <strong>Configuração</strong>, a esta Ajuda, ao tema <strong>Claro</strong> ou <strong>Escuro</strong> e a <strong>Encerrar sessão</strong>. A barra superior mostra a visão atual, o escopo e os botões <strong>Exportar planilha</strong> e <strong>Nova análise</strong>.</p>
           <h3>Arquivos e processamento</h3>
-          <p>Arraste ou escolha os arquivos; a ordem define a ordem das fontes (use a ordem cronológica). Clique em <strong>Analisar</strong>. A tela mostra a etapa, o progresso, as linhas por segundo e o tempo; <strong>Cancelar</strong> descarta o que foi lido.</p>
+          <p>Arraste ou escolha os arquivos; a ordem define a ordem das fontes (use a ordem cronológica; as setas da lista mudam a ordem). Clique em <strong>Analisar</strong>. A tela mostra a etapa, o progresso, as linhas por segundo e o tempo; <strong>Cancelar</strong> descarta o que foi lido.</p>
           <h3>Reconciliação</h3>
           <p>Por arquivo: SHA-256, integridade do arquivo, parâmetros, reconciliação das linhas do relatório e eventos por operação, além das verificações (seção 6). Confira que as verificações bloqueantes estão OK antes de seguir.</p>
           <h3>Painel</h3>
@@ -111,7 +113,9 @@
             <li><strong>Escopo:</strong> cada arquivo e o Consolidado (todos juntos). Para contar documentos alterados corretamente, use o Consolidado quando houver mais de um arquivo.</li>
             <li><strong>Período:</strong> "Log completo", um atalho por extração, atalhos próprios ou datas livres. O filtro usa a data do evento.</li>
             <li><strong>Data de corte:</strong> separa os lançamentos pela data contábil (competência).</li>
+            <li>Os quadros do topo resumem cada categoria (documentos, lançamentos, valor debitado e divisão manual/automático/misto) e abrem a tabela de documentos da categoria.</li>
             <li>Cada número abre a tabela com exatamente aquelas linhas ou documentos.</li>
+            <li>O movimento diário mostra os lançamentos por dia em gráfico (passe o mouse para ver os números) e em tabela (<em>Ver como tabela</em>).</li>
             <li>Se houver registros alterados sem documento, o painel explica a causa e o que fazer (carregar a extração anterior ou abrir o Consolidado no mesmo período).</li>
           </ul>
           <h3>Tabelas</h3>
@@ -206,7 +210,7 @@
           <h2>9. Privacidade e cópias</h2>
           <ul>
             <li>Os arquivos do log são lidos só na memória desta aba e descartados ao encerrar a sessão ou fechar a aba.</li>
-            <li>Ficam salvas neste navegador apenas a configuração e as justificativas. Limpar os dados do navegador as apaga: guarde a <strong>cópia de segurança</strong> (Configuração → Cópia de segurança), que também serve para trocar de computador.</li>
+            <li>Ficam salvas neste navegador apenas a configuração, as justificativas e a preferência de tema (claro ou escuro). Limpar os dados do navegador as apaga: guarde a <strong>cópia de segurança</strong> (Configuração → Cópia de segurança), que também serve para trocar de computador.</li>
             <li><strong>Encerrar sessão</strong> descarta a análise da memória.</li>
           </ul>
         </section>

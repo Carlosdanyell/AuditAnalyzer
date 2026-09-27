@@ -1,54 +1,105 @@
+/*
+ * Design tokens. Light is the default theme; dark applies with <html data-theme="dark"> (the choice is saved in
+ * IndexedDB by themeStore.ts). Series colors follow the categories of the panel in both themes.
+ */
 :root {
   --font: Aptos, 'Segoe UI', system-ui, sans-serif;
   --font-display: 'Aptos Display', Aptos, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
 
-  --bg: #f4f6f9;
+  --bg: #f3f5f9;
+  --bg-glow-a: rgb(47 91 214 / 10%);
+  --bg-glow-b: rgb(20 160 200 / 7%);
   --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: #d9dee6;
-  --border-strong: #b8c1ce;
-  --text: #1b2430;
-  --text-muted: #5a6677;
-  --accent: #1f4e79;
-  --accent-hover: #173d60;
-  --accent-soft: #e8f0f8;
+  --surface-muted: #f7f9fc;
+  --surface-sunken: #eef2f7;
+  --surface-glass: rgb(248 250 253 / 84%);
+  --border: #e2e7ef;
+  --border-strong: #c9d2de;
+  --text: #0e1726;
+  --text-muted: #526073;
+  --text-subtle: #687588;
+  --accent: #2552d0;
+  --accent-hover: #1d44b3;
+  --accent-soft: #eaf0fd;
+  --accent-soft-strong: #d7e2fb;
+  --accent-grad: linear-gradient(135deg, #2f5fe0 0%, #1b3fa8 100%);
   --on-accent: #ffffff;
-  --ok: #1e6b43;
-  --ok-soft: #e7f4ec;
-  --error: #a4262c;
-  --error-soft: #fbeaea;
-  --warn: #7a4d00;
-  --warn-soft: #fdf3e1;
+  --ring: rgb(37 82 208 / 32%);
+  --ok: #157a3f;
+  --ok-soft: #e6f5ec;
+  --warn: #945700;
+  --warn-soft: #fdf3e0;
+  --error: #c0292f;
+  --error-soft: #fcebec;
 
-  --radius: 8px;
-  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
+  --nav-bg: linear-gradient(185deg, #0e1f4a 0%, #0a1634 55%, #08112a 100%);
+  --nav-text: #c3cee6;
+  --nav-strong: #ffffff;
+  --nav-muted: #8595ba;
+  --nav-hover: rgb(255 255 255 / 6%);
+  --nav-active: rgb(255 255 255 / 11%);
+  --nav-border: rgb(255 255 255 / 9%);
+  --nav-accent: #86adff;
+
+  --series-posted: #2a78d6;
+  --series-deleted: #eb6834;
+  --series-changed: #1baf7a;
+  --series-unbalanced: #eda100;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
+  --shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 6px 20px -8px rgb(15 23 42 / 10%);
+  --shadow-lg: 0 24px 60px -16px rgb(15 23 42 / 30%);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --sidebar-w: 256px;
+  --topbar-h: 76px;
 
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #11151b;
-    --surface: #181e26;
-    --surface-muted: #1d242e;
-    --border: #2c3542;
-    --border-strong: #3d4858;
-    --text: #e6eaf0;
-    --text-muted: #9aa5b4;
-    --accent: #6fa8dc;
-    --accent-hover: #8bbbe6;
-    --accent-soft: #1c2c3d;
-    --on-accent: #0d1823;
-    --ok: #6cc497;
-    --ok-soft: #173024;
-    --error: #f08b8f;
-    --error-soft: #3a1e20;
-    --warn: #f0c170;
-    --warn-soft: #362a14;
-    --shadow: none;
+:root[data-theme='dark'] {
+  --bg: #080d19;
+  --bg-glow-a: rgb(80 120 255 / 13%);
+  --bg-glow-b: rgb(0 170 220 / 7%);
+  --surface: #0f1729;
+  --surface-muted: #0c1323;
+  --surface-sunken: #0a101e;
+  --surface-glass: rgb(9 15 29 / 82%);
+  --border: #1d2840;
+  --border-strong: #2d3a57;
+  --text: #e8edf7;
+  --text-muted: #a5b1c7;
+  --text-subtle: #8a97ae;
+  --accent: #7ea4ff;
+  --accent-hover: #9cb9ff;
+  --accent-soft: rgb(126 164 255 / 12%);
+  --accent-soft-strong: rgb(126 164 255 / 22%);
+  --accent-grad: linear-gradient(135deg, #88adff 0%, #5d86f0 100%);
+  --on-accent: #07102a;
+  --ring: rgb(126 164 255 / 40%);
+  --ok: #52d08f;
+  --ok-soft: rgb(82 208 143 / 12%);
+  --warn: #f2b84f;
+  --warn-soft: rgb(242 184 79 / 12%);
+  --error: #ff8189;
+  --error-soft: rgb(255 129 137 / 12%);
 
-    color-scheme: dark;
-  }
+  --nav-bg: linear-gradient(185deg, #0b1530 0%, #070e20 60%, #060b19 100%);
+  --nav-border: rgb(255 255 255 / 7%);
+
+  --series-posted: #3987e5;
+  --series-deleted: #d95926;
+  --series-changed: #199e70;
+  --series-unbalanced: #c98500;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow: 0 1px 0 rgb(255 255 255 / 3%) inset, 0 10px 30px -12px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 30px 70px -20px rgb(0 0 0 / 70%);
+
+  color-scheme: dark;
 }
 
 *,
@@ -70,21 +121,69 @@ body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
 h2,
-h3 {
+h3,
+h4 {
   font-family: var(--font-display);
   line-height: 1.25;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
-button {
+button,
+input,
+select,
+textarea {
   font: inherit;
 }
 
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft-strong);
+}
+
+/* Thin scrollbars that follow the theme (Chrome/Edge). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Theme switch: the new theme is revealed in a circle from the toggle (View Transitions, Chrome/Edge). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 560ms var(--ease);
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
@@ -19,6 +20,10 @@ import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
 import { ExportView } from './views/ExportView';
+import { Icon, type IconName } from '../components/Icon';
+import { cx } from '../components/cx';
+import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
+import ui from '../components/ui.module.css';
 import styles from './App.module.css';
 
 type WorkerError = Extract<WorkerEvent, { type: 'error' }>;
@@ -33,12 +38,12 @@ interface Run {
 type Phase = 'select' | 'running' | 'done';
 type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
-const VIEWS: { id: View; label: string }[] = [
-  { id: 'reconciliation', label: 'Reconciliação' },
-  { id: 'panel', label: 'Painel' },
-  { id: 'tables', label: 'Tabelas' },
-  { id: 'justifications', label: 'Justificativas' },
-  { id: 'export', label: 'Exportação' },
+const VIEWS: { id: View; label: string; icon: IconName; description: string }[] = [
+  { id: 'reconciliation', label: 'Reconciliação', icon: 'reconciliation', description: 'Integridade dos arquivos, reconciliação de linhas e verificações' },
+  { id: 'panel', label: 'Painel', icon: 'panel', description: 'Categorias por origem, competência, sinalizações e cobertura' },
+  { id: 'tables', label: 'Tabelas', icon: 'table', description: 'Documentos, linhas e eventos, com busca, filtros e ordenação' },
+  { id: 'justifications', label: 'Justificativas', icon: 'justify', description: 'O motivo de cada documento excluído ou alterado' },
+  { id: 'export', label: 'Exportação', icon: 'download', description: 'Papel de trabalho em Excel, gerado neste computador' },
 ];
 
 const stamp = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'medium' });
@@ -72,6 +77,17 @@ export function App() {
   const [unknownCount, setUnknownCount] = useState(0);
   const [justRequest, setJustRequest] = useState<TableRequest>({ table: 'deletionJustifications', filter: {} });
   const [justRefresh, setJustRefresh] = useState(0);
+  const [theme, setTheme] = useState<Theme>('light');
+
+  useEffect(() => {
+    void loadTheme().then((saved) => applyTheme(saved, () => setTheme(saved)));
+  }, []);
+
+  function toggleTheme(next: Theme, origin: { x: number; y: number }) {
+    if (next === theme) return;
+    applyTheme(next, () => flushSync(() => setTheme(next)), origin);
+    void saveTheme(next);
+  }
 
   // Justifications saved on this computer (IndexedDB).
   useEffect(() => {
@@ -235,6 +251,11 @@ export function App() {
     [],
   );
 
+  // Each view starts at the top of the page (the scroll of the previous one does not carry over).
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [view, screen, phase]);
+
   // Clock for elapsed time and speed while processing.
   useEffect(() => {
     if (phase !== 'running') return;
@@ -298,220 +319,429 @@ export function App() {
     setNotice(null);
   }
 
+  function moveFile(index: number, delta: -1 | 1) {
+    setFiles((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return next;
+    });
+  }
+
+  const done = phase === 'done' && reconciliation !== null;
+  const currentView = VIEWS.find((v) => v.id === view)!;
+  const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
+  const heading =
+    screen === 'config'
+      ? { eyebrow: 'Preferências', title: 'Configuração', description: 'Regras da leitura e da análise, cópia de segurança' }
+      : phase === 'running'
+        ? { eyebrow: 'Análise', title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
+        : done
+          ? { eyebrow: `Análise · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
+          : { eyebrow: 'Nova análise', title: 'Arquivos do log', description: 'Relatório de log de auditoria CFGR700 do Protheus' };
+
+  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && summary !== null && summary.scopes.length > 1;
+
   return (
     <div className={styles.shell}>
-      <header className={styles.header}>
+      <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          <h1>AuditAnalyzer</h1>
-          <span className={styles.subtitle}>Log de auditoria CFGR700 · Protheus</span>
+          <span className={styles.logo} aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M9 23V9h9.5L23 13.5V23z" />
+              <path d="M12 19.5l3-3 2.2 2.2 3-4.2" />
+            </svg>
+          </span>
+          <span className={styles.brandText}>
+            <strong>AuditAnalyzer</strong>
+            <span>CFGR700 · Protheus</span>
+          </span>
         </div>
-        <div className={styles.headerActions}>
-          <a className={styles.help} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
-            Ajuda
-          </a>
+
+        <div className={styles.session} data-state={phase === 'select' && files.length > 0 ? 'ready' : phase}>
+          <span className={styles.sessionDot} aria-hidden="true" />
+          <div className={styles.sessionBody}>
+            <strong>{phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Pronto para analisar' : 'Aguardando arquivos'}</strong>
+            <span>
+              {files.length === 0
+                ? 'Nenhum arquivo carregado'
+                : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`}
+            </span>
+            {done && blocking > 0 && <span className={styles.sessionAlert}>{blocking} verificação(ões) bloqueante(s)</span>}
+          </div>
+        </div>
+
+        {done ? (
+          <nav className={styles.nav} aria-label="Visões">
+            <span className={styles.navLabel}>Análise</span>
+            {VIEWS.map((v) => {
+              const active = screen === 'main' && v.id === view;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={cx(styles.navItem, active && styles.navActive)}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => {
+                    setScreen('main');
+                    setView(v.id);
+                  }}
+                >
+                  <Icon name={v.icon} />
+                  {v.label}
+                </button>
+              );
+            })}
+          </nav>
+        ) : (
+          <div className={styles.nav} aria-hidden="true">
+            <span className={styles.navLabel}>Análise</span>
+            {VIEWS.map((v) => (
+              <span key={v.id} className={cx(styles.navItem, styles.navLocked)}>
+                <Icon name={v.icon} />
+                {v.label}
+              </span>
+            ))}
+            <span className={styles.navHint}>{phase === 'running' ? 'Disponível ao fim do processamento' : 'Disponível após analisar os arquivos'}</span>
+          </div>
+        )}
+
+        <div className={styles.sideFooter}>
           <button
             type="button"
-            className={screen === 'config' ? styles.configActive : styles.secondary}
+            className={cx(styles.navItem, screen === 'config' && styles.navActive)}
             aria-pressed={screen === 'config'}
             onClick={() => setScreen((s) => (s === 'config' ? 'main' : 'config'))}
           >
+            <Icon name="sliders" />
             Configuração
           </button>
-          <button type="button" className={styles.secondary} onClick={endSession}>
+          <a className={styles.navItem} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
+            <Icon name="help" />
+            Ajuda
+          </a>
+          <button type="button" className={cx(styles.navItem, styles.navDanger)} onClick={endSession}>
+            <Icon name="power" />
             Encerrar sessão
           </button>
-        </div>
-      </header>
 
-      <main className={styles.main}>
-        <p className={styles.notice}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="5" y="11" width="14" height="9" rx="2" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-          </svg>
-          Os arquivos são processados neste computador e não são enviados para nenhum servidor.
-        </p>
+          <div className={styles.theme} role="group" aria-label="Tema da interface">
+            {(
+              [
+                ['light', 'Claro', 'sun'],
+                ['dark', 'Escuro', 'moon'],
+              ] as const
+            ).map(([id, label, icon]) => (
+              <button
+                key={id}
+                type="button"
+                className={cx(styles.themeOption, theme === id && styles.themeActive)}
+                aria-pressed={theme === id}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  toggleTheme(id, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+                }}
+              >
+                <Icon name={icon} size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
 
-        {configNotice && (
-          <p className={styles.error} role="alert">
-            {configNotice}
+          <p className={styles.privacy}>
+            <Icon name="shield" size={16} />
+            <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
           </p>
-        )}
+          <p className={styles.version}>AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados</p>
+        </div>
+      </aside>
 
-        {screen === 'config' && (
-          <ConfigView
-            config={config}
-            onSave={applyConfig}
-            analysisLoaded={phase === 'done'}
-            needsReprocess={needsReprocess}
-            canReprocess={files.length > 0 && phase !== 'running'}
-            onReprocess={reprocess}
-            onClose={() => setScreen('main')}
-            onCreateBackup={createBackup}
-            onRestoreBackup={restoreBackup}
-          />
-        )}
-
-        {screen === 'main' && phase === 'select' && (
-          <section className={styles.card} aria-labelledby="upload-title">
-            <h2 id="upload-title">Arquivos do log</h2>
-            <p className={styles.lead}>
-              Carregue uma ou mais extrações do relatório CFGR700. Com mais de um arquivo, a ordem de carregamento
-              define a ordem das fontes.
-            </p>
-
-            <FileDrop onFiles={addFiles} />
-
-            {files.length > 0 && (
-              <ol className={styles.fileList}>
-                {files.map((file, index) => (
-                  <li key={fileKey(file)}>
-                    <span className={styles.fileIndex}>{index + 1}</span>
-                    <span className={styles.fileName}>{file.name}</span>
-                    <span className={styles.fileSize}>{formatBytes(file.size)}</span>
-                    <button
-                      type="button"
-                      className={styles.remove}
-                      onClick={() => setFiles((current) => current.filter((f) => f !== file))}
-                      aria-label={`Remover ${file.name}`}
-                    >
-                      Remover
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            <div className={styles.actions}>
-              <button type="button" className={styles.primary} disabled={files.length === 0} onClick={analyze}>
-                Analisar
+      <div className={styles.content}>
+        <header className={styles.topbar}>
+          <div className={styles.heading} key={`${screen}-${phase}-${view}`}>
+            <span className={styles.eyebrow}>{heading.eyebrow}</span>
+            <h1>{heading.title}</h1>
+            <span className={styles.description}>{heading.description}</span>
+          </div>
+          {screen === 'main' && done && (
+            <div className={styles.topActions}>
+              {showScope && (
+                <label className={styles.scope}>
+                  Escopo
+                  <select className={ui.input} value={scope} onChange={(e) => setScope(Number(e.target.value))}>
+                    {summary!.scopes.map((s, i) => (
+                      <option key={s.label} value={i}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {view !== 'export' && (
+                <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setView('export')}>
+                  <Icon name="download" size={17} />
+                  Exportar planilha
+                </button>
+              )}
+              <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
+                <Icon name="refresh" size={17} />
+                Nova análise
               </button>
             </div>
+          )}
+        </header>
 
-            {notice && <p className={styles.info}>{notice}</p>}
-            {error && (
-              <div className={styles.error} role="alert">
-                <strong>{error.message}</strong>
-                {error.detail && (
-                  <details>
-                    <summary>Detalhe técnico</summary>
-                    <code>{error.detail}</code>
-                  </details>
-                )}
-              </div>
-            )}
-          </section>
-        )}
+        <main className={styles.main}>
+          {configNotice && (
+            <p className={cx(ui.alert, ui.error)} role="alert">
+              <Icon name="alert" />
+              <span>{configNotice}</span>
+            </p>
+          )}
 
-        {screen === 'main' && phase === 'running' && run && (
-          <StageProgress
-            fileNames={run.fileNames}
-            progress={run.progress}
-            startedAt={run.startedAt}
-            stageStartedAt={run.stageStartedAt}
-            now={Math.max(now, run.startedAt)}
-            onCancel={cancel}
-          />
-        )}
-
-        {screen === 'main' && phase === 'done' && reconciliation && (
-          <>
-            <div className={styles.toolbar}>
-              <nav className={styles.views} aria-label="Visões">
-                {VIEWS.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    className={v.id === view ? styles.activeView : styles.viewTab}
-                    aria-current={v.id === view ? 'page' : undefined}
-                    onClick={() => setView(v.id)}
-                  >
-                    {v.label}
-                  </button>
-                ))}
-              </nav>
-              <div className={styles.toolbarEnd}>
-                {view !== 'reconciliation' && view !== 'export' && summary && summary.scopes.length > 1 && (
-                  <label className={styles.scope}>
-                    Escopo
-                    <select value={scope} onChange={(e) => setScope(Number(e.target.value))}>
-                      {summary.scopes.map((s, i) => (
-                        <option key={s.label} value={i}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                {view !== 'export' && (
-                  <button type="button" className={styles.primary} onClick={() => setView('export')}>
-                    Exportar planilha
-                  </button>
-                )}
-                <button type="button" className={styles.secondary} onClick={newAnalysis}>
-                  Nova análise
-                </button>
-              </div>
+          {screen === 'main' && done && needsReprocess && (
+            <div className={cx(ui.alert, ui.warn, styles.reprocess)} role="status">
+              <Icon name="refresh" />
+              <span>A configuração mudou depois desta análise; os números na tela ainda usam a configuração anterior.</span>
+              <button type="button" className={cx(ui.btn, ui.primary, ui.sm)} onClick={reprocess} disabled={files.length === 0}>
+                Reprocessar com a nova configuração
+              </button>
             </div>
-            {needsReprocess && (
-              <div className={styles.reprocess} role="status">
-                <span>A configuração mudou depois desta análise; os números na tela ainda usam a configuração anterior.</span>
-                <button type="button" className={styles.primary} onClick={reprocess} disabled={files.length === 0}>
-                  Reprocessar com a nova configuração
-                </button>
-              </div>
-            )}
-            {view === 'reconciliation' && (
-              <ReconciliationView data={reconciliation} summary={summary} valueField={(analyzedConfig ?? config).fields.value} />
-            )}
-            {view === 'panel' && (
-              <PanelView
-                client={client()}
-                scope={scope}
-                onOpenTable={openTable}
-                onOpenJustifications={openJustifications}
-                onSettingsChange={changeSettings}
-                refreshKey={justRefresh}
-                onScopeChange={setScope}
-                table={(analyzedConfig ?? config).table}
-              />
-            )}
-            {view === 'tables' && (
-              <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />
-            )}
-            {view === 'justifications' && (
-              <JustificationsView
-                client={client()}
-                scope={scope}
-                request={justRequest}
-                onRequest={setJustRequest}
-                justifications={justifications}
-                meta={meta}
-                unknownCount={unknownCount}
-                refreshKey={justRefresh}
-                onSave={saveItems}
-                onReplaceAll={replaceAll}
-                onExport={exportJson}
-              />
-            )}
-            {view === 'export' && summary && (
-              <ExportView
-                client={client()}
-                summary={summary}
-                scope={scope}
-                onScopeChange={setScope}
-                failures={reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
-                justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
-                onOpenJustifications={() => setView('justifications')}
-              />
-            )}
-          </>
-        )}
-      </main>
+          )}
 
-      <footer className={styles.footer}>
-        AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados
-      </footer>
+          {screen === 'config' && (
+            <div className={ui.enter}>
+              <ConfigView
+                config={config}
+                onSave={applyConfig}
+                analysisLoaded={phase === 'done'}
+                needsReprocess={needsReprocess}
+                canReprocess={files.length > 0 && phase !== 'running'}
+                onReprocess={reprocess}
+                onClose={() => setScreen('main')}
+                onCreateBackup={createBackup}
+                onRestoreBackup={restoreBackup}
+              />
+            </div>
+          )}
+
+          {screen === 'main' && phase === 'select' && (
+            <div className={cx(styles.start, ui.stagger)}>
+              <section className={cx(ui.card, styles.upload)} aria-labelledby="upload-title">
+                <div>
+                  <h2 id="upload-title" className={styles.uploadTitle}>
+                    Carregue as extrações do CFGR700
+                  </h2>
+                  <p className={ui.sub}>
+                    Uma ou mais extrações do relatório, em .xlsx. Com mais de um arquivo, a ordem da lista define a ordem das fontes.
+                  </p>
+                </div>
+
+                <FileDrop onFiles={addFiles} />
+
+                {files.length > 0 && (
+                  <ol className={styles.fileList}>
+                    {files.map((file, index) => (
+                      <li key={fileKey(file)}>
+                        <span className={styles.fileIndex}>{index + 1}</span>
+                        <span className={styles.fileIcon} aria-hidden="true">
+                          <Icon name="sheet" size={20} />
+                        </span>
+                        <span className={styles.fileMeta}>
+                          <span className={styles.fileName}>{file.name}</span>
+                          <span className={styles.fileSize}>{formatBytes(file.size)}</span>
+                        </span>
+                        <span className={styles.fileActions}>
+                          {files.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                className={cx(ui.btn, ui.ghost, ui.iconBtn)}
+                                onClick={() => moveFile(index, -1)}
+                                disabled={index === 0}
+                                aria-label={`Mover ${file.name} para cima`}
+                                title="Mover para cima"
+                              >
+                                <Icon name="arrowUp" size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                className={cx(ui.btn, ui.ghost, ui.iconBtn)}
+                                onClick={() => moveFile(index, 1)}
+                                disabled={index === files.length - 1}
+                                aria-label={`Mover ${file.name} para baixo`}
+                                title="Mover para baixo"
+                              >
+                                <Icon name="arrowDown" size={16} />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className={cx(ui.btn, ui.ghost, ui.iconBtn, styles.remove)}
+                            onClick={() => setFiles((current) => current.filter((f) => f !== file))}
+                            aria-label={`Remover ${file.name}`}
+                            title="Remover"
+                          >
+                            <Icon name="trash" size={16} />
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <div className={styles.uploadFooter}>
+                  <span className={ui.muted}>
+                    {files.length === 0
+                      ? 'Nenhum arquivo selecionado'
+                      : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`}
+                  </span>
+                  <button type="button" className={cx(ui.btn, ui.primary, ui.lg)} disabled={files.length === 0} onClick={analyze}>
+                    Analisar
+                    <Icon name="arrowRight" size={18} />
+                  </button>
+                </div>
+
+                {notice && (
+                  <p className={cx(ui.alert, ui.info)}>
+                    <Icon name="info" />
+                    <span>{notice}</span>
+                  </p>
+                )}
+                {error && (
+                  <div className={cx(ui.alert, ui.error)} role="alert">
+                    <Icon name="xCircle" />
+                    <div>
+                      <strong>{error.message}</strong>
+                      {error.detail && (
+                        <details>
+                          <summary>Detalhe técnico</summary>
+                          <code>{error.detail}</code>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <aside className={styles.guide}>
+                <section className={cx(ui.card, styles.steps)}>
+                  <h3>Como funciona</h3>
+                  <ol>
+                    <li>
+                      <strong>Carregue</strong>
+                      <span>as extrações do CFGR700, na ordem das fontes.</span>
+                    </li>
+                    <li>
+                      <strong>Confira</strong>
+                      <span>a integridade, a reconciliação de linhas e as verificações.</span>
+                    </li>
+                    <li>
+                      <strong>Analise e justifique</strong>
+                      <span>exclusões, alterações e desbalanceamentos por período e origem.</span>
+                    </li>
+                    <li>
+                      <strong>Exporte</strong>
+                      <span>o papel de trabalho em Excel, com rastreabilidade.</span>
+                    </li>
+                  </ol>
+                </section>
+                <ul className={styles.features}>
+                  <li>
+                    <span className={styles.featureIcon}>
+                      <Icon name="hash" />
+                    </span>
+                    <span>
+                      <strong>Integridade verificável</strong>
+                      SHA-256 de cada arquivo, CRC32 de cada entrada do ZIP e invariantes conferidos.
+                    </span>
+                  </li>
+                  <li>
+                    <span className={styles.featureIcon}>
+                      <Icon name="zap" />
+                    </span>
+                    <span>
+                      <strong>Leitura em fluxo</strong>
+                      Arquivos de cerca de 1 milhão de linhas, com a tela responsiva e cancelamento a qualquer momento.
+                    </span>
+                  </li>
+                  <li>
+                    <span className={styles.featureIcon}>
+                      <Icon name="lock" />
+                    </span>
+                    <span>
+                      <strong>Sem rede e sem cache</strong>
+                      Os dados do log ficam só na memória desta aba e somem ao encerrar a sessão.
+                    </span>
+                  </li>
+                </ul>
+              </aside>
+            </div>
+          )}
+
+          {screen === 'main' && phase === 'running' && run && (
+            <div className={ui.enter}>
+              <StageProgress
+                fileNames={run.fileNames}
+                progress={run.progress}
+                startedAt={run.startedAt}
+                stageStartedAt={run.stageStartedAt}
+                now={Math.max(now, run.startedAt)}
+                onCancel={cancel}
+              />
+            </div>
+          )}
+
+          {screen === 'main' && done && reconciliation && (
+            <div className={styles.view} key={view}>
+              {view === 'reconciliation' && (
+                <ReconciliationView data={reconciliation} summary={summary} valueField={(analyzedConfig ?? config).fields.value} />
+              )}
+              {view === 'panel' && (
+                <PanelView
+                  client={client()}
+                  scope={scope}
+                  onOpenTable={openTable}
+                  onOpenJustifications={openJustifications}
+                  onSettingsChange={changeSettings}
+                  refreshKey={justRefresh}
+                  onScopeChange={setScope}
+                  table={(analyzedConfig ?? config).table}
+                />
+              )}
+              {view === 'tables' && <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />}
+              {view === 'justifications' && (
+                <JustificationsView
+                  client={client()}
+                  scope={scope}
+                  request={justRequest}
+                  onRequest={setJustRequest}
+                  justifications={justifications}
+                  meta={meta}
+                  unknownCount={unknownCount}
+                  refreshKey={justRefresh}
+                  onSave={saveItems}
+                  onReplaceAll={replaceAll}
+                  onExport={exportJson}
+                />
+              )}
+              {view === 'export' && summary && (
+                <ExportView
+                  client={client()}
+                  summary={summary}
+                  scope={scope}
+                  onScopeChange={setScope}
+                  failures={reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
+                  justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
+                  onOpenJustifications={() => setView('justifications')}
+                />
+              )}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
