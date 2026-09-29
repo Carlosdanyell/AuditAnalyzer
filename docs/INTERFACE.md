@@ -77,7 +77,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
    `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** no rodapé
-   (`APP_VERSION_LABEL`) e, abaixo dela, a linha de autoria "Desenvolvido por Carlos Danyell da Silva" (classe
+   (`APP_VERSION_LABEL`) e, abaixo dela, a linha de autoria "Desenvolvido por Carlos Danyell" (classe
    `.author`, no mesmo estilo da versão).
 
 ## Como validar
