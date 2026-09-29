@@ -15,13 +15,14 @@ import { EVENTS, KEYS } from '../synthetic/engineFixture';
 import { toReportRows } from '../synthetic/logBuilder';
 import { PERIODS, analyze, expect, openView, test } from './fixtures';
 
-test('arquivos, processamento e reconciliação; versão no rodapé', async ({ page, files }) => {
+test('arquivos, processamento e reconciliação; versão e autoria no rodapé', async ({ page, files }) => {
   await analyze(page, [files.august, files.september]);
   await expect(page.getByText('Os arquivos são processados neste computador e não são enviados para nenhum servidor.')).toBeVisible();
   await expect(page.getByText('agosto.xlsx').first()).toBeVisible();
   await expect(page.getByText('setembro.xlsx').first()).toBeVisible();
   await expect(page.getByText('Reconciliação de linhas').first()).toBeVisible();
   await expect(page.getByText(/^AuditAnalyzer .+ processamento local/)).toBeVisible();
+  await expect(page.getByText('Desenvolvido por Carlos Danyell da Silva')).toBeVisible();
 });
 
 test('cancelar descarta a leitura', async ({ page, bigFile }) => {
@@ -41,6 +42,39 @@ test('painel: um número abre a tabela com exatamente aquelas linhas', async ({ 
   const value = (await number.innerText()).trim();
   await number.click();
   await expect(page.getByText(`${value} linha(s)`)).toBeVisible();
+});
+
+test('painel: seletor Geral / Segregado; o total de cada categoria no modo Segregado é igual ao modo Geral', async ({ page, segregationFiles }) => {
+  await analyze(page, segregationFiles);
+  await openView(page, 'Painel');
+  await page.getByLabel('Escopo').selectOption({ label: 'Consolidado' });
+  await expect(page.getByRole('radio', { name: 'Geral' })).toHaveAttribute('aria-checked', 'true');
+  const general: string[][] = [];
+  for (const category of ['Excluídos', 'Alterados', 'Desbalanceados', 'Postados']) {
+    const row = page.getByRole('row').filter({ has: page.getByText(category, { exact: true }) }).first();
+    general.push(await row.locator('td').allInnerTexts());
+  }
+
+  await page.getByRole('radio', { name: 'Segregado' }).click();
+  await expect(page.getByRole('radio', { name: 'Segregado' })).toHaveAttribute('aria-checked', 'true');
+  const byPhase = page.getByRole('table', { name: 'Categorias por fase' });
+  const totals = byPhase.getByRole('row').filter({ hasText: 'Total = Geral' });
+  await expect(totals).toHaveCount(4);
+  for (let i = 0; i < 4; i++) expect(await totals.nth(i).locator('td').allInnerTexts()).toEqual(general[i]);
+
+  const exceptions = page.getByRole('region', { name: 'Exceções da fase Postado (1)' });
+  await expect(exceptions.getByText('9 evento(s)')).toBeVisible();
+  await expect(page.getByText(/Exclui campos não alterados = Não/).first()).toBeVisible();
+  await expect(page.getByText(/A soma das fases é sempre igual à análise geral\./)).toBeVisible();
+
+  // An exception number opens the events table with exactly those events; the mode is kept when coming back.
+  await exceptions.getByRole('listitem').filter({ hasText: 'Alteração em lançamento postado' }).getByRole('button').click();
+  await expect(page.getByText('3 linha(s)')).toBeVisible();
+  await expect(page.getByText('Alteração em lançamento postado').first()).toBeVisible();
+  await openView(page, 'Painel');
+  await expect(page.getByRole('radio', { name: 'Segregado' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Geral' }).click();
+  await expect(page.getByRole('table', { name: 'Categorias por fase' })).toHaveCount(0);
 });
 
 test('painel: orientação para alterados sem documento e "Ver no Consolidado" no mesmo período', async ({ page, files }) => {

@@ -877,3 +877,109 @@ thead .totalCol {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Segregated analysis by balance type (section 13) ── */
+
+.modeField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.exceptions {
+  border-left-width: 4px;
+}
+
+.exceptionsFound {
+  border-left-color: var(--warn);
+  background: linear-gradient(135deg, var(--warn-soft), var(--surface) 70%);
+}
+
+.exceptionsClear {
+  border-left-color: var(--ok);
+}
+
+.exceptionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.exceptionList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--border));
+  background: var(--surface);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.phaseGroup + .phaseGroup .phaseCategory th {
+  border-top: 2px solid var(--border-strong);
+}
+
+.phaseCategory th {
+  padding-top: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.phaseName {
+  padding-left: 28px !important;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.phasePosted {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.phaseTotal > * {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.sameUser {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.sameUser div {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+.sameUser dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sameUser dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.limitations p {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}

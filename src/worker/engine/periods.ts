@@ -5,6 +5,7 @@
 import type { Alert, Category, CategoryPanel, OriginCell, Period, PeriodPanel } from '../../shared/protocol';
 import { INVALID_TIME, dayOfSeconds, formatDay, weekday } from '../../shared/dates';
 import type { ScopeAnalysis } from './analysis';
+import { PHASE_COUNT, documentPhase, linePhase } from './balancePhases';
 import type { DocumentInfo } from './documents';
 import type { RecordInfo } from './records';
 
@@ -126,26 +127,52 @@ export const emptyPanel = (): PeriodPanel => ({
   posted: emptyCategory(),
 });
 
+function addLine(panel: PeriodPanel, category: Category, r: RecordInfo): void {
+  const cat = panel[category];
+  if (r.origin === 'unidentified') {
+    cat.unidentifiedLines++;
+    return;
+  }
+  const cell = r.origin === 'manual' ? cat.manual : cat.automatic;
+  cell.lines++;
+  cell.debitCents += r.debitCents;
+}
+
+function addDocument(panel: PeriodPanel, category: Category, d: DocumentInfo): void {
+  const cat = panel[category];
+  if (d.origin === 'mixed') cat.mixedDocuments++;
+  else (d.origin === 'manual' ? cat.manual : cat.automatic).documents++;
+  cat.totalDocuments++;
+}
+
 /** Categories of a period (event dates), by origin. */
 export function periodPanel(scope: ScopeAnalysis, period: DayPeriod): PeriodPanel {
   const panel = emptyPanel();
   visitPeriod(scope, period, {
     line(category, r) {
-      const cat = panel[category];
-      if (r.origin === 'unidentified') {
-        cat.unidentifiedLines++;
-        return;
-      }
-      const cell = r.origin === 'manual' ? cat.manual : cat.automatic;
-      cell.lines++;
-      cell.debitCents += r.debitCents;
+      addLine(panel, category, r);
     },
     document(category, d) {
-      const cat = panel[category];
-      if (d.origin === 'mixed') cat.mixedDocuments++;
-      else (d.origin === 'manual' ? cat.manual : cat.automatic).documents++;
-      cat.totalDocuments++;
+      addDocument(panel, category, d);
     },
   });
   return panel;
+}
+
+/**
+ * The same categories split by phase (docs/REGRAS_CFGR700.md, section 13): each line and document counted in
+ * periodPanel goes to exactly one phase, so the phases add up to the overall panel.
+ */
+export function phasePanels(scope: ScopeAnalysis, period: DayPeriod): PeriodPanel[] {
+  const panels = Array.from({ length: PHASE_COUNT }, emptyPanel);
+  const { phases, log } = scope;
+  visitPeriod(scope, period, {
+    line(category, r, index, source) {
+      addLine(panels[linePhase(phases, log.sourceCount, category, index, source)]!, category, r);
+    },
+    document(category, d, index, source) {
+      addDocument(panels[documentPhase(phases, log.sourceCount, category, index, source)]!, category, d);
+    },
+  });
+  return panels;
 }

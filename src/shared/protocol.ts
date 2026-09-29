@@ -5,7 +5,8 @@
  *
  * Payload types marked "phase N" are placeholders and get their real shape in that phase.
  */
-import type { AnalyzerConfig } from '../config/schema';
+import type { AnalyzerConfig, OperationKey } from '../config/schema';
+import type { ExceptionId, InformativeId, MarkId, Phase } from './segregation';
 
 /** Processing stages shown in the UI (docs/ARQUITETURA.md, section 4), plus query/export stages. */
 export const PIPELINE_STAGES = [
@@ -36,7 +37,9 @@ export type TableId =
   | 'unbalanced'
   | 'discardedChanges'
   | 'deletionJustifications'
-  | 'changeJustifications';
+  | 'changeJustifications'
+  /** One row per event, with its phase (docs/REGRAS_CFGR700.md, section 13). */
+  | 'segregation';
 
 /** Panel categories (docs/REGRAS_CFGR700.md, section 8). */
 export type Category = 'deleted' | 'changed' | 'unbalanced' | 'posted';
@@ -55,6 +58,16 @@ export interface TableFilter {
   period?: Period;
   /** Justification lists only. */
   status?: JustificationStatus;
+  /**
+   * Segregated analysis (section 13). With a category: only the lines or documents of the category in that phase.
+   * In the segregation table: events of that phase.
+   */
+  phase?: Phase;
+  /** Segregation table only: events of the operation, with an exception ('any' = any exception), informative or mark. */
+  operation?: OperationKey;
+  exception?: ExceptionId | 'any';
+  informative?: InformativeId;
+  mark?: MarkId;
 }
 
 export interface Sort {
@@ -165,6 +178,33 @@ export interface IdentificationHint {
   loadedFiles: number;
 }
 
+/** Events of a phase by operation; `total` also counts operations not recognized. */
+export interface PhaseEvents {
+  insert: number;
+  update: number;
+  delete: number;
+  restore: number;
+  total: number;
+}
+
+/** Segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13) for the period. */
+export interface SegregatedPanel {
+  /** Categories of section 8 by phase; for each category and column, the phases add up to `PanelData.panel`. */
+  byPhase: Record<Phase, PeriodPanel>;
+  /** Events of the period (event date) by phase and operation. */
+  events: Record<Phase, PhaseEvents>;
+  /** Exception events of the period by type (each event under its first exception). */
+  exceptions: Record<ExceptionId, number>;
+  exceptionEvents: number;
+  informatives: Record<InformativeId, number>;
+  marks: Record<MarkId, number>;
+  /**
+   * Documents by "Mesmo usuário na inclusão e na efetivação": Sim and Não by the date of the first posting in the
+   * period; Não avaliável in the whole scope (there is no posting date).
+   */
+  sameUser: { yes: number; no: number; notEvaluable: number };
+}
+
 export interface PanelData {
   scope: number;
   period: Period;
@@ -187,6 +227,7 @@ export interface PanelData {
   coverage: { deleted: CoverageCount; changed: CoverageCount };
   /** Null when every changed record of the period has a document. */
   identification: IdentificationHint | null;
+  segregated: SegregatedPanel;
   settings: PanelSettings;
 }
 

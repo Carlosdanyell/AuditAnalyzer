@@ -16,6 +16,7 @@ import type { LogIndex } from './analysis';
 import type { DocumentInfo } from './documents';
 import { OPERATION_CODES, OP_DELETE, OP_INSERT, OP_RESTORE, OP_UNKNOWN, OP_UPDATE, sameEvent } from './events';
 import type { RecordInfo } from './records';
+import type { Category } from '../../shared/protocol';
 import type { ExceptionId, InformativeId, MarkId, Phase } from '../../shared/segregation';
 
 // Phases (index = position in PHASES of src/shared/segregation.ts).
@@ -469,4 +470,18 @@ export function eventsByPhase(log: LogIndex, phases: ScopePhases): number[][] {
     out[phases.timeline.phase[phases.global[e]!]!]![log.details.op[log.byEvent[phases.pos[e]!]!]!]!++;
   }
   return out;
+}
+
+/** Phase of a line counted in a panel category (visitPeriod: `source` of the change for "changed"). */
+export function linePhase(phases: ScopePhases, sourceCount: number, category: Category, recordIndex: number, source: number): number {
+  if (category === 'deleted') return phases.deletionPhase[recordIndex]!;
+  if (category === 'changed') return phases.changePhase[recordIndex * sourceCount + source]!;
+  return phases.inclusionPhase[recordIndex]!;
+}
+
+/** Phase of a document counted in a panel category. */
+export function documentPhase(phases: ScopePhases, sourceCount: number, category: Category, documentIndex: number, source: number): number {
+  if (category === 'deleted') return phases.documentDeleted[documentIndex]!;
+  if (category === 'changed') return phases.documentChanged[documentIndex * sourceCount + source]!;
+  return phases.documentPosted[documentIndex]!;
 }

@@ -24,7 +24,19 @@ import type { ScopeAnalysis } from './analysis';
 import { sameEvent } from './events';
 import { coverageCounts, justificationStatus } from './justifications';
 import { justificationKey } from '../../shared/justifications';
-import { FULL_PERIOD, emptyPanel, isBusinessDay, periodPanel, visitPeriod } from './periods';
+import { FULL_PERIOD, emptyPanel, isBusinessDay, periodPanel, phasePanels, visitPeriod } from './periods';
+import { EXCEPTIONS, INFORMATIVES, MARKS, PHASES } from '../../shared/segregation';
+import type { PhaseEvents, SegregatedPanel } from '../../shared/protocol';
+import {
+  EXCEPTION_MASK,
+  SAME_USER_NO,
+  SAME_USER_NOT_EVALUABLE,
+  SAME_USER_YES,
+  informative,
+  marks,
+  primaryException,
+} from './balancePhases';
+import { OP_DELETE, OP_INSERT, OP_RESTORE, OP_UPDATE } from './events';
 
 export interface PanelContext {
   /** File name of each source (global index). */
@@ -293,6 +305,73 @@ export function identificationHint(
   return { records: recnos.size, recoverable, loadedFiles };
 }
 
+// ── Segregated analysis by balance type (section 13) ──
+
+const OPERATION_OF: Partial<Record<number, keyof Omit<PhaseEvents, 'total'>>> = {
+  [OP_INSERT]: 'insert',
+  [OP_UPDATE]: 'update',
+  [OP_DELETE]: 'delete',
+  [OP_RESTORE]: 'restore',
+};
+
+export function segregatedPanel(scope: ScopeAnalysis, period: Period): SegregatedPanel {
+  const panels = phasePanels(scope, period);
+  const { phases: p, log } = scope;
+  const t = p.timeline;
+  const d = log.details;
+  const inPeriod = (time: number) => {
+    if (time === INVALID_TIME) return false;
+    const day = dayOfSeconds(time);
+    return day >= period.startDay && day <= period.endDay;
+  };
+  const events = Object.fromEntries(PHASES.map((ph) => [ph, { insert: 0, update: 0, delete: 0, restore: 0, total: 0 }])) as Record<
+    (typeof PHASES)[number],
+    PhaseEvents
+  >;
+  const exceptions = Object.fromEntries(EXCEPTIONS.map((id) => [id, 0])) as SegregatedPanel['exceptions'];
+  const informatives = Object.fromEntries(INFORMATIVES.map((id) => [id, 0])) as SegregatedPanel['informatives'];
+  const markCounts = Object.fromEntries(MARKS.map((id) => [id, 0])) as SegregatedPanel['marks'];
+  let exceptionEvents = 0;
+  for (let e = 0; e < p.count; e++) {
+    const row = log.byEvent[p.pos[e]!]!;
+    if (!inPeriod(d.dateTime[row]!)) continue;
+    const g = p.global[e]!;
+    const counts = events[PHASES[t.phase[g]!]!];
+    const op = OPERATION_OF[d.op[row]!];
+    if (op) counts[op]++;
+    counts.total++;
+    const flags = t.flags[g]!;
+    if (flags & EXCEPTION_MASK) {
+      exceptionEvents++;
+      exceptions[primaryException(flags)!]++;
+    }
+    const info = informative(flags);
+    if (info) informatives[info]++;
+    for (const m of marks(flags)) markCounts[m]++;
+  }
+  const sameUser = { yes: 0, no: 0, notEvaluable: 0 };
+  for (let di = 0; di < scope.documents.length; di++) {
+    const v = p.sameUser[di]!;
+    if (v === SAME_USER_NOT_EVALUABLE) {
+      sameUser.notEvaluable++;
+      continue;
+    }
+    const first = p.firstActivation[di]!;
+    if (first < 0 || !inPeriod(d.dateTime[log.byEvent[p.pos[first]!]!]!)) continue;
+    if (v === SAME_USER_YES) sameUser.yes++;
+    else if (v === SAME_USER_NO) sameUser.no++;
+  }
+  return {
+    byPhase: Object.fromEntries(PHASES.map((ph, i) => [ph, panels[i]!])) as SegregatedPanel['byPhase'],
+    events,
+    exceptions,
+    exceptionEvents,
+    informatives,
+    marks: markCounts,
+    sameUser,
+  };
+}
+
 // ── Presets and panel ──
 
 export function defaultCutoffDay(bounds: Period | null): number {
@@ -339,5 +418,6 @@ export function buildPanel(
     justificationsLoaded: context.justificationsLoaded,
     coverage: coverageCounts(scope, period, context.justifications, context.sourceNames),
     identification: identificationHint(scope, period, context.sourceNames.length, consolidated),
+    segregated: segregatedPanel(scope, period),
   };
 }
