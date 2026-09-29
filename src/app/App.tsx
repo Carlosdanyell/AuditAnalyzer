@@ -15,7 +15,7 @@ import { configDiff } from '../shared/configTools';
 import { loadConfig, saveConfig } from './configStore';
 import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
-import { PanelView } from './views/PanelView';
+import { PanelView, type PanelMode } from './views/PanelView';
 import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
@@ -65,6 +65,8 @@ export function App() {
   const [view, setView] = useState<View>('reconciliation');
   const [scope, setScope] = useState(0);
   const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
+  /** Panel mode (docs/REGRAS_CFGR700.md, section 13): kept while the user opens tables and comes back. */
+  const [panelMode, setPanelMode] = useState<PanelMode>('general');
   // Configuration saved on this computer (IndexedDB) and the one used by the analysis on screen.
   const [config, setConfig] = useState<AnalyzerConfig>(defaultConfig);
   const configRef = useRef(config);
@@ -454,6 +456,7 @@ export function App() {
             <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
           </p>
           <p className={styles.version}>AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados</p>
+          <p className={styles.author}>Desenvolvido por Carlos Danyell da Silva</p>
         </div>
       </aside>
 
@@ -709,9 +712,20 @@ export function App() {
                   refreshKey={justRefresh}
                   onScopeChange={setScope}
                   table={(analyzedConfig ?? config).table}
+                  balanceType={(analyzedConfig ?? config).balanceType}
+                  mode={panelMode}
+                  onModeChange={setPanelMode}
                 />
               )}
-              {view === 'tables' && <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} />}
+              {view === 'tables' && (
+                <TablesView
+                  client={client()}
+                  scope={scope}
+                  request={tableRequest}
+                  onRequest={setTableRequest}
+                  balanceType={(analyzedConfig ?? config).balanceType}
+                />
+              )}
               {view === 'justifications' && (
                 <JustificationsView
                   client={client()}

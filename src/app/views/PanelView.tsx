@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   Category,
   CategoryPanel,
@@ -12,6 +12,7 @@ import type {
   TableId,
 } from '../../shared/protocol';
 import { dayToInput, formatCents, formatDay, formatInteger, inputToDay, weekdayName } from '../../shared/format';
+import { EXCEPTIONS, INFORMATIVES, MARKS, PHASES, SEGREGATION_PT, balanceText, type Phase } from '../../shared/segregation';
 import type { WorkerClient } from '../workerClient';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../components/cx';
@@ -34,6 +35,11 @@ export interface OpenTable {
   (table: TableId, filter: TableFilter): void;
 }
 
+/** Geral = overall analysis (sections 4–12); Segregado = the same numbers split by balance type (section 13). */
+export type PanelMode = 'general' | 'segregated';
+
+type BalanceType = { field: string; expectedFrom: string; expectedTo: string };
+
 interface PanelViewProps {
   client: WorkerClient;
   scope: number;
@@ -47,9 +53,28 @@ interface PanelViewProps {
   onScopeChange?: (scope: number) => void;
   /** Audited table (configuration), named in the guidance texts. */
   table?: string;
+  /** Configured balance types (section 13), shown in the phase names. */
+  balanceType?: BalanceType;
+  mode?: PanelMode;
+  onModeChange?: (mode: PanelMode) => void;
 }
 
-export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpenJustifications, refreshKey = 0, onScopeChange, table = 'CT2' }: PanelViewProps) {
+export function PanelView({
+  client,
+  scope,
+  onOpenTable,
+  onSettingsChange,
+  onOpenJustifications,
+  refreshKey = 0,
+  onScopeChange,
+  table = 'CT2',
+  balanceType = { field: 'CT2_TPSALD', expectedFrom: '9', expectedTo: '1' },
+  mode: modeProp,
+  onModeChange,
+}: PanelViewProps) {
+  const [ownMode, setOwnMode] = useState<PanelMode>('general');
+  const mode = modeProp ?? ownMode;
+  const setMode = (m: PanelMode) => (onModeChange ? onModeChange(m) : setOwnMode(m));
   const [period, setPeriod] = useState<Period | null>(null);
   const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
@@ -177,6 +202,29 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
               }}
             />
           </label>
+          <div className={styles.modeField}>
+            <span id="panel-mode">Análise</span>
+            <div className={ui.segmented} role="radiogroup" aria-labelledby="panel-mode">
+              {(
+                [
+                  ['general', 'Geral'],
+                  ['segregated', 'Segregado'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === id}
+                  className={mode === id ? ui.segmentActive : ui.segment}
+                  onClick={() => setMode(id)}
+                  title={id === 'general' ? 'Análise geral (seções 4 a 12)' : 'Os mesmos números separados pelo tipo de saldo no momento de cada evento'}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {loading && (
             <span className={cx(ui.pill, ui.info, styles.updating)}>
               <span className={ui.spinner} />
@@ -196,6 +244,9 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
         ))}
       </section>
 
+      {mode === 'segregated' ? (
+        <Segregated data={data} range={range} table={table} balanceType={balanceType} onOpenTable={onOpenTable} />
+      ) : (
       <section className={ui.card}>
         <div className={ui.cardHead}>
           <div>
@@ -263,6 +314,7 @@ export function PanelView({ client, scope, onOpenTable, onSettingsChange, onOpen
           Documentos são contados no período do primeiro evento; alterações, pela data de cada arquivo.
         </p>
       </section>
+      )}
 
       <div className={styles.split}>
         <section className={ui.card}>
@@ -953,6 +1005,282 @@ function Coverage({ data, onOpen }: { data: PanelData; onOpen: OpenTable }) {
         Documentos distintos do período (a mesma regra de alocação das categorias). Movimentado após a justificativa = o documento teve
         exclusão ou alteração num arquivo que a justificativa não cobre; conta como pendente até a confirmação.
       </p>
+    </>
+  );
+}
+
+// ── Segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13) ──
+
+const OPERATIONS = [
+  ['insert', 'Inclusão'],
+  ['update', 'Alteração'],
+  ['delete', 'Exclusão'],
+  ['restore', 'Recuperação'],
+] as const;
+
+function Segregated({
+  data,
+  range,
+  table,
+  balanceType,
+  onOpenTable,
+}: {
+  data: PanelData;
+  range: string;
+  table: string;
+  balanceType: BalanceType;
+  onOpenTable: OpenTable;
+}) {
+  const s = data.segregated;
+  const t = (template: string) => balanceText(template, balanceType);
+  const phaseLabel = (ph: Phase) => t(SEGREGATION_PT.phases[ph]);
+  const period = data.period;
+  const events = (filter: TableFilter) => onOpenTable('segregation', { period, ...filter });
+  const openCategory = (tableId: TableId, category: Category, phase: Phase | null, origin?: OriginFilter) =>
+    onOpenTable(tableId, { category, period, ...(phase && { phase }), ...(origin && { origin }) });
+  const undetermined = s.events.undetermined.total;
+  const eventTotal = PHASES.reduce((n, ph) => n + s.events[ph].total, 0);
+  const posted = t('Postado ({to})');
+
+  return (
+    <>
+      <section
+        className={cx(ui.card, styles.exceptions, s.exceptionEvents > 0 ? styles.exceptionsFound : styles.exceptionsClear)}
+        aria-label={`Exceções da fase ${posted}`}
+      >
+        <div className={ui.cardHead}>
+          <div>
+            <h2 className={ui.cardTitle}>
+              Exceções da fase {posted}
+              <span className={cx(ui.pill, s.exceptionEvents > 0 ? ui.warn : ui.ok)}>
+                <Icon name={s.exceptionEvents > 0 ? 'alert' : 'check'} size={13} />
+                {s.exceptionEvents > 0 ? `${n(s.exceptionEvents)} evento(s)` : 'nenhuma'}
+              </span>
+            </h2>
+            <p className={ui.sub}>
+              {range} · premissa: inclusão em {balanceType.expectedFrom}, efetivação {balanceType.expectedFrom} → {balanceType.expectedTo} e nenhuma alteração ou
+              exclusão em saldo {balanceType.expectedTo}
+            </p>
+          </div>
+          {s.exceptionEvents > 0 && (
+            <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} onClick={() => events({ exception: 'any' })}>
+              Ver as exceções
+            </button>
+          )}
+        </div>
+        {s.exceptionEvents === 0 ? (
+          <p className={ui.muted}>Nenhum evento do período contraria a premissa do processo.</p>
+        ) : (
+          <ul className={styles.exceptionList}>
+            {EXCEPTIONS.filter((id) => s.exceptions[id] > 0).map((id) => (
+              <li key={id}>
+                <span>{t(SEGREGATION_PT.exceptions[id])}</span>
+                <NumLink value={s.exceptions[id]} onClick={() => events({ exception: id })} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className={ui.note}>
+          Informativos (resultado esperado):{' '}
+          {INFORMATIVES.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ' · '}
+              {t(SEGREGATION_PT.informatives[id])}: <NumLink value={s.informatives[id]} onClick={() => events({ informative: id })} />
+            </span>
+          ))}
+          . Marcações:{' '}
+          {MARKS.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ' · '}
+              {SEGREGATION_PT.marks[id]}: <NumLink value={s.marks[id]} onClick={() => events({ mark: id })} />
+            </span>
+          ))}
+          .
+        </p>
+      </section>
+
+      <section className={ui.card}>
+        <div className={ui.cardHead}>
+          <div>
+            <h2 className={ui.cardTitle}>Categorias por fase</h2>
+            <p className={ui.sub}>{range} · tipo de saldo do registro no momento do evento</p>
+          </div>
+          <span className={cx(ui.pill, ui.info)}>
+            <Icon name="arrowRight" size={13} />
+            Clique num número para abrir a tabela
+          </span>
+        </div>
+        <div className={ui.scroll}>
+          <table className={cx(ui.table, styles.matrix)} aria-label="Categorias por fase">
+            <thead>
+              <tr>
+                <th rowSpan={2} />
+                <th colSpan={3} className={styles.group}>
+                  Manual
+                </th>
+                <th colSpan={3} className={styles.group}>
+                  Automático
+                </th>
+                <th rowSpan={2}>Documentos mistos</th>
+                <th rowSpan={2} className={styles.totalCol}>
+                  Total de documentos
+                </th>
+                <th rowSpan={2}>Não identificados</th>
+              </tr>
+              <tr>
+                <th>Lançamentos</th>
+                <th>Documentos</th>
+                <th>Valor debitado</th>
+                <th>Lançamentos</th>
+                <th>Documentos</th>
+                <th>Valor debitado</th>
+              </tr>
+            </thead>
+            {CATEGORIES.map(({ id, label, color }) => {
+              const lines = id === 'deleted' ? 'deletions' : 'baseRows';
+              const docs = id === 'unbalanced' ? 'unbalanced' : 'documents';
+              const row = (key: string, head: ReactNode, c: CategoryPanel, phase: Phase | null, total = false) => (
+                <tr key={key} className={total ? styles.phaseTotal : undefined}>
+                  {head}
+                  <Num value={c.manual.lines} onClick={() => openCategory(lines, id, phase, 'manual')} />
+                  <Num value={c.manual.documents} onClick={() => openCategory(docs, id, phase, 'manual')} />
+                  <td className={styles.money}>{formatCents(c.manual.debitCents)}</td>
+                  <Num value={c.automatic.lines} onClick={() => openCategory(lines, id, phase, 'automatic')} />
+                  <Num value={c.automatic.documents} onClick={() => openCategory(docs, id, phase, 'automatic')} />
+                  <td className={styles.money}>{formatCents(c.automatic.debitCents)}</td>
+                  <Num value={c.mixedDocuments} onClick={() => openCategory(docs, id, phase, 'mixed')} />
+                  <Num value={c.totalDocuments} onClick={() => openCategory(docs, id, phase)} strong />
+                  <Num value={c.unidentifiedLines} onClick={() => openCategory('baseRows', id, phase, 'unidentified')} />
+                </tr>
+              );
+              return (
+                <tbody key={id} className={styles.phaseGroup}>
+                  <tr className={styles.phaseCategory}>
+                    <th scope="rowgroup" colSpan={10}>
+                      <span className={styles.dot} style={{ background: color }} aria-hidden="true" />
+                      {label}
+                    </th>
+                  </tr>
+                  {PHASES.map((ph) =>
+                    row(
+                      ph,
+                      <th scope="row" className={cx(styles.phaseName, ph === 'posted' && styles.phasePosted)}>
+                        {phaseLabel(ph)}
+                      </th>,
+                      s.byPhase[ph][id],
+                      ph,
+                    ),
+                  )}
+                  {row('total', <th scope="row" title="Igual ao modo Geral">Total = Geral</th>, data.panel[id], null, true)}
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
+        <p className={ui.note}>
+          Cada lançamento e cada documento da categoria fica numa única fase: a de maior precedência entre os eventos que o colocam na
+          categoria ({posted} &gt; outro tipo de saldo &gt; efetivação &gt; não determinado &gt; pré-lançamento). A soma das fases é igual ao
+          modo Geral.
+        </p>
+      </section>
+
+      <div className={styles.split}>
+        <section className={ui.card}>
+          <div className={ui.cardHead}>
+            <div>
+              <h2 className={ui.cardTitle}>Eventos por fase e operação</h2>
+              <p className={ui.sub}>
+                {range} · {n(eventTotal)} evento(s)
+              </p>
+            </div>
+          </div>
+          <div className={ui.scroll}>
+            <table className={cx(ui.table, styles.matrix)} aria-label="Eventos por fase e operação">
+              <thead>
+                <tr>
+                  <th />
+                  {OPERATIONS.map(([, label]) => (
+                    <th key={label}>{label}</th>
+                  ))}
+                  <th className={styles.totalCol}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PHASES.map((ph) => (
+                  <tr key={ph}>
+                    <th scope="row" className={cx(styles.phaseName, ph === 'posted' && styles.phasePosted)}>
+                      {phaseLabel(ph)}
+                    </th>
+                    {OPERATIONS.map(([op]) => (
+                      <Num key={op} value={s.events[ph][op]} onClick={() => events({ phase: ph, operation: op })} />
+                    ))}
+                    <Num value={s.events[ph].total} onClick={() => events({ phase: ph })} strong />
+                  </tr>
+                ))}
+                <tr className={styles.phaseTotal}>
+                  <th scope="row">Total</th>
+                  {OPERATIONS.map(([op]) => (
+                    <Num key={op} value={PHASES.reduce((x, ph) => x + s.events[ph][op], 0)} onClick={() => events({ operation: op })} />
+                  ))}
+                  <Num value={eventTotal} onClick={() => events({})} strong />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className={ui.card}>
+          <h2 className={ui.cardTitle}>Segregação de funções</h2>
+          <p className={ui.sub}>Documentos: mesmo usuário na inclusão e na efetivação</p>
+          <dl className={styles.sameUser}>
+            <div>
+              <dt>Sim</dt>
+              <dd>{n(s.sameUser.yes)}</dd>
+            </div>
+            <div>
+              <dt>Não</dt>
+              <dd>{n(s.sameUser.no)}</dd>
+            </div>
+            <div>
+              <dt>Não avaliável</dt>
+              <dd>{n(s.sameUser.notEvaluable)}</dd>
+            </div>
+          </dl>
+          <p className={ui.note}>
+            Sim e Não pela data da primeira efetivação no período. Não avaliável (no escopo inteiro): a inclusão ou a efetivação não está no
+            log carregado, ou o usuário não foi gravado. Detalhe por documento na planilha exportada (aba Documentos).
+          </p>
+        </section>
+      </div>
+
+      {undetermined > 0 && (
+        <div className={styles.hint} role="note">
+          <span className={styles.hintIcon} aria-hidden="true">
+            <Icon name="search" size={18} />
+          </span>
+          <div className={styles.hintBody}>
+            <p>
+              <strong>{n(undetermined)} evento(s) do período com tipo de saldo não determinado.</strong> O registro foi lançado antes do período
+              carregado, a alteração não traz o {balanceType.field} e não há efetivação posterior: o tipo de
+              saldo não é presumido.
+            </p>
+            <p>
+              Para eliminar esses casos, extraia o CFGR700 com <strong>"Exclui campos não alterados = Não"</strong> ou consulte a {table} pelo
+              Recno.
+            </p>
+            <div className={styles.hintActions}>
+              <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} onClick={() => events({ phase: 'undetermined' })}>
+                Ver os eventos não determinados
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section className={cx(ui.card, styles.limitations)} aria-label="Limitações da análise segregada">
+        <h2 className={ui.cardTitle}>Limitações da análise segregada</h2>
+        <p>{SEGREGATION_PT.limitations}</p>
+      </section>
     </>
   );
 }

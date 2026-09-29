@@ -25,6 +25,10 @@ import type { ScopeAnalysis } from './analysis';
 import type { DocumentInfo } from './documents';
 import { FULL_PERIOD, visitPeriod } from './periods';
 import type { RecordInfo } from './records';
+import { OPERATION_KEYS } from '../../config/schema';
+import { BALANCE_SOURCES, PHASES, SEGREGATION_PT, balanceText } from '../../shared/segregation';
+import { EXCEPTION_MASK, documentPhase, informative, linePhase, marks, primaryException } from './balancePhases';
+import { OP_DELETE, OP_INSERT } from './events';
 
 /** A row: index of the item (document, record, store row or event) and the source of a change (or -1). */
 type Ref = number;
@@ -42,6 +46,10 @@ interface TableDef {
   eventTime(ref: Ref): number | null;
   /** Justification lists only. */
   status?(ref: Ref): JustificationStatus;
+  /** Phase (index in PHASES) of a row of byCategory (section 13); absent = not filterable by phase. */
+  categoryPhase?(category: Category, ref: Ref): number;
+  /** Rows filtered by the event filters of the segregation table. */
+  eventFilter?(filter: TableFilter, refs: Ref[]): Ref[];
   origin(ref: Ref): OriginFilter;
   cell(ref: Ref, column: string): Cell;
 }
@@ -99,6 +107,7 @@ export class TableQueries {
       discardedChanges: this.discardedTable(),
       deletionJustifications: this.justificationTable('deletion'),
       changeJustifications: this.justificationTable('change'),
+      segregation: this.segregationTable(),
     };
   }
 
@@ -129,6 +138,12 @@ export class TableQueries {
         return t !== INVALID_TIME && day >= startDay && day <= endDay;
       });
     }
+    if (filter.category && filter.phase && def.categoryPhase) {
+      const phase = PHASES.indexOf(filter.phase);
+      const category = filter.category;
+      refs = refs.filter((ref) => def.categoryPhase!(category, ref) === phase);
+    }
+    if (def.eventFilter) refs = def.eventFilter(filter, refs);
     if (filter.origin) refs = refs.filter((ref) => def.origin(ref) === filter.origin);
     if (filter.status && def.status) refs = refs.filter((ref) => def.status!(ref) === filter.status);
     if (filter.search && filter.search.trim()) {
@@ -258,6 +273,7 @@ export class TableQueries {
       },
       eventTime: () => null,
       origin: (ref) => documents[refIndex(ref)]!.origin,
+      categoryPhase: (category, ref) => documentPhase(this.scope.phases, this.scope.log.sourceCount, category, refIndex(ref), refSource(ref)),
       cell: (ref, id) => {
         const d = documents[refIndex(ref)]!;
         const last = this.lastChangeCell(id, d.lastChangeBySource);
@@ -338,6 +354,7 @@ export class TableQueries {
       },
       eventTime: (ref) => (deletions ? records[refIndex(ref)]!.deletionTime : null),
       origin: (ref) => records[refIndex(ref)]!.origin,
+      categoryPhase: (category, ref) => linePhase(this.scope.phases, this.scope.log.sourceCount, category, refIndex(ref), refSource(ref)),
       cell: (ref, id) => {
         const r = records[refIndex(ref)]!;
         const last = this.lastChangeCell(id, r.lastChangeBySource);
@@ -435,6 +452,98 @@ export class TableQueries {
           case 'tipo': return DISCARDED[e.kind] ?? e.kind;
           case 'campos': return [...new Set(e.rows.map((i) => dict.get(d.field[i]!)))].join(', ');
           case 'arquivo': return [...new Set(e.rows.map((i) => this.sourceNames[d.source[i]!] ?? ''))].join(', ');
+          default: return null;
+        }
+      },
+    };
+  }
+
+  /** One row per event of the scope, in (Recno, dataHora, ord), with its phase (docs/REGRAS_CFGR700.md, section 13). */
+  private segregationTable(): TableDef {
+    const { phases: p, log, records } = this.scope;
+    const { details: d, dict, byEvent, config } = log;
+    const t = p.timeline;
+    const text = (template: string) => balanceText(template, config.balanceType);
+    const rowOf = (e: number) => byEvent[p.pos[e]!]!;
+    const all = Array.from({ length: p.count }, (_, e) => e)
+      .sort((a, b) => d.recno[rowOf(a)]! - d.recno[rowOf(b)]! || d.dateTime[rowOf(a)]! - d.dateTime[rowOf(b)]! || rowOf(a) - rowOf(b))
+      .map((e) => makeRef(e));
+    /** In-scope rows of the event. */
+    const rows = (e: number) => {
+      const out: number[] = [];
+      const g = p.global[e]!;
+      for (let k = p.pos[e]!; k < t.start[g + 1]!; k++) if (this.scope.sources.includes(d.source[byEvent[k]!]!)) out.push(byEvent[k]!);
+      return out;
+    };
+    const flagsOf = (ref: Ref) => t.flags[p.global[refIndex(ref)]!]!;
+    const operationLabel = (op: number) => (op >= 1 && op <= OPERATION_KEYS.length ? config.operations[OPERATION_KEYS[op - 1]!] : '(operação não reconhecida)');
+    return {
+      columns: () => [
+        col('recno', 'Recno', 'int', 90),
+        col('documento', 'Documento', 'text', 230),
+        col('dataHora', 'Data e hora', 'datetime', 160),
+        col('operacao', 'Operação', 'text', 110),
+        col('usuario', 'Usuário', 'text', 140),
+        col('origem', 'Origem', 'text', 110),
+        col('tipoSaldo', 'Tipo de saldo no momento do evento', 'text', 190),
+        col('fonte', 'Fonte do tipo de saldo', 'text', 150),
+        col('fase', 'Fase', 'text', 150),
+        col('excecao', 'Exceção', 'text', 230),
+        col('informativo', 'Informativo', 'text', 200),
+        col('marcacoes', 'Marcações', 'text', 260),
+        col('campos', 'Campos alterados', 'text', 200),
+        col('arquivo', 'Arquivo', 'text', 150),
+      ],
+      all: () => all,
+      byCategory: () => all,
+      eventTime: (ref) => d.dateTime[rowOf(refIndex(ref))]!,
+      origin: (ref) => records[p.record[refIndex(ref)]!]!.origin,
+      eventFilter: (filter, refs) => {
+        let out = refs;
+        if (filter.phase) {
+          const phase = PHASES.indexOf(filter.phase);
+          out = out.filter((ref) => t.phase[p.global[refIndex(ref)]!] === phase);
+        }
+        if (filter.operation) {
+          const op = OPERATION_KEYS.indexOf(filter.operation) + 1;
+          out = out.filter((ref) => d.op[rowOf(refIndex(ref))] === op);
+        }
+        if (filter.exception === 'any') out = out.filter((ref) => (flagsOf(ref) & EXCEPTION_MASK) !== 0);
+        else if (filter.exception) out = out.filter((ref) => primaryException(flagsOf(ref)) === filter.exception);
+        if (filter.informative) out = out.filter((ref) => informative(flagsOf(ref)) === filter.informative);
+        if (filter.mark) out = out.filter((ref) => marks(flagsOf(ref)).includes(filter.mark!));
+        return out;
+      },
+      cell: (ref, id) => {
+        const e = refIndex(ref);
+        const g = p.global[e]!;
+        const row = rowOf(e);
+        const flags = t.flags[g]!;
+        switch (id) {
+          case 'recno': return d.recno[row]!;
+          case 'documento': return records[p.record[e]!]!.documentKey;
+          case 'dataHora': return time(d.dateTime[row]!);
+          case 'operacao': return operationLabel(d.op[row]!);
+          case 'usuario': return this.user(d.user[row]!);
+          case 'origem': return ORIGIN_LABEL[records[p.record[e]!]!.origin];
+          case 'tipoSaldo': return t.balance[g]! < 0 ? null : displayValue(config, config.balanceType.field, t.balanceValues[t.balance[g]!]!);
+          case 'fonte': return SEGREGATION_PT.sources[BALANCE_SOURCES[t.source[g]!]!];
+          case 'fase': return text(SEGREGATION_PT.phases[PHASES[t.phase[g]!]!]);
+          case 'excecao': {
+            const ex = primaryException(flags);
+            return ex ? text(SEGREGATION_PT.exceptions[ex]) : null;
+          }
+          case 'informativo': {
+            const info = informative(flags);
+            return info ? text(SEGREGATION_PT.informatives[info]) : null;
+          }
+          case 'marcacoes': return marks(flags).map((m) => SEGREGATION_PT.marks[m]).join('; ') || null;
+          case 'campos': {
+            const op = d.op[row]!;
+            if (op === OP_INSERT || op === OP_DELETE) return null;
+            return [...new Set(rows(e).map((i) => dict.get(d.field[i]!)))].join(', ');
+          }
+          case 'arquivo': return [...new Set(rows(e).map((i) => this.sourceNames[d.source[i]!] ?? ''))].join(', ');
           default: return null;
         }
       },

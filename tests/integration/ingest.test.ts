@@ -66,7 +66,10 @@ describe('ingestion of a synthetic CFGR700 file', () => {
     expect(file!.rows.dimensionRows).toBe(16);
     expect(result.details.length).toBe(9);
     expect(trickyValueStored(result)).toBe(true);
-    expect(result.reconciliation.checks.every((c) => c.passed)).toBe(true);
+    // Recno 100 is changed after its posting (9 → 1): an exception of section 13, reported as a non-blocking alert.
+    expect(result.reconciliation.checks.filter((c) => !c.passed).map((c) => [c.id, c.severity, c.message])).toEqual([
+      ['posted-exceptions', 'warning', 'a.xlsx: 1 evento(s) com exceção (Alteração em lançamento postado: 1).'],
+    ]);
   });
 
   it('keeps counts of the columns not stored', async () => {

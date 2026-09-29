@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Cell, ColumnSpec, OriginFilter, Sort, TableFilter, TableId } from '../../shared/protocol';
 import { formatCents, formatDateTime, formatDay, formatInteger } from '../../shared/format';
+import { SEGREGATION_PT, balanceText } from '../../shared/segregation';
 import type { WorkerClient } from '../workerClient';
 import { Icon } from '../../components/Icon';
 import { cx } from '../../components/cx';
@@ -15,7 +16,22 @@ export const TABLES: { id: TableId; label: string }[] = [
   { id: 'changes', label: 'Alterações' },
   { id: 'unbalanced', label: 'Desbalanceados' },
   { id: 'discardedChanges', label: 'Alterações descartadas' },
+  { id: 'segregation', label: 'Tipo de saldo' },
 ];
+
+const OPERATION_LABEL = { insert: 'Inclusão', update: 'Alteração', delete: 'Exclusão', restore: 'Recuperação' };
+
+/** Filters of the segregated analysis (section 13) shown in the panel chip. */
+function segregationFilterText(filter: TableFilter, balanceType: { expectedFrom: string; expectedTo: string }): string[] {
+  const t = (template: string) => balanceText(template, balanceType);
+  const parts: string[] = [];
+  if (filter.phase) parts.push(`fase ${t(SEGREGATION_PT.phases[filter.phase])}`);
+  if (filter.operation) parts.push(OPERATION_LABEL[filter.operation]);
+  if (filter.exception) parts.push(filter.exception === 'any' ? 'com exceção' : t(SEGREGATION_PT.exceptions[filter.exception]));
+  if (filter.informative) parts.push(t(SEGREGATION_PT.informatives[filter.informative]));
+  if (filter.mark) parts.push(SEGREGATION_PT.marks[filter.mark]);
+  return parts;
+}
 
 const CATEGORY_LABEL = { deleted: 'Excluídos', changed: 'Alterados', unbalanced: 'Desbalanceados', posted: 'Postados' };
 const ORIGINS: { id: OriginFilter; label: string }[] = [
@@ -66,9 +82,22 @@ interface TablesViewProps {
   toolbar?: ReactNode;
   /** Changing it reloads the current rows (e.g. after editing a justification). */
   refreshKey?: number;
+  /** Configured balance types (section 13), shown in the filter chip. */
+  balanceType?: { expectedFrom: string; expectedTo: string };
 }
 
-export function TablesView({ client, scope, request, onRequest, tabs = TABLES, onRowClick, selectedKey, toolbar, refreshKey = 0 }: TablesViewProps) {
+export function TablesView({
+  client,
+  scope,
+  request,
+  onRequest,
+  tabs = TABLES,
+  onRowClick,
+  selectedKey,
+  toolbar,
+  refreshKey = 0,
+  balanceType = { expectedFrom: '9', expectedTo: '1' },
+}: TablesViewProps) {
   const [columns, setColumns] = useState<ColumnSpec[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +176,7 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
     onRequest({ table: request.table, filter: request.filter, ...(sort && { sort }) });
   };
   const { category, period, origin } = request.filter;
+  const segregation = segregationFilterText(request.filter, balanceType);
 
   return (
     <div className={styles.view}>
@@ -196,18 +226,18 @@ export function TablesView({ client, scope, request, onRequest, tabs = TABLES, o
             </option>
           ))}
         </select>
-        {(category || period) && (
+        {(category || period || segregation.length > 0) && (
           <span className={styles.chip}>
             <Icon name="filter" size={13} />
             {category ? `${CATEGORY_LABEL[category]} ` : 'Eventos '}
             {period && period.startDay > -2147483648 ? `de ${formatDay(period.startDay)} a ${formatDay(period.endDay)}` : 'no log completo'}
+            {segregation.length > 0 && ` · ${segregation.join(' · ')}`}
             <button
               type="button"
               aria-label="Remover filtro do painel"
               onClick={() => {
-                const { category: _c, period: _p, ...rest } = request.filter;
-                void _c;
-                void _p;
+                const { category: _c, period: _p, phase: _f, operation: _o, exception: _e, informative: _i, mark: _m, ...rest } = request.filter;
+                void [_c, _p, _f, _o, _e, _i, _m];
                 setFilter(rest);
               }}
             >

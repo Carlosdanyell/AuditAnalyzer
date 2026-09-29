@@ -79,6 +79,23 @@ Funções puras sobre as colunas:
 Usar `Uint32Array` de índices e ordenação estável. Resultados como arrays de estruturas pequenas
 (~30 mil registros, ~3 mil documentos): não há problema de memória nessa etapa.
 
+### 2.1 Análise segregada por tipo de saldo (seção 13 de REGRAS_CFGR700.md)
+
+`engine/balancePhases.ts`, funções puras, só typed arrays (nenhum objeto por evento):
+- **Linha do tempo** (`buildBalanceTimeline`, em `buildLogIndex`, uma vez por ingestão, sobre todos os arquivos): os
+  eventos são os grupos consecutivos do índice B; dentro de cada (Recno, segundo) são reordenados pela ordem de leitura
+  da primeira linha, que é a ordem `(Recno, dataHora, ord)`. Por evento: posição da 1ª linha em `byEvent` (`Int32Array`),
+  tipo de saldo antes do evento (`Int32Array`, índice em `balanceValues`; −1 = não determinado), fonte, fase
+  (`Uint8Array`) e marcas/exceções (`Uint16Array`). ~14 bytes por evento.
+- **Projeção no escopo** (`buildScopePhases`, em `analyzeScope`): os eventos do escopo apontam para os mesmos eventos da
+  linha do tempo (`pos`, `global`, `record`: 12 bytes por evento), de modo que o escopo de um arquivo usa a
+  reconstrução consolidada. Por registro e por documento, a fase de cada categoria do painel (`Uint8Array`), a fase de
+  maior precedência, a marca de exceção e, por documento, o 1º evento de inclusão e de efetivação e o indicador de
+  segregação de funções.
+- O modo Geral não usa nada disso: `RecordInfo`, `DocumentInfo` e o caminho das seções 4–12 ficam como estavam.
+  `tests/integration/generalMode.test.ts` compara tudo o que o modo Geral mostra com o registro feito antes da seção 13.
+- Invariantes 12–15: `segregationChecks` em `engine/checks.ts`, chamados pela ingestão por arquivo e no consolidado.
+
 ---
 
 ## 3. Protocolo worker ↔ UI
@@ -111,6 +128,11 @@ um arquivo, o consolidado); a resposta, ou o erro, devolve o mesmo `requestId` (
 (`engine/tables.ts`, com cache das últimas consultas); a tela só virtualiza as linhas (TanStack Virtual). O TanStack
 Table não foi adotado: com ordenação, filtro e paginação no worker, ele não teria função.
 
+Seção 13: `PanelData.segregated` traz, para o período, as categorias por fase (`byPhase`), os eventos por fase e
+operação, as exceções, os informativos, as marcações e a segregação de funções. A tabela `segregation` tem uma linha por
+evento; `TableFilter` ganhou `phase` (com `category`, filtra os lançamentos/documentos da categoria naquela fase; na
+tabela de eventos, a fase do evento), `operation`, `exception` (`'any'` = qualquer exceção), `informative` e `mark`.
+
 ## 4. Progresso na interface
 
 Etapas exibidas como lista vertical com status (aguardando, em andamento, concluída, erro):
@@ -137,8 +159,9 @@ Gerador próprio em fluxo:
 - Nomes definidos, validação de dados (lista e data), formatação condicional, painéis congelados, autofiltro,
   larguras de coluna, mesclagens (validadas contra sobreposição).
 - Abas: Resumo, Justificativa da Exclusao, Justificativa da Alteração, Documentos, Base_Linhas, Exclusoes,
-  Alteracoes, Desbalanceados, Alteracoes_Descartadas_Detalhe, Alteracoes_Descartadas_Resumo, Criterios,
-  Rastreabilidade, Auxiliar.
+  Alteracoes, Desbalanceados, Alteracoes_Descartadas_Detalhe, Alteracoes_Descartadas_Resumo, Segregacao (seção 13:
+  uma linha por evento), Criterios, Rastreabilidade, Auxiliar.
+- A importação de justificativas lê só as abas de justificativa, Rastreabilidade, Documentos e Base_Linhas.
 - Saída: `Blob` → `URL.createObjectURL` → download; revogar a URL em seguida.
 
 Implementação (Fase 5): `export/xlsxWriter.ts` (gerador: pedaços de 64 KB por aba, data fixa nas entradas do ZIP
@@ -191,6 +214,17 @@ Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave
   cabeçalhos repetidos, linhas ausentes no XML, texto rico na sharedStrings, entidades XML, inclusão +
   recuperação no mesmo segundo, inclusão duplicada, exclusão dupla, TPSALD 9→1, só USERGA, registro só com
   USERGA, documento misto, documento de base parcial, desbalanceado, usuário vazio, dois arquivos com o mesmo Recno.
+- **Análise segregada (seção 13):** `tests/synthetic/segregationFixture.ts` tem um caso por regra (inclusão, alteração
+  e efetivação em 9, exclusão em 9, alteração e exclusão em 1, inclusão direta em 1, reabertura seguida de alteração,
+  Recno sem inclusão com e sem efetivação posterior, efetivação com alteração de conteúdo, carimbo em 1, efetivação e
+  alteração no mesmo segundo nas duas ordens, mesmo usuário e usuários diferentes, inclusão em etapas, outro tipo de
+  saldo, arquivo isolado × consolidado). `tests/unit/balancePhases.test.ts` confere evento a evento;
+  `tests/unit/segregationChecks.test.ts`, os invariantes 12–15 (inclusive quebrando cada regra);
+  `tests/integration/segregatedPanel.test.ts`, a soma das fases = modo Geral em todos os escopos e períodos e cada número
+  = total da tabela aberta; `tests/integration/segregationExport.test.ts`, a planilha (quadro 8 do Resumo = painel).
+- **Regressão do modo Geral:** `tests/synthetic/expected/generalMode.json` registra, antes da seção 13, tudo o que o
+  modo Geral mostra para os casos sintéticos (estatísticas, verificações, painéis de todos os atalhos, tabelas e a
+  planilha avaliada); `tests/integration/generalMode.test.ts` admite só acréscimos.
 - **Locais (não versionados):** `local/*.xlsx` + `local/golden.json`. `npm run test:local` pula se a pasta não existir.
 - **Exportação:** `tests/support/xlsxEval.ts` relê o XLSX gerado e avalia as fórmulas (subconjunto do Excel usado
   pela planilha). Os testes sintéticos conferem o Resumo com o painel para cada atalho, períodos personalizados e

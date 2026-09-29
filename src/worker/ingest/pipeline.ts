@@ -22,7 +22,8 @@ import type {
   WorkerEvent,
 } from '../../shared/protocol';
 import { analyzeScope, buildLogIndex, type ScopeAnalysis } from '../engine/analysis';
-import { scopeChecks, type ScopeCheckResults } from '../engine/checks';
+import { scopeChecks, segregationChecks, type ScopeCheckResults, type SegregationCheckResults } from '../engine/checks';
+import { EXCEPTIONS, SEGREGATION_PT, balanceText } from '../../shared/segregation';
 import { countEvents, sortByEventKey, OP_UNKNOWN, OP_UPDATE, type EventCounts } from '../engine/events';
 import { coverageAlerts } from '../engine/periods';
 import { DetailColumns } from '../store/columns';
@@ -467,6 +468,7 @@ interface ScopeRun {
   label: string;
   analysis: ScopeAnalysis;
   checks: ScopeCheckResults;
+  segregation: SegregationCheckResults;
 }
 
 function invalidDescription(invalid: FileReconciliation['invalid'], valueField: string): string {
@@ -507,6 +509,11 @@ function buildChecks(
   const partition = failing('periodsPartition');
   const competence = failing('competenceMatches');
   const transition = `${config.balanceType.expectedFrom} → ${config.balanceType.expectedTo}`;
+  const phasesSum = scopes.filter((s) => !s.segregation.phasesAddUp);
+  const activations = scopes.filter((s) => !s.segregation.activationsHaveTransition);
+  const presumed = scopes.filter((s) => !s.segregation.noPresumedBalance);
+  const withExceptions = scopes.filter((s) => s.segregation.exceptionEvents > 0);
+  const seg = (text: string) => balanceText(text, config.balanceType);
   const readable = withInvalid.length === 0 && consolidatedInvalid === 0;
   return [
     {
@@ -592,6 +599,53 @@ function buildChecks(
         competence.length === 0
           ? 'A composição por data contábil do log completo soma as categorias mais os não identificados.'
           : `A composição por data contábil não fecha com as categorias em: ${listScopes(competence)}.`,
+    },
+    {
+      id: 'phases-sum',
+      label: 'Soma das fases (tipo de saldo)',
+      severity: 'error',
+      passed: phasesSum.length === 0,
+      message:
+        phasesSum.length === 0
+          ? 'As fases da análise segregada (pré-lançamento, efetivação, postado, outro tipo de saldo e não determinado) somam os eventos, por operação, por arquivo e no total.'
+          : `A soma das fases difere dos eventos em: ${listScopes(phasesSum)}.`,
+    },
+    {
+      id: 'phase-activation',
+      label: 'Fase Efetivação',
+      severity: 'error',
+      passed: activations.length === 0,
+      message:
+        activations.length === 0
+          ? `Todo evento da fase Efetivação tem ${config.balanceType.field} ${transition}.`
+          : `Evento da fase Efetivação sem a transição ${transition} em: ${listScopes(activations)}.`,
+    },
+    {
+      id: 'phase-balance-source',
+      label: 'Tipo de saldo não presumido',
+      severity: 'error',
+      passed: presumed.length === 0,
+      message:
+        presumed.length === 0
+          ? `Todo evento fora de "Não determinado" tem o ${config.balanceType.field} lido do log (Direta) ou reconstruído pelos eventos do registro (Reconstruída).`
+          : `Evento com tipo de saldo sem origem no log em: ${listScopes(presumed)}.`,
+    },
+    {
+      id: 'posted-exceptions',
+      label: seg('Exceções da fase Postado ({to})'),
+      severity: 'warning',
+      passed: withExceptions.length === 0,
+      message:
+        withExceptions.length === 0
+          ? seg('Nenhum evento contraria a premissa: inclusão em {from}, efetivação {from} → {to} e nenhuma alteração ou exclusão em saldo {to}.')
+          : withExceptions
+              .map((s) => {
+                const parts = EXCEPTIONS.filter((id) => s.segregation.exceptions[id]).map(
+                  (id) => `${seg(SEGREGATION_PT.exceptions[id])}: ${s.segregation.exceptions[id]}`,
+                );
+                return `${s.label}: ${s.segregation.exceptionEvents} evento(s) com exceção (${parts.join(', ')})`;
+              })
+              .join('; ') + '.',
     },
     {
       id: 'zip-integrity',
@@ -687,16 +741,21 @@ export async function runIngestion(
     ),
   };
 
-  const scopeDefs = files.map((f, i) => ({ label: f.name, sources: [i], updateEvents: perSource[i]!.byOperation[OP_UPDATE]! }));
+  const scopeDefs = files.map((f, i) => ({ label: f.name, sources: [i], events: perSource[i]!.byOperation }));
   if (files.length > 1) {
-    scopeDefs.push({ label: 'Consolidado', sources: files.map((_, i) => i), updateEvents: all.byOperation[OP_UPDATE]! });
+    scopeDefs.push({ label: 'Consolidado', sources: files.map((_, i) => i), events: all.byOperation });
   }
   progress.begin('documents', undefined, scopeDefs.length, 'steps', 'Montando registros e documentos');
   const log = buildLogIndex(details, dict, config, files.length, order);
   const scopes: ScopeRun[] = scopeDefs.map((def, k) => {
     const analysis = analyzeScope(log, def.sources);
     progress.update(k + 1);
-    return { label: def.label, analysis, checks: scopeChecks(analysis, def.updateEvents) };
+    return {
+      label: def.label,
+      analysis,
+      checks: scopeChecks(analysis, def.events[OP_UPDATE]!),
+      segregation: segregationChecks(analysis, def.events),
+    };
   });
   files.forEach((f, i) => {
     f.invalid.value = scopes[i]!.analysis.stats.invalidValues;

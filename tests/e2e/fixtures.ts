@@ -7,6 +7,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { buildCfgr700 } from '../synthetic/cfgr700';
 import { EVENTS } from '../synthetic/engineFixture';
 import { ct2Line, toReportRows, type LogEvent } from '../synthetic/logBuilder';
+import { SEG_EVENTS, SEG_PARAMETERS } from '../synthetic/segregationFixture';
 
 export const PERIODS = {
   august: { 'Data inicial': '17/08/2026', 'Data final': '31/08/2026' },
@@ -28,7 +29,7 @@ function bigFileBytes(): Uint8Array {
   return buildCfgr700({ rows: toReportRows(events, 0), parameters: PERIODS.august });
 }
 
-export const test = base.extend<{ files: Files; bigFile: string; guard: void }>({
+export const test = base.extend<{ files: Files; segregationFiles: string[]; bigFile: string; guard: void }>({
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
   files: async ({}, use, testInfo) => {
     const august = testInfo.outputPath('agosto.xlsx');
@@ -36,6 +37,16 @@ export const test = base.extend<{ files: Files; bigFile: string; guard: void }>(
     writeFileSync(august, buildCfgr700({ rows: toReportRows(EVENTS, 0), parameters: PERIODS.august }));
     writeFileSync(september, buildCfgr700({ rows: toReportRows(EVENTS, 1), parameters: PERIODS.september }));
     await use({ august, september });
+  },
+  // Cases of the segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13).
+  // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
+  segregationFiles: async ({}, use, testInfo) => {
+    const paths = [0, 1].map((s) => {
+      const path = testInfo.outputPath(`arquivo${'AB'[s]}.xlsx`);
+      writeFileSync(path, buildCfgr700({ rows: toReportRows(SEG_EVENTS, s), parameters: SEG_PARAMETERS[s]! }));
+      return path;
+    });
+    await use(paths);
   },
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
   bigFile: async ({}, use, testInfo) => {

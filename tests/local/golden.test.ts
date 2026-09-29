@@ -13,6 +13,8 @@ import type { ScopeAnalysis } from '../../src/worker/engine/analysis';
 import { FULL_PERIOD, periodPanel, visitPeriod, type CategoryPanel, type DayPeriod } from '../../src/worker/engine/periods';
 import { runIngestion, type IngestionResult } from '../../src/worker/ingest/pipeline';
 import { Session } from '../../src/worker/session';
+import { PHASES } from '../../src/shared/segregation';
+import { PHASE_UNDETERMINED } from '../../src/worker/engine/balancePhases';
 
 const localDir = join(import.meta.dirname, '..', '..', 'local');
 const goldenPath = join(localDir, 'golden.json');
@@ -324,6 +326,33 @@ describe.skipIf(!golden)('local golden reference', () => {
         ],
         'consolidado: campos divergentes',
       ).toEqual([]);
+    });
+
+    it('segregated analysis (section 13): the phases add up to the overall panel, per scope and preset', async () => {
+      const result = await both();
+      const session = new Session(result, defaultConfig());
+      const flat = (c: CategoryPanel) => [c.manual.lines, c.manual.documents, c.manual.debitCents, c.automatic.lines, c.automatic.documents, c.automatic.debitCents, c.mixedDocuments, c.totalDocuments, c.unidentifiedLines];
+      const problems: string[] = [];
+      for (let scope = 0; scope < result.analyses.length; scope++) {
+        const full = session.panel(scope, null, null);
+        for (const period of [full.period, ...full.presets.map((p) => p.period)]) {
+          const data = session.panel(scope, period, null);
+          for (const category of ['deleted', 'changed', 'unbalanced', 'posted'] as const) {
+            const sum = PHASES.map((ph) => flat(data.segregated.byPhase[ph][category])).reduce((a, b) => a.map((v, i) => v + b[i]!));
+            if (JSON.stringify(sum) !== JSON.stringify(flat(data.panel[category]))) problems.push(`escopo ${scope}: ${category}`);
+          }
+        }
+      }
+      expect(problems, 'fases que não somam o modo Geral (nomes apenas)').toEqual([]);
+      // The reconstruction uses the consolidated base: the September events have fewer "not determined" with August.
+      const undetermined = (r: IngestionResult, scope: number) => {
+        const p = r.analyses[scope]!.phases;
+        let n = 0;
+        for (let e = 0; e < p.count; e++) if (p.timeline.phase[p.global[e]!] === PHASE_UNDETERMINED) n++;
+        return n;
+      };
+      const alone = await ingest([golden!.arquivo_setembro]);
+      expect(undetermined(result, 1) <= undetermined(alone, 0), 'setembro com agosto: não determinados não diminuem').toBe(true);
     });
 
     it('consolidated panels match golden.json', async () => {
