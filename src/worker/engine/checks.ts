@@ -6,9 +6,25 @@
  * 5. the records of each document are contiguous in the base;
  * 6. a partition of the log into periods (one per day) adds up to the full log;
  * 7. the composition by entry date of the full log (default cutoff) adds up to the categories + unidentified.
+ * Segregated analysis by balance type (section 13):
+ * 12. the phases add up to the events, per operation;
+ * 13. every event of the posting phase has the transition 9 → 1;
+ * 14. no balance type is presumed: every event outside "Não determinado" has it read from the log or rebuilt;
+ * 15. (alert) exceptions to the premise, counted by type.
  */
 import { INVALID_TIME, dayOfSeconds } from '../../shared/dates';
+import type { ExceptionId } from '../../shared/segregation';
 import type { ScopeAnalysis } from './analysis';
+import {
+  EXCEPTION_MASK,
+  PHASE_ACTIVATION,
+  PHASE_UNDETERMINED,
+  SOURCE_DIRECT,
+  SOURCE_UNDETERMINED,
+  eventsByPhase,
+  primaryException,
+} from './balancePhases';
+import { OP_INSERT, OP_UPDATE } from './events';
 import { composition, compositionMatches, defaultCutoffDay, scopeBounds } from './panel';
 import { FULL_PERIOD, periodPanel, type CategoryPanel, type PeriodPanel } from './periods';
 
@@ -101,4 +117,61 @@ export function scopeChecks(scope: ScopeAnalysis, updateEvents: number): ScopeCh
       composition(scope, FULL_PERIOD, defaultCutoffDay(scopeBounds(scope))),
     ),
   };
+}
+
+export interface SegregationCheckResults {
+  /** Invariant 12. */
+  phasesAddUp: boolean;
+  /** Invariant 13. */
+  activationsHaveTransition: boolean;
+  /** Invariant 14. */
+  noPresumedBalance: boolean;
+  /** Invariant 15: exception events of the scope, by type (only the types found). */
+  exceptions: Partial<Record<ExceptionId, number>>;
+  exceptionEvents: number;
+}
+
+/** `events` = distinct events of the scope per operation code, counted by the ingestion (section 4). */
+export function segregationChecks(scope: ScopeAnalysis, events: number[]): SegregationCheckResults {
+  const { log, phases: p } = scope;
+  const { details: d, byEvent, dict, config, fields } = log;
+  const t = p.timeline;
+  const FROM = config.balanceType.expectedFrom.trim();
+  const TO = config.balanceType.expectedTo.trim();
+
+  const byPhase = eventsByPhase(log, p);
+  const phasesAddUp = events.every((n, op) => byPhase.reduce((sum, row) => sum + row[op]!, 0) === n);
+
+  /** Trimmed old/new values of the CT2_TPSALD rows of a timeline event. */
+  const balanceRows = (g: number) => {
+    const out: [string, string][] = [];
+    for (let k = t.start[g]!; k < t.start[g + 1]!; k++) {
+      const i = byEvent[k]!;
+      if (d.field[i] === fields.balanceTypeField) out.push([dict.get(d.oldVal[i]!).trim(), dict.get(d.newVal[i]!).trim()]);
+    }
+    return out;
+  };
+
+  let activationsHaveTransition = true;
+  let noPresumedBalance = true;
+  const exceptions: Partial<Record<ExceptionId, number>> = {};
+  let exceptionEvents = 0;
+  for (let e = 0; e < p.count; e++) {
+    const g = p.global[e]!;
+    const op = d.op[byEvent[p.pos[e]!]!]!;
+    const phase = t.phase[g]!;
+    if (phase === PHASE_ACTIVATION && !(op === OP_UPDATE && balanceRows(g).some(([o, n]) => o === FROM && n === TO))) activationsHaveTransition = false;
+    if (phase !== PHASE_UNDETERMINED) {
+      if (t.source[g] === SOURCE_UNDETERMINED || t.balance[g]! < 0) noPresumedBalance = false;
+      // Read from the log: the event itself carries the value (the insert, the one written by the first insert).
+      else if (t.source[g] === SOURCE_DIRECT && op !== OP_INSERT && !balanceRows(g).some(([o]) => o === t.balanceValues[t.balance[g]!])) noPresumedBalance = false;
+    }
+    const flags = t.flags[g]!;
+    if (flags & EXCEPTION_MASK) {
+      exceptionEvents++;
+      const id = primaryException(flags)!;
+      exceptions[id] = (exceptions[id] ?? 0) + 1;
+    }
+  }
+  return { phasesAddUp, activationsHaveTransition, noPresumedBalance, exceptions, exceptionEvents };
 }

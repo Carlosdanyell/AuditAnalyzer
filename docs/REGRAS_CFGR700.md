@@ -370,16 +370,22 @@ painel é igual ao total da tabela aberta por ele, em todos os presets, e a comp
 10. Nenhuma mesclagem sobreposta na exportação.
 11. Valores legíveis: nenhuma linha de detalhe com Recno inválido, operação não reconhecida, Data Hora inválida
     ou referência a string compartilhada inexistente (seção 1).
+12. Fases da análise segregada: a soma das fases é igual ao total de eventos, por operação (seção 13).
+13. Todo evento da fase Efetivação tem transição `9 → 1` (seção 13).
+14. Nenhum tipo de saldo presumido: todo evento fora de Não determinado tem fonte Direta ou Reconstruída (seção 13).
+15. Exceções da fase Postado (1) — alerta, não bloqueante (seção 13).
 
 Implementados: 1, 2, 8 e 11 (Fase 1); 3, 4, 5 e 6 (Fase 2); 7 (Fase 3: log completo com a data de corte padrão,
 por escopo, na reconciliação; e para o período e o corte escolhidos, como indicador no painel); 9 e 10 (Fase 5, na
 geração da planilha: data vazia nunca é gravada como zero e a menor data gravada é conferida; mesclagem sobreposta é
-recusada pelo gerador). Os invariantes 1–8 e 11 são verificados por arquivo e no consolidado; 9 e 10, em cada
-exportação — se falharem, a planilha não é gerada.
+recusada pelo gerador); 12, 13, 14 e 15 (análise segregada por tipo de saldo, seção 13, 29/09/2026). Os invariantes
+1–8 e 11–15 são verificados por arquivo e no consolidado; 9 e 10, em cada exportação — se falharem, a planilha não é
+gerada.
 - Exportação com invariante bloqueante falhando: só com confirmação explícita do usuário, registrada na faixa do
   Resumo e na aba Rastreabilidade (data e hora da exportação e lista das verificações).
 - Verificações de nível "alerta", que não bloqueiam a exportação: outras transições de CT2_TPSALD (seção 6),
-  parâmetros do relatório (seção 1) e cobertura entre extrações (seção 3).
+  parâmetros do relatório (seção 1), cobertura entre extrações (seção 3) e exceções da fase Postado (1) (invariante
+  15, seção 13).
 - Invariante 6: o log é particionado em dias (do primeiro ao último evento); a soma dos dias deve ser igual ao
   log completo em todas as categorias, colunas (lançamentos, documentos, valor) e origens.
 - Invariante 11 inclui, desde a Fase 2, CT2_VALOR ilegível (seção 2).
