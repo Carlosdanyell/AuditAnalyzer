@@ -7,6 +7,7 @@ import type { AnalyzerConfig } from '../../config/schema';
 import type { ScopeStats } from '../../shared/protocol';
 import type { DetailColumns } from '../store/columns';
 import type { Dictionary } from '../store/dictionary';
+import { buildBalanceTimeline, buildScopePhases, type BalanceTimeline, type ScopePhases } from './balancePhases';
 import { buildDocuments, type DocumentInfo } from './documents';
 import { sortByEventKey, sortByTime } from './events';
 import { buildRecords, type AlterationEvent, type RecordInfo } from './records';
@@ -38,6 +39,8 @@ export interface LogIndex {
   byTime: Uint32Array;
   /** Row indices by (Recno, dataHora, Operacao, Usuario, ord). */
   byEvent: Uint32Array;
+  /** Balance type at the time of each event of the consolidated base (section 13). */
+  timeline: BalanceTimeline;
 }
 
 export interface ScopeAnalysis {
@@ -52,6 +55,8 @@ export interface ScopeAnalysis {
   alterationEvents: AlterationEvent[];
   effectiveChangeRows: number[];
   stats: ScopeStats;
+  /** Segregated analysis by balance type (section 13): events of the scope and phases of lines and documents. */
+  phases: ScopePhases;
 }
 
 function resolveFields(config: AnalyzerConfig, dict: Dictionary): FieldSetup {
@@ -81,7 +86,7 @@ export function buildLogIndex(
   sourceCount: number,
   byEvent: Uint32Array = sortByEventKey(details),
 ): LogIndex {
-  return {
+  const log: Omit<LogIndex, 'timeline'> = {
     details,
     dict,
     config,
@@ -90,6 +95,7 @@ export function buildLogIndex(
     byTime: sortByTime(details),
     byEvent,
   };
+  return { ...log, timeline: buildBalanceTimeline(log) };
 }
 
 export function analyzeScope(log: LogIndex, sources: number[]): ScopeAnalysis {
@@ -127,5 +133,6 @@ export function analyzeScope(log: LogIndex, sources: number[]): ScopeAnalysis {
     invalidValues: count(records, (r) => r.valueStatus === 'invalid'),
   };
 
-  return { log, sources: [...sources], records, documents, baseOrder, alterationEvents, effectiveChangeRows, stats };
+  const phases = buildScopePhases(log, log.timeline, inScope, records, documents);
+  return { log, sources: [...sources], records, documents, baseOrder, alterationEvents, effectiveChangeRows, stats, phases };
 }
