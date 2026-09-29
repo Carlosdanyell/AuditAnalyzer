@@ -3,6 +3,7 @@
  * (origins, yes/no, statuses) come from here too, so the formulas and the data always use the same words.
  */
 import type { SignalId } from '../../config/schema';
+import { SEGREGATION_PT } from '../../shared/segregation';
 
 export type Language = 'pt' | 'en';
 
@@ -18,6 +19,7 @@ const pt = {
     unbalanced: 'Desbalanceados',
     discardedDetail: 'Alteracoes_Descartadas_Detalhe',
     discardedSummary: 'Alteracoes_Descartadas_Resumo',
+    segregation: 'Segregacao',
     criteria: 'Criterios',
     trace: 'Rastreabilidade',
     helper: 'Auxiliar',
@@ -167,7 +169,7 @@ const pt = {
     s7: '7. Movimento diário',
     s7cols: ['Data', 'Dia', 'Postados', 'Excluídos', 'Alterados', 'Eventos', 'No período', 'Dia útil', 'Coberto por extração'],
     s7note: 'Texto em cinza: fora do período aplicado. Fundo cinza: sábado, domingo ou feriado. Fundo vermelho claro: dia sem extração.',
-    s8: '8. Onde conferir',
+    s8: '9. Onde conferir',
     where: {
       deletionJust: 'Motivo de cada documento excluído; células vazias em amarelo.',
       changeJust: 'Motivo de cada documento alterado; células vazias em amarelo.',
@@ -178,6 +180,7 @@ const pt = {
       unbalanced: 'Linhas dos documentos com débito diferente de crédito.',
       discardedDetail: 'Eventos de alteração descartados pelo critério de corte (efetivação e carimbo).',
       discardedSummary: 'Eventos descartados por tipo, arquivo e usuário.',
+      segregation: 'Um evento por linha: fase, tipo de saldo no momento do evento, fonte e exceção (análise segregada).',
       criteria: 'Premissas, definições e limitações.',
       trace: 'Arquivos, SHA-256, reconciliação, verificações e configuração usadas.',
       helper: 'Parâmetros do filtro, atalhos, feriados e movimento diário que alimentam o Resumo.',
@@ -234,6 +237,44 @@ const pt = {
   file: 'Papel de trabalho CFGR700 - {scope} - {date}.xlsx',
   consolidated: 'Consolidado',
   daysListNote: '(ver o movimento diário)',
+  /** Segregated analysis by balance type (section 13); {from} and {to} = configured balance types, {field} = its field. */
+  segregation: {
+    phases: SEGREGATION_PT.phases,
+    sources: SEGREGATION_PT.sources,
+    exceptions: SEGREGATION_PT.exceptions,
+    informatives: SEGREGATION_PT.informatives,
+    marks: SEGREGATION_PT.marks,
+    unknownOperation: '(operação não reconhecida)',
+    cols: {
+      operation: 'Operação',
+      balance: 'Tipo de saldo no momento do evento',
+      source: 'Fonte do tipo de saldo',
+      phase: 'Fase',
+      exception: 'Exceção',
+      exceptionInPosted: 'Exceção em saldo {to}?',
+      informative: 'Informativo',
+      marks: 'Marcações',
+      fields: 'Campos alterados',
+      firstInsertUser: 'Usuário da 1ª inclusão',
+      activationTime: 'Data/hora da 1ª efetivação',
+      activationUser: 'Usuário da 1ª efetivação',
+      sameUser: 'Mesmo usuário na inclusão e na efetivação?',
+    },
+    s8: '8. Análise por tipo de saldo — período aplicado',
+    s8cols: ['Fase (tipo de saldo no momento do evento)', 'Inclusão', 'Alteração', 'Exclusão', 'Recuperação', 'Total de eventos'],
+    s8exceptions: ['Exceções da fase Postado ({to}) e informativos', 'Eventos', 'Nível'],
+    s8exceptionTotal: 'Total de exceções',
+    level: { exception: 'Exceção', informative: 'Informativo' },
+    s8sameUser: ['Segregação de funções: mesmo usuário na inclusão e na efetivação', 'Documentos'],
+    s8sameUserRows: ['Sim (1ª efetivação no período)', 'Não (1ª efetivação no período)', 'Não avaliável (log completo)'],
+    s8note:
+      'Eventos pela data do evento, na aba Segregacao. Cada evento pertence a uma única fase; a soma das fases é igual ao total de eventos. Exceções em destaque quando houver: a premissa é inclusão em {from}, efetivação {from} → {to} e nenhuma alteração ou exclusão em saldo {to}.',
+    criteriaTitle: 'Análise segregada por tipo de saldo',
+    criteria:
+      'Cada evento é classificado pelo tipo de saldo ({field}) do registro imediatamente antes do evento, na ordem Recno, data/hora e ordem de leitura. Fonte "Direta": lido do próprio evento (inclusão, exclusão e alteração que traz o campo). "Reconstruída": último valor conhecido do registro, ou {from} quando o próximo evento com o campo é a efetivação {from} → {to}. "Não determinado": sem valor anterior conhecido e sem efetivação posterior; nunca é presumido. Fases: Pré-lançamento ({from}), Efetivação (transição {from} → {to}), Postado ({to}), Outro tipo de saldo e Não determinado. Exceções à premissa: inclusão direta em saldo {to}, alteração ou exclusão em saldo {to}, reabertura (transição diferente de {from} → {to}), eventos após a reabertura até a nova efetivação e tipo de saldo diferente de {from} e {to}. Informativos: somente carimbo ou recuperação em saldo {to}. Nas colunas "Fase" de Documentos e Base_Linhas vale a fase de maior precedência entre os eventos da linha (Postado > outro tipo de saldo > efetivação > não determinado > pré-lançamento). Segregação de funções: "Sim" quando algum usuário que incluiu linha do documento também a efetivou; "Não avaliável" quando a inclusão ou a efetivação não está no log ou o usuário não foi gravado.',
+    limitationsTitle: 'Limitações da análise segregada',
+    limitations: SEGREGATION_PT.limitations,
+  },
 };
 
 type Labels = typeof pt;
@@ -250,6 +291,7 @@ const en: Labels = {
     unbalanced: 'Unbalanced',
     discardedDetail: 'Discarded_changes_detail',
     discardedSummary: 'Discarded_changes_summary',
+    segregation: 'Segregation',
     criteria: 'Criteria',
     trace: 'Traceability',
     helper: 'Helper',
@@ -399,7 +441,7 @@ const en: Labels = {
     s7: '7. Daily movement',
     s7cols: ['Date', 'Day', 'Posted', 'Deleted', 'Changed', 'Events', 'In the period', 'Business day', 'Covered by an extraction'],
     s7note: 'Grey text: outside the applied period. Grey background: Saturday, Sunday or holiday. Light red background: day without an extraction.',
-    s8: '8. Where to check',
+    s8: '9. Where to check',
     where: {
       deletionJust: 'Reason for each deleted document; empty cells in yellow.',
       changeJust: 'Reason for each changed document; empty cells in yellow.',
@@ -410,6 +452,7 @@ const en: Labels = {
       unbalanced: 'Lines of the documents whose debit differs from credit.',
       discardedDetail: 'Change events discarded by the cut-off criterion (activation and stamp).',
       discardedSummary: 'Discarded events by type, file and user.',
+      segregation: 'One event per row: phase, balance type at the time of the event, source and exception (segregated analysis).',
       criteria: 'Assumptions, definitions and limitations.',
       trace: 'Files, SHA-256, reconciliation, checks and configuration used.',
       helper: 'Filter parameters, presets, holidays and daily movement behind the Summary.',
@@ -466,6 +509,51 @@ const en: Labels = {
   file: 'CFGR700 workpaper - {scope} - {date}.xlsx',
   consolidated: 'Consolidated',
   daysListNote: '(see the daily movement)',
+  segregation: {
+    phases: { pre: 'Pre-entry ({from})', activation: 'Posting', posted: 'Posted ({to})', other: 'Other balance type', undetermined: 'Not determined' },
+    sources: { direct: 'Direct', rebuilt: 'Rebuilt', undetermined: 'Not determined' },
+    exceptions: {
+      reopening: 'Reopening',
+      afterReopening: 'Event after reopening',
+      directInsert: 'Direct insert in balance type {to}',
+      postedChange: 'Change to a posted entry',
+      postedDeletion: 'Deletion of a posted entry',
+      otherBalance: 'Balance type other than {from} and {to}',
+    },
+    informatives: { postedStamp: 'Stamp only in balance type {to}', postedRestore: 'Restore in balance type {to}' },
+    marks: { activationWithContent: 'Posting with a content change', sameSecond: 'Same-second order', reopened: 'Reopened after posting' },
+    unknownOperation: '(operation not recognized)',
+    cols: {
+      operation: 'Operation',
+      balance: 'Balance type at the time of the event',
+      source: 'Balance type source',
+      phase: 'Phase',
+      exception: 'Exception',
+      exceptionInPosted: 'Exception in balance type {to}?',
+      informative: 'Informative',
+      marks: 'Marks',
+      fields: 'Changed fields',
+      firstInsertUser: 'First insert user',
+      activationTime: 'Posting ({from} → {to}) time',
+      activationUser: 'Posting ({from} → {to}) user',
+      sameUser: 'Same user for insert and posting?',
+    },
+    s8: '8. Analysis by balance type — applied period',
+    s8cols: ['Phase (balance type at the time of the event)', 'Insert', 'Update', 'Delete', 'Restore', 'Total events'],
+    s8exceptions: ['Exceptions of the Posted ({to}) phase and informative events', 'Events', 'Level'],
+    s8exceptionTotal: 'Total exceptions',
+    level: { exception: 'Exception', informative: 'Informative' },
+    s8sameUser: ['Segregation of duties: same user for insert and posting', 'Documents'],
+    s8sameUserRows: ['Yes (first posting in the period)', 'No (first posting in the period)', 'Not evaluable (full log)'],
+    s8note:
+      'Events by event date, in the Segregation sheet. Each event belongs to exactly one phase; the phases add up to the total events. Exceptions are highlighted when present: the premise is insert in {from}, posting {from} → {to} and no change or deletion in balance type {to}.',
+    criteriaTitle: 'Segregated analysis by balance type',
+    criteria:
+      'Each event is classified by the balance type ({field}) of the record immediately before the event, in Recno, time and reading order. Source "Direct": read from the event itself (insert, deletion and a change that carries the field). "Rebuilt": the last known value of the record, or {from} when the next event carrying the field is the posting {from} → {to}. "Not determined": no earlier known value and no later posting; it is never assumed. Phases: Pre-entry ({from}), Posting (transition {from} → {to}), Posted ({to}), Other balance type and Not determined. Exceptions to the premise: direct insert in balance type {to}, change or deletion in balance type {to}, reopening (a transition other than {from} → {to}), events after the reopening up to the new posting, and a balance type other than {from} and {to}. Informative: stamp only or restore in balance type {to}. The "Phase" columns of Documents and Lines hold the most precedent phase among the events of the row (Posted > other balance type > posting > not determined > pre-entry). Segregation of duties: "Yes" when a user who inserted a line of the document also posted it; "Not evaluable" when the insert or the posting is not in the log or the user was not recorded.',
+    limitationsTitle: 'Limitations of the segregated analysis',
+    limitations:
+      'The segregated analysis classifies each event by the balance type of the record at the time of the event: pre-entry (9) or posted entry (1). The balance type is read directly from the log for additions, deletions and posting. For changes, it is rebuilt from earlier events on the same record; when the record was entered before the loaded period and has no later posting event, the balance type is reported as "Not determined" and is not assumed. To eliminate these cases, extract CFGR700 with "Exclude unchanged fields = No" or query CT2 by Recno. Corrections to posted entries are made through reversal and a new entry, and appear as additions, not as changes. The sum of all phases always equals the overall analysis.',
+  },
 };
 
 export const LABELS: Record<Language, Labels> = { pt, en };

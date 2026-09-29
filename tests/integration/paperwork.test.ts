@@ -104,6 +104,7 @@ describe.each(['pt', 'en'] as const)('exported workpaper (%s)', (language) => {
       L.sheets.unbalanced,
       L.sheets.discardedDetail,
       L.sheets.discardedSummary,
+      L.sheets.segregation,
       L.sheets.criteria,
       L.sheets.trace,
       L.sheets.helper,

@@ -29,7 +29,8 @@ const CONFIRMATION_NOTES = ['abrange o novo evento', 'covers the new event'];
 const YES = new Set(['sim', 'yes', 's', 'y', 'x']);
 const WIDTH = 40;
 
-async function readSheets(blob: Blob): Promise<Map<string, Cell[][]>> {
+/** Reads the sheets whose normalized name passes `wanted` (lower case, no accents, "_" as space). */
+async function readSheets(blob: Blob, wanted: (normalized: string) => boolean): Promise<Map<string, Cell[][]>> {
   const entries = await readZipDirectory(blob);
   const byName = new Map(entries.map((e) => [e.name, e]));
   const text = async (entry: ZipEntry | undefined) => (entry ? new TextDecoder().decode((await readEntryBytes(blob, entry)).bytes) : '');
@@ -47,7 +48,7 @@ async function readSheets(blob: Blob): Promise<Map<string, Cell[][]>> {
   const out = new Map<string, Cell[][]>();
   for (const sheet of sheets) {
     const entry = byName.get(target.get(sheet.relationshipId) ?? '');
-    if (!entry) continue;
+    if (!entry || !wanted(sheetKey(sheet.name))) continue;
     const rows: Cell[][] = [];
     const parser = new SheetParser((r, row) => {
       const cells: Cell[] = [];
@@ -74,8 +75,10 @@ async function readSheets(blob: Blob): Promise<Map<string, Cell[][]>> {
 const str = (c: Cell | undefined): string => (c === null || c === undefined ? '' : String(c)).trim();
 const nonEmpty = (row: Cell[]) => row.filter((c) => str(c) !== '').length;
 
+const sheetKey = (name: string) => normalizeLabel(name).replace(/_/g, ' ');
+
 function findSheet(sheets: Map<string, Cell[][]>, test: (normalized: string) => boolean): Cell[][] | undefined {
-  for (const [name, rows] of sheets) if (test(normalizeLabel(name).replace(/_/g, ' '))) return rows;
+  for (const [name, rows] of sheets) if (test(sheetKey(name))) return rows;
   return undefined;
 }
 
@@ -152,16 +155,25 @@ function lastEventIn(rows: Cell[][] | undefined): number | null {
   return last;
 }
 
+/** The sheets used by the import, by normalized name (Portuguese or English); the others are not read. */
+const SHEETS = {
+  deletion: (n: string) => n.includes('justificativa da exclusao') || n === 'deletion justifications',
+  change: (n: string) => n.includes('justificativa da alteracao') || n === 'change justifications',
+  trace: (n: string) => n.includes('rastreabilidade') || n === 'traceability',
+  documents: (n: string) => n === 'documentos' || n === 'documents',
+  lines: (n: string) => n === 'base linhas' || n === 'lines',
+};
+
 export async function readJustificationWorkbook(blob: Blob): Promise<JustificationWorkbook> {
-  const sheets = await readSheets(blob);
-  const deletion = findSheet(sheets, (n) => n.includes('justificativa da exclusao') || n === 'deletion justifications');
-  const change = findSheet(sheets, (n) => n.includes('justificativa da alteracao') || n === 'change justifications');
+  const sheets = await readSheets(blob, (n) => Object.values(SHEETS).some((test) => test(n)));
+  const deletion = findSheet(sheets, SHEETS.deletion);
+  const change = findSheet(sheets, SHEETS.change);
   if (!deletion && !change) {
     throw new Error('a planilha não tem as abas "Justificativa da Exclusao" nem "Justificativa da Alteração".');
   }
   const items = [...(deletion ? readJustifications(deletion, 'deletion') : []), ...(change ? readJustifications(change, 'change') : [])];
 
-  const trace = findSheet(sheets, (n) => n.includes('rastreabilidade') || n === 'traceability');
+  const trace = findSheet(sheets, SHEETS.trace);
   let rastreabilidadeFiles: string[] | null = null;
   if (trace) {
     const names = new Set<string>();
@@ -174,10 +186,7 @@ export async function readJustificationWorkbook(blob: Blob): Promise<Justificati
     rastreabilidadeFiles = names.size ? [...names] : null;
   }
 
-  const candidates = [
-    findSheet(sheets, (n) => n === 'documentos' || n === 'documents'),
-    findSheet(sheets, (n) => n === 'base linhas' || n === 'lines'),
-  ];
+  const candidates = [findSheet(sheets, SHEETS.documents), findSheet(sheets, SHEETS.lines)];
   const lasts = candidates.map(lastEventIn).filter((t): t is number => t !== null);
   return { items, rastreabilidadeFiles, lastEvent: lasts.length ? Math.max(...lasts) : null };
 }

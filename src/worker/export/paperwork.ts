@@ -5,8 +5,11 @@
  * tool. Justification sheets are editable: statuses, coverage and pending notes follow what is typed in Excel.
  * Excel 2016 compatible (no dynamic arrays, no TEXTJOIN). Visual standard in theme.ts.
  */
-import { SIGNAL_IDS, type AnalyzerConfig } from '../../config/schema';
+import { OPERATION_KEYS, SIGNAL_IDS, type AnalyzerConfig } from '../../config/schema';
 import { INVALID_TIME, formatDay, weekday } from '../../shared/dates';
+import { BALANCE_SOURCES, EXCEPTIONS, INFORMATIVES, PHASES, balanceText } from '../../shared/segregation';
+import { EXCEPTION_MASK, NO_PHASE, SAME_USER_NO, SAME_USER_YES, informative, marks, primaryException } from '../engine/balancePhases';
+import { OP_DELETE, OP_INSERT } from '../engine/events';
 import { justificationKey, normalizeText } from '../../shared/justifications';
 import type { CheckResult, Justification, JustificationKind, Period } from '../../shared/protocol';
 import type { DocumentInfo } from '../engine/documents';
@@ -100,7 +103,7 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
   const { dict } = scope.log;
   const w = new XlsxWriter();
   const T = createTheme(w.styles);
-  const TOTAL_STEPS = 13;
+  const TOTAL_STEPS = 14;
   let step = 0;
   const progress = () => onProgress(++step, TOTAL_STEPS);
 
@@ -138,6 +141,21 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     .filter((e) => e.kind !== 'effective')
     .flatMap((e) => e.rows.map((row) => ({ e, row })));
 
+  // Segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13).
+  const SG = L.segregation;
+  const P = scope.phases;
+  const TL = P.timeline;
+  const det = scope.log.details;
+  const bt = (template: string) => balanceText(template, config.balanceType).replace(/\{field\}/g, config.balanceType.field);
+  const phaseName = (code: number) => (code === NO_PHASE ? '' : bt(SG.phases[PHASES[code]!]));
+  const evRow = (e: number) => scope.log.byEvent[P.pos[e]!]!;
+  /** Scope events in (Recno, dataHora, ord). */
+  const segOrder = Array.from({ length: P.count }, (_, e) => e).sort(
+    (a, b) => det.recno[evRow(a)]! - det.recno[evRow(b)]! || det.dateTime[evRow(a)]! - det.dateTime[evRow(b)]! || evRow(a) - evRow(b),
+  );
+  const operationName = (op: number) => (op >= 1 && op <= OPERATION_KEYS.length ? L.operations[OPERATION_KEYS[op - 1]!] : SG.unknownOperation);
+  const sameUserValue = (v: number) => (v === SAME_USER_YES ? V.yes : v === SAME_USER_NO ? V.no : V.notEvaluable);
+
   // ── Data sheets: layouts ──
   const keyPartCols: Col[] = otherKeyFields.map((f) => ({ id: `k_${f}`, header: fieldLabel(f), width: 9, kind: 'center' }));
   const docCols: Col[] = [
@@ -163,6 +181,10 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     { id: 'lastDel', header: L.cols.lastDeletion, width: 18, kind: 'datetime' },
     ...sources.map((s): Col => ({ id: `ch_${s}`, header: lastChangeHeader(s), width: 20, kind: 'datetime' })),
     { id: 'firstPost', header: L.cols.firstPosting, width: 18, kind: 'datetime' },
+    { id: 'insUser', header: SG.cols.firstInsertUser, width: 16 },
+    { id: 'actTime', header: bt(SG.cols.activationTime), width: 18, kind: 'datetime' },
+    { id: 'actUser', header: bt(SG.cols.activationUser), width: 16 },
+    { id: 'sameUser', header: SG.cols.sameUser, width: 15, kind: 'center' },
     { id: 'delJust', header: L.cols.deletionJust, width: 45 },
     { id: 'delStatus', header: L.cols.deletionStatus, width: 20, kind: 'center' },
     { id: 'chJust', header: L.cols.changeJust, width: 45 },
@@ -170,6 +192,8 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     { id: 'delInP', header: L.cols.deletedInPeriod, width: 14, kind: 'center', group: 'helper' },
     { id: 'chInP', header: L.cols.changedInPeriod, width: 14, kind: 'center', group: 'helper' },
     { id: 'pendInP', header: L.cols.pendingInPeriod, width: 16, kind: 'center', group: 'helper' },
+    { id: 'phase', header: SG.cols.phase, width: 18, kind: 'center', group: 'helper' },
+    { id: 'exIn1', header: bt(SG.cols.exceptionInPosted), width: 13, kind: 'center', group: 'helper' },
   ];
   const DOC = new Layout(L.sheets.documents, docCols, docs.length);
 
@@ -197,8 +221,29 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     { id: 'docUnb', header: L.cols.docUnbalanced, width: 14, kind: 'center' },
     { id: 'files', header: L.cols.files, width: 24 },
     { id: 'chInP', header: L.cols.changedInPeriod, width: 14, kind: 'center', group: 'helper' },
+    { id: 'phase', header: SG.cols.phase, width: 18, kind: 'center', group: 'helper' },
+    { id: 'exIn1', header: bt(SG.cols.exceptionInPosted), width: 13, kind: 'center', group: 'helper' },
   ];
   const LIN = new Layout(L.sheets.lines, linCols, baseOrder.length);
+
+  const segCols: Col[] = [
+    { id: 'recno', header: L.cols.recno, width: 10, kind: 'id' },
+    { id: 'key', header: L.cols.key, width: 30 },
+    { id: 'time', header: L.cols.time, width: 18, kind: 'datetime' },
+    { id: 'operation', header: SG.cols.operation, width: 13, kind: 'center' },
+    { id: 'user', header: L.cols.user, width: 16 },
+    { id: 'origin', header: L.cols.origin, width: 13, kind: 'center' },
+    { id: 'balance', header: SG.cols.balance, width: 22, kind: 'center' },
+    { id: 'source', header: SG.cols.source, width: 15, kind: 'center' },
+    { id: 'phase', header: SG.cols.phase, width: 20, kind: 'center' },
+    { id: 'exception', header: SG.cols.exception, width: 32 },
+    { id: 'exIn1', header: bt(SG.cols.exceptionInPosted), width: 13, kind: 'center' },
+    { id: 'informative', header: SG.cols.informative, width: 28 },
+    { id: 'marks', header: SG.cols.marks, width: 36 },
+    { id: 'fields', header: SG.cols.fields, width: 24 },
+    { id: 'file', header: L.cols.file, width: 18 },
+  ];
+  const SEG = new Layout(L.sheets.segregation, segCols, segOrder.length);
 
   const justCols = (kind: JustificationKind): Col[] => [
     { id: 'key', header: L.cols.key, width: 30 },
@@ -571,7 +616,69 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
   }
   note(L.summary.s7note, 9);
 
-  // 8. Where to check
+  // 8. Analysis by balance type (section 13): events by phase and operation, exceptions, segregation of duties.
+  section(SG.s8, 6);
+  header(SG.s8cols);
+  const segInPeriod = inPeriod(SEG.range('time'));
+  const s8First = sum.nextRow;
+  PHASES.forEach((_, code) => {
+    const phaseCrit = `,${SEG.range('phase')},${str(phaseName(code))}`;
+    sum.row(
+      [
+        { v: phaseName(code), s: T.label },
+        ...OPERATION_KEYS.map((k) => ({ f: `COUNTIFS(${segInPeriod}${phaseCrit},${SEG.range('operation')},${str(L.operations[k])})`, s: T.int })),
+        { f: `COUNTIFS(${segInPeriod}${phaseCrit})`, s: T.int },
+      ],
+      { height: DATA_ROW },
+    );
+  });
+  const s8Last = sum.nextRow - 1;
+  sum.row(
+    [
+      { v: V.total, s: T.totalLabel },
+      ...['B', 'C', 'D', 'E', 'F'].map((c) => ({ f: `SUM(${c}${s8First}:${c}${s8Last})`, s: T.totalInt })),
+    ],
+    { height: DATA_ROW },
+  );
+  sum.skip(1);
+  header(SG.s8exceptions.map(bt));
+  const exFirst = sum.nextRow;
+  for (const id of EXCEPTIONS) {
+    sum.row(
+      [
+        { v: bt(SG.exceptions[id]), s: T.label },
+        { f: `COUNTIFS(${segInPeriod},${SEG.range('exception')},${str(bt(SG.exceptions[id]))})`, s: T.int },
+        { v: SG.level.exception, s: T.center },
+      ],
+      { height: DATA_ROW },
+    );
+  }
+  const exLast = sum.nextRow - 1;
+  sum.row([{ v: SG.s8exceptionTotal, s: T.totalLabel }, { f: `SUM(B${exFirst}:B${exLast})`, s: T.totalInt }, { v: null, s: T.totalBlank }], { height: DATA_ROW });
+  for (const id of INFORMATIVES) {
+    sum.row(
+      [
+        { v: bt(SG.informatives[id]), s: T.label },
+        { f: `COUNTIFS(${segInPeriod},${SEG.range('informative')},${str(bt(SG.informatives[id]))})`, s: T.int },
+        { v: SG.level.informative, s: T.center },
+      ],
+      { height: DATA_ROW },
+    );
+  }
+  // Exceptions in the period stand out (invariant 15: alert).
+  sum.conditional({ sqref: `A${exFirst}:C${exLast}`, formula: `$B${exFirst}>0`, style: { fill: COLORS.badFill, font: { bold: true, color: COLORS.badFont } } });
+  sum.conditional({ sqref: `A${exLast + 1}:C${exLast + 1}`, formula: `$B${exLast + 1}>0`, style: { fill: COLORS.badFill, font: { bold: true, color: COLORS.badFont } } });
+  sum.skip(1);
+  header(SG.s8sameUser);
+  const actInPeriod = inPeriod(DOC.range('actTime'));
+  [
+    `COUNTIFS(${actInPeriod},${DOC.range('sameUser')},${str(V.yes)})`,
+    `COUNTIFS(${actInPeriod},${DOC.range('sameUser')},${str(V.no)})`,
+    `COUNTIFS(${DOC.range('sameUser')},${str(V.notEvaluable)})`,
+  ].forEach((f, i) => sum.row([{ v: SG.s8sameUserRows[i]!, s: T.label }, { f, s: T.int }], { height: DATA_ROW }));
+  note(bt(SG.s8note), 6);
+
+  // 9. Where to check
   section(L.summary.s8);
   const where: [keyof typeof L.summary.where, string][] = [
     ['deletionJust', L.sheets.deletionJust],
@@ -583,6 +690,7 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     ['unbalanced', L.sheets.unbalanced],
     ['discardedDetail', L.sheets.discardedDetail],
     ['discardedSummary', L.sheets.discardedSummary],
+    ['segregation', L.sheets.segregation],
     ['criteria', L.sheets.criteria],
     ['trace', L.sheets.trace],
     ['helper', L.sheets.helper],
@@ -653,8 +761,11 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     const X = (id: string) => DOC.letter(id);
     const jeKey = JE.range('key');
     const jaKey = JA.range('key');
-    for (const d of docs) {
+    for (let di = 0; di < docs.length; di++) {
+      const d = docs[di]!;
       const r = sheet.nextRow;
+      const firstInsert = P.firstInclusion[di]!;
+      const firstPosting = P.firstActivation[di]!;
       const cells: Record<string, CellInput> = {
         key: d.key,
         date: dateCell(d.entryDay),
@@ -676,6 +787,12 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
         firstDel: dateTimeCell(d.firstDeletion),
         lastDel: dateTimeCell(d.lastDeletion),
         firstPost: dateTimeCell(d.firstPosting),
+        insUser: firstInsert < 0 ? '' : userName(det.user[evRow(firstInsert)]!),
+        actTime: firstPosting < 0 ? null : dateTimeCell(det.dateTime[evRow(firstPosting)]!),
+        actUser: firstPosting < 0 ? '' : userName(det.user[evRow(firstPosting)]!),
+        sameUser: sameUserValue(P.sameUser[di]!),
+        phase: phaseName(P.documentPhase[di]!),
+        exIn1: P.documentException[di] ? V.yes : V.no,
         delJust: { f: `IF(${X('delLines')}${r}=0,"",IFERROR(INDEX(${JE.range('text')},MATCH($A${r},${jeKey},0))&"",""))` },
         delStatus: { f: `IF(${X('delLines')}${r}=0,${str(V.none)},IFERROR(INDEX(${JE.range('status')},MATCH($A${r},${jeKey},0))&"",${str(V.pending)}))` },
         chJust: { f: `IF(${X('chLines')}${r}=0,"",IFERROR(INDEX(${JA.range('text')},MATCH($A${r},${jaKey},0))&"",""))` },
@@ -726,6 +843,8 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
         docUnb: doc ? unbalanced(doc.unbalanced) : V.none,
         files: rec.sources.map((s) => names[s] ?? '').join(FILE_SEPARATOR),
         chInP: { f: yesNo(sources.length ? `OR(${sources.map((s) => inPeriodCell(X(`ch_${s}`), r)).join(',')})` : 'FALSE') },
+        phase: phaseName(P.recordPhase[index]!),
+        exIn1: P.recordException[index] ? V.yes : V.no,
       };
       otherKeyFields.forEach((f) => (cells[`k_${f}`] = val(rec, f)));
       extraFields.forEach((f) => (cells[`x_${f}`] = val(rec, f)));
@@ -940,6 +1059,44 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
   }
   progress();
 
+  // ════════ Segregation (one row per event, section 13) ════════
+  {
+    const sheet = openTable(SEG, { freezeCols: 1 });
+    const inScope = new Set(sources);
+    for (const e of segOrder) {
+      const g = P.global[e]!;
+      const row = evRow(e);
+      const flags = TL.flags[g]!;
+      const rec = records[P.record[e]!]!;
+      const op = det.op[row]!;
+      const rows: number[] = [];
+      for (let k = P.pos[e]!; k < TL.start[g + 1]!; k++) if (inScope.has(det.source[scope.log.byEvent[k]!]!)) rows.push(scope.log.byEvent[k]!);
+      const exception = primaryException(flags);
+      const info = informative(flags);
+      writeRow(sheet, SEG, {
+        recno: det.recno[row]!,
+        key: rec.documentKey,
+        time: dateTimeCell(det.dateTime[row]!),
+        operation: operationName(op),
+        user: userName(det.user[row]!),
+        origin: origin(rec.origin),
+        balance: TL.balance[g]! < 0 ? '' : shown(config.balanceType.field, TL.balanceValues[TL.balance[g]!]!),
+        source: SG.sources[BALANCE_SOURCES[TL.source[g]!]!],
+        phase: phaseName(TL.phase[g]!),
+        exception: exception ? bt(SG.exceptions[exception]) : '',
+        exIn1: flags & EXCEPTION_MASK ? V.yes : V.no,
+        informative: info ? bt(SG.informatives[info]) : '',
+        marks: marks(flags)
+          .map((m) => SG.marks[m])
+          .join('; '),
+        fields: op === OP_INSERT || op === OP_DELETE ? '' : [...new Set(rows.map((i) => dict.get(det.field[i]!)))].join(', '),
+        file: [...new Set(rows.map((i) => names[det.source[i]!] ?? ''))].join(FILE_SEPARATOR),
+      });
+    }
+    sheet.end();
+  }
+  progress();
+
   // ════════ Criteria ════════
   {
     const width = 115;
@@ -981,6 +1138,8 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
             ['Limitations', `The log holds only what moved in the extracted interval — it is not the ledger population. With "Exclude unchanged fields = Yes", changes bring only the modified field: there are partial-basis documents (${stats.partialBaseDocuments}) and unidentified records (${stats.unidentifiedRecords}: ${u.contentChange} with content changes, ${u.onlyActivation} activation only, ${u.onlyStamp} stamp only). They can be matched to documents by querying ${config.table} by Recno.`],
             ['Workbook', 'Negative amounts in parentheses and zero as a dash. Dates stored as Excel dates. Formulas recalculate on open; yellow cells are editable.'],
           ];
+    // Segregated analysis (section 13): rules and the limitations to declare, before the notes on the workbook.
+    paragraphs.splice(paragraphs.length - 1, 0, [SG.criteriaTitle, bt(SG.criteria)], [SG.limitationsTitle, SG.limitations]);
     for (const [title, text] of paragraphs) {
       sheet.skip(1);
       sheet.row([{ v: title, s: T.h2 }], { height: 20 });
