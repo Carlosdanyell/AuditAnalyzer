@@ -456,7 +456,7 @@ export function App() {
             <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
           </p>
           <p className={styles.version}>AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados</p>
-          <p className={styles.author}>Desenvolvido por Carlos Danyell da Silva</p>
+          <p className={styles.author}>Desenvolvido por Carlos Danyell</p>
         </div>
       </aside>
 

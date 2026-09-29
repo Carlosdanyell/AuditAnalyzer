@@ -22,7 +22,7 @@ test('arquivos, processamento e reconciliação; versão e autoria no rodapé', 
   await expect(page.getByText('setembro.xlsx').first()).toBeVisible();
   await expect(page.getByText('Reconciliação de linhas').first()).toBeVisible();
   await expect(page.getByText(/^AuditAnalyzer .+ processamento local/)).toBeVisible();
-  await expect(page.getByText('Desenvolvido por Carlos Danyell da Silva')).toBeVisible();
+  await expect(page.getByText('Desenvolvido por Carlos Danyell')).toBeVisible();
 });
 
 test('cancelar descarta a leitura', async ({ page, bigFile }) => {
