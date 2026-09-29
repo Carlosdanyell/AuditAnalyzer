@@ -423,3 +423,127 @@ exportação — se falharem, a planilha não é gerada.
 - **Conferência automática:** os testes avaliam as fórmulas do Resumo para cada atalho e para períodos personalizados
   e comparam com o painel da ferramenta; com os arquivos reais, o teste local também abre a planilha no Excel,
   recalcula e confere célula a célula (seção 8 de ARQUITETURA.md).
+
+---
+
+## 13. Análise segregada por tipo de saldo
+
+### Objetivo
+
+Oferecer, além da análise geral (seções 4 a 12, que não mudam), uma visão que separa os eventos pelo tipo de saldo
+do registro **no momento do evento**: o que ocorreu em pré-lançamento (9) e o que ocorreu no lançamento postado (1).
+
+O usuário escolhe na tela o modo **Geral** ou **Segregado**. O modo Geral é o padrão e reproduz exatamente os números
+atuais. O modo Segregado é uma decomposição do Geral, nunca um filtro que descarta eventos.
+
+### Premissa do processo (a ser testada, não assumida)
+
+- Todo lançamento, de qualquer rotina, é incluído em saldo 9.
+- A efetivação muda CT2_TPSALD de 9 para 1.
+- Em saldo 1 não há alteração nem exclusão; correções são feitas por inclusão de estorno e do lançamento correto.
+
+A análise segregada verifica essa premissa. Tudo o que a contraria é **exceção**, exibida e exportada; nada é
+corrigido ou reclassificado para caber na premissa.
+
+### Tipo de saldo no momento do evento
+
+Para cada evento, o tipo de saldo é o valor de CT2_TPSALD do registro **imediatamente antes** do evento, obtido na
+ordem `(Recno, dataHora, ord)` da seção 5.
+
+| Operação | Regra | Fonte |
+|---|---|---|
+| Inclusão | CT2_TPSALD em `Vlr Atualizado` da primeira Inclusão | Direta |
+| Exclusão | CT2_TPSALD em `Vlr Antigo` | Direta |
+| Alteração com CT2_TPSALD no evento | CT2_TPSALD em `Vlr Antigo` do próprio evento | Direta |
+| Alteração sem CT2_TPSALD no evento | último valor conhecido de CT2_TPSALD no Recno antes do evento | Reconstruída |
+| Alteração sem valor anterior conhecido | ver regra abaixo | Não determinado |
+
+Regra para Recno sem valor anterior conhecido (lançado antes do início do log e sem Inclusão carregada):
+- Se o Recno tem um evento posterior com transição `9 → 1`, o evento anterior ocorreu em saldo **9** (reconstruída).
+- Caso contrário, o tipo de saldo é **Não determinado**. Nunca é presumido 9 nem 1.
+
+Eventos no mesmo segundo no mesmo Recno seguem a ordem de leitura (`ord`) e são sinalizados como
+"Ordem no mesmo segundo" quando envolvem a efetivação.
+
+A reconstrução usa sempre a base consolidada carregada. Na análise de um arquivo só vale a limitação da seção 10.
+
+### Fases
+
+Cada evento pertence a exatamente uma fase:
+
+| Fase | Eventos | Natureza |
+|---|---|---|
+| Pré-lançamento (9) | Inclusão, Alteração e Exclusão ocorridas em saldo 9 | Informativa |
+| Efetivação | evento de Alteração com transição `9 → 1` | Informativa (fronteira) |
+| Postado (1) | qualquer evento ocorrido em saldo 1 | Resultado esperado: nenhum evento, exceto os listados como informativos abaixo |
+| Não determinado | eventos sem tipo de saldo determinável | Informativa, com orientação |
+
+Um evento de efetivação que também altera outros campos (`ef` não vazio, seção 6) pertence à fase **Efetivação** e
+é marcado como "Efetivação com alteração de conteúdo".
+
+### Exceções na fase Postado (1)
+
+| Exceção | Regra | Nível |
+|---|---|---|
+| Inclusão direta em saldo 1 | Inclusão com CT2_TPSALD = 1 | Exceção |
+| Alteração em lançamento postado | Alteração com `ef` não vazio ocorrida em saldo 1 | Exceção |
+| Exclusão de lançamento postado | Exclusão com CT2_TPSALD = 1 em `Vlr Antigo` | Exceção |
+| Reabertura | transição `1 → 9` ou qualquer outra diferente de `9 → 1` | Exceção |
+| Evento após reabertura | eventos do Recno depois de uma reabertura; ficam na fase 9, marcados "reaberto após efetivação" | Exceção |
+| Somente carimbo em saldo 1 | Alteração só com CT2_USERGA ocorrida em saldo 1 | Informativa |
+
+A reabertura prevalece sobre a classificação por fase: um evento em saldo 9 depois de uma reabertura aparece na fase
+9 **e** na lista de exceções.
+
+### Estornos
+
+Correções de lançamentos postados são feitas por inclusão de estorno e do lançamento correto, em regra de forma
+manual. O log não permite distinguir um estorno de outro lançamento incluído: a identificação e o suporte ficam no
+processo de lançamentos manuais (documento suporte elaborado e justificado pelo usuário, controle 2.04A), fora do
+escopo desta ferramenta. Na análise segregada, estornos aparecem como Inclusão na fase Pré-lançamento (9), seguida da
+Efetivação.
+
+### Segregação de funções
+
+Por documento: usuário e data da primeira Inclusão, usuário e data da Efetivação e indicador **"Mesmo usuário na
+inclusão e na efetivação"** (Sim/Não/Não avaliável). Não avaliável quando a Inclusão ou a Efetivação não está no log
+carregado.
+
+### Invariantes adicionais (numeração continua a da seção 11)
+
+12. Fases: Pré-lançamento + Efetivação + Postado + Não determinado = total de eventos, por operação, por arquivo e no
+    consolidado. Bloqueante.
+13. Todo evento da fase Efetivação tem transição `9 → 1`. Bloqueante.
+14. Nenhum evento tem tipo de saldo presumido: todo evento fora de Não determinado tem fonte Direta ou Reconstruída.
+    Bloqueante.
+15. Exceções da fase Postado (1) diferentes de zero. Alerta, não bloqueante; exibido em destaque no painel e no Resumo.
+
+### Painel e exportação
+
+- Seletor **Geral / Segregado** no painel. No modo Segregado, as categorias da seção 8 aparecem por fase, com a linha
+  de total igual ao modo Geral.
+- A planilha ganha a aba **Segregacao**: uma linha por evento, com fase, tipo de saldo no momento do evento, fonte
+  (Direta, Reconstruída, Não determinado) e exceção, se houver.
+- No Resumo, novo quadro "Análise por tipo de saldo": eventos por fase e operação, exceções da fase Postado,
+  e quantidade de documentos com o mesmo usuário na inclusão e na efetivação.
+- Colunas auxiliares do filtro em Documentos e Base_Linhas: "Fase" e "Exceção em saldo 1?" (Sim/Não).
+
+### Limitações a declarar (texto exibido no painel e gravado na aba de critérios)
+
+**Português**
+> A análise segregada classifica cada evento pelo tipo de saldo do registro no momento em que o evento ocorreu:
+> pré-lançamento (9) ou lançamento postado (1). O tipo de saldo é lido diretamente do log na inclusão, na exclusão e
+> na efetivação. Nas alterações, é reconstruído a partir dos eventos anteriores do mesmo registro; quando o registro
+> foi lançado antes do período carregado e não há efetivação posterior, o tipo de saldo é informado como "Não
+> determinado" e não é presumido. Para eliminar esses casos, extraia o CFGR700 com "Exclui campos não alterados =
+> Não" ou consulte a CT2 pelo Recno. Correções de lançamentos postados são feitas por estorno e novo lançamento e
+> aparecem como inclusões, não como alterações. A soma das fases é sempre igual à análise geral.
+
+**English**
+> The segregated analysis classifies each event by the balance type of the record at the time of the event:
+> pre-entry (9) or posted entry (1). The balance type is read directly from the log for additions, deletions and
+> posting. For changes, it is rebuilt from earlier events on the same record; when the record was entered before the
+> loaded period and has no later posting event, the balance type is reported as "Not determined" and is not assumed.
+> To eliminate these cases, extract CFGR700 with "Exclude unchanged fields = No" or query CT2 by Recno. Corrections
+> to posted entries are made through reversal and a new entry, and appear as additions, not as changes. The sum of
+> all phases always equals the overall analysis.
