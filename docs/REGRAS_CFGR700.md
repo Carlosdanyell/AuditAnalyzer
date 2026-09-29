@@ -553,3 +553,61 @@ carregado.
 > To eliminate these cases, extract CFGR700 with "Exclude unchanged fields = No" or query CT2 by Recno. Corrections
 > to posted entries are made through reversal and a new entry, and appear as additions, not as changes. The sum of
 > all phases always equals the overall analysis.
+
+### Decisões registradas (implementação, 29/09/2026)
+
+Aprovadas pelo usuário antes da implementação. Os valores 9 e 1 vêm da configuração (`balanceType.expectedFrom` e
+`expectedTo`); o carimbo é o campo de ruído que não é CT2_TPSALD (`fields.noise`).
+
+1. **Categorias da seção 8 por fase.** As categorias contam lançamentos e documentos, não eventos. Cada lançamento e
+   cada documento contado numa categoria fica em uma única fase: a de maior precedência entre os eventos que o colocam
+   na categoria (Excluído: a exclusão; Alterado: as alterações efetivas daquele arquivo; Postado e Desbalanceado: a
+   inclusão). Precedência: Postado (1) > Outro tipo de saldo > Efetivação > Não determinado > Pré-lançamento (9).
+   Documento: a de maior precedência entre as suas linhas na categoria. Assim a soma das fases é igual ao modo Geral.
+2. **Nomes.** A categoria "Postado" da seção 8 (inclusão no log) mantém o nome; a fase é escrita sempre com o tipo de
+   saldo: "Postado (1)".
+3. **Recuperação** segue a regra da Alteração (CT2_TPSALD no evento → Direta; senão, reconstruída). Em saldo 1 é
+   informativa ("Recuperação em saldo 1"), porque não altera conteúdo (seção 4). **Operação não reconhecida:** Não
+   determinado (já falha o invariante 11).
+4. **Tipo de saldo diferente de 9 e 1** (ex.: 3): quinta fase, **Outro tipo de saldo**, com a exceção "Tipo de saldo
+   diferente de 9 e 1". Entra na soma do invariante 12 e no alerta 15.
+5. **Reabertura.** Toda Alteração com transição de CT2_TPSALD diferente de `9 → 1` é a exceção "Reabertura"; a fase
+   segue o `Vlr Antigo` (em `1 → 9`, fase Postado (1)). A marcação "reaberto após efetivação" (exceção "Evento após
+   reabertura") vale do evento seguinte à transição para 9 até a próxima efetivação `9 → 1`, inclusive; depois dela
+   voltam as regras normais. Informado pelo usuário: o processo não prevê alteração do saldo 1 para o 9; a regra
+   permanece como verificação da premissa.
+6. **Reconstrução para trás** (Recno sem valor anterior conhecido): os eventos anteriores são reconstruídos como 9 só
+   quando o **próximo** evento do Recno com CT2_TPSALD é a efetivação `9 → 1`. Qualquer outro próximo evento com o
+   campo (inclusive uma Exclusão com `Vlr Antigo` = 9 ou uma reabertura) deixa esses eventos em Não determinado.
+7. **Inclusão gravada em etapas.** Todas as Inclusões do Recno usam o CT2_TPSALD da primeira linha de Inclusão que
+   traz o campo (Direta); sem nenhuma, Não determinado. Uma Exclusão sem CT2_TPSALD usa a regra da Alteração.
+8. **Segregação de funções (por documento).** Inclusão = a primeira Inclusão entre as linhas (mesma data da "1ª
+   postagem"); Efetivação = a primeira transição `9 → 1` entre as linhas. **Sim**: algum usuário que incluiu linha do
+   documento também efetivou alguma; **Não**: há usuários de inclusão e de efetivação e nenhum se repete; **Não
+   avaliável**: falta Inclusão ou Efetivação no log carregado, ou um dos lados é "(sem usuário no log)" sem coincidência.
+   No painel e no Resumo, Sim e Não contam pela data da primeira efetivação no período; Não avaliável, no escopo
+   inteiro (não há data de efetivação).
+9. **Base consolidada.** A reconstrução é feita uma vez sobre todos os arquivos carregados; o escopo de um arquivo,
+   com outros carregados, usa essa reconstrução (um registro pode ter o tipo de saldo reconstruído e continuar "Não
+   identificado" pela seção 10). "Análise de um arquivo só" = sessão com um único arquivo carregado.
+10. **"Fase" e "Exceção em saldo 1?" em Documentos e Base_Linhas:** fase de maior precedência entre todos os eventos
+    da linha (documento: entre as suas linhas) e Sim quando algum evento é exceção. Valores fixos, calculados na
+    exportação e independentes do período do Resumo (um COUNTIFS por linha sobre a aba Segregacao tornaria o recálculo
+    lento). Cabeçalho cinza, como as demais colunas auxiliares.
+11. **Exceções por evento.** Cada evento com exceção é listado sob a primeira que se aplica, nesta ordem: reabertura,
+    evento após reabertura, inclusão direta em saldo 1, alteração em lançamento postado, exclusão de lançamento
+    postado, tipo de saldo diferente de 9 e 1. No painel e no Resumo, pela data do evento no período; o alerta 15
+    considera o escopo inteiro, por arquivo e no consolidado.
+12. **Ordem no mesmo segundo:** marca todos os eventos do Recno no mesmo segundo de uma efetivação (inclusive ela),
+    quando há mais de um evento nesse segundo.
+13. **Informativos da fase Postado (1):** somente carimbo (CT2_USERGA) e recuperação. "Efetivação com alteração de
+    conteúdo" continua "Alteração efetiva" na seção 6 (modo Geral) e fica na fase Efetivação.
+14. **Planilha.** Resumo: novo quadro "8. Análise por tipo de saldo" (eventos por fase e operação, exceções e
+    informativos, segregação de funções), por fórmulas sobre a aba Segregacao e Documentos; "Onde conferir" passa a
+    9. A aba Segregacao vem depois de Alteracoes_Descartadas_Resumo, em ordem (Recno, data/hora, ordem de leitura).
+    Documentos ganha "Usuário da 1ª inclusão", "Data/hora da 1ª efetivação", "Usuário da 1ª efetivação" e "Mesmo
+    usuário na inclusão e na efetivação?". Critérios: regras e limitações da análise segregada no idioma da exportação.
+15. **Painel.** Seletor Geral / Segregado (padrão Geral, mantido ao abrir tabelas e voltar). No modo Segregado:
+    exceções em destaque, categorias por fase com a linha de total igual ao modo Geral, eventos por fase e operação,
+    segregação de funções, orientação para eventos Não determinados e o texto de limitações. Cada número abre a tabela
+    com exatamente aquelas linhas (tabela "Tipo de saldo", uma linha por evento, e filtro por fase nas demais).

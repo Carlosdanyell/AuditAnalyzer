@@ -117,9 +117,10 @@
             <li>Cada número abre a tabela com exatamente aquelas linhas ou documentos.</li>
             <li>O movimento diário mostra os lançamentos por dia em gráfico (passe o mouse para ver os números) e em tabela (<em>Ver como tabela</em>).</li>
             <li>Se houver registros alterados sem documento, o painel explica a causa e o que fazer (carregar a extração anterior ou abrir o Consolidado no mesmo período).</li>
+            <li><strong>Análise Geral / Segregado:</strong> o modo Geral (padrão) mostra a análise completa. O modo Segregado separa os mesmos números pelo tipo de saldo do lançamento no momento de cada evento: Pré-lançamento (9), Efetivação (9 → 1), Postado (1), Outro tipo de saldo e Não determinado. A linha "Total" de cada categoria é igual ao modo Geral. As exceções da fase Postado (1) — alteração, exclusão ou inclusão direta em saldo 1, reabertura — aparecem em destaque; eventos com tipo de saldo não determinado trazem a orientação para eliminá-los.</li>
           </ul>
           <h3>Tabelas</h3>
-          <p>Documentos, base de linhas, exclusões, alterações, desbalanceados e alterações descartadas, com busca, ordenação e filtros.</p>
+          <p>Documentos, base de linhas, exclusões, alterações, desbalanceados, alterações descartadas e tipo de saldo (um evento por linha, com fase, fonte do tipo de saldo e exceção), com busca, ordenação e filtros.</p>
           <h3>Justificativas</h3>
           <p>Uma justificativa por documento e por tipo (exclusão ou alteração). A lista mostra o valor do documento, o valor excluído e o histórico da 1ª linha para facilitar a identificação. É possível importar as justificativas de uma planilha exportada antes (ou de um JSON) e guardar uma cópia em JSON.</p>
           <h3>Exportação</h3>
@@ -146,9 +147,10 @@
             <tbody>
               <tr><td>Resumo</td><td>Quadros por fórmula: escolha o período (lista ou "Personalizado") e a data de corte nos campos em amarelo e tudo recalcula.</td></tr>
               <tr><td>Justificativas (exclusão e alteração)</td><td>Texto e responsável editáveis; situação e observação por fórmula; coluna "Abrange o novo evento?" para confirmar documentos movimentados depois da justificativa.</td></tr>
-              <tr><td>Documentos e Base_Linhas</td><td>Um documento e um registro por linha. As colunas de cabeçalho cinza ("No período do Resumo") dizem se a linha entra no período escolhido.</td></tr>
+              <tr><td>Documentos e Base_Linhas</td><td>Um documento e um registro por linha. As colunas de cabeçalho cinza ("No período do Resumo") dizem se a linha entra no período escolhido; "Fase" e "Exceção em saldo 1?" vêm da análise segregada. Documentos também mostram o usuário da 1ª inclusão, a data e o usuário da 1ª efetivação e se são o mesmo usuário.</td></tr>
               <tr><td>Exclusões, Alterações, Desbalanceados</td><td>Detalhe de cada categoria.</td></tr>
               <tr><td>Alterações descartadas</td><td>Eventos descartados pelo critério de corte (efetivação do tipo de saldo e carimbo de usuário), em detalhe e resumidos.</td></tr>
+              <tr><td>Segregacao</td><td>Um evento por linha: fase, tipo de saldo no momento do evento, fonte (Direta, Reconstruída, Não determinado), exceção e marcações. Alimenta o quadro 8 do Resumo.</td></tr>
               <tr><td>Critérios</td><td>Premissas, definições e limitações.</td></tr>
               <tr><td>Rastreabilidade</td><td>Arquivos (SHA-256), reconciliação, verificações, parâmetros, configuração usada e suas diferenças em relação ao padrão.</td></tr>
               <tr><td>Auxiliar</td><td>Parâmetros do filtro, atalhos, feriados e movimento diário que alimentam o Resumo.</td></tr>
@@ -173,6 +175,10 @@
               <tr><td>Quadro de competência</td><td>Bloqueante</td><td>A composição por data contábil fecha com as categorias.</td></tr>
               <tr><td>Integridade do arquivo</td><td>Bloqueante</td><td>CRC32 e tamanho de cada parte do arquivo conferem.</td></tr>
               <tr><td>Valores legíveis</td><td>Bloqueante</td><td>Recno, operação, data/hora e valor legíveis em todas as linhas.</td></tr>
+              <tr><td>Soma das fases (tipo de saldo)</td><td>Bloqueante</td><td>As fases da análise segregada somam os eventos, por operação.</td></tr>
+              <tr><td>Fase Efetivação</td><td>Bloqueante</td><td>Todo evento da fase Efetivação tem a transição 9 → 1.</td></tr>
+              <tr><td>Tipo de saldo não presumido</td><td>Bloqueante</td><td>Todo evento fora de "Não determinado" tem o tipo de saldo lido do log ou reconstruído.</td></tr>
+              <tr><td>Exceções da fase Postado (1)</td><td>Alerta</td><td>Eventos que contrariam a premissa (alteração, exclusão ou inclusão direta em saldo 1, reabertura, outro tipo de saldo).</td></tr>
               <tr><td>Parâmetros do relatório</td><td>Alerta</td><td>Parâmetros da seção 2.</td></tr>
               <tr><td>Cobertura entre extrações</td><td>Alerta</td><td>Sobreposição ou dias úteis sem extração entre arquivos.</td></tr>
             </tbody>
@@ -203,6 +209,7 @@
             <li>Com "Exclui campos não alterados = Sim", a alteração traz só o campo modificado. A chave do documento vem da inclusão: lançamentos incluídos antes do início das extrações carregadas aparecem como "Não identificado". Carregue a extração anterior ou consulte a CT2 pelo Recno.</li>
             <li>Documentos com alguma linha sem inclusão no log têm base parcial: o desbalanceamento fica "Não avaliável".</li>
             <li>Analisando um arquivo só, documentos alterados cuja inclusão está em outra extração não são contados como documentos; use os dois arquivos e o escopo Consolidado.</li>
+            <li>Análise segregada: nas alterações, o tipo de saldo é reconstruído pelos eventos anteriores do registro; sem valor anterior e sem efetivação posterior ele fica "Não determinado" (nunca é presumido). Extraia o CFGR700 com "Exclui campos não alterados = Não" ou consulte a CT2 pelo Recno. Estornos aparecem como inclusões, não como alterações.</li>
           </ul>
         </section>
 

@@ -47,8 +47,16 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    documento** (`identification`: um arquivo → carregar a extração anterior; escopo de arquivo → "Ver no
    Consolidado" mantendo o período; demais → extração anterior ou CT2 pelo Recno; link para os registros),
    cobertura das justificativas (números abrem as listas), movimento diário; salvar atalhos e feriados.
+   **Seletor Geral / Segregado** (grupo de opções "Análise"; padrão Geral, mantido ao abrir uma tabela e voltar). O modo
+   Geral mostra exatamente o que mostrava antes. O modo Segregado (`segregated`, seção 13 de REGRAS_CFGR700.md) mostra:
+   exceções da fase Postado (1) em destaque (cada número abre a tabela de eventos filtrada), categorias por fase com a
+   linha de total igual ao modo Geral (cada número abre a tabela com a fase), eventos por fase e operação, segregação
+   de funções, orientação para eventos Não determinados (extrair com "Exclui campos não alterados = Não" ou consultar a
+   tabela pelo Recno) e o texto de limitações da seção 13.
 5. **Tabelas** (`page`) — tabela, busca, ordenação, filtros vindos do painel, paginação e rolagem virtualizada;
-   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora).
+   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). A tabela "Tipo de
+   saldo" (`segregation`) tem uma linha por evento; o filtro do painel mostra também fase, operação, exceção,
+   informativo ou marcação, e "Remover filtro do painel" tira todos eles.
 6. **Justificativas** — listas de exclusão e de alteração (tabelas `deletionJustifications` e
    `changeJustifications`, com valor do documento, valor excluído e histórico); editor (texto, responsável, copiar
    da outra lista, confirmar que abrange o novo evento); importar planilha exportada ou JSON com prévia, cobertura
@@ -68,8 +76,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
-   `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline) e **versão** no rodapé
-   (`APP_VERSION_LABEL`).
+   `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** no rodapé
+   (`APP_VERSION_LABEL`) e, abaixo dela, a linha de autoria "Desenvolvido por Carlos Danyell da Silva" (classe
+   `.author`, no mesmo estilo da versão).
 
 ## Como validar
 
@@ -79,7 +88,8 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
-  "Aplicar importação", "Ver no Consolidado (mesmo período)", link "Ajuda"; campos "Escopo", "Período",
+  "Aplicar importação", "Ver no Consolidado (mesmo período)", link "Ajuda"; opções (radio) "Geral" e "Segregado",
+  tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.

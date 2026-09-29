@@ -2,6 +2,27 @@
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as versões seguem SemVer.
 
+## [Não publicado]
+
+### Análise segregada por tipo de saldo (seção 13 de REGRAS_CFGR700.md)
+- Especificação: nova seção 13 e decisões registradas; invariantes 12 a 15 na seção 11.
+- Motor: tipo de saldo (CT2_TPSALD) no momento de cada evento, com a fonte (Direta, Reconstruída, Não determinado),
+  reconstruído sempre sobre a base consolidada; fases Pré-lançamento (9), Efetivação, Postado (1), Outro tipo de saldo
+  e Não determinado; exceções da fase Postado (1), reabertura e eventos após reabertura, marcações "Efetivação com
+  alteração de conteúdo" e "Ordem no mesmo segundo"; segregação de funções por documento. O modo Geral não muda.
+- Verificações: soma das fases, fase Efetivação com `9 → 1` e tipo de saldo não presumido (bloqueantes); exceções da
+  fase Postado (1) (alerta).
+- Painel: seletor Geral / Segregado; categorias por fase com total igual ao modo Geral, eventos por fase e operação,
+  exceções em destaque, segregação de funções, orientação para eventos não determinados e limitações. Nova tabela
+  "Tipo de saldo" (uma linha por evento) e filtro por fase nas tabelas abertas pelo painel.
+- Planilha: aba Segregacao, quadro "8. Análise por tipo de saldo" no Resumo (fórmulas), colunas de segregação de
+  funções e colunas auxiliares "Fase" e "Exceção em saldo 1?" em Documentos e Base_Linhas, regras e limitações na aba
+  de critérios (português e inglês).
+- Importação de justificativas lê só as abas que usa.
+- Rodapé: linha de autoria abaixo da versão.
+- Testes: casos sintéticos da seção 13, regressão do modo Geral contra o registro anterior à mudança e teste de ponta
+  a ponta do seletor.
+
 ## [1.0.0] — 2026-09-27
 
 Primeira versão para uso da contabilidade.

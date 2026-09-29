@@ -89,3 +89,19 @@ página visível.
 
 Verificado pelo usuário no Chrome/Edge corporativo: tempo de leitura, memória do worker (inclusive durante a
 exportação) e a planilha exportada aberta no Excel — todos dentro das metas. Os valores não foram registrados aqui.
+
+## 2026-09-29 — Análise segregada por tipo de saldo (seção 13), ambiente de nuvem (Linux, Node 22)
+
+Arquivo **sintético** de 987 mil linhas de detalhe (147 mil eventos: inclusão em 9, efetivação 9 → 1 e alteração de
+histórico em 10% dos registros), o maior disponível neste ambiente (os arquivos reais ficam em `local/`, fora do
+repositório). Mesma máquina e mesmo arquivo, duas execuções cada, `runIngestion` no Node (Vitest, `--expose-gc`):
+
+| Versão | Ingestão completa | Heap após a análise |
+|---|---|---|
+| `main` (antes) | 8,8 s / 9,2 s | 274 MB |
+| com a seção 13 | 9,2 s / 9,6 s | 275 MB |
+
+Custo da análise segregada: ~0,4 s (≈ 4–5%) e ~1 MB de heap para 147 mil eventos, coerente com a estimativa de
+~14 bytes por evento na linha do tempo + 12 bytes por evento por escopo (typed arrays, nenhum objeto por evento). O
+heap inclui o arquivo sintético e as linhas mantidos pelo teste, por isso não é comparável com a memória do worker no
+navegador. Repetir com os arquivos reais (`npm run test:local`) no computador do trabalho.
