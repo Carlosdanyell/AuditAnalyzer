@@ -20,6 +20,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   de critérios (português e inglês).
 - Importação de justificativas lê só as abas que usa.
 - Rodapé: linha de autoria abaixo da versão.
+- Verificações da reconciliação com nomes e mensagens em linguagem direta: o que foi conferido, o que foi encontrado e,
+  quando houver problema, onde ver e o que fazer. Regras, níveis e resultados não mudam.
 - Testes: casos sintéticos da seção 13, regressão do modo Geral contra o registro anterior à mudança e teste de ponta
   a ponta do seletor.
 

@@ -76,7 +76,7 @@ describe('analysis after ingesting two synthetic .xlsx files', () => {
     expect(byId['balance-type-other']).toMatchObject({
       passed: false,
       severity: 'warning',
-      message: 'a.xlsx: 1 de 2 transição(ões) de CT2_TPSALD diferente(s) de 9 → 1, classificada(s) como alteração efetiva.',
+      message: 'a.xlsx: 1 mudança(s) de tipo de saldo diferente(s) de 9 → 1, tratada(s) como alteração de conteúdo. Veja na aba Alterações (campo CT2_TPSALD).',
     });
     const stats = result.summary.scopes[0]!.stats;
     expect(stats.alterations).toMatchObject({ effective: 4, activation: 1 });

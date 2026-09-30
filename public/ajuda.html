@@ -95,7 +95,7 @@
           </table>
           <p>
             Com mais de uma extração, emita intervalos contínuos: sem sobreposição e sem dias úteis de fora. A ferramenta aponta sobreposições e
-            lacunas na verificação "Cobertura entre extrações" e na sinalização "Dias do período sem cobertura de extração".
+            lacunas na verificação "Períodos das extrações" e na sinalização "Dias do período sem cobertura de extração".
           </p>
           <p class="note">Use o arquivo exatamente como o Protheus gerou. O SHA-256 registrado na Rastreabilidade identifica esse arquivo; abrir e salvar no Excel gera outro arquivo, com outro SHA-256.</p>
         </section>
@@ -165,22 +165,22 @@
           <table>
             <thead><tr><th>Verificação</th><th>Nível</th><th>O que confere</th></tr></thead>
             <tbody>
-              <tr><td>Reconciliação de linhas</td><td>Bloqueante</td><td>Linhas após o 1º cabeçalho − cabeçalhos repetidos − linhas em branco = linhas de detalhe.</td></tr>
-              <tr><td>Eventos por operação</td><td>Bloqueante</td><td>A soma por operação é igual ao número de eventos distintos.</td></tr>
-              <tr><td>Classificação das alterações</td><td>Bloqueante</td><td>Descartadas + efetivas = eventos de alteração.</td></tr>
-              <tr><td>Efetivações do tipo de saldo</td><td>Bloqueante</td><td>Todo evento descartado como efetivação tem a transição 9 → 1.</td></tr>
-              <tr><td>Outras transições do tipo de saldo</td><td>Alerta</td><td>Transições diferentes de 9 → 1 (tratadas como alteração efetiva).</td></tr>
-              <tr><td>Documentos contíguos na base</td><td>Bloqueante</td><td>As linhas de cada documento estão juntas na base de linhas.</td></tr>
-              <tr><td>Soma dos períodos</td><td>Bloqueante</td><td>A soma dos dias é igual ao log completo.</td></tr>
-              <tr><td>Quadro de competência</td><td>Bloqueante</td><td>A composição por data contábil fecha com as categorias.</td></tr>
-              <tr><td>Integridade do arquivo</td><td>Bloqueante</td><td>CRC32 e tamanho de cada parte do arquivo conferem.</td></tr>
-              <tr><td>Valores legíveis</td><td>Bloqueante</td><td>Recno, operação, data/hora e valor legíveis em todas as linhas.</td></tr>
-              <tr><td>Soma das fases (tipo de saldo)</td><td>Bloqueante</td><td>As fases da análise segregada somam os eventos, por operação.</td></tr>
-              <tr><td>Fase Efetivação</td><td>Bloqueante</td><td>Todo evento da fase Efetivação tem a transição 9 → 1.</td></tr>
-              <tr><td>Tipo de saldo não presumido</td><td>Bloqueante</td><td>Todo evento fora de "Não determinado" tem o tipo de saldo lido do log ou reconstruído.</td></tr>
-              <tr><td>Exceções da fase Postado (1)</td><td>Alerta</td><td>Eventos que contrariam a premissa (alteração, exclusão ou inclusão direta em saldo 1, reabertura, outro tipo de saldo).</td></tr>
-              <tr><td>Parâmetros do relatório</td><td>Alerta</td><td>Parâmetros da seção 2.</td></tr>
-              <tr><td>Cobertura entre extrações</td><td>Alerta</td><td>Sobreposição ou dias úteis sem extração entre arquivos.</td></tr>
+              <tr><td>Linhas do relatório conferidas</td><td>Bloqueante</td><td>Todas as linhas do relatório foram lidas: linhas de dados + cabeçalhos repetidos + linhas em branco = total da planilha.</td></tr>
+              <tr><td>Movimentações contadas por operação</td><td>Bloqueante</td><td>A soma das movimentações por operação é igual ao total.</td></tr>
+              <tr><td>Alterações classificadas</td><td>Bloqueante</td><td>Toda alteração foi classificada (conteúdo, efetivação ou só carimbo de usuário).</td></tr>
+              <tr><td>Efetivações descartadas corretamente</td><td>Bloqueante</td><td>O que foi descartado como efetivação é só a mudança de tipo de saldo de 9 para 1.</td></tr>
+              <tr><td>Tipo de saldo mudado fora da efetivação</td><td>Alerta</td><td>Mudança de tipo de saldo diferente de 9 → 1; é tratada como alteração de conteúdo.</td></tr>
+              <tr><td>Linhas de cada documento agrupadas</td><td>Bloqueante</td><td>As linhas de cada documento estão juntas na base de linhas (as fórmulas da planilha dependem disso).</td></tr>
+              <tr><td>Dias somam o log completo</td><td>Bloqueante</td><td>Somando os números de cada dia chega-se ao log completo.</td></tr>
+              <tr><td>Competência fecha com as categorias</td><td>Bloqueante</td><td>A separação por data contábil soma o mesmo que as categorias.</td></tr>
+              <tr><td>Análise por tipo de saldo completa</td><td>Bloqueante</td><td>Toda movimentação foi classificada por tipo de saldo.</td></tr>
+              <tr><td>Efetivações identificadas corretamente</td><td>Bloqueante</td><td>Toda movimentação classificada como efetivação é a mudança de 9 para 1.</td></tr>
+              <tr><td>Tipo de saldo nunca suposto</td><td>Bloqueante</td><td>O tipo de saldo foi lido do log ou deduzido; quando não foi possível, aparece como "Não determinado".</td></tr>
+              <tr><td>Lançamentos movimentados depois da efetivação</td><td>Alerta</td><td>Alteração, exclusão ou reabertura de lançamento já efetivado (saldo 1), inclusão direta em saldo 1 ou outro tipo de saldo. A lista está no Painel, modo Segregado.</td></tr>
+              <tr><td>Arquivo íntegro</td><td>Bloqueante</td><td>Cada parte do arquivo .xlsx foi conferida (CRC32 e tamanho).</td></tr>
+              <tr><td>Dados legíveis</td><td>Bloqueante</td><td>Recno, operação, data/hora e valor legíveis em todas as linhas.</td></tr>
+              <tr><td>Parâmetros da extração</td><td>Alerta</td><td>A extração foi gerada com os parâmetros esperados (seção 2).</td></tr>
+              <tr><td>Períodos das extrações</td><td>Alerta</td><td>As extrações não se sobrepõem nem deixam dia útil sem cobertura.</td></tr>
             </tbody>
           </table>
         </section>
