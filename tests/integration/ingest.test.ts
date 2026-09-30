@@ -68,7 +68,7 @@ describe('ingestion of a synthetic CFGR700 file', () => {
     expect(trickyValueStored(result)).toBe(true);
     // Recno 100 is changed after its posting (9 → 1): an exception of section 13, reported as a non-blocking alert.
     expect(result.reconciliation.checks.filter((c) => !c.passed).map((c) => [c.id, c.severity, c.message])).toEqual([
-      ['posted-exceptions', 'warning', 'a.xlsx: 1 evento(s) com exceção (Alteração em lançamento postado: 1).'],
+      ['posted-exceptions', 'warning', 'a.xlsx: 1 movimentação(ões) fora do esperado — 1 alteração(ões) depois da efetivação. O esperado é incluir em saldo 9, efetivar (9 → 1) e corrigir só por estorno. Veja a lista no Painel, modo Segregado.'],
     ]);
   });
 

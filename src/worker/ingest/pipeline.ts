@@ -23,7 +23,6 @@ import type {
 } from '../../shared/protocol';
 import { analyzeScope, buildLogIndex, type ScopeAnalysis } from '../engine/analysis';
 import { scopeChecks, segregationChecks, type ScopeCheckResults, type SegregationCheckResults } from '../engine/checks';
-import { EXCEPTIONS, SEGREGATION_PT, balanceText } from '../../shared/segregation';
 import { countEvents, sortByEventKey, OP_UNKNOWN, OP_UPDATE, type EventCounts } from '../engine/events';
 import { coverageAlerts } from '../engine/periods';
 import { DetailColumns } from '../store/columns';
@@ -475,8 +474,8 @@ function invalidDescription(invalid: FileReconciliation['invalid'], valueField: 
   const parts = [
     [invalid.recno, 'Recno inválido(s)'],
     [invalid.operation, 'operação(ões) não reconhecida(s)'],
-    [invalid.dateTime, 'Data Hora inválida(s)'],
-    [invalid.sharedStringIndex, 'referência(s) de string inexistente(s)'],
+    [invalid.dateTime, 'data(s)/hora(s) inválida(s)'],
+    [invalid.sharedStringIndex, 'célula(s) apontando para texto inexistente no arquivo'],
     [invalid.value, `valor(es) ilegível(is) em ${valueField}`],
   ] as const;
   return parts
@@ -513,181 +512,193 @@ function buildChecks(
   const activations = scopes.filter((s) => !s.segregation.activationsHaveTransition);
   const presumed = scopes.filter((s) => !s.segregation.noPresumedBalance);
   const withExceptions = scopes.filter((s) => s.segregation.exceptionEvents > 0);
-  const seg = (text: string) => balanceText(text, config.balanceType);
   const readable = withInvalid.length === 0 && consolidatedInvalid === 0;
+  const from = config.balanceType.expectedFrom;
+  const to = config.balanceType.expectedTo;
+  const field = config.balanceType.field;
+  /** Consistency checks of the tool itself: a failure is a defect, not a finding about the log. */
+  const internal = 'Erro interno da análise: não use este resultado e informe o responsável pela ferramenta.';
+  /** Exceptions in plain words, in reading order (most common first). */
+  const exceptionText: [keyof SegregationCheckResults['exceptions'], string][] = [
+    ['postedChange', 'alteração(ões) depois da efetivação'],
+    ['postedDeletion', 'exclusão(ões) depois da efetivação'],
+    ['directInsert', `inclusão(ões) direto em saldo ${to}, sem passar por ${from}`],
+    ['reopening', `reabertura(s) (tipo de saldo mudado fora da efetivação ${transition})`],
+    ['afterReopening', 'movimentação(ões) depois de uma reabertura'],
+    ['otherBalance', `movimentação(ões) em tipo de saldo diferente de ${from} e ${to}`],
+  ];
   return [
     {
       id: 'rows-reconciliation',
-      label: 'Reconciliação de linhas',
+      label: 'Linhas do relatório conferidas',
       severity: 'error',
       passed: unbalanced.length === 0,
       message:
         unbalanced.length === 0
-          ? 'Linhas após o 1º cabeçalho − cabeçalhos repetidos − linhas em branco = linhas de detalhe, em todos os arquivos.'
-          : `Reconciliação de linhas não fecha em: ${listFiles(unbalanced)}.`,
+          ? 'Todas as linhas do relatório foram contadas: linhas de dados + cabeçalhos repetidos + linhas em branco = total da planilha, em cada arquivo.'
+          : `A contagem de linhas não fecha em: ${listFiles(unbalanced)}. Parte do relatório pode não ter sido lida; confira se o arquivo está completo e gere a extração de novo.`,
     },
     {
       id: 'events-by-operation',
-      label: 'Eventos por operação',
+      label: 'Movimentações contadas por operação',
       severity: 'error',
       passed: sums,
       message: sums
-        ? 'A soma dos eventos por operação é igual ao número de eventos distintos, por arquivo e no total.'
-        : 'A soma dos eventos por operação difere do número de eventos distintos.',
+        ? 'A soma das movimentações por operação (inclusão, alteração, exclusão e recuperação) é igual ao total, em cada arquivo e no consolidado.'
+        : `A soma das movimentações por operação não bate com o total. ${internal}`,
     },
     {
       id: 'alteration-classification',
-      label: 'Classificação das alterações',
+      label: 'Alterações classificadas',
       severity: 'error',
       passed: alterations.length === 0,
       message:
         alterations.length === 0
-          ? 'Descartadas (efetivação e carimbo) + efetivas = eventos de Alteração, por arquivo e no total.'
-          : `A classificação das alterações não fecha com os eventos de Alteração em: ${listScopes(alterations)}.`,
+          ? 'Toda alteração foi classificada como alteração de conteúdo, efetivação ou só carimbo de usuário; nenhuma ficou de fora.'
+          : `Há alterações sem classificação em: ${listScopes(alterations)}. ${internal}`,
     },
     {
       id: 'balance-type',
-      label: 'Efetivações do tipo de saldo',
+      label: 'Efetivações descartadas corretamente',
       severity: 'error',
       passed: discarded.length === 0,
       message:
         discarded.length === 0
-          ? `Todo evento descartado como efetivação do tipo de saldo tem ${config.balanceType.field} ${transition}.`
-          : `Evento descartado como efetivação com transição diferente de ${transition} em: ${listScopes(discarded)}.`,
+          ? `Toda alteração descartada como efetivação é só a mudança do tipo de saldo (${field}) de ${from} para ${to}.`
+          : `Uma alteração foi descartada como efetivação sem ser a mudança ${transition} em: ${listScopes(discarded)}. ${internal}`,
     },
     {
       id: 'balance-type-other',
-      label: 'Outras transições do tipo de saldo',
+      label: 'Tipo de saldo mudado fora da efetivação',
       severity: 'warning',
       passed: otherTransitions.length === 0,
       message:
         otherTransitions.length === 0
-          ? `Nenhuma transição de ${config.balanceType.field} diferente de ${transition}.`
+          ? `Toda mudança de tipo de saldo (${field}) no log é a efetivação ${transition}.`
           : otherTransitions
               .map((s) => {
                 const b = s.analysis.stats.balanceType;
-                return `${s.label}: ${b.total - b.expected} de ${b.total} transição(ões) de ${config.balanceType.field} diferente(s) de ${transition}, classificada(s) como alteração efetiva`;
+                return `${s.label}: ${b.total - b.expected} mudança(s) de tipo de saldo diferente(s) de ${transition}, tratada(s) como alteração de conteúdo`;
               })
-              .join('; ') + '.',
+              .join('; ') + `. Veja na aba Alterações (campo ${field}).`,
     },
     {
       id: 'base-contiguity',
-      label: 'Documentos contíguos na base',
+      label: 'Linhas de cada documento agrupadas',
       severity: 'error',
       passed: contiguity.length === 0,
       message:
         contiguity.length === 0
-          ? 'As linhas de cada documento estão contíguas na base de linhas.'
-          : `Documento com linhas não contíguas na base em: ${listScopes(contiguity)}.`,
+          ? 'Na base de linhas, as linhas de cada documento estão juntas (as fórmulas da planilha dependem disso).'
+          : `Documento com linhas separadas na base em: ${listScopes(contiguity)}. ${internal}`,
     },
     {
       id: 'period-partition',
-      label: 'Soma dos períodos',
+      label: 'Dias somam o log completo',
       severity: 'error',
       passed: partition.length === 0,
       message:
         partition.length === 0
-          ? 'A soma dos períodos diários é igual ao log completo, em todas as categorias.'
-          : `A soma dos períodos difere do log completo em: ${listScopes(partition)}.`,
+          ? 'Somando os números de cada dia chega-se ao log completo, em todas as categorias.'
+          : `A soma dos dias não bate com o log completo em: ${listScopes(partition)}. ${internal}`,
     },
     {
       id: 'competence',
-      label: 'Quadro de competência',
+      label: 'Competência fecha com as categorias',
       severity: 'error',
       passed: competence.length === 0,
       message:
         competence.length === 0
-          ? 'A composição por data contábil do log completo soma as categorias mais os não identificados.'
-          : `A composição por data contábil não fecha com as categorias em: ${listScopes(competence)}.`,
+          ? 'A separação por data contábil (até e depois da data de corte) soma o mesmo que as categorias do painel.'
+          : `A separação por data contábil não bate com as categorias em: ${listScopes(competence)}. ${internal}`,
     },
     {
       id: 'phases-sum',
-      label: 'Soma das fases (tipo de saldo)',
+      label: 'Análise por tipo de saldo completa',
       severity: 'error',
       passed: phasesSum.length === 0,
       message:
         phasesSum.length === 0
-          ? 'As fases da análise segregada (pré-lançamento, efetivação, postado, outro tipo de saldo e não determinado) somam os eventos, por operação, por arquivo e no total.'
-          : `A soma das fases difere dos eventos em: ${listScopes(phasesSum)}.`,
+          ? 'Toda movimentação foi classificada por tipo de saldo; nenhuma ficou de fora, em cada arquivo e no consolidado.'
+          : `Há movimentações sem classificação por tipo de saldo em: ${listScopes(phasesSum)}. ${internal}`,
     },
     {
       id: 'phase-activation',
-      label: 'Fase Efetivação',
+      label: 'Efetivações identificadas corretamente',
       severity: 'error',
       passed: activations.length === 0,
       message:
         activations.length === 0
-          ? `Todo evento da fase Efetivação tem ${config.balanceType.field} ${transition}.`
-          : `Evento da fase Efetivação sem a transição ${transition} em: ${listScopes(activations)}.`,
+          ? `Toda movimentação classificada como efetivação é a mudança do tipo de saldo de ${from} para ${to}.`
+          : `Movimentação classificada como efetivação sem a mudança ${transition} em: ${listScopes(activations)}. ${internal}`,
     },
     {
       id: 'phase-balance-source',
-      label: 'Tipo de saldo não presumido',
+      label: 'Tipo de saldo nunca suposto',
       severity: 'error',
       passed: presumed.length === 0,
       message:
         presumed.length === 0
-          ? `Todo evento fora de "Não determinado" tem o ${config.balanceType.field} lido do log (Direta) ou reconstruído pelos eventos do registro (Reconstruída).`
-          : `Evento com tipo de saldo sem origem no log em: ${listScopes(presumed)}.`,
+          ? 'O tipo de saldo de cada movimentação foi lido do log ou deduzido das movimentações anteriores do mesmo lançamento; quando não foi possível, aparece como "Não determinado".'
+          : `Movimentação com tipo de saldo sem base no log em: ${listScopes(presumed)}. ${internal}`,
     },
     {
       id: 'posted-exceptions',
-      label: seg('Exceções da fase Postado ({to})'),
+      label: 'Lançamentos movimentados depois da efetivação',
       severity: 'warning',
       passed: withExceptions.length === 0,
       message:
         withExceptions.length === 0
-          ? seg('Nenhum evento contraria a premissa: inclusão em {from}, efetivação {from} → {to} e nenhuma alteração ou exclusão em saldo {to}.')
+          ? `Nenhum lançamento foi alterado, excluído ou reaberto depois de efetivado (saldo ${to}), e todos foram incluídos em saldo ${from}.`
           : withExceptions
               .map((s) => {
-                const parts = EXCEPTIONS.filter((id) => s.segregation.exceptions[id]).map(
-                  (id) => `${seg(SEGREGATION_PT.exceptions[id])}: ${s.segregation.exceptions[id]}`,
-                );
-                return `${s.label}: ${s.segregation.exceptionEvents} evento(s) com exceção (${parts.join(', ')})`;
+                const parts = exceptionText.filter(([id]) => s.segregation.exceptions[id]).map(([id, text]) => `${s.segregation.exceptions[id]} ${text}`);
+                return `${s.label}: ${s.segregation.exceptionEvents} movimentação(ões) fora do esperado — ${parts.join(', ')}`;
               })
-              .join('; ') + '.',
+              .join('; ') +
+            `. O esperado é incluir em saldo ${from}, efetivar (${transition}) e corrigir só por estorno. Veja a lista no Painel, modo Segregado.`,
     },
     {
       id: 'zip-integrity',
-      label: 'Integridade do arquivo',
+      label: 'Arquivo íntegro',
       severity: 'error',
       passed: corrupted.length === 0,
       message:
         corrupted.length === 0
-          ? 'CRC32 e tamanho de todas as entradas do ZIP conferem com o diretório central.'
-          : `Entradas com CRC32 ou tamanho divergente em: ${listFiles(corrupted)}.`,
+          ? 'Cada parte do arquivo .xlsx foi conferida (CRC32 e tamanho): nada corrompido.'
+          : `Arquivo corrompido: ${listFiles(corrupted)}. Baixe ou gere a extração de novo.`,
     },
     {
       id: 'data-quality',
-      label: 'Valores legíveis',
+      label: 'Dados legíveis',
       severity: 'error',
       passed: readable,
       message: readable
-        ? `Recno, Operacao e Data Hora válidos em todas as linhas de detalhe; ${config.fields.value} legível em todos os registros identificados.`
+        ? `Recno, operação e data/hora legíveis em todas as linhas; valor (${config.fields.value}) legível em todos os lançamentos identificados.`
         : [
             ...withInvalid.map((f) => `${f.name}: ${invalidDescription(f.invalid, config.fields.value)}`),
             ...(consolidatedInvalid > 0 ? [`Consolidado: ${consolidatedInvalid} valor(es) ilegível(is) em ${config.fields.value}`] : []),
-          ].join('; ') + '.',
+          ].join('; ') + '. Confira o arquivo: essas linhas podem distorcer a análise.',
     },
     {
       id: 'parameters',
-      label: 'Parâmetros do relatório',
+      label: 'Parâmetros da extração',
       severity: 'warning',
       passed: paramAlerts.length === 0,
       message:
         paramAlerts.length === 0
-          ? 'Parâmetros do relatório compatíveis com a configuração.'
-          : `Parâmetros com alerta em: ${listFiles(paramAlerts)}.`,
+          ? 'A extração foi gerada com os parâmetros esperados (tabela, operações e "Exclui campos não alterados").'
+          : `Parâmetros diferentes do esperado em: ${listFiles(paramAlerts)}. Veja o detalhe em "Parâmetros do relatório", no arquivo.`,
     },
     {
       id: 'coverage',
-      label: 'Cobertura entre extrações',
+      label: 'Períodos das extrações',
       severity: 'warning',
       passed: consolidated.alerts.length === 0,
       message:
         consolidated.alerts.length === 0
           ? files.length > 1
-            ? 'Intervalos das extrações sem sobreposição nem dias úteis descobertos.'
+            ? 'As extrações não se sobrepõem e não deixam dia útil sem cobertura.'
             : 'Um único arquivo carregado.'
           : consolidated.alerts.map((a) => a.message).join(' '),
     },

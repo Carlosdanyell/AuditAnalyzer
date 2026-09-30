@@ -21,16 +21,17 @@ describe('invariants 12–15', () => {
     );
     const byId = Object.fromEntries(result.reconciliation.checks.map((c) => [c.id, c]));
     expect(byId['phases-sum']).toMatchObject({ passed: true, severity: 'error' });
-    expect(byId['phase-activation']).toMatchObject({ passed: true, severity: 'error', message: 'Todo evento da fase Efetivação tem CT2_TPSALD 9 → 1.' });
+    expect(byId['phase-activation']).toMatchObject({ passed: true, severity: 'error', message: 'Toda movimentação classificada como efetivação é a mudança do tipo de saldo de 9 para 1.' });
     expect(byId['phase-balance-source']).toMatchObject({ passed: true, severity: 'error' });
     expect(byId['posted-exceptions']).toMatchObject({
-      label: 'Exceções da fase Postado (1)',
+      label: 'Lançamentos movimentados depois da efetivação',
       passed: false,
       severity: 'warning',
       message:
-        'arquivoA.xlsx: 8 evento(s) com exceção (Reabertura: 1, Evento após reabertura: 2, Inclusão direta em saldo 1: 1, Alteração em lançamento postado: 2, Exclusão de lançamento postado: 1, Tipo de saldo diferente de 9 e 1: 1); ' +
-        'arquivoB.xlsx: 1 evento(s) com exceção (Alteração em lançamento postado: 1); ' +
-        'Consolidado: 9 evento(s) com exceção (Reabertura: 1, Evento após reabertura: 2, Inclusão direta em saldo 1: 1, Alteração em lançamento postado: 3, Exclusão de lançamento postado: 1, Tipo de saldo diferente de 9 e 1: 1).',
+        'arquivoA.xlsx: 8 movimentação(ões) fora do esperado — 2 alteração(ões) depois da efetivação, 1 exclusão(ões) depois da efetivação, 1 inclusão(ões) direto em saldo 1, sem passar por 9, 1 reabertura(s) (tipo de saldo mudado fora da efetivação 9 → 1), 2 movimentação(ões) depois de uma reabertura, 1 movimentação(ões) em tipo de saldo diferente de 9 e 1; ' +
+        'arquivoB.xlsx: 1 movimentação(ões) fora do esperado — 1 alteração(ões) depois da efetivação; ' +
+        'Consolidado: 9 movimentação(ões) fora do esperado — 3 alteração(ões) depois da efetivação, 1 exclusão(ões) depois da efetivação, 1 inclusão(ões) direto em saldo 1, sem passar por 9, 1 reabertura(s) (tipo de saldo mudado fora da efetivação 9 → 1), 2 movimentação(ões) depois de uma reabertura, 1 movimentação(ões) em tipo de saldo diferente de 9 e 1. ' +
+        'O esperado é incluir em saldo 9, efetivar (9 → 1) e corrigir só por estorno. Veja a lista no Painel, modo Segregado.',
     });
   });
 
