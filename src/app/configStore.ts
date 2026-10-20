@@ -1,29 +1,29 @@
 /**
- * The configuration saved on this computer (IndexedDB, store `config`): one object with every rule, presets and
- * holidays included (docs/ARQUITETURA.md, section 6). The presets and holidays saved separately before version 2
- * are moved into it on first load. Any IndexedDB failure falls back to the default, without saving.
+ * The configuration saved on this computer (IndexedDB, store `config`; docs/ARQUITETURA.md, section 6): the rules of
+ * the CFGR700 module under its module key, the same rules under the key of version 1.0.0 and the platform holidays.
+ * What to read and write is decided by src/shared/configStorage.ts, in one transaction. Any IndexedDB failure falls
+ * back to the default, without saving.
  */
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import { resolveStoredConfig } from '../shared/configTools';
+import { STORAGE_KEYS, planConfigLoad, planConfigSave } from '../shared/configStorage';
 import { STORE_CONFIG, openDatabase, requestToPromise, transactionDone } from './db';
-
-const KEY = 'analyzerConfig';
-const LEGACY_SETTINGS_KEY = 'panelSettings';
 
 export async function loadConfig(): Promise<{ config: AnalyzerConfig; notice: string | null }> {
   try {
     const db = await openDatabase();
-    const store = db.transaction(STORE_CONFIG, 'readonly').objectStore(STORE_CONFIG);
-    const [stored, legacy] = await Promise.all([requestToPromise(store.get(KEY)), requestToPromise(store.get(LEGACY_SETTINGS_KEY))]);
-    const resolved = resolveStoredConfig(stored, legacy);
-    if (resolved.migrated) {
-      const tx = db.transaction(STORE_CONFIG, 'readwrite');
-      tx.objectStore(STORE_CONFIG).put(resolved.config, KEY);
-      tx.objectStore(STORE_CONFIG).delete(LEGACY_SETTINGS_KEY);
-      await transactionDone(tx);
-    }
+    const tx = db.transaction(STORE_CONFIG, 'readwrite');
+    const store = tx.objectStore(STORE_CONFIG);
+    const [moduleConfig, legacyConfig, legacySettings, platform] = await Promise.all(
+      [STORAGE_KEYS.moduleConfig, STORAGE_KEYS.legacyConfig, STORAGE_KEYS.legacySettings, STORAGE_KEYS.platform].map((key) =>
+        requestToPromise(store.get(key)),
+      ),
+    );
+    const plan = planConfigLoad({ moduleConfig, legacyConfig, legacySettings, platform });
+    for (const [key, value] of plan.puts) store.put(value, key);
+    for (const key of plan.deletes) store.delete(key);
+    await transactionDone(tx);
     db.close();
-    return { config: resolved.config, notice: resolved.notice };
+    return { config: plan.config, notice: plan.notice };
   } catch {
     return { config: defaultConfig(), notice: null };
   }
@@ -34,7 +34,7 @@ export async function saveConfig(config: AnalyzerConfig): Promise<boolean> {
   try {
     const db = await openDatabase();
     const tx = db.transaction(STORE_CONFIG, 'readwrite');
-    tx.objectStore(STORE_CONFIG).put(config, KEY);
+    for (const [key, value] of planConfigSave(config)) tx.objectStore(STORE_CONFIG).put(value, key);
     await transactionDone(tx);
     db.close();
     return true;

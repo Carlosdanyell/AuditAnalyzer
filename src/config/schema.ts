@@ -47,7 +47,7 @@ const signalSchema = z.object({
   none: text,
 });
 
-const dateText = z.string().refine((s) => parseDate(s) !== INVALID_TIME, 'Data inválida (use dd/mm/aaaa).');
+export const dateText = z.string().refine((s) => parseDate(s) !== INVALID_TIME, 'Data inválida (use dd/mm/aaaa).');
 
 export const analyzerConfigSchema = z.object({
   schemaVersion: z.literal(2),
