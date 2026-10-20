@@ -49,6 +49,11 @@ describe('module registry', () => {
     }
   });
 
+  it('points every module to an existing section of the manual', () => {
+    const help = readFileSync('public/ajuda.html', 'utf8');
+    for (const m of MODULES.filter((d) => d.helpAnchor !== null)) expect(help, m.id).toContain(`id="${m.helpAnchor}"`);
+  });
+
   it('keeps the descriptors free of React, so the worker can import them', () => {
     for (const file of files('src/modules').filter((f) => /module\.ts$|registry\.ts$|types\.ts$/.test(f))) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/from 'react'/);

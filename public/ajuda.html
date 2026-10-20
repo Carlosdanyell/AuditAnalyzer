@@ -47,16 +47,23 @@
       th { background: var(--soft); }
       code { font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace; font-size: 13px; background: var(--soft); padding: 0 4px; border-radius: 4px; }
       .note { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px 12px; }
+      .group { margin: 8px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
+      nav .group { margin: 14px 0 6px; font-size: 12px; }
+      nav ul { margin: 0; padding-left: 20px; }
       @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } nav { position: static; } }
     </style>
   </head>
   <body>
     <header>
       <h1>AuditAnalyzer — ajuda</h1>
-      <p>Análise do log de auditoria CFGR700 (Protheus) da tabela CT2 e papel de trabalho em Excel.</p>
+      <p>Análises de auditoria dos lançamentos contábeis do Protheus, com papel de trabalho em Excel: log de auditoria (CFGR700); integridade da CT2 em breve.</p>
     </header>
     <div class="layout">
       <nav aria-label="Conteúdo">
+        <ul>
+          <li><a href="#escolher-analise">Escolher a análise</a></li>
+        </ul>
+        <p class="group">Log de auditoria (CFGR700)</p>
         <ol>
           <li><a href="#para-que-serve">Para que serve</a></li>
           <li><a href="#extracao">Extração do CFGR700</a></li>
@@ -66,10 +73,34 @@
           <li><a href="#verificacoes">Verificações</a></li>
           <li><a href="#sinalizacoes">Sinalizações do painel</a></li>
           <li><a href="#limitacoes">Limitações</a></li>
-          <li><a href="#privacidade">Privacidade e cópias</a></li>
         </ol>
+        <ul>
+          <li><a href="#privacidade">Privacidade e cópias</a></li>
+        </ul>
       </nav>
       <main>
+        <section id="escolher-analise">
+          <h2>Escolher a análise</h2>
+          <p>
+            O AuditAnalyzer reúne análises independentes. Cada uma lê um tipo de extração do Protheus, aplica as próprias regras e
+            gera o próprio papel de trabalho. Na tela inicial, escolha a análise e depois carregue os arquivos.
+          </p>
+          <table>
+            <thead><tr><th>Análise</th><th>Arquivo esperado</th><th>Situação</th></tr></thead>
+            <tbody>
+              <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
+              <tr><td>Integridade da CT2</td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Em breve</td></tr>
+            </tbody>
+          </table>
+          <ul>
+            <li>A última análise usada já vem marcada na próxima vez.</li>
+            <li><strong>Trocar análise</strong> (no topo, depois de analisar) encerra a sessão: descarta a análise da memória e limpa a lista de arquivos. <strong>Nova análise</strong> mantém a análise escolhida e os arquivos.</li>
+            <li>Cada análise tem a própria configuração. Os <strong>feriados</strong> valem para todas as análises e ficam na tela Configuração.</li>
+          </ul>
+        </section>
+
+        <div id="cfgr700">
+        <p class="group">Log de auditoria (CFGR700)</p>
         <section id="para-que-serve">
           <h2>1. Para que serve</h2>
           <p>
@@ -213,11 +244,13 @@
           </ul>
         </section>
 
+        </div>
+
         <section id="privacidade">
-          <h2>9. Privacidade e cópias</h2>
+          <h2>Privacidade e cópias</h2>
           <ul>
-            <li>Os arquivos do log são lidos só na memória desta aba e descartados ao encerrar a sessão ou fechar a aba.</li>
-            <li>Ficam salvas neste navegador apenas a configuração, as justificativas e a preferência de tema (claro ou escuro). Limpar os dados do navegador as apaga: guarde a <strong>cópia de segurança</strong> (Configuração → Cópia de segurança), que também serve para trocar de computador.</li>
+            <li>Os arquivos são lidos só na memória desta aba e descartados ao encerrar a sessão, trocar de análise ou fechar a aba.</li>
+            <li>Ficam salvas neste navegador apenas a configuração de cada análise, os feriados, as justificativas e as preferências de tema (claro ou escuro) e da última análise usada. Limpar os dados do navegador as apaga: guarde a <strong>cópia de segurança</strong> (Configuração → Cópia de segurança), que também serve para trocar de computador. Cópias feitas pela versão 1.0.0 continuam sendo restauradas.</li>
             <li><strong>Encerrar sessão</strong> descarta a análise da memória.</li>
           </ul>
         </section>

@@ -83,9 +83,17 @@ export const test = base.extend<{ files: Files; segregationFiles: string[]; bigF
 
 export { expect };
 
+/** Chooses the analysis on the selector of the start screen (docs/MODULOS.md, section 4). */
+export async function chooseModule(page: Page, title = 'Log de auditoria (CFGR700)'): Promise<void> {
+  const option = page.getByRole('radio', { name: title, exact: true });
+  await option.click();
+  await expect(option).toBeChecked();
+}
+
 /** Loads the files, runs the analysis and waits for the result screens. */
 export async function analyze(page: Page, paths: string[]): Promise<void> {
   await page.goto('');
+  await chooseModule(page);
   await page.locator('input[type=file]').first().setInputFiles(paths);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('button', { name: 'Painel' })).toBeVisible({ timeout: 60_000 });

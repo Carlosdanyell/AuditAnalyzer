@@ -2,7 +2,7 @@
 import { DEFAULT_MODULE_ID, MODULE_IDS, isModuleId, type ModuleId } from '../shared/modules';
 import { cfgr700Module } from './cfgr700/module';
 import { ct2IntegrityModule } from './ct2Integrity/module';
-import type { ModuleDescriptor } from './types';
+import type { AvailableModule, ModuleDescriptor } from './types';
 
 const BY_ID: { readonly [K in ModuleId]: ModuleDescriptor } = {
   cfgr700: cfgr700Module,
@@ -18,4 +18,11 @@ export function getModule(id: ModuleId): ModuleDescriptor {
 /** The module to start with: the last one used, when it is known and available; otherwise the default. */
 export function resolveInitialModule(stored: unknown): ModuleId {
   return isModuleId(stored) && BY_ID[stored].status === 'available' ? stored : DEFAULT_MODULE_ID;
+}
+
+/** The descriptor of a module the screens can run (the selector never offers one that is coming soon). */
+export function availableModule(id: ModuleId): AvailableModule {
+  const m = BY_ID[id];
+  if (m.status !== 'available') throw new Error(`Análise indisponível: ${m.title}.`);
+  return m;
 }

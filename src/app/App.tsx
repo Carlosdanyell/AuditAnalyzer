@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
+import { ModuleSelector } from '../components/ModuleSelector';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
@@ -23,6 +24,9 @@ import { ExportView } from './views/ExportView';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
+import { MODULES, availableModule, resolveInitialModule } from '../modules/registry';
+import { DEFAULT_MODULE_ID, type ModuleId } from '../shared/modules';
+import { loadLastModule, saveLastModule } from './moduleStore';
 import ui from '../components/ui.module.css';
 import styles from './App.module.css';
 
@@ -54,6 +58,11 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
 export function App() {
   const clientRef = useRef<WorkerClient | null>(null);
+  // Analysis module (docs/MODULOS.md): chosen on the start screen; the last one used is restored at startup.
+  const [moduleId, setModuleId] = useState<ModuleId>(DEFAULT_MODULE_ID);
+  const moduleChosen = useRef(false);
+  const analyzedModule = useRef<ModuleId>(DEFAULT_MODULE_ID);
+  const [focusSelector, setFocusSelector] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [phase, setPhase] = useState<Phase>('select');
   const [run, setRun] = useState<Run | null>(null);
@@ -155,6 +164,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    void loadLastModule().then((stored) => {
+      // Never overrides a choice made (or files added) before IndexedDB answered.
+      if (!moduleChosen.current) setModuleId(resolveInitialModule(stored));
+    });
+  }, []);
+
+  useEffect(() => {
     void loadConfig().then(({ config: loaded, notice: problem }) => {
       configRef.current = loaded;
       setConfig(loaded);
@@ -227,7 +243,9 @@ export function App() {
             setReconciliation(event.data);
             break;
           case 'ready':
-            void sendJustifications([...justificationsRef.current.values()], true);
+            if (availableModule(analyzedModule.current).features.justifications) {
+              void sendJustifications([...justificationsRef.current.values()], true);
+            }
             setSummary(event.summary);
             setScope(Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
@@ -267,6 +285,7 @@ export function App() {
   }, [phase]);
 
   function addFiles(added: File[]) {
+    moduleChosen.current = true;
     setError(null);
     setNotice(null);
     setFiles((current) => {
@@ -284,7 +303,10 @@ export function App() {
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
     setAnalyzedConfig(configRef.current);
-    client().send({ type: 'ingest', files, config: configRef.current });
+    setFocusSelector(false);
+    analyzedModule.current = moduleId;
+    client().send({ type: 'ingest', module: moduleId, files, config: configRef.current });
+    void saveLastModule(moduleId);
   }
 
   function cancel() {
@@ -321,6 +343,23 @@ export function App() {
     setNotice(null);
   }
 
+  /** Another analysis on the selector: the files listed belong to the previous one. */
+  function selectModule(id: ModuleId) {
+    moduleChosen.current = true;
+    if (id === moduleId) return;
+    setModuleId(id);
+    setFiles([]);
+    setError(null);
+    setNotice(null);
+  }
+
+  /** "Trocar análise": ends the session, as "Encerrar sessão", and goes back to the selector. */
+  function switchModule() {
+    endSession();
+    setScreen('main');
+    setFocusSelector(true);
+  }
+
   function moveFile(index: number, delta: -1 | 1) {
     setFiles((current) => {
       const target = index + delta;
@@ -331,6 +370,7 @@ export function App() {
     });
   }
 
+  const current = availableModule(moduleId);
   const done = phase === 'done' && reconciliation !== null;
   const currentView = VIEWS.find((v) => v.id === view)!;
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
@@ -338,10 +378,10 @@ export function App() {
     screen === 'config'
       ? { eyebrow: 'Preferências', title: 'Configuração', description: 'Regras da leitura e da análise, cópia de segurança' }
       : phase === 'running'
-        ? { eyebrow: 'Análise', title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
+        ? { eyebrow: current.title, title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
         : done
-          ? { eyebrow: `Análise · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
-          : { eyebrow: 'Nova análise', title: 'Arquivos do log', description: 'Relatório de log de auditoria CFGR700 do Protheus' };
+          ? { eyebrow: `${current.title} · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
+          : { eyebrow: 'Nova análise', title: current.start.heading, description: current.start.headingDescription };
 
   const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && summary !== null && summary.scopes.length > 1;
 
@@ -357,7 +397,7 @@ export function App() {
           </span>
           <span className={styles.brandText}>
             <strong>AuditAnalyzer</strong>
-            <span>CFGR700 · Protheus</span>
+            <span>{current.brandSubtitle}</span>
           </span>
         </div>
 
@@ -462,7 +502,7 @@ export function App() {
 
       <div className={styles.content}>
         <header className={styles.topbar}>
-          <div className={styles.heading} key={`${screen}-${phase}-${view}`}>
+          <div className={styles.heading} key={`${screen}-${phase}-${view}-${moduleId}`}>
             <span className={styles.eyebrow}>{heading.eyebrow}</span>
             <h1>{heading.title}</h1>
             <span className={styles.description}>{heading.description}</span>
@@ -490,6 +530,10 @@ export function App() {
               <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
                 <Icon name="refresh" size={17} />
                 Nova análise
+              </button>
+              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={switchModule}>
+                <Icon name="swap" size={17} />
+                Trocar análise
               </button>
             </div>
           )}
@@ -531,17 +575,28 @@ export function App() {
 
           {screen === 'main' && phase === 'select' && (
             <div className={cx(styles.start, ui.stagger)}>
+              <ModuleSelector
+                className={styles.selectorRow}
+                modules={MODULES}
+                selected={moduleId}
+                onSelect={selectModule}
+                helpBase={import.meta.env.BASE_URL}
+                autoFocus={focusSelector}
+              />
               <section className={cx(ui.card, styles.upload)} aria-labelledby="upload-title">
                 <div>
                   <h2 id="upload-title" className={styles.uploadTitle}>
-                    Carregue as extrações do CFGR700
+                    {current.start.uploadTitle}
                   </h2>
-                  <p className={ui.sub}>
-                    Uma ou mais extrações do relatório, em .xlsx. Com mais de um arquivo, a ordem da lista define a ordem das fontes.
-                  </p>
+                  <p className={ui.sub}>{current.start.uploadDescription}</p>
                 </div>
 
-                <FileDrop onFiles={addFiles} />
+                <FileDrop
+                  onFiles={addFiles}
+                  title={current.start.dropTitle}
+                  extensions={current.accepts.extensions}
+                  multiple={current.accepts.maxFiles > 1}
+                />
 
                 {files.length > 0 && (
                   <ol className={styles.fileList}>
