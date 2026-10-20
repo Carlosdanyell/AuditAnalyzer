@@ -7,6 +7,7 @@
  */
 import type { AnalyzerConfig, OperationKey } from '../config/schema';
 import type { ExceptionId, InformativeId, MarkId, Phase } from './segregation';
+import type { ModuleId } from './modules';
 
 /** Processing stages shown in the UI (docs/ARQUITETURA.md, section 4), plus query/export stages. */
 export const PIPELINE_STAGES = [
@@ -436,7 +437,8 @@ export interface CheckResult {
   message: string;
 }
 export type Command =
-  | { type: 'ingest'; files: File[]; config: AnalyzerConfig }
+  /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
+  | { type: 'ingest'; module?: ModuleId; files: File[]; config: AnalyzerConfig }
   | { type: 'cancel' }
   | { type: 'settings'; requestId: number; settings: PanelSettings }
   /** `period` null = full log; `cutoffDay` null = default cutoff. */

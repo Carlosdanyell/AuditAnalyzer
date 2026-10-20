@@ -1,7 +1,8 @@
-import { parseConfig } from '../config/schema';
+import { DEFAULT_MODULE_ID } from '../shared/modules';
 import type { Command, Stage, WorkerEvent } from '../shared/protocol';
-import { IngestError, runIngestion, type IngestOptions } from './ingest/pipeline';
-import { Session } from './session';
+import { IngestError, type IngestOptions } from './ingest/pipeline';
+import { WORKER_MODULES, findWorkerModule, type WorkerModules } from './modules/registry';
+import type { Ingest, ModuleSession } from './modules/types';
 
 function errorEvent(e: unknown, stage: Stage = 'worker', requestId?: number): WorkerEvent {
   const id = requestId !== undefined ? { requestId } : {};
@@ -13,16 +14,22 @@ function errorEvent(e: unknown, stage: Stage = 'worker', requestId?: number): Wo
 }
 
 const NO_SESSION = 'Nenhuma análise carregada. Carregue os arquivos e clique em Analisar.';
+const NOT_OFFERED = 'Recurso não disponível nesta análise.';
+
+/** Largest page of rows sent to the UI (docs/MODULOS.md, section 3). */
+export const MAX_PAGE_ROWS = 2000;
 
 /**
- * Dispatches UI commands inside the worker and keeps the session data (the loaded log) in memory.
+ * Dispatches UI commands inside the worker and keeps the session data (the loaded files) in memory. The session
+ * comes from the module named by the ingest (docs/MODULOS.md); the other commands follow it.
  * Kept free of worker globals so it can be tested directly.
  */
 export function createCommandHandler(
   post: (event: WorkerEvent) => void,
   options: IngestOptions = {},
+  modules: WorkerModules = WORKER_MODULES,
 ): (command: Command) => Promise<void> {
-  let session: Session | null = null;
+  let session: ModuleSession | null = null;
 
   return async (command) => {
     switch (command.type) {
@@ -31,24 +38,30 @@ export function createCommandHandler(
         return;
 
       case 'ingest': {
+        // The previous session is released before the new files are read.
         session = null;
-        let config;
+        const id = String(command.module ?? DEFAULT_MODULE_ID);
+        const workerModule = findWorkerModule(modules, id);
+        if (!workerModule) {
+          post({ type: 'error', stage: 'fileCheck', message: 'Esta análise ainda não está disponível nesta versão.', detail: id });
+          return;
+        }
+        let ingest: Ingest;
         try {
-          config = parseConfig(command.config);
+          ingest = workerModule.configure(command.config);
         } catch (e) {
           post({ type: 'error', stage: 'fileCheck', message: 'Configuração inválida.', detail: String(e) });
           return;
         }
         try {
-          const result = await runIngestion(
+          const result = await ingest(
             command.files.map((file) => ({ name: file.name, blob: file })),
-            config,
             post,
             options,
           );
-          session = new Session(result, config);
+          session = result.session;
           post({ type: 'reconciliation', data: result.reconciliation });
-          post({ type: 'ready', summary: result.summary, checks: result.reconciliation.checks });
+          post({ type: 'ready', summary: result.summary, checks: result.checks });
         } catch (e) {
           post(errorEvent(e));
         }
@@ -56,30 +69,30 @@ export function createCommandHandler(
       }
 
       case 'settings': {
-        if (!session) {
-          post({ type: 'error', stage: 'panel', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.settings) {
+          post({ type: 'error', stage: 'panel', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
-        post({ type: 'settings', requestId: command.requestId, settings: session.updateSettings(command.settings) });
+        post({ type: 'settings', requestId: command.requestId, settings: session.settings.update(command.settings) });
         return;
       }
 
       case 'setJustifications': {
-        if (!session) {
-          post({ type: 'error', stage: 'justifications', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.justifications) {
+          post({ type: 'error', stage: 'justifications', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
-        post({ type: 'justificationsSet', requestId: command.requestId, ...session.setJustifications(command.items, command.replace) });
+        post({ type: 'justificationsSet', requestId: command.requestId, ...session.justifications.set(command.items, command.replace) });
         return;
       }
 
       case 'importJustifications': {
-        if (!session) {
-          post({ type: 'error', stage: 'justifications', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.justifications) {
+          post({ type: 'error', stage: 'justifications', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
         try {
-          post({ type: 'justificationImport', requestId: command.requestId, preview: await session.previewImport(command.file) });
+          post({ type: 'justificationImport', requestId: command.requestId, preview: await session.justifications.preview(command.file) });
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
           post({ type: 'error', stage: 'justifications', message: `Não foi possível ler as justificativas: ${message}`, requestId: command.requestId });
@@ -106,7 +119,8 @@ export function createCommandHandler(
           return;
         }
         try {
-          const page = session.page(command.scope, command.table, command.filter, command.sort, command.offset, command.limit);
+          const limit = Math.min(Math.max(0, command.limit), MAX_PAGE_ROWS);
+          const page = session.page(command.scope, command.table, command.filter, command.sort, command.offset, limit);
           post({ type: 'page', requestId: command.requestId, table: command.table, offset: command.offset, ...page });
         } catch (e) {
           post(errorEvent(e, 'page', command.requestId));
