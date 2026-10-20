@@ -15,6 +15,12 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 5 — Exportação XLSX | concluída em 26/09/2026; Resumo = ferramenta em todos os atalhos (arquivos reais, PT e EN); Excel recalcula sem erros e sem reparo |
 | 6 — Configuração | concluída em 26/09/2026 para a CT2 (tela, versões, importação/exportação); generalização para outras tabelas fora do escopo |
 | 7 — Entrega | concluída (testes de ponta a ponta no CI, ajuda, versão, cópia de segurança); nova interface entregue; versão 1.0.0 publicada |
+| 8 — Plataforma de módulos | a fazer (`docs/MODULOS.md`) |
+| 9 — CT2 Integridade: leitura | a fazer (`docs/REGRAS_CT2_INTEGRIDADE.md` seções 2–4) |
+| 10 — CT2 Integridade: motor | a fazer (seções 5, 6 e 8) |
+| 11 — CT2 Integridade: planilha amarrada | a fazer (seção 7) |
+| 12 — CT2 Integridade: painel e tabelas | a fazer (seção 9) |
+| 13 — Entrega da versão 2.0 | a fazer |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
@@ -128,6 +134,83 @@ Testes de ponta a ponta no navegador (Playwright, no CI) com guarda de privacida
 versão no rodapé e na rastreabilidade, cópia de segurança única (configuração + justificativas) e `CHANGELOG.md`.
 A interface será recriada por outro agente seguindo `docs/INTERFACE.md`; os testes de ponta a ponta são o critério de
 aceite. Depois disso: versão 1.0.0 em `package.json`, tag `v1.0.0` e release no GitHub.
+
+---
+
+## Fase 8 — Plataforma de módulos
+
+**Decisão (20/10/2026):** o AuditAnalyzer passa a ser uma plataforma com vários módulos de análise (revoga a decisão
+da Fase 6 sobre generalização). Ver `docs/MODULOS.md`.
+
+**Prompt:**
+> Leia CLAUDE.md, docs/MODULOS.md e docs/INTERFACE.md. Transforme o app em plataforma: registro de módulos
+> (`src/modules/registry.ts`), seletor de análises na tela inicial, `module` no comando `ingest`, adaptador
+> `worker/modules/cfgr700` sobre o motor atual, configuração por módulo no IndexedDB com migração da chave atual,
+> cópia de segurança com todas as configurações (lendo as cópias antigas) e feriados como configuração da
+> plataforma. Registre o módulo `ct2Integrity` só como cartão "em breve". O módulo CFGR700 não pode mudar de
+> comportamento. Apresente o plano antes.
+
+**Pronto quando:** todos os testes atuais passam sem mudar expectativas (inclusive `generalMode.test.ts` e
+`npm run test:e2e`, com o passo extra de escolher o módulo); a cópia de segurança antiga é restaurada sem perda.
+
+---
+
+## Fase 9 — CT2 Integridade: leitura
+
+**Prompt:**
+> Leia docs/REGRAS_CT2_INTEGRIDADE.md seções 2 a 4. Primeiro o gerador sintético de extração CT2 (layout real,
+> casos da seção 11) e os testes; depois a ingestão sobre a leitura compartilhada: cabeçalho por títulos, aliases,
+> códigos como texto, centavos, datas, linha de origem, ordenação estável pela chave da linha, reconciliação de
+> leitura e invariantes CI-1, CI-2 e CI-4. Teste local com a extração real em local/ contra
+> local/golden-ct2-integrity.json (linhas, documentos, débito e crédito).
+
+**Pronto quando:** sintéticos e local passando; tempo e memória medidos em `docs/MEDICOES.md`.
+
+---
+
+## Fase 10 — CT2 Integridade: motor
+
+**Prompt:**
+> Implemente as seções 5, 6 e 8: aglutinação por documento, lote e dia em centavos, os testes B, I, E e P dirigidos
+> pela configuração `config/defaults/ct2-integrity.json` (schema zod próprio), as marcas por linha e por nível, a
+> lista de exceções e os invariantes CI-3, CI-5, CI-6, CI-9 e CI-10. Casos sintéticos primeiro. Não decida nada da
+> seção 12: onde a regra estiver pendente, deixe o teste desligado na configuração e pergunte.
+
+**Pronto quando:** cada caso sintético produz exatamente as exceções esperadas; local confere com o golden
+(desbalanceados e compensação adjacente).
+
+---
+
+## Fase 11 — CT2 Integridade: planilha amarrada
+
+**Prompt:**
+> Implemente a exportação da seção 7 sobre o gerador XLSX existente: nomes definidos de parâmetros, Base com colunas
+> de teste por fórmula, Documentos/Lotes/Dias por blocos (`SUM`/`ROWS`, nunca SUMIFS por linha), Excecoes com
+> confirmação por INDEX, Resumo com matriz de amarração e quadro de testes, Perfil e Rastreabilidade, em pt e en.
+> Estenda `tests/support/xlsxEval.ts` com ROWS, COUNTA, WEEKDAY, COUNTIF e SUMIF (com testes). Meça o recálculo no
+> Excel com 40 mil, 300 mil e 1 milhão de linhas sintéticas e registre em MEDICOES.md; se não for viável, pare e
+> discuta.
+
+**Pronto quando:** no avaliador, matriz toda OK, quadro de testes "Confere" e Excecoes toda "Confirmada"; mudar um
+parâmetro muda os status como o motor; no Excel, abre sem reparo e recalcula sem erros (teste local com
+`EXCEL_CHECK=1`); visual conferido em PDF.
+
+---
+
+## Fase 12 — CT2 Integridade: painel e tabelas
+
+**Prompt:**
+> Implemente a seção 9: parâmetros antes de processar, painel (indicadores, matriz de amarração, quadro de testes
+> clicável, desbalanceados com compensação, maiores documentos, perfil) e as tabelas virtualizadas, seguindo
+> INTERFACE.md. Testes de tela e de ponta a ponta com o sintético.
+
+**Pronto quando:** cada número do painel = total da tabela aberta = Resumo da planilha; e2e passando.
+
+---
+
+## Fase 13 — Entrega da versão 2.0
+
+Ajuda (seção do novo módulo e do seletor), README (plataforma e módulos), CHANGELOG, versão 2.0.0, tag e release.
 
 ---
 

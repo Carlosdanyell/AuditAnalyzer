@@ -238,3 +238,11 @@ Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave
   orientação de alterados sem documento), justificativas (escrever, JSON, importar), exportação em PT e EN com o
   Resumo conferido pelo avaliador, configuração (salvar, reprocessar, persistir, cópia de segurança) e ajuda. Todo
   teste reprova requisição fora da origem e erro não tratado. Localmente usam o Chrome instalado (`E2E_CHANNEL`).
+
+## 9. Plataforma de módulos (a partir da Fase 8)
+
+O app passa a hospedar módulos de análise independentes sobre a mesma infraestrutura (leitura em fluxo, worker,
+gerador XLSX, tema, rastreabilidade). O contrato de um módulo, o que é compartilhado e a estrutura de pastas alvo
+estão em `docs/MODULOS.md`. Tudo o que está acima descreve o módulo `cfgr700`; o módulo `ct2Integrity` está em
+`docs/REGRAS_CT2_INTEGRIDADE.md` (a seção 7 descreve a planilha amarrada por fórmulas, que usa agregação por blocos
+contíguos em vez de SUMIFS por linha).

@@ -14,6 +14,11 @@ A lógica de negócio já foi validada manualmente em Python contra entregas rea
 em TypeScript, de forma configurável, com interface própria. As regras estão em `docs/REGRAS_CFGR700.md`
 e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever código.**
 
+**Plataforma de análises (a partir da Fase 8):** o app hospeda módulos de análise independentes — `cfgr700` (log de
+auditoria, acima) e `ct2Integrity` (aglutinação e integridade da extração da CT2, com planilha toda amarrada por
+fórmulas). Contrato dos módulos em `docs/MODULOS.md`; regras do novo módulo em `docs/REGRAS_CT2_INTEGRIDADE.md`.
+Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições abaixo valem para todos.
+
 ## Restrições inegociáveis
 
 1. **Nada sai da máquina.** Sem backend, sem chamadas de rede em tempo de execução, sem analytics, sem CDN,
@@ -114,7 +119,8 @@ npm run lint
 - Testes sintéticos passando; testes locais passando quando a tarefa toca no motor ou na ingestão.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.
 - UI continua responsiva com o arquivo grande (verificar manualmente com o arquivo de ~1 milhão de linhas).
-- Invariantes novos documentados em `docs/REGRAS_CFGR700.md`.
+- Invariantes novos documentados no documento de regras do módulo (`docs/REGRAS_CFGR700.md` ou
+  `docs/REGRAS_CT2_INTEGRIDADE.md`).
 - Mudanças de regra de negócio refletidas na configuração padrão e na documentação.
 
 ## Como trabalhar neste repositório
