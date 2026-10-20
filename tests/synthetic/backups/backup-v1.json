@@ -1,0 +1,267 @@
+{
+  "format": "auditanalyzer-copia-de-seguranca",
+  "version": 1,
+  "createdAt": "2026-10-20 09:00:00",
+  "config": {
+    "schemaVersion": 2,
+    "table": "CT2",
+    "workbook": {
+      "parametersSheet": "Parametros",
+      "reportSheetContains": "Relatório de auditoria"
+    },
+    "columns": {
+      "field": "Campo",
+      "oldValue": "Vlr Antigo",
+      "newValue": "Vlr Atualizado",
+      "dataType": "Tipo Dados",
+      "recno": "Recno",
+      "user": "Usuario",
+      "operation": "Operacao",
+      "dateTime": "Data Hora",
+      "status": "Situacao",
+      "protectedType": "Tipo Dado Protegido"
+    },
+    "operations": {
+      "insert": "Inclusão",
+      "update": "Alteração",
+      "delete": "Exclusão",
+      "restore": "Recuperação"
+    },
+    "parameterChecks": {
+      "tableQuestions": [
+        "Tabela início",
+        "Tabela fim"
+      ],
+      "mustBeYes": [
+        "Operação de inclusão",
+        "Operação de alteração",
+        "Operação de exclusão",
+        "Operação de Recuperação",
+        "Exclui campos não alterados"
+      ],
+      "yesValue": "Sim",
+      "startDateQuestion": "Data inicial",
+      "endDateQuestion": "Data final"
+    },
+    "fields": {
+      "keep": [
+        "CT2_DATA",
+        "CT2_LOTE",
+        "CT2_SBLOTE",
+        "CT2_DOC",
+        "CT2_LINHA",
+        "CT2_MANUAL",
+        "CT2_VALOR",
+        "CT2_DEBITO",
+        "CT2_CREDIT",
+        "CT2_DC",
+        "CT2_HIST",
+        "CT2_ROTINA",
+        "CT2_LP",
+        "CT2_ORIGEM",
+        "CT2_INCONS",
+        "CT2_TPSALD",
+        "CT2_ESTCAN",
+        "CT2_MOEDLC",
+        "CT2_CCD",
+        "CT2_CCC",
+        "CT2_ITEMD",
+        "CT2_ITEMC"
+      ],
+      "noise": [
+        "CT2_TPSALD",
+        "CT2_USERGA"
+      ],
+      "date": "CT2_DATA",
+      "line": "CT2_LINHA",
+      "value": "CT2_VALOR",
+      "inconsistency": "CT2_INCONS",
+      "history": "CT2_HIST"
+    },
+    "balanceType": {
+      "field": "CT2_TPSALD",
+      "expectedFrom": "9",
+      "expectedTo": "1"
+    },
+    "documentKey": {
+      "fields": [
+        "CT2_DATA",
+        "CT2_LOTE",
+        "CT2_SBLOTE",
+        "CT2_DOC"
+      ],
+      "separator": "|",
+      "unidentified": "SEM IDENTIFICACAO"
+    },
+    "origin": {
+      "field": "CT2_MANUAL",
+      "manual": [
+        "1"
+      ],
+      "automatic": [
+        "2"
+      ]
+    },
+    "nature": {
+      "field": "CT2_DC",
+      "labels": {
+        "1": "Débito",
+        "2": "Crédito",
+        "3": "Débito e Crédito",
+        "4": "Complemento de histórico"
+      },
+      "debit": [
+        "1",
+        "3"
+      ],
+      "credit": [
+        "2",
+        "3"
+      ],
+      "accounting": [
+        "1",
+        "2",
+        "3"
+      ],
+      "complement": [
+        "4"
+      ]
+    },
+    "inconsistency": {
+      "flagValue": "1"
+    },
+    "balanceToleranceCents": 7,
+    "emptyUserLabel": "(sem usuário no log)",
+    "fieldLabels": {
+      "CT2_DATA": "Data do lançamento",
+      "CT2_LOTE": "Lote",
+      "CT2_SBLOTE": "Sublote",
+      "CT2_DOC": "Documento",
+      "CT2_LINHA": "Linha",
+      "CT2_MANUAL": "Lançamento manual",
+      "CT2_VALOR": "Valor",
+      "CT2_DEBITO": "Conta débito",
+      "CT2_CREDIT": "Conta crédito",
+      "CT2_DC": "Tipo de lançamento",
+      "CT2_HIST": "Histórico",
+      "CT2_ROTINA": "Rotina",
+      "CT2_LP": "Lançamento padrão",
+      "CT2_ORIGEM": "Origem",
+      "CT2_INCONS": "Inconsistência",
+      "CT2_TPSALD": "Tipo de saldo",
+      "CT2_ESTCAN": "Estorno",
+      "CT2_MOEDLC": "Moeda",
+      "CT2_CCD": "Centro de custo débito",
+      "CT2_CCC": "Centro de custo crédito",
+      "CT2_ITEMD": "Item contábil débito",
+      "CT2_ITEMC": "Item contábil crédito",
+      "CT2_USERGA": "Usuário/data da gravação"
+    },
+    "valueDisplay": {
+      "codes": {
+        "CT2_TPSALD": {
+          "1": "Saldo real",
+          "9": "Pré-lançamento"
+        }
+      },
+      "encoded": [
+        "CT2_USERGA"
+      ]
+    },
+    "tables": {
+      "baseRowsExtraFields": [
+        "CT2_DEBITO",
+        "CT2_CREDIT",
+        "CT2_HIST"
+      ]
+    },
+    "calendar": {
+      "holidays": [
+        "07/09/2026",
+        "12/10/2026"
+      ]
+    },
+    "panel": {
+      "periodPresets": [
+        {
+          "label": "Início",
+          "start": "01/09/2026",
+          "end": "02/09/2026"
+        }
+      ],
+      "signals": {
+        "unbalancedDocuments": {
+          "label": "Documentos desbalanceados",
+          "requiresAction": "always",
+          "text": "{n} documento(s) desbalanceado(s)",
+          "none": "Nenhum documento desbalanceado"
+        },
+        "unjustifiedDocuments": {
+          "label": "Documentos excluídos ou alterados sem justificativa",
+          "requiresAction": "always",
+          "text": "{n} documento(s) com justificativa pendente",
+          "none": "Nenhum documento com justificativa pendente"
+        },
+        "unidentifiedChanges": {
+          "label": "Registros alterados sem identificação de documento",
+          "requiresAction": "never",
+          "text": "{n} registro(s) alterado(s) sem identificação de documento",
+          "none": "Nenhum registro alterado sem identificação de documento"
+        },
+        "inconsistentEntries": {
+          "label": "Lançamentos gravados como inconsistentes",
+          "requiresAction": "ifPending",
+          "text": "{n} lançamento(s) gravado(s) como inconsistente(s): {pendentes} pendente(s), {corrigidos} corrigido(s)",
+          "none": "Nenhum lançamento gravado como inconsistente"
+        },
+        "noUserInclusions": {
+          "label": "Lançamentos incluídos sem usuário no log",
+          "requiresAction": "never",
+          "text": "{n} lançamento(s) incluído(s) sem usuário no log",
+          "none": "Nenhum lançamento incluído sem usuário no log"
+        },
+        "uncoveredDays": {
+          "label": "Dias do período sem cobertura de extração",
+          "requiresAction": "always",
+          "text": "{n} dia(s) do período sem cobertura de extração: {dias}",
+          "none": "Todos os dias do período estão cobertos por alguma extração"
+        },
+        "daysWithoutEvents": {
+          "label": "Dias úteis do período sem nenhum evento",
+          "requiresAction": "always",
+          "text": "{n} dia(s) útil(eis) sem nenhum evento: {dias}",
+          "none": "Nenhum dia útil sem evento"
+        }
+      }
+    }
+  },
+  "justifications": [
+    {
+      "documentKey": "02/09/2026|000002|001|000020",
+      "kind": "change",
+      "text": "Correção de histórico.",
+      "responsible": "resp02",
+      "coverage": {
+        "files": [
+          "agosto.xlsx",
+          "setembro.xlsx"
+        ],
+        "lastEvent": 2000
+      },
+      "updatedAt": 6
+    },
+    {
+      "documentKey": "01/09/2026|000001|001|000010",
+      "kind": "deletion",
+      "text": "Lançamento em duplicidade, excluído pelo responsável.",
+      "responsible": "resp01",
+      "coverage": {
+        "files": [
+          "agosto.xlsx"
+        ],
+        "lastEvent": 1000
+      },
+      "updatedAt": 5
+    }
+  ]
+}
