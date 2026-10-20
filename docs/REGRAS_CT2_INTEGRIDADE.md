@@ -71,15 +71,18 @@ mapeadas são lidas e exportadas na Base como texto/número, na ordem original.
 
 ## 3. Chaves e ordenação
 
-- **Chave do documento** (configurável, padrão): `date + batch + subBatch + document + balanceType + currency`.
-  Tipo de saldo e moeda entram porque o balanceamento só faz sentido dentro do mesmo saldo e moeda (decisão a
-  confirmar, seção 12).
-- **Chave da linha** (teste E1): chave do documento + `line` + `companyOrigin` + `branchOrigin` (as duas últimas só
-  se existirem).
-- **Ordenação da Base:** estável, pela chave da linha, com `line` na ordem de numeração da seção 4. Consequência
-  obrigatória: **cada documento ocupa um bloco contíguo de linhas da Base**, cada lote um bloco contíguo de
-  documentos e cada dia um bloco contíguo de lotes. Toda a amarração da planilha (seção 7) depende disso e o
-  invariante CI-2 confere.
+- **Chave do documento** (configurável, padrão): `date + batch + subBatch + document`. Tipo de saldo e moeda **não**
+  fazem parte da chave (decisão de 20/10/2026, seção 13).
+- **Segmento:** `balanceType + currency`. Tipo de saldo e moeda ficam em colunas próprias e separam a análise: todo
+  balanceamento (documento, lote, dia) é medido **dentro de cada segmento**, nunca somando moedas ou tipos de saldo
+  diferentes. Um documento com linhas em dois segmentos (ex.: moeda `01` e `02`) aparece uma vez em cada segmento,
+  com o próprio balanceamento. Na extração mais comum (um tipo de saldo e uma moeda) existe um único segmento.
+- **Chave da linha** (teste E1): segmento + chave do documento + `line` + `companyOrigin` + `branchOrigin` (as duas
+  últimas só se existirem). O segmento entra para que a mesma linha em duas moedas não seja apontada como duplicada.
+- **Ordenação da Base:** estável, por segmento e depois pela chave do documento e `line` (na ordem de numeração da
+  seção 4). Consequência obrigatória: **cada documento de um segmento ocupa um bloco contíguo de linhas da Base**,
+  cada lote um bloco contíguo de documentos e cada dia um bloco contíguo de lotes, sempre dentro do segmento. Toda a
+  amarração da planilha (seção 7) depende disso e o invariante CI-2 confere.
 - A Base guarda a **linha de origem** (arquivo + número da linha na planilha de entrada) para rastreabilidade.
 
 ## 4. Lado do valor e numeração das linhas
@@ -94,20 +97,24 @@ mapeadas são lidas e exportadas na Base como texto/número, na ordem original.
 Os textos vêm da configuração (`entryTypes`); extrações com o código CT2_DC (`3`, `1`, `2`, `4`) usam o mapa
 alternativo. Tipo não reconhecido: linha entra com débito e crédito 0 e falha o teste I1.
 
-**Numeração das linhas:** três caracteres. A sequência observada é `001`…`999` e, em seguida, `A00`. A regra completa
-depois de `A00` (função Soma1 do Protheus) está pendente (seção 12); até lá, o ordinal vale 1–999 para as linhas
-numéricas e as alfanuméricas seguem a ordem de leitura depois de 999.
+**Numeração das linhas:** três caracteres. A sequência observada é `001`…`999` e, em seguida, `A00`. O usuário
+acredita que a sequência continua `A00`, `A01`, …; a regra depois de `A00` (função Soma1 do Protheus) ainda não está
+confirmada (seção 12); até lá, o ordinal vale 1–999 para as linhas numéricas e as alfanuméricas seguem a ordem de
+leitura depois de 999.
 
 ## 5. Aglutinação
 
 | Nível | Chave | Medidas |
 |---|---|---|
-| Documento | seção 3 | linhas, débito, crédito, diferença, linhas com exceção, 1ª linha (rotina, LP, Seq CTK, histórico), última linha, ordinal da última linha, Seq CTK distintos |
-| Lote | `date + batch + subBatch + balanceType + currency` | documentos, linhas, débito, crédito, diferença, documentos desbalanceados |
-| Dia | `date + balanceType + currency` | lotes, documentos, linhas, débito, crédito, diferença, dia não útil |
-| Total | extração inteira | todas as anteriores |
+| Documento | segmento + chave do documento (seção 3) | linhas, débito, crédito, diferença, linhas com exceção, 1ª linha (rotina, LP, Seq CTK, histórico), última linha, ordinal da última linha, Seq CTK distintos |
+| Lote | segmento + `date + batch + subBatch` | documentos, linhas, débito, crédito, diferença, documentos desbalanceados |
+| Dia | segmento + `date` | lotes, documentos, linhas, débito, crédito, diferença, dia não útil |
+| Segmento | `balanceType + currency` | dias, lotes, documentos, linhas, débito, crédito, diferença |
+| Total | extração inteira | contagens e somas usadas só na amarração (seção 7) |
 
-Somas em centavos inteiros. Diferença = débito − crédito.
+Somas em centavos inteiros. Diferença = débito − crédito. Valores de segmentos diferentes (moedas ou tipos de saldo)
+não são somados para fins de balanceamento nem de indicadores de valor; o total da extração serve só para provar que
+nada ficou de fora (matriz de amarração). Detalhe da apresentação por segmento: Fase 11.
 
 ## 6. Testes
 
@@ -151,9 +158,9 @@ linhas.
 | Código | Regra |
 |---|---|
 | P1 | linhas, débito e crédito por rotina e por lançamento padrão |
-| P2 | linhas e valor por "Lcto Manual?" (descrições dos códigos na configuração, seção 12) |
+| P2 | linhas e valor por "Lcto Manual?", com a mesma regra do módulo CFGR700 (`REGRAS_CFGR700.md`, seção 5, "origem"): `1` = Manual, `2` = Automático, qualquer outro valor ou vazio = Não identificado; códigos na configuração |
 | P3 | documento com mais de um Seq CTK, e Seq CTK presente em mais de um documento |
-| P4 | documento com quantidade de linhas ≥ limite de linhas por documento (parâmetro) e os 10 maiores documentos |
+| P4 | documento com quantidade de linhas ≥ limite de linhas por documento (parâmetro `MV_NUMLIN` do Protheus) e os 10 maiores documentos |
 
 ### 6.5 Parâmetros da execução (informados na tela antes de processar; gravados na Critérios)
 
@@ -163,7 +170,7 @@ linhas.
 | Tipo de saldo esperado | `1` |
 | Moeda esperada / moeda local | `01` / `01` |
 | Tolerância de balanceamento (R$) | 0,00 |
-| Limite de linhas por documento | 1.000 (observado; parâmetro do Protheus a confirmar, seção 12) |
+| Limite de linhas por documento | 1.000 (valor do parâmetro `MV_NUMLIN` do Protheus na extração observada; pode ser aumentado no Protheus, e então o parâmetro da execução acompanha) |
 
 ## 7. Planilha exportada — amarração por fórmulas
 
@@ -237,7 +244,7 @@ Teste desligado na configuração: a coluna não é gerada e o teste sai do quad
 
 ### 7.5 Documentos
 
-Valores (chave): data, lote, sub-lote, documento, tipo de saldo, moeda; **valores do motor**: linha inicial e final
+Valores: segmento (tipo de saldo, moeda) e chave (data, lote, sub-lote, documento); **valores do motor**: linha inicial e final
 na Base, ordinal da última linha, Seq CTK distintos, "Seq CTK em outro documento?". Fórmulas:
 
 | Coluna | Fórmula |
@@ -253,7 +260,8 @@ na Base, ordinal da última linha, Seq CTK distintos, "Seq CTK em outro document
 | Linhas com exceção | `=COUNTIF(Base!{Exceções na linha}$a:$b,">0")` |
 | Rotina, LP, Seq CTK, Histórico (1ª linha) | `=IF(Base!{col}a="","",Base!{col}a)` |
 
-"Mesmo lote" compara data, lote, sub-lote, tipo de saldo e moeda das duas linhas.
+"Mesmo lote" compara o segmento (tipo de saldo e moeda) e data, lote e sub-lote das duas linhas: a compensação
+adjacente nunca cruza segmentos.
 
 ### 7.6 Lotes e Dias
 
@@ -274,7 +282,8 @@ código, chave.
 ### 7.8 Resumo
 
 1. **Indicadores:** documentos, linhas, lotes, dias, débito, crédito, diferença líquida, documentos desbalanceados,
-   exceções Erro, exceções Alerta — todos por fórmula sobre Dias/Documentos/Excecoes.
+   exceções Erro, exceções Alerta — todos por fórmula sobre Dias/Documentos/Excecoes. Débito, crédito e diferença
+   aparecem por segmento (seção 5); contagens podem ter também o total da extração.
 2. **Matriz de amarração** (cada célula fórmula; diferença = 0 → "OK", senão "Verificar"):
 
    | Nível | Linhas | Documentos | Lotes | Débito | Crédito |
@@ -308,11 +317,11 @@ código, chave.
 | Código | Regra | Bloqueia exportação |
 |---|---|---|
 | CI-1 | Reconciliação de leitura por arquivo (seção 2); CRC32 e tamanho do ZIP | sim |
-| CI-2 | Base ordenada pela chave da linha; cada documento em um único bloco contíguo; blocos de documento cobrem todas as linhas sem sobreposição; idem lotes sobre documentos e dias sobre lotes | sim |
+| CI-2 | Base ordenada por segmento e chave da linha; cada documento de um segmento em um único bloco contíguo; blocos de documento cobrem todas as linhas sem sobreposição; idem lotes sobre documentos e dias sobre lotes | sim |
 | CI-3 | Σ débito e Σ crédito (centavos) iguais em Base, Documentos, Lotes, Dias e total | sim |
 | CI-4 | Valores legíveis: chave completa, data válida, valor legível em toda linha de detalhe | sim |
 | CI-5 | Para cada teste, ocorrências pelas marcas de linha/nível = linhas da Excecoes (Erro/Alerta) | sim |
-| CI-6 | Contagens: documentos = chaves distintas; lotes e dias idem | sim |
+| CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
 | CI-8 | Base cabe numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso) | não |
@@ -341,6 +350,8 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   amarração passa a mostrar "Verificar".
 - B4 e P4 são indícios: compensação adjacente e limite de linhas não provam a causa do desbalanceamento.
 - E2 vale só para a numeração 001–999 enquanto a regra após A00 não estiver confirmada.
+- O módulo não identifica o usuário que fez o lançamento (seção 12, item 4); a análise por usuário é do módulo
+  CFGR700.
 
 ## 11. Testes da ferramenta
 
@@ -348,7 +359,8 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   cabeçalho com espaços à direita, ~80 colunas, códigos como texto e como número). Um caso por regra: documento
   balanceado; par desbalanceado que se compensa (documento com 1.000 linhas `001`–`999` + `A00` e continuação no
   seguinte); desbalanceado sem compensação; I1 em cada variação; I2; I3; I4; I5; E1 dentro do arquivo e entre dois
-  arquivos; E2; E3; E4; E5; E6 com sábado e feriado; Seq CTK em dois documentos; coluna opcional ausente; coluna
+  arquivos; E2; E3; E4; E5; E6 com sábado e feriado; Seq CTK em dois documentos; documento com linhas em dois
+  segmentos (moedas `01` e `02`, mesmas linhas, cada segmento balanceado e sem E1); coluna opcional ausente; coluna
   obrigatória ausente; chave incompleta; valor ilegível.
 - **Planilha:** `xlsxEval` avalia todas as fórmulas da exportação sintética e confere: matriz de amarração toda OK,
   quadro de testes "Confere", cada status de Documentos/Lotes/Dias = motor, Excecoes toda "Confirmada"; alterar um
@@ -359,14 +371,19 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 
 ## 12. Pendências (decidir com o usuário antes de implementar o item)
 
-1. **Limite de linhas por documento:** 1.000 observado na extração real; confirmar com a TI o parâmetro do Protheus
-   (provável `MV_NUMLIN`) e se varia por rotina.
-2. **Numeração após `A00`:** regra da função Soma1 (`A01`…`A99`, `B00`…? ou `A0A`?). Necessária para E2 completo.
-3. **"Lcto Manual?":** significado dos códigos (observados `1` e `2`) para P2.
-4. **Usuário em "Origem":** regra para extrair o usuário do texto (aparece no fim do campo em lançamentos de rotina)
-   — se for usado em P2.
-5. **Chave do documento com tipo de saldo e moeda** (seção 3): confirmar.
-6. **Teto do modo amarrado:** resultado da medição da seção 7.9.
+Situação em 20/10/2026 (decisões na seção 13):
+
+1. **Limite de linhas por documento — decidido.** O parâmetro é o `MV_NUMLIN` do Protheus e vale por **documento**
+   (P4). Ainda em aberto, sem bloquear: se o limite varia por rotina (o parâmetro da execução é editável).
+2. **Numeração após `A00` — pendente.** O usuário acredita que segue `A00`, `A01`, …; confirmar `A00`–`A99` e o que
+   vem depois de `A99` (função Soma1). Necessária para E2 completo; até lá, E2 vale para 001–999 (seções 4 e 10).
+   Com o `MV_NUMLIN` aumentado, linhas depois de `A00` passam a aparecer: um bom momento para obter a evidência.
+3. **"Lcto Manual?" — decidido.** Mesma regra e mesmos códigos configuráveis do módulo CFGR700 (P2).
+4. **Usuário em "Origem" — fora do escopo.** O usuário avalia que a CT2 não traz o nome de usuário; o texto do campo
+   em lançamentos de rotina pode trazer algo no fim, mas o módulo não o interpreta e P2 não usa usuário.
+5. **Chave do documento com tipo de saldo e moeda — decidido.** A chave não inclui tipo de saldo e moeda; os dois
+   formam o segmento, que separa a análise (seção 3).
+6. **Teto do modo amarrado — pendente.** Resultado da medição da seção 7.9 (Fase 11).
 
 ## 13. Decisões registradas
 
@@ -376,3 +393,18 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 - 20/10/2026 — Agregação por blocos contíguos (`SUM`/`ROWS`) em vez de `SUMIFS` por linha: na validação manual, a
   versão com `SUMIFS` sobre a base inteira (dezenas de milhares de fórmulas sobre uma base de dezenas de milhares de
   linhas) não recalculou em quase 30 minutos no LibreOffice; a versão por blocos recalculou a pasta em ~1 minuto.
+- 20/10/2026 — Pendências da seção 12, respondidas pelo usuário:
+  - **Limite de linhas:** o `MV_NUMLIN` do Protheus limita as linhas do **documento** e pode ser aumentado no
+    Protheus para evitar o desbalanceamento causado por documentos que passam do limite (1.000 na extração
+    observada). P4 mede por documento; o limite é parâmetro da execução.
+  - **Numeração:** o usuário acredita que segue `A00`, `A01`, …; continua pendente de confirmação (item 2).
+  - **"Lcto Manual?":** o usuário não conhecia os códigos e indicou o módulo do log como referência. Adotada a regra
+    já validada no CFGR700 (`REGRAS_CFGR700.md`, seção 5): `1` = Manual, `2` = Automático, outro valor ou vazio =
+    Não identificado, códigos configuráveis.
+  - **Usuário em "Origem":** fora do escopo.
+  - **Chave do documento:** tipo de saldo e moeda **fora da chave** e tratados em separado. Escolhida a separação
+    por segmento (tipo de saldo + moeda): o balanceamento de documento, lote e dia é medido dentro de cada segmento,
+    sem somar moedas ou tipos de saldo diferentes; a chave da linha (E1) inclui o segmento para não apontar como
+    duplicada a mesma linha em duas moedas; a Base é ordenada por segmento para manter os blocos contíguos (CI-2).
+    Alternativas rejeitadas: analisar só o tipo de saldo e a moeda esperados (as demais linhas ficariam sem
+    balanceamento) e somar tudo com alerta (somaria moedas diferentes).
