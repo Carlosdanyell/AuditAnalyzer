@@ -27,6 +27,7 @@ describe('backup written by version 1.0.0', () => {
     if (!read.ok) return;
     expect(await configHash(read.config)).toBe(await configHash(expectedConfig()));
     expect(read.config.calendar.holidays).toEqual(['07/09/2026', '12/10/2026']);
+    expect(read.platform).toEqual({ schemaVersion: 1, holidays: ['07/09/2026', '12/10/2026'] });
     expect(read.createdAt).toBe('2026-10-20 09:00:00');
     expect(read.justifications).toEqual([
       {

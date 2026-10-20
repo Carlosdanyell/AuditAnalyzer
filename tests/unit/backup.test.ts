@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config/schema';
 import { buildBackup, readBackup } from '../../src/shared/backup';
@@ -43,5 +44,52 @@ describe('backup of configuration and justifications', () => {
     bad.justifications.push({ documentKey: 'D9', kind: 'outro', text: 'x' });
     const read = readBackup(JSON.stringify(bad));
     expect(read).toEqual({ ok: false, errors: ['Configuração — table: Não pode ficar vazio.', 'Justificativa 2: tipo, chave ou texto inválido.'] });
+  });
+});
+
+describe('backup version 2: platform holidays (docs/MODULOS.md)', () => {
+  const v1 = readFileSync('tests/synthetic/backups/backup-v1.json', 'utf8');
+
+  it('writes version 2 with the platform holidays, as they are', () => {
+    const config = { ...defaultConfig(), calendar: { holidays: ['25/12/2026', '07/09/2026'] } };
+    const data = JSON.parse(buildBackup(config, [], 't'));
+    expect(data.version).toBe(2);
+    expect(data.platform).toEqual({ schemaVersion: 1, holidays: ['25/12/2026', '07/09/2026'] });
+    const read = readBackup(JSON.stringify(data));
+    expect(read.ok && read.platform).toEqual({ schemaVersion: 1, holidays: ['25/12/2026', '07/09/2026'] });
+  });
+
+  it('applies the platform holidays of a version 2 backup to the configuration', () => {
+    const data = JSON.parse(buildBackup(defaultConfig(), [], 't'));
+    data.platform.holidays = ['01/11/2026'];
+    const read = readBackup(JSON.stringify(data));
+    expect(read.ok && read.config.calendar.holidays).toEqual(['01/11/2026']);
+  });
+
+  it('keeps everything of a version 1 backup when it is saved again as version 2', async () => {
+    const first = readBackup(v1);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.platform).toEqual({ schemaVersion: 1, holidays: ['07/09/2026', '12/10/2026'] });
+    const again = readBackup(buildBackup(first.config, first.justifications, first.createdAt));
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(await configHash(again.config)).toBe(await configHash(first.config));
+    expect(again.justifications).toEqual(first.justifications);
+    expect(again.platform).toEqual(first.platform);
+  });
+
+  it('refuses a later version and invalid platform holidays', () => {
+    const data = JSON.parse(buildBackup(defaultConfig(), [], 't'));
+    expect(readBackup(JSON.stringify({ ...data, version: 3 }))).toEqual({
+      ok: false,
+      errors: ['Versão 3 da cópia de segurança não é suportada por esta versão da ferramenta.'],
+    });
+    expect(readBackup(JSON.stringify({ ...data, platform: { schemaVersion: 1, holidays: ['31/02/2026'] } }))).toEqual({
+      ok: false,
+      errors: ['Feriados — holidays.0: Data inválida (use dd/mm/aaaa).'],
+    });
+    delete data.platform;
+    expect(readBackup(JSON.stringify(data))).toEqual({ ok: false, errors: ['Feriados — Valor ausente ou inválido.'] });
   });
 });
