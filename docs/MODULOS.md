@@ -24,7 +24,9 @@ CFGR700 ler outras tabelas.
    os testes de exportação e os testes de ponta a ponta continuam passando sem alteração de expectativa.
 2. **Compartilhado é infraestrutura; regra de negócio é do módulo.** Nada de `if (module === ...)` no código
    compartilhado.
-3. **Um worker por sessão, um módulo por sessão.** Trocar de módulo encerra a sessão (mesma regra de "Nova análise").
+3. **Um worker por sessão, um módulo por sessão.** Trocar de módulo encerra a sessão, como "Encerrar sessão": descarta
+   a análise e limpa a lista de arquivos (os arquivos de uma análise não servem à outra). "Nova análise" mantém o
+   módulo e os arquivos.
 4. **Configuração por módulo**, validada por zod, com `schemaVersion` próprio, hash e diferenças em relação ao padrão
    na Rastreabilidade. Feriados são configuração **da plataforma** (usados por mais de um módulo).
 
@@ -72,14 +74,69 @@ interface WorkerModule {                // só no worker; funções puras + esta
 - Invariantes: cada módulo numera os seus com prefixo (`CI-1`, `CI-2`… no `ct2Integrity`); os do CFGR700 mantêm a
   numeração atual.
 
+### 3.1 Contrato implementado na Fase 8
+
+O código é a referência (`src/modules/types.ts` e `src/worker/modules/types.ts`):
+
+```ts
+// Tela — descritor sem React (o worker também pode importar)
+type ModuleDescriptor = AvailableModule | ComingSoonModule;
+interface AvailableModule<C> {
+  status: 'available'; id: ModuleId; title; shortTitle; description; input; brandSubtitle;
+  start: { heading; headingDescription; uploadTitle; uploadDescription; dropTitle };   // textos da tela inicial
+  accepts: { extensions: readonly string[]; maxFiles: number };
+  helpAnchor: string;                                   // public/ajuda.html#<anchor>
+  features: { justifications: boolean };
+  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C> };
+}
+interface ComingSoonModule { status: 'comingSoon'; id; title; description; input; helpAnchor: null }
+
+// Worker
+interface WorkerModule {
+  configure(config: unknown): Ingest;                   // valida (lança se inválida) e devolve a ingestão
+}
+type Ingest = (inputs, post, options) => Promise<{ reconciliation; summary; checks; session: ModuleSession }>;
+interface ModuleSession {                               // objeto novo a cada ingestão; nada fica guardado no módulo
+  panel(scope, period, cutoffDay): PanelData;
+  page(scope, table, filter, sort, offset, limit): { columns; rows; total };   // limit ≤ 2.000 (handler)
+  export(options, onProgress): Promise<{ blob; fileName } | { blocked: CheckResult[] }>;
+  settings?: { update(settings): PanelSettings };       // atalhos e feriados durante a sessão
+  justifications?: { set(items, replace); preview(file) };
+}
+```
+
+**Decisões de 20/10/2026 em relação ao contrato acima (aprovadas pelo usuário):**
+- `module` é **opcional** no `ingest` (ausente = `cfgr700`): os testes que enviam `ingest` sem módulo continuam
+  compilando no `npm run build`; a tela sempre envia o campo.
+- Leitura e análise numa chamada só (`Ingest`), como o `runIngestion` já faz; um `analyze()` vazio seria código morto.
+  A separação entra na Fase 12, com os parâmetros de execução da CT2.
+- `page` devolve também as colunas; `export` devolve o nome do arquivo ou o bloqueio por verificação.
+- A lista de tabelas continua do lado da tela (`TablesView`); a definição por módulo entra nas Fases 9 e 12.
+- `detect()` e o aviso "Este arquivo parece ser…" ficam para a **Fase 9**: o cabeçalho só é lido no worker, então
+  precisa de um comando de sondagem; com um único módulo disponível, o aviso não teria para onde mandar. Quando vier,
+  `detect` recebe também a configuração salva (os títulos do CFGR700 são configuráveis) e nunca bloqueia.
+- Os tipos de painel e de tabela do CFGR700 continuam em `src/shared/protocol.ts`; mudam para
+  `src/shared/modules/cfgr700.ts` na Fase 9, com reexportação.
+- Configuração: a chave `analyzerConfig` é **copiada** para `analyzerConfig:cfgr700` e mantida como espelho, gravada
+  junto em todo salvamento (uma aba com a versão anterior continua com as regras atuais). Detalhes em
+  `docs/ARQUITETURA.md`, seção 6.
+- Feriados da plataforma: chave `platformConfig`, copiados sem reordenar para `calendar.holidays` da configuração do
+  CFGR700, que continua no mesmo esquema (versão 2): o SHA-256 e as diferenças da Rastreabilidade não mudam.
+- Cópia de segurança: o campo continua `version` (uma versão anterior leria `schemaVersion` como "Versão undefined"),
+  agora `2`, com `platform` (feriados); a versão 1 continua sendo lida. As configurações de outros módulos entram na
+  cópia quando existirem (Fase 10), com nova versão.
+- Imports estáticos nos dois registros: a CSP não muda e nada é buscado depois do carregamento.
+
 ## 4. Tela
 
 - **Início:** seletor de análises (um cartão por módulo: título, descrição, tipo de arquivo esperado, link para a
-  ajuda). A última análise usada fica pré-selecionada (preferência no store `config`, chave `lastModule`).
+  ajuda). A última análise usada fica pré-selecionada (preferência no store `config`, chave `lastModule`, gravada ao
+  clicar em Analisar; valor desconhecido ou "Em breve" volta ao padrão). Implementado na mesma tela da área de
+  arquivos, com o CFGR700 marcado desde a primeira renderização (`src/components/ModuleSelector.tsx`).
 - Depois da escolha, o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → Painel → Tabelas →
   Exportação. O nome do módulo aparece no topo; "Trocar análise" volta ao início e encerra a sessão.
 - Se `detect` disser `no` para o arquivo solto, a tela avisa ("Este arquivo parece ser … — trocar de análise?") e
-  deixa seguir.
+  deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo
   estão na seção 9 de `docs/REGRAS_CT2_INTEGRIDADE.md`.
 
@@ -87,6 +144,8 @@ interface WorkerModule {                // só no worker; funções puras + esta
 
 ```
 src/
+  shared/modules/index.ts    # MODULE_IDS, ModuleId, DEFAULT_MODULE_ID (Fase 8)
+  config/platform.ts         # feriados da plataforma (Fase 8)
   modules/
     registry.ts              # lista de ModuleDescriptor
     cfgr700/module.ts

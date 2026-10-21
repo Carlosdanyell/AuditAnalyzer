@@ -30,7 +30,7 @@ Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições a
    (ZIP → inflate → XML em partes), armazenamento colunar em typed arrays com dicionário de strings.
    Metas: pico do worker < 400 MB com dois arquivos (~1,3 milhão de linhas de detalhe); thread principal < 150 MB.
 4. **Sem cache de dados.** Dados do log ficam só na memória do worker durante a sessão. IndexedDB apenas para
-   configuração e justificativas (pequenos). Nenhum dado em localStorage, Cache Storage ou service worker.
+   configuração, justificativas e preferências da tela (pequenos; chaves em `docs/ARQUITETURA.md`, seção 6). Nenhum dado em localStorage, Cache Storage ou service worker.
 5. **Integridade verificável.** Toda execução calcula SHA-256 dos arquivos de entrada, confere CRC32 e tamanho
    de cada entrada do ZIP, reconcilia contagens de linhas e eventos e roda invariantes. Invariante que falha
    bloqueia a exportação (ou exige confirmação explícita, registrada no arquivo exportado).
@@ -62,15 +62,19 @@ Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições a
 ```
 src/
   app/                 # React: páginas, layout, estado da UI
-  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter...)
+  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter, ModuleSelector...)
+  modules/             # descritores dos módulos para a tela: registry.ts, <id>/module.ts (sem React)
   worker/
     index.ts           # ponto de entrada do worker e protocolo de mensagens
+    handler.ts         # despacho dos comandos para a sessão do módulo
+    modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor)
     ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts
     store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts
     engine/            # events.ts, records.ts, documents.ts, classify.ts, periods.ts, checks.ts
     export/            # xlsxWriter.ts, styles.ts, sheets/*.ts, traceability.ts
-  config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json; tela em app/views/ConfigView.tsx
-  shared/              # tipos compartilhados, formatação pt-BR, datas, centavos
+  config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json (CFGR700), platform.ts (feriados);
+                       # tela em app/views/ConfigView.tsx
+  shared/              # tipos compartilhados, formatação pt-BR, datas, centavos; modules/ (ids dos módulos)
 tests/
   synthetic/           # gerador de CFGR700 sintético + respostas esperadas
   unit/ integration/
@@ -85,7 +89,8 @@ docs/
 - Datas: parse manual de `dd/mm/aaaa` e `dd/mm/aaaa hh:mm:ss`; representar como inteiros (dias ou segundos desde
   uma época fixa, sem fuso). Proibido `new Date(string)` na lógica.
 - Dinheiro: converter o texto do log para centavos inteiros na leitura; somar em centavos; converter só na saída.
-- Toda regra de negócio vem da configuração (`config/defaults/ct2.json`), não de constantes espalhadas.
+- Toda regra de negócio vem da configuração do módulo (`config/defaults/<módulo>.json`; CFGR700: `ct2.json`), não de
+  constantes espalhadas. Código compartilhado não compara ids de módulo (`docs/MODULOS.md`, seção 1).
 - Toda função do motor é pura e testável fora do worker.
 - Nenhuma dependência nova sem justificar no PR/commit (tamanho, manutenção, uso de rede).
 

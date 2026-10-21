@@ -4,6 +4,22 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Plataforma de módulos (Fase 8, docs/MODULOS.md)
+- Tela inicial com o seletor de análises: Log de auditoria (CFGR700), marcado por padrão, e Integridade da CT2
+  ("Em breve"). A última análise usada volta marcada; o nome da análise aparece no topo; **Trocar análise** encerra a
+  sessão e volta ao seletor (**Nova análise** continua mantendo os arquivos).
+- Processamento: o comando `ingest` informa a análise; o worker despacha para o módulo por um registro, com uma
+  sessão nova por ingestão. O CFGR700 roda pelo mesmo motor, sem mudança de resultado, painel ou planilha.
+- Configuração por análise no IndexedDB (`analyzerConfig:cfgr700`), migrada da chave da versão 1.0.0 sem perda; a
+  chave antiga continua gravada como espelho. Os feriados passam a valer para todas as análises (`platformConfig`),
+  com o mesmo hash de configuração na Rastreabilidade.
+- Cópia de segurança versão 2, com os feriados da plataforma; as cópias feitas pela versão 1.0.0 continuam sendo
+  restauradas.
+- Ajuda: seção "Escolher a análise"; o manual do CFGR700 agrupado sob a âncora `#cfgr700`.
+- Especificação do módulo Integridade da CT2 (`docs/REGRAS_CT2_INTEGRIDADE.md`) com as decisões do usuário sobre o
+  limite de linhas por documento (`MV_NUMLIN`), "Lcto Manual?", usuário em "Origem" e a separação da análise por tipo
+  de saldo e moeda.
+
 ### Análise segregada por tipo de saldo (seção 13 de REGRAS_CFGR700.md)
 - Especificação: nova seção 13 e decisões registradas; invariantes 12 a 15 na seção 11.
 - Motor: tipo de saldo (CT2_TPSALD) no momento de cada evento, com a fonte (Direta, Reconstruída, Não determinado),
