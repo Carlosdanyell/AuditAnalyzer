@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "table": "CT2",
+  "reading": {
+    "headerSearchRows": 30
+  },
+  "columns": {
+    "date": { "title": "Data Lcto", "aliases": ["CT2_DATA"], "required": true },
+    "batch": { "title": "Numero Lote", "aliases": ["CT2_LOTE"], "required": true },
+    "subBatch": { "title": "Sub Lote", "aliases": ["CT2_SBLOTE"], "required": true },
+    "document": { "title": "Numero Doc", "aliases": ["CT2_DOC"], "required": true },
+    "line": { "title": "Numero Linha", "aliases": ["CT2_LINHA"], "required": true },
+    "balanceType": { "title": "Tipo do Sld", "aliases": ["CT2_TPSALD"], "required": true },
+    "currency": { "title": "Moeda Lancto", "aliases": ["CT2_MOEDLC"], "required": true },
+    "entryType": { "title": "Tipo Lcto", "aliases": ["CT2_DC"], "required": true },
+    "debitAccount": { "title": "Cta Debito", "aliases": ["CT2_DEBITO"], "required": true },
+    "creditAccount": { "title": "Cta Credito", "aliases": ["CT2_CREDIT"], "required": true },
+    "amount": { "title": "Valor", "aliases": ["CT2_VALOR"], "required": true },
+    "history": { "title": "Hist Lanc", "aliases": ["CT2_HIST"], "required": true },
+    "amountCurrency1": { "title": "Valor Moeda1", "aliases": [], "required": false },
+    "routine": { "title": "Rotina", "aliases": ["CT2_ROTINA"], "required": false },
+    "standardEntry": { "title": "Lanc Padrao", "aliases": ["CT2_LP"], "required": false },
+    "ctkSequence": { "title": "Seq CTK", "aliases": ["CT2_SEQUEN"], "required": false },
+    "manual": { "title": "Lcto Manual?", "aliases": ["CT2_MANUAL"], "required": false },
+    "origin": { "title": "Origem", "aliases": ["CT2_ORIGEM"], "required": false },
+    "companyOrigin": { "title": "Empresa Orig", "aliases": ["CT2_EMPORI"], "required": false },
+    "branchOrigin": { "title": "Filial Orig", "aliases": ["CT2_FILORI"], "required": false }
+  },
+  "documentKey": ["date", "batch", "subBatch", "document"],
+  "codeWidths": { "batch": 6, "subBatch": 3, "document": 6, "line": 3, "balanceType": 1, "currency": 2 },
+  "entryTypes": {
+    "debitCredit": ["Partida Dobrada", "3"],
+    "debit": ["Debito", "1"],
+    "credit": ["Credito", "2"],
+    "historyContinuation": ["Cont.Hist", "4"]
+  }
+}
