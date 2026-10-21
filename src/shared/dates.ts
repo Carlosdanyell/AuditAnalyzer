@@ -117,3 +117,18 @@ export function lastDayOfMonth(day: number): number {
   const [y, m] = dateParts(day);
   return daysFromCivil(y, m, daysInMonth(y, m)) - DAYS_1970_TO_2000;
 }
+
+const MIN_DAY = daysFromCivil(MIN_YEAR, 1, 1) - DAYS_1970_TO_2000;
+const MAX_DAY = daysFromCivil(MAX_YEAR, 12, 31) - DAYS_1970_TO_2000;
+/** Excel serial of 2000-01-01 in the 1900 and in the 1904 date systems. */
+const SERIAL_2000 = { 1900: 36526, 1904: 35064 };
+
+/**
+ * Excel date serial → day number, or INVALID_TIME when it is not a whole day or is outside 1932–2067
+ * (docs/REGRAS_CT2_INTEGRIDADE.md, section 2).
+ */
+export function dayFromExcelSerial(serial: number, date1904 = false): number {
+  if (!Number.isInteger(serial)) return INVALID_TIME;
+  const day = serial - SERIAL_2000[date1904 ? 1904 : 1900];
+  return day >= MIN_DAY && day <= MAX_DAY ? day : INVALID_TIME;
+}
