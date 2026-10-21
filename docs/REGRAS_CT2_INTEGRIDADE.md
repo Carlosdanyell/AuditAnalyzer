@@ -79,10 +79,12 @@ mapeadas são lidas e exportadas na Base como texto/número, na ordem original.
   com o próprio balanceamento. Na extração mais comum (um tipo de saldo e uma moeda) existe um único segmento.
 - **Chave da linha** (teste E1): segmento + chave do documento + `line` + `companyOrigin` + `branchOrigin` (as duas
   últimas só se existirem). O segmento entra para que a mesma linha em duas moedas não seja apontada como duplicada.
-- **Ordenação da Base:** estável, por segmento e depois pela chave do documento e `line` (na ordem de numeração da
-  seção 4). Consequência obrigatória: **cada documento de um segmento ocupa um bloco contíguo de linhas da Base**,
-  cada lote um bloco contíguo de documentos e cada dia um bloco contíguo de lotes, sempre dentro do segmento. Toda a
-  amarração da planilha (seção 7) depende disso e o invariante CI-2 confere.
+- **Ordenação da Base:** estável, pela chave da linha completa: segmento, chave do documento, `line` (na ordem de
+  numeração da seção 4), `companyOrigin` e `branchOrigin`; empates na ordem de leitura (arquivo, linha de origem).
+  Assim linhas com a mesma chave ficam adjacentes, como o teste E1 exige. Consequência obrigatória: **cada documento
+  de um segmento ocupa um bloco contíguo de linhas da Base**, cada lote um bloco contíguo de documentos e cada dia um
+  bloco contíguo de lotes, sempre dentro do segmento. Toda a amarração da planilha (seção 7) depende disso e o
+  invariante CI-2 confere.
 - A Base guarda a **linha de origem** (arquivo + número da linha na planilha de entrada) para rastreabilidade.
 
 ## 4. Lado do valor e numeração das linhas

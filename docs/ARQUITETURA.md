@@ -217,7 +217,8 @@ Fase 8 (plataforma de módulos): o banco continua na versão 2; no store `config
 numa única transação. Regras: na primeira abertura depois da 1.0.0, a chave antiga é copiada para a do módulo e os
 feriados para `platformConfig`; espelho diferente da chave do módulo = gravação de uma versão anterior, adotada;
 chave do módulo ilegível (ex.: gravada por uma versão mais nova) não é sobrescrita e o espelho é usado, com aviso;
-`platformConfig` inválida é ignorada e regravada; uma configuração válida salva nunca é trocada pelo padrão. Os
+`platformConfig` inválida é ignorada e regravada; uma configuração válida salva nunca é trocada pelo padrão (se a
+gravação de volta falhar, por exemplo com o disco cheio, as regras lidas continuam valendo, com aviso). Os
 feriados da plataforma são copiados sem reordenar para `calendar.holidays`, de modo que o worker recebe o mesmo objeto
 de antes: o SHA-256 e as diferenças da Rastreabilidade não mudam.
 Cópia de segurança (`src/shared/backup.ts`): versão 2 = versão 1 + `platform` (feriados); na leitura, os feriados de
