@@ -27,9 +27,15 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 - **Linha de cabeçalho:** a primeira linha, entre as 30 primeiras, que contém todos os títulos obrigatórios
   (comparação após `trim` e com espaços internos repetidos reduzidos a um). Os títulos vêm com espaços à direita
   (ex.: `"Data Lcto   "`).
-- **Linha de detalhe:** qualquer linha após o cabeçalho com pelo menos um campo da chave do documento preenchido.
-  Linhas totalmente vazias e lacunas do atributo `r` contam como **em branco**. Linha com parte da chave vazia é
-  detalhe e falha o invariante CI-4.
+- **Linha de detalhe:** qualquer linha após o cabeçalho com algum valor (célula não vazia depois de tirar os espaços
+  das pontas, inclusive em coluna não mapeada, ou referência inválida às strings compartilhadas). Linhas totalmente
+  vazias e lacunas do atributo `r` contam como **em branco**. Linha com parte da chave vazia, ou sem nenhum campo da
+  chave, é detalhe e falha o invariante CI-4 (regra conservadora, decisão de 21/10/2026): nenhuma linha com conteúdo
+  sai da conta sem aviso.
+- **Abas:** com várias abas, vale a que tem o cabeçalho nas primeiras linhas; duas abas com o cabeçalho é erro de
+  leitura, assim como coluna obrigatória repetida (título ou alias em duas colunas). Coluna obrigatória ausente: erro
+  com a lista do que faltou e dos títulos encontrados.
+- **Valores fora das colunas:** valor numa coluna sem título (ou além da coluna 256) não entra na base e falha CI-1.
 - **Reconciliação de leitura (por arquivo):** linhas após o cabeçalho − linhas em branco = linhas de detalhe.
 - SHA-256 do arquivo, CRC32 e tamanho de cada parte do ZIP: mesma rotina do módulo CFGR700.
 
@@ -59,15 +65,23 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 | `branchOrigin` | Filial Orig | CT2_FILORI | não |
 
 Coluna obrigatória ausente: erro na etapa de leitura, com a lista do que faltou e do que foi encontrado. Colunas não
-mapeadas são lidas e exportadas na Base como texto/número, na ordem original.
+mapeadas são lidas e exportadas na Base como texto/número, na ordem original; um título não mapeado repetido ganha o
+número da ocorrência (`Filial (2)`). Com vários arquivos, as colunas são unidas pelo título, com alerta quando os
+conjuntos diferem; coluna opcional ausente gera alerta (os testes que dependem dela ficam desligados, CI-9). Campos
+da chave do documento precisam ser colunas obrigatórias (a configuração recusa outro caso).
 
 ### Valores e datas
 
 - `amount` e `amountCurrency1`: célula numérica → centavos com `Math.round(v * 100)`; texto → parse pt-BR
-  (`1.234,56`) para centavos. Ilegível = CI-4.
-- `date`: número serial do Excel (inteiro) ou texto `dd/mm/aaaa`. Guardar como número de dia, sem fuso. Ilegível = CI-4.
-- Códigos (`batch`, `document`, `line`, `balanceType`, `currency`…) são **texto**: zeros à esquerda preservados;
-  célula numérica é convertida para texto com a largura da configuração (`codeWidths`, ex.: lote 6, doc 6, linha 3).
+  (`1.234,56`: sinal de menos opcional, milhares com ponto, até duas casas depois da vírgula; outro formato nunca é
+  adivinhado). Ilegível = CI-4. `amount` vazio vale 0 só na continuação de histórico; nas demais linhas, CI-4.
+  `amountCurrency1` vazio fica sem valor; ilegível gera alerta (a linha fica fora do teste I4).
+- `date`: número serial do Excel inteiro (sistema 1900 ou 1904, conforme a pasta), entre 1932 e 2067, ou texto
+  `dd/mm/aaaa`. Guardar como número de dia, sem fuso. Serial com fração, data inexistente ou fora do intervalo = CI-4.
+- Códigos (`batch`, `document`, `line`, `balanceType`, `currency`…) são **texto**: zeros à esquerda preservados, espaços
+  das pontas retirados; célula numérica é convertida para texto com a largura da configuração (`codeWidths`, ex.:
+  lote 6, doc 6, linha 3). Célula numérica que não é inteiro = CI-4. Linha, tipo de saldo ou moeda vazios = CI-4.
+  Os demais códigos (contas, origem) não são completados com zeros.
 
 ## 3. Chaves e ordenação
 
@@ -81,6 +95,7 @@ mapeadas são lidas e exportadas na Base como texto/número, na ordem original.
   últimas só se existirem). O segmento entra para que a mesma linha em duas moedas não seja apontada como duplicada.
 - **Ordenação da Base:** estável, pela chave da linha completa: segmento, chave do documento, `line` (na ordem de
   numeração da seção 4), `companyOrigin` e `branchOrigin`; empates na ordem de leitura (arquivo, linha de origem).
+  Textos comparados pelas unidades de código, sem regras de idioma (`0` < `9` < `A` < `a`); datas pelo número do dia.
   Assim linhas com a mesma chave ficam adjacentes, como o teste E1 exige. Consequência obrigatória: **cada documento
   de um segmento ocupa um bloco contíguo de linhas da Base**, cada lote um bloco contíguo de documentos e cada dia um
   bloco contíguo de lotes, sempre dentro do segmento. Toda a amarração da planilha (seção 7) depende disso e o
@@ -101,8 +116,8 @@ alternativo. Tipo não reconhecido: linha entra com débito e crédito 0 e falha
 
 **Numeração das linhas:** três caracteres. A sequência observada é `001`…`999` e, em seguida, `A00`. O usuário
 acredita que a sequência continua `A00`, `A01`, …; a regra depois de `A00` (função Soma1 do Protheus) ainda não está
-confirmada (seção 12); até lá, o ordinal vale 1–999 para as linhas numéricas e as alfanuméricas seguem a ordem de
-leitura depois de 999.
+confirmada (seção 12). Na ordenação, as linhas seguem a **ordem do texto** (decisão de 21/10/2026): `001` < … <
+`999` < `A00` < `A01` < … < `A99` < `B00`. O ordinal numérico (E2) vale só para `001`–`999`.
 
 ## 5. Aglutinação
 
@@ -318,10 +333,10 @@ código, chave.
 
 | Código | Regra | Bloqueia exportação |
 |---|---|---|
-| CI-1 | Reconciliação de leitura por arquivo (seção 2); CRC32 e tamanho do ZIP | sim |
+| CI-1 | Reconciliação de leitura por arquivo (seção 2), nenhum valor fora das colunas com título; SHA-256, CRC32 e tamanho de cada entrada do ZIP | sim |
 | CI-2 | Base ordenada por segmento e chave da linha; cada documento de um segmento em um único bloco contíguo; blocos de documento cobrem todas as linhas sem sobreposição; idem lotes sobre documentos e dias sobre lotes | sim |
 | CI-3 | Σ débito e Σ crédito (centavos) iguais em Base, Documentos, Lotes, Dias e total | sim |
-| CI-4 | Valores legíveis: chave completa, data válida, valor legível em toda linha de detalhe | sim |
+| CI-4 | Valores legíveis em toda linha de detalhe: chave completa, linha, tipo de saldo e moeda preenchidos, data válida, valor legível (vazio só em continuação de histórico), códigos numéricos inteiros, referências de string válidas. A tela lista as 5 primeiras linhas de origem com problema de cada arquivo | sim |
 | CI-5 | Para cada teste, ocorrências pelas marcas de linha/nível = linhas da Excecoes (Erro/Alerta) | sim |
 | CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
@@ -367,8 +382,11 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 - **Planilha:** `xlsxEval` avalia todas as fórmulas da exportação sintética e confere: matriz de amarração toda OK,
   quadro de testes "Confere", cada status de Documentos/Lotes/Dias = motor, Excecoes toda "Confirmada"; alterar um
   parâmetro (ex.: `P_TOL`) no avaliador muda os status como o motor muda; determinismo byte a byte.
-- **Locais (fora do git):** a extração real em `local/` e `local/golden-ct2-integrity.json` com documentos, linhas,
-  débito, crédito, desbalanceados e a compensação esperada.
+- **Locais (fora do git):** as extrações reais em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`
+  (`tests/local/ct2Golden.test.ts`, formato no cabeçalho do teste): linhas, documentos e, por segmento, linhas,
+  documentos, débito e crédito (Fase 9); desbalanceados e a compensação esperada entram na Fase 10. Medição de tempo
+  e memória com extrações sintéticas grandes: `MEDIR_CT2=1 npm run test:local` (`tests/local/ct2Measure.test.ts`;
+  os arquivos são gerados uma vez na pasta temporária do sistema).
 - **Ponta a ponta:** escolher o módulo, carregar o sintético, conferir painel e exportação, sem requisição externa.
 
 ## 12. Pendências (decidir com o usuário antes de implementar o item)
@@ -378,7 +396,8 @@ Situação em 20/10/2026 (decisões na seção 13):
 1. **Limite de linhas por documento — decidido.** O parâmetro é o `MV_NUMLIN` do Protheus e vale por **documento**
    (P4). Ainda em aberto, sem bloquear: se o limite varia por rotina (o parâmetro da execução é editável).
 2. **Numeração após `A00` — pendente.** O usuário acredita que segue `A00`, `A01`, …; confirmar `A00`–`A99` e o que
-   vem depois de `A99` (função Soma1). Necessária para E2 completo; até lá, E2 vale para 001–999 (seções 4 e 10).
+   vem depois de `A99` (função Soma1). Necessária para E2 completo; até lá, E2 vale para 001–999 (seções 4 e 10). A
+   ordenação já está decidida: ordem do texto (seção 4).
    Com o `MV_NUMLIN` aumentado, linhas depois de `A00` passam a aparecer: um bom momento para obter a evidência.
 3. **"Lcto Manual?" — decidido.** Mesma regra e mesmos códigos configuráveis do módulo CFGR700 (P2).
 4. **Usuário em "Origem" — fora do escopo.** O usuário avalia que a CT2 não traz o nome de usuário; o texto do campo
@@ -410,3 +429,17 @@ Situação em 20/10/2026 (decisões na seção 13):
     duplicada a mesma linha em duas moedas; a Base é ordenada por segmento para manter os blocos contíguos (CI-2).
     Alternativas rejeitadas: analisar só o tipo de saldo e a moeda esperados (as demais linhas ficariam sem
     balanceamento) e somar tudo com alerta (somaria moedas diferentes).
+- 21/10/2026 — Fase 9 (leitura), respostas do usuário:
+  - **Liberação:** o módulo fica disponível no site como **prévia**, com aviso de que só lê e reconcilia; painel,
+    tabelas e exportação ficam bloqueados até a Fase 10.
+  - **Linhas incompletas:** regra **conservadora**: linha com conteúdo e sem nenhum campo da chave é detalhe e falha
+    CI-4; linha, tipo de saldo ou moeda vazios falham CI-4; valor vazio é 0 só na continuação de histórico.
+  - **Linhas depois de 999:** ordenadas pela **ordem do texto** (`A00` < `A01` < … < `B00`); E2 continua valendo
+    só para `001`–`999`.
+  - **Padrões de leitura aprovados com o plano:** títulos comparados depois de tirar os espaços das pontas e reduzir
+    os repetidos (maiúsculas e acentos contam); título obrigatório repetido é erro; com várias abas vale a que tem o
+    cabeçalho (duas é erro); códigos sem espaços nas pontas, célula numérica completada com zeros na largura
+    configurada (lote 6, documento 6, linha 3, sub-lote 3, moeda 2, tipo de saldo 1), outros códigos não; serial do
+    Excel com fração é CI-4; texto de valor só no formato pt-BR; vários arquivos unidos pelo título das colunas, com
+    alerta; o aviso de arquivo trocado mantém a lista de arquivos; arquivos reais da CT2 em `local/ct2/`; arquivos
+    de medição na pasta temporária do sistema.

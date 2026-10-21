@@ -57,6 +57,27 @@ páginas de linhas para as tabelas virtualizadas.
   valor em centavos.
 - Ao terminar a ingestão de um arquivo, descartar buffers intermediários.
 
+**Extrações largas (Fase 9, módulo `ct2Integrity`).** A extração da CT2 tem ~80 colunas, guardadas inteiras na base:
+- Leitura genérica de uma aba (`ingest/readSheet.ts`), comum aos módulos: SHA-256, diretório do ZIP, CRC32 e tamanho
+  de todas as entradas, strings compartilhadas e as linhas da aba escolhida pelo módulo, uma a uma. O CFGR700 segue
+  com o próprio caminho (`ingest/pipeline.ts`), sem mudança.
+- Números em typed arrays que crescem em **blocos fixos** de 65.536 linhas (`store/chunked.ts`): sem dobrar o tamanho a
+  cada crescimento, o pico fica perto do que é guardado.
+- Textos em colunas compactadas (`store/packedColumn.ts`): nada enquanto a coluna está vazia ou constante; um código
+  de 1, 2 ou 4 bytes por linha numa tabela dos valores distintos; números de 8 bytes quando há muitos números
+  distintos; e, para colunas de textos quase todos distintos (históricos, sequências), os **bytes UTF-8 de cada
+  linha** em blocos de 1 MB mais 4 bytes por linha, sem tabela. A tabela custa ~100 bytes por valor distinto além dos
+  caracteres; a troca é decidida uma vez, quando os códigos de 2 bytes deixam de bastar.
+- Strings compartilhadas lidas nos **bytes** (`SharedStringsBytesParser`), cada item decodificado sozinho: cortar
+  strings de um pedaço decodificado faz o motor JavaScript manter o pedaço inteiro vivo enquanto houver uma string
+  dele (na medição, ~180 MB para uma sharedStrings de 80 MB).
+- Parser da aba: a célula usual `<c …><v>valor</v></c>` é resolvida com uma busca só; qualquer outra forma segue o
+  caminho geral, que acharia as mesmas posições (o CFGR700 também ganha).
+- Ordem da base como permutação (`Uint32Array`) sobre os postos de cada parte da chave; as colunas ficam na ordem
+  de leitura.
+- `DecompressionStream` do Node lê adiante toda a parte comprimida da aba (sem contrapressão); no navegador o fluxo
+  tem contrapressão. Por isso a memória medida no Node usa o `fflate` (`docs/MEDICOES.md`).
+
 ### 1.4 Metas de desempenho (medir na prova de conceito)
 | Métrica | Meta inicial |
 |---|---|
@@ -131,6 +152,13 @@ Table não foi adotado: com ordenação, filtro e paginação no worker, ele nã
 Fase 8 (plataforma de módulos, seção 9): o `ingest` ganhou `module?: ModuleId` (ausente = `cfgr700`); as demais
 mensagens seguem o módulo da sessão e nenhum evento mudou. O handler (`src/worker/handler.ts`) guarda a sessão devolvida
 pelo módulo e limita `page` a 2.000 linhas.
+
+Fase 9: comando `probe` (`{ requestId, files, rows }`) com as primeiras linhas de cada aba de cada arquivo
+(`ingest/probe.ts`: lê só o começo das abas e da sharedStrings, até a última string usada), para o aviso de arquivo
+trocado; responde `null` para o arquivo que não consegue ler e nunca envia erro. `reconciliation` e `ready` levam a
+carga do módulo da sessão (`ModuleReconciliation`, `ModuleSummary`): as do `ct2Integrity` têm `module:
+'ct2Integrity'`; as do CFGR700 continuam sem marca, com o mesmo conteúdo. O `ingest` recebe `config: unknown`,
+validada pelo módulo. A etapa `sort` entrou em `Stage`.
 
 Seção 13: `PanelData.segregated` traz, para o período, as categorias por fase (`byPhase`), os eventos por fase e
 operação, as exceções, os informativos, as marcações e a segregação de funções. A tabela `segregation` tem uma linha por
@@ -289,3 +317,13 @@ Implementado na Fase 8:
   capacidades opcionais da sessão; sem elas, o handler responde "Recurso não disponível nesta análise.".
 - Imports estáticos (sem `import()` sob demanda): a CSP não muda e não há arquivos buscados depois do carregamento.
 - O `App.tsx` continua hospedando as visões do CFGR700; a extração da área de trabalho por módulo fica para a Fase 12.
+
+Implementado na Fase 9:
+- Tipos do CFGR700 em `src/shared/modules/cfgr700.ts` (reexportados por `protocol.ts`); tipos da CT2 em
+  `src/shared/modules/ct2Integrity.ts`.
+- `ct2Integrity` registrado no worker (`src/worker/modules/ct2Integrity/`: `ingest.ts`, `store.ts`, `order.ts`,
+  `values.ts`) e disponível na tela como **prévia**: leitura, reconciliação e invariantes CI-1, CI-2 e CI-4.
+- Descritor da tela com `preview`, passos de "Como funciona", etapas do processamento (`progress`), visões oferecidas
+  (`features`; as demais aparecem bloqueadas), `config.saved` (configuração salva ou padrão do módulo) e `detect()`.
+- Tela de reconciliação por módulo: `Ct2ReconciliationView` reaproveita as partes comuns (`ReconciliationParts`) da do
+  CFGR700, cujo HTML não mudou (referência congelada em `tests/synthetic/expected/screens`).

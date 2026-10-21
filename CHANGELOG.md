@@ -4,6 +4,19 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Integridade da CT2: leitura, em prévia (Fase 9, docs/REGRAS_CT2_INTEGRIDADE.md)
+- Nova análise disponível como **prévia**: lê uma ou mais extrações da tabela CT2 (cabeçalho localizado pelos títulos
+  nas primeiras 30 linhas, aliases `CT2_*`, códigos como texto, valores em centavos, datas do Excel ou `dd/mm/aaaa`),
+  confere SHA-256, CRC32 e tamanho, reconcilia as linhas de cada arquivo e mostra linhas, documentos, lotes, dias e
+  débito e crédito por tipo de saldo e moeda.
+- Verificações bloqueantes: linhas da extração conferidas (CI-1), base em blocos contíguos (CI-2) e valores legíveis
+  (CI-4, com as primeiras linhas com problema de cada arquivo). Painel, tabelas e exportação chegam na Fase 10.
+- Aviso na tela inicial quando um arquivo parece ser de outra análise, com a troca mantendo a lista de arquivos.
+- Leitura de extrações largas: colunas em blocos fixos e compactadas (textos quase todos distintos guardados como
+  bytes), strings compartilhadas decodificadas item a item e atalho do parser para a célula usual (o CFGR700 também
+  usa o atalho, com saídas idênticas). 1,3 milhão de linhas sintéticas em ~56 s, pico de 220 MB.
+- Ajuda: seção da Integridade da CT2.
+
 ### Plataforma de módulos (Fase 8, docs/MODULOS.md)
 - Tela inicial com o seletor de análises: Log de auditoria (CFGR700), marcado por padrão, e Integridade da CT2
   ("Em breve"). A última análise usada volta marcada; o nome da análise aparece no topo; **Trocar análise** encerra a

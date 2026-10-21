@@ -180,6 +180,15 @@ arquivo de ~1 milhão de linhas.
 
 **Pronto quando:** sintéticos e local passando; tempo e memória medidos em `docs/MEDICOES.md`.
 
+**Implementada (21/10/2026).** Decisões do usuário em
+`docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13: módulo disponível no site como prévia (lê e reconcilia), regra conservadora
+para linhas incompletas e ordem do texto para as linhas depois de 999. Leitura genérica de uma aba
+(`ingest/readSheet.ts`), colunas em blocos e compactadas (`store/`), ingestão, ordem da base e invariantes CI-1, CI-2
+e CI-4; sondagem, `detect()` e aviso de arquivo trocado; etapas, reconciliação e visões por módulo; tipos do CFGR700
+em `src/shared/modules/cfgr700.ts`. Tempo e memória com extrações sintéticas em `docs/MEDICOES.md` (1,3 milhão de
+linhas: 56 s, pico vivo 220 MB). Pendente na máquina do desenvolvedor: `tests/local/ct2Golden.test.ts` com a
+extração real em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`, e a medição no navegador.
+
 ---
 
 ## Fase 10 — CT2 Integridade: motor

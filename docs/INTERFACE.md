@@ -41,15 +41,22 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 0. **Início — seletor de análises** (`docs/MODULOS.md`, seção 4) — um cartão por módulo (título, descrição, arquivo
    esperado, link "Manual desta análise"), na mesma tela da área de arquivos; a análise escolhida vem marcada desde
    a primeira renderização (a última usada, `lastModule`, gravada ao Analisar; padrão CFGR700). Módulo "Em breve" não
-   pode ser escolhido. Escolher outra análise com arquivos na lista limpa a lista. O nome da análise aparece no topo.
+   pode ser escolhido; módulo em prévia (Integridade da CT2, Fase 9) tem o selo "Prévia" e o aviso do que já faz, na
+   tela inicial e na reconciliação. Escolher outra análise com arquivos na lista limpa a lista. Arquivo que parece
+   ser de outra análise: aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e
+   mantém a lista; o aviso nunca impede de analisar. O nome da análise aparece no topo.
    **"Trocar análise"** (topo, depois de analisar) encerra a sessão como "Encerrar sessão" e volta ao seletor;
    **"Nova análise"** continua mantendo a análise e os arquivos.
 1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo;
-   Analisar (envia a configuração salva). Mensagens de erro com detalhe técnico recolhido.
+   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
+   erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e
    **Cancelar** (termina o worker e avisa que os dados lidos foram descartados).
 3. **Reconciliação** — por arquivo: SHA-256, integridade do ZIP, parâmetros, reconciliação de linhas, eventos por
-   operação e verificações (bloqueantes e alertas); resumo da análise por escopo.
+   operação e verificações (bloqueantes e alertas); resumo da análise por escopo. Integridade da CT2: linhas após o
+   cabeçalho − em branco = detalhe, valores ilegíveis por tipo com as primeiras linhas de origem, colunas encontradas,
+   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4. Visões que o módulo não
+   oferece ficam bloqueadas no menu.
 4. **Painel** (`panel`) — escopo (cada arquivo e Consolidado); período por atalho (inclui os do usuário) ou datas;
    data de corte editável; quadros: categorias por origem (cada número abre a tabela filtrada por categoria,
    período e origem), período × demais dias × log completo, competência (com o indicador de fechamento),
@@ -105,7 +112,8 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
-  "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o seletor. Cada teste também reprova
+  "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o seletor, a análise
+  da CT2 em prévia e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

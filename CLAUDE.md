@@ -67,9 +67,12 @@ src/
   worker/
     index.ts           # ponto de entrada do worker e protocolo de mensagens
     handler.ts         # despacho dos comandos para a sessão do módulo
-    modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor)
-    ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts
-    store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts
+    modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor;
+                       # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts)
+    ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
+                       # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado)
+    store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts; chunked.ts e packedColumn.ts
+                       # (extrações largas: blocos fixos, códigos estreitos, textos distintos em bytes)
     engine/            # events.ts, records.ts, documents.ts, classify.ts, periods.ts, checks.ts
     export/            # xlsxWriter.ts, styles.ts, sheets/*.ts, traceability.ts
   config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json (CFGR700), platform.ts (feriados);

@@ -74,7 +74,7 @@ interface WorkerModule {                // só no worker; funções puras + esta
 - Invariantes: cada módulo numera os seus com prefixo (`CI-1`, `CI-2`… no `ct2Integrity`); os do CFGR700 mantêm a
   numeração atual.
 
-### 3.1 Contrato implementado na Fase 8
+### 3.1 Contrato implementado (Fases 8 e 9)
 
 O código é a referência (`src/modules/types.ts` e `src/worker/modules/types.ts`):
 
@@ -83,11 +83,14 @@ O código é a referência (`src/modules/types.ts` e `src/worker/modules/types.t
 type ModuleDescriptor = AvailableModule | ComingSoonModule;
 interface AvailableModule<C> {
   status: 'available'; id: ModuleId; title; shortTitle; description; input; brandSubtitle;
-  start: { heading; headingDescription; uploadTitle; uploadDescription; dropTitle };   // textos da tela inicial
+  preview: string | null;                               // Fase 9: selo "Prévia" e aviso enquanto o módulo é parcial
+  start: { heading; headingDescription; uploadTitle; uploadDescription; dropTitle; guide };   // tela inicial
+  progress: { stages: { id: Stage; label }[]; perFile: number };   // etapas do processamento
   accepts: { extensions: readonly string[]; maxFiles: number };
   helpAnchor: string;                                   // public/ajuda.html#<anchor>
-  features: { justifications: boolean };
-  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C> };
+  features: { panel; tables; justifications; export: boolean };   // visões além da reconciliação
+  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };
+  detect(sheets: SheetSample[], config: C): 'match' | 'maybe' | 'no';   // Fase 9; nunca bloqueia
 }
 interface ComingSoonModule { status: 'comingSoon'; id; title; description; input; helpAnchor: null }
 
@@ -115,6 +118,16 @@ interface ModuleSession {                               // objeto novo a cada in
 - `detect()` e o aviso "Este arquivo parece ser…" ficam para a **Fase 9**: o cabeçalho só é lido no worker, então
   precisa de um comando de sondagem; com um único módulo disponível, o aviso não teria para onde mandar. Quando vier,
   `detect` recebe também a configuração salva (os títulos do CFGR700 são configuráveis) e nunca bloqueia.
+  **Implementado na Fase 9:** comando `probe` (primeiras 30 linhas de cada aba, lendo só o começo das abas e da
+  sharedStrings; nunca responde erro); `detect(sheets, config)` em cada descritor, com a configuração com que a
+  análise rodaria (salva, `config.saved`, ou o padrão do módulo); `suggestModule` (`src/modules/registry.ts`) escolhe
+  o primeiro outro módulo que reconhece um arquivo que o escolhido não reconhece (`no`). O aviso mantém a lista de
+  arquivos ao trocar e nunca impede de analisar.
+- **Fase 9:** a tela envia a cada módulo a própria configuração: a salva no computador quando `config.saved` (hoje só
+  o CFGR700) ou o padrão do módulo; só a salva pode pedir reprocessamento. As visões que o módulo não oferece
+  (`features`) aparecem bloqueadas no menu, e o botão "Exportar planilha" some. Etapas do processamento, passos de
+  "Como funciona" e tela de reconciliação são do módulo (`StageProgress` recebe `progress`; a CT2 tem
+  `Ct2ReconciliationView`, que reaproveita as partes comuns da do CFGR700).
 - Os tipos de painel e de tabela do CFGR700 continuam em `src/shared/protocol.ts`; mudam para
   `src/shared/modules/cfgr700.ts` na Fase 9, com reexportação.
 - Configuração: a chave `analyzerConfig` é **copiada** para `analyzerConfig:cfgr700` e mantida como espelho, gravada
@@ -135,8 +148,8 @@ interface ModuleSession {                               // objeto novo a cada in
   arquivos, com o CFGR700 marcado desde a primeira renderização (`src/components/ModuleSelector.tsx`).
 - Depois da escolha, o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → Painel → Tabelas →
   Exportação. O nome do módulo aparece no topo; "Trocar análise" volta ao início e encerra a sessão.
-- Se `detect` disser `no` para o arquivo solto, a tela avisa ("Este arquivo parece ser … — trocar de análise?") e
-  deixa seguir. (Fase 9; ver 3.1.)
+- Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
+  … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo
   estão na seção 9 de `docs/REGRAS_CT2_INTEGRIDADE.md`.
 
