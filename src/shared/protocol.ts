@@ -5,70 +5,69 @@
  *
  * Payload types marked "phase N" are placeholders and get their real shape in that phase.
  */
-import type { AnalyzerConfig, OperationKey } from '../config/schema';
-import type { ExceptionId, InformativeId, MarkId, Phase } from './segregation';
+import type { AnalyzerConfig } from '../config/schema';
 import type { ModuleId } from './modules';
+import type {
+  Justification,
+  JustificationImportPreview,
+  PanelData,
+  PanelSettings,
+  PipelineStage,
+  Reconciliation,
+  Summary,
+  TableFilter,
+  TableId,
+} from './modules/cfgr700';
 
-/** Processing stages shown in the UI (docs/ARQUITETURA.md, section 4), plus query/export stages. */
-export const PIPELINE_STAGES = [
-  'fileCheck',
-  'parameters',
-  'sharedStrings',
-  'rows',
-  'reconciliation',
-  'events',
-  'documents',
-  'checks',
-] as const;
+// Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
+export { PIPELINE_STAGES } from './modules/cfgr700';
+export type {
+  PipelineStage,
+  TableId,
+  Category,
+  OriginFilter,
+  TableFilter,
+  OriginCell,
+  CategoryPanel,
+  PeriodPanel,
+  CompositionCell,
+  CategoryComposition,
+  Composition,
+  Signal,
+  DailyRow,
+  PeriodPreset,
+  PanelSettings,
+  IdentificationHint,
+  PhaseEvents,
+  SegregatedPanel,
+  PanelData,
+  JustificationKind,
+  JustificationStatus,
+  JustificationCoverage,
+  Justification,
+  ImportedJustification,
+  LoadedFileInfo,
+  JustificationImportPreview,
+  CoverageCount,
+  ParameterPair,
+  RowReconciliation,
+  OperationCount,
+  InvalidCounts,
+  ValueCount,
+  FileReconciliation,
+  Reconciliation,
+  ScopeStats,
+  ScopeSummary,
+  Summary,
+} from './modules/cfgr700';
 
-export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+/** Processing stages of the modules plus the query/export stages. */
 export type Stage = PipelineStage | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
 
 /** Event-date interval in day numbers (days since 2000-01-01, see shared/dates.ts), both ends included. */
 export interface Period {
   startDay: number;
   endDay: number;
-}
-
-export type TableId =
-  | 'documents'
-  | 'baseRows'
-  | 'deletions'
-  | 'changes'
-  | 'unbalanced'
-  | 'discardedChanges'
-  | 'deletionJustifications'
-  | 'changeJustifications'
-  /** One row per event, with its phase (docs/REGRAS_CFGR700.md, section 13). */
-  | 'segregation';
-
-/** Panel categories (docs/REGRAS_CFGR700.md, section 8). */
-export type Category = 'deleted' | 'changed' | 'unbalanced' | 'posted';
-export type OriginFilter = 'manual' | 'automatic' | 'mixed' | 'unidentified';
-
-export interface TableFilter {
-  /** Case- and accent-insensitive text search over the text columns. */
-  search?: string;
-  origin?: OriginFilter;
-  /**
-   * Only the rows counted in this panel category for `period` (lines or documents, depending on the table),
-   * so a table opened from a panel number has exactly that number of rows.
-   */
-  category?: Category;
-  /** Without a category: event date of the row (deletion, change, discarded event) in the period. */
-  period?: Period;
-  /** Justification lists only. */
-  status?: JustificationStatus;
-  /**
-   * Segregated analysis (section 13). With a category: only the lines or documents of the category in that phase.
-   * In the segregation table: events of that phase.
-   */
-  phase?: Phase;
-  /** Segregation table only: events of the operation, with an exception ('any' = any exception), informative or mark. */
-  operation?: OperationKey;
-  exception?: ExceptionId | 'any';
-  informative?: InformativeId;
-  mark?: MarkId;
 }
 
 export interface Sort {
@@ -86,208 +85,6 @@ export interface ColumnSpec {
 }
 
 export type Cell = string | number | null;
-
-// ── Panel (docs/REGRAS_CFGR700.md, section 8) ──
-
-export interface OriginCell {
-  lines: number;
-  documents: number;
-  /** Sum of the debits of the lines counted. */
-  debitCents: number;
-}
-
-export interface CategoryPanel {
-  manual: OriginCell;
-  automatic: OriginCell;
-  mixedDocuments: number;
-  totalDocuments: number;
-  /** Lines of unidentified records: outside the Manual/Automático columns. */
-  unidentifiedLines: number;
-}
-
-export interface PeriodPanel {
-  deleted: CategoryPanel;
-  changed: CategoryPanel;
-  unbalanced: CategoryPanel;
-  posted: CategoryPanel;
-}
-
-export interface CompositionCell {
-  lines: number;
-  documents: number;
-  debitCents: number;
-}
-
-/** Lines and documents of a category in the period, by entry date (CT2_DATA) against the cutoff date. */
-export interface CategoryComposition {
-  upToCutoff: CompositionCell;
-  afterCutoff: CompositionCell;
-  /** Identified lines whose CT2_DATA could not be read. */
-  unreadableDate: CompositionCell;
-  /** "Sem identificação". */
-  unidentifiedLines: number;
-}
-
-export interface Composition {
-  deleted: CategoryComposition;
-  changed: CategoryComposition;
-  unbalanced: CategoryComposition;
-  posted: CategoryComposition;
-}
-
-export interface Signal {
-  id: string;
-  label: string;
-  requiresAction: boolean;
-  count: number;
-  /** Neutral, factual text (docs/REGRAS_CFGR700.md, section 8). */
-  text: string;
-}
-
-export interface DailyRow {
-  day: number;
-  /** Lines counted per category on that day (changes: per source file). */
-  posted: number;
-  deleted: number;
-  changed: number;
-  /** Distinct events of any operation on that day. */
-  events: number;
-}
-
-export interface PeriodPreset {
-  id: string;
-  label: string;
-  period: Period;
-}
-
-/** Panel settings the user can change during the session (saved in IndexedDB by the UI). Dates are dd/mm/aaaa. */
-export interface PanelSettings {
-  periodPresets: { label: string; start: string; end: string }[];
-  holidays: string[];
-}
-
-/**
- * Changed records of the period without a document (docs/REGRAS_CFGR700.md, section 10): the report brings only the
- * changed field, so the document is known only when the insert (or a deletion) of the record is in a loaded file.
- */
-export interface IdentificationHint {
-  /** Changed records of the period without a document in this scope. */
-  records: number;
-  /** Of these, the ones identified in the consolidated scope (insert in another loaded file); null for the consolidated scope or a single file. */
-  recoverable: { records: number; documents: number; scope: number } | null;
-  /** Files loaded in the session. */
-  loadedFiles: number;
-}
-
-/** Events of a phase by operation; `total` also counts operations not recognized. */
-export interface PhaseEvents {
-  insert: number;
-  update: number;
-  delete: number;
-  restore: number;
-  total: number;
-}
-
-/** Segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13) for the period. */
-export interface SegregatedPanel {
-  /** Categories of section 8 by phase; for each category and column, the phases add up to `PanelData.panel`. */
-  byPhase: Record<Phase, PeriodPanel>;
-  /** Events of the period (event date) by phase and operation. */
-  events: Record<Phase, PhaseEvents>;
-  /** Exception events of the period by type (each event under its first exception). */
-  exceptions: Record<ExceptionId, number>;
-  exceptionEvents: number;
-  informatives: Record<InformativeId, number>;
-  marks: Record<MarkId, number>;
-  /**
-   * Documents by "Mesmo usuário na inclusão e na efetivação": Sim and Não by the date of the first posting in the
-   * period; Não avaliável in the whole scope (there is no posting date).
-   */
-  sameUser: { yes: number; no: number; notEvaluable: number };
-}
-
-export interface PanelData {
-  scope: number;
-  period: Period;
-  cutoffDay: number;
-  /** First and last event day of the scope; null when it has no valid event. */
-  bounds: Period | null;
-  presets: PeriodPreset[];
-  panel: PeriodPanel;
-  /** Full log minus the period. */
-  otherDays: PeriodPanel;
-  full: PeriodPanel;
-  composition: Composition;
-  /** Invariant 7 for this view: composition totals = category totals + unidentified. */
-  compositionMatches: boolean;
-  signals: Signal[];
-  daily: DailyRow[];
-  /** False while no justification is loaded: "sem justificativa" then shows every document as pending. */
-  justificationsLoaded: boolean;
-  /** Justification coverage of the documents of the period (distinct documents). */
-  coverage: { deleted: CoverageCount; changed: CoverageCount };
-  /** Null when every changed record of the period has a document. */
-  identification: IdentificationHint | null;
-  segregated: SegregatedPanel;
-  settings: PanelSettings;
-}
-
-// ── Justifications (docs/REGRAS_CFGR700.md, section 9) ──
-
-export type JustificationKind = 'deletion' | 'change';
-export type JustificationStatus = 'pending' | 'justified' | 'moved';
-
-/** Files (names) and last event (seconds since 2000-01-01) covered by a justification. */
-export interface JustificationCoverage {
-  files: string[];
-  lastEvent: number | null;
-}
-
-/** One justification per document and kind. Kept even when the document is not in the current log. */
-export interface Justification {
-  documentKey: string;
-  kind: JustificationKind;
-  text: string;
-  /** Optional. */
-  responsible: string;
-  coverage: JustificationCoverage;
-  /** Last edit on this computer (milliseconds, UI metadata: used to warn about changes without a JSON copy). */
-  updatedAt: number;
-}
-
-/** A justification read from a previous export or a JSON file, before merging. */
-export interface ImportedJustification {
-  documentKey: string;
-  kind: JustificationKind;
-  text: string;
-  responsible: string;
-  /** The note "… abrange o novo evento": coverage already confirmed for the current files. */
-  confirmed: boolean;
-  /** Present in JSON files exported by the tool. */
-  coverage?: JustificationCoverage;
-}
-
-export interface LoadedFileInfo {
-  name: string;
-  firstEvent: number | null;
-  lastEvent: number | null;
-}
-
-export interface JustificationImportPreview {
-  items: ImportedJustification[];
-  /** Coverage deduced from the imported file (the user can change it). */
-  coverage: JustificationCoverage & { method: 'rastreabilidade' | 'eventos' | 'json' | 'ferramenta' | 'nenhum' };
-  loadedFiles: LoadedFileInfo[];
-  /** Items whose document (of that kind) is not in the current log: kept, not discarded. */
-  unknownKeys: number;
-}
-
-export interface CoverageCount {
-  total: number;
-  justified: number;
-  moved: number;
-  pending: number;
-}
 
 export interface ExportOptions {
   scope: number;
@@ -308,124 +105,9 @@ export interface EntryIntegrity {
   ok: boolean;
 }
 
-/** A line of the parameters sheet: "Pergunta NN : label ?" → value, or "Label: value". */
-export interface ParameterPair {
-  question: number | null;
-  label: string;
-  value: string;
-}
-
 export interface Alert {
   level: 'warning' | 'info';
   message: string;
-}
-
-/** Row reconciliation of the report sheet (docs/REGRAS_CFGR700.md, section 1). */
-export interface RowReconciliation {
-  sheetName: string;
-  /** Last row according to <dimension>, when present. */
-  dimensionRows: number | null;
-  /** Rows of the sheet including the first header. */
-  totalRows: number;
-  rowsAfterHeader: number;
-  repeatedHeaders: number;
-  /** Rows with an empty "Campo", including rows missing from the XML. */
-  blankRows: number;
-  /** Rows absent from the XML (gaps in the r attribute), included in blankRows. */
-  missingRows: number;
-  /** Blank rows (empty "Campo") that have other cells filled, included in blankRows. */
-  blankRowsWithContent: number;
-  detailRows: number;
-  /** rowsAfterHeader − repeatedHeaders − blankRows = detailRows. */
-  balanced: boolean;
-}
-
-export interface OperationCount {
-  operation: string;
-  count: number;
-}
-
-export interface InvalidCounts {
-  dateTime: number;
-  recno: number;
-  operation: number;
-  sharedStringIndex: number;
-  /** CT2_VALOR unreadable, or empty on an identified record (docs/REGRAS_CFGR700.md, section 2). */
-  value: number;
-}
-
-export interface ValueCount {
-  value: string;
-  count: number;
-}
-
-export interface FileReconciliation {
-  fileIndex: number;
-  name: string;
-  size: number;
-  sha256: string;
-  entries: EntryIntegrity[];
-  parameters: ParameterPair[];
-  alerts: Alert[];
-  rows: RowReconciliation;
-  /** Events per operation, in configuration order; unrecognized operations last, if any. */
-  events: OperationCount[];
-  totalEvents: number;
-  /** Seconds since 2000-01-01 (see shared/dates.ts); null when the file has no valid event. */
-  firstEvent: number | null;
-  lastEvent: number | null;
-  invalid: InvalidCounts;
-  /** Value counts of the columns not kept in the store (Tipo Dados, Situacao, Tipo Dado Protegido). */
-  otherColumns: { column: string; values: ValueCount[] }[];
-  /** Duration of each stage for this file, in milliseconds. */
-  timings: { stage: Stage; ms: number }[];
-}
-
-export interface Reconciliation {
-  files: FileReconciliation[];
-  consolidated: {
-    detailRows: number;
-    events: OperationCount[];
-    totalEvents: number;
-    firstEvent: number | null;
-    lastEvent: number | null;
-    alerts: Alert[];
-  };
-  checks: CheckResult[];
-  totalMs: number;
-}
-
-/** Statistics of a scope (docs/REGRAS_CFGR700.md, sections 5–7), compared with the reference numbers. */
-export interface ScopeStats {
-  records: number;
-  documents: number;
-  alterations: { effective: number; activation: number; stamp: number; total: number };
-  /** CT2_TPSALD rows in Alteração events, and those with the expected transition (9 → 1). */
-  balanceType: { total: number; expected: number };
-  unidentifiedRecords: number;
-  /** Unidentified records by what happened to them (section 10). */
-  unidentified: { contentChange: number; onlyActivation: number; onlyStamp: number; other: number };
-  partialBaseDocuments: number;
-  unbalancedCompleteDocuments: number;
-  /** Records with a deletion event, any line type ("partidas excluídas"). */
-  deletedRecords: number;
-  deletedAccountingRecords: number;
-  /** Rows of the Alteracoes tab (one per non-noise field of effective alteration events). */
-  effectiveChangeRows: number;
-  recordsInSeveralFiles: number;
-  invalidValues: number;
-}
-
-export interface ScopeSummary {
-  /** File name, or "Consolidado". */
-  label: string;
-  sources: number[];
-  stats: ScopeStats;
-}
-
-export interface Summary {
-  /** One scope per file, plus the consolidated scope when there is more than one file. */
-  scopes: ScopeSummary[];
 }
 
 export interface CheckResult {
@@ -436,6 +118,7 @@ export interface CheckResult {
   severity: 'error' | 'warning';
   message: string;
 }
+
 export type Command =
   /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
   | { type: 'ingest'; module?: ModuleId; files: File[]; config: AnalyzerConfig }
