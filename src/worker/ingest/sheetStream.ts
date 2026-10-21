@@ -279,7 +279,20 @@ export class SheetParser {
         column++;
       }
 
-      const close = selfClosing ? -1 : find(buf, P_C_END, tagEnd + 1, to);
+      // Usual cell, <c …><v>value</v></c>: one search finds the value and the end of the cell (the value has no
+      // '<'). The same positions the general searches below would find.
+      let vFrom = -1;
+      let vTo = -1;
+      let close = -1;
+      if (!selfClosing && buf[tagEnd + 1] === LT && buf[tagEnd + 2] === 118 /* v */ && buf[tagEnd + 3] === GT) {
+        const lt2 = buf.indexOf(LT, tagEnd + 4);
+        if (lt2 >= 0 && lt2 + 8 <= to && matchAt(buf, lt2, P_V_END) && matchAt(buf, lt2 + 4, P_C_END)) {
+          vFrom = tagEnd + 4;
+          vTo = lt2;
+          close = lt2 + 4;
+        }
+      }
+      if (!selfClosing && close < 0) close = find(buf, P_C_END, tagEnd + 1, to);
       pos = selfClosing ? tagEnd + 1 : close + P_C_END.length;
       if (column < 0 || column >= row.width) {
         row.extraCells++;
@@ -296,12 +309,14 @@ export class SheetParser {
       }
 
       // Value in <v>…</v>.
-      const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
-      if (vOpen < 0) continue;
-      const vFrom = buf.indexOf(GT, vOpen) + 1;
-      if (buf[vFrom - 2] === SLASH) continue; // <v/>
-      const vTo = find(buf, P_V_END, vFrom, close);
-      if (vTo < 0) continue;
+      if (vTo < 0) {
+        const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
+        if (vOpen < 0) continue;
+        vFrom = buf.indexOf(GT, vOpen) + 1;
+        if (buf[vFrom - 2] === SLASH) continue; // <v/>
+        vTo = find(buf, P_V_END, vFrom, close);
+        if (vTo < 0) continue;
+      }
 
       if (tLen === 1 && t0 === 115 /* s */) {
         let n = 0;

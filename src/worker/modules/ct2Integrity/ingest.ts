@@ -55,7 +55,8 @@ export interface Ct2Ingested {
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const isBlank = (t: string) => t === '' || t.trim() === '';
+/** Empty or only spaces; the usual text starts with a visible character and needs no trim. */
+const isBlank = (t: string) => t === '' || (t.charCodeAt(0) <= 32 && t.trim() === '') || (t.charCodeAt(0) > 127 && t.trim() === '');
 
 /**
  * Unmapped titles of one file, made unique by occurrence ("Filial", "Filial (2)") so a repeated title never shares
@@ -95,6 +96,10 @@ async function readFile(
   let titled = new Uint8Array(SHEET_WIDTH);
   let columns: Partial<Record<Ct2Field, number>> = {};
   let plain: { field: TextField; column: number }[] = [];
+  let codes: { field: (typeof CODE_FIELDS)[number]; column: number; width: number }[] = [];
+  let dateColumn = 0;
+  let amountColumn = 0;
+  let amountCurrency1Column = -1;
   let others: { index: number; column: PackedColumn }[] = [];
   let unmapped: string[] = [];
   let headerTitles: string[] = [];
@@ -159,37 +164,35 @@ async function readFile(
     detailRows++;
 
     let flags = badShared ? RowFlag.sharedString : 0;
-    const kindAt = (f: Ct2Field) => row.kind[columns[f]!]!;
-    const textAt = (f: Ct2Field) => texts[columns[f]!]!;
 
     // Codes: zeros kept, numeric cells padded; a numeric code that is not whole is kept as read and flagged.
-    for (const f of CODE_FIELDS) {
-      const code = codeFromCell(kindAt(f) as CellKind, textAt(f), config.codeWidths[f]);
+    for (const { field, column, width } of codes) {
+      const code = codeFromCell(row.kind[column] as CellKind, texts[column]!, width);
       if (code === null) flags |= RowFlag.code;
-      text[f] = code ?? textAt(f).trim();
+      text[field] = code ?? texts[column]!.trim();
     }
     for (const { field, column } of plain) text[field] = texts[column]!.trim();
     if (text.line === '') flags |= RowFlag.line;
     if (text.balanceType === '' || text.currency === '') flags |= RowFlag.segment;
-    if (keyFields.some((f) => text[f] === '')) flags |= RowFlag.incompleteKey;
+    for (const f of keyFields) if (text[f] === '') flags |= RowFlag.incompleteKey;
 
     // Date: a whole Excel serial or dd/mm/aaaa.
     let day = INVALID_TIME;
-    const dateText = textAt('date');
+    const dateText = texts[dateColumn]!;
     if (isBlank(dateText)) flags |= RowFlag.incompleteKey;
     else {
-      day = kindAt('date') === CellKind.Number ? dayFromExcelSerial(Number(dateText), date1904) : parseDate(dateText.trim());
+      day = row.kind[dateColumn] === CellKind.Number ? dayFromExcelSerial(Number(dateText), date1904) : parseDate(dateText.trim());
       if (day === INVALID_TIME) flags |= RowFlag.date;
     }
 
     // Entry type and amount: empty is zero only on a history continuation line.
     const type = lookupType(text.entryType ?? '');
-    let amount = cents(kindAt('amount'), textAt('amount'));
+    let amount = cents(row.kind[amountColumn]!, texts[amountColumn]!);
     if (amount === null) amount = type === 'historyContinuation' ? 0 : NaN;
     if (Number.isNaN(amount)) flags |= RowFlag.amount;
     let amountCurrency1 = NaN;
-    if (columns.amountCurrency1 !== undefined) {
-      const v = cents(kindAt('amountCurrency1'), textAt('amountCurrency1'));
+    if (amountCurrency1Column >= 0) {
+      const v = cents(row.kind[amountCurrency1Column]!, texts[amountCurrency1Column]!);
       if (v !== null) {
         amountCurrency1 = v;
         if (Number.isNaN(v)) amountCurrency1Unreadable++;
@@ -256,6 +259,10 @@ async function readFile(
       columns = match.columns;
       headerTitles = chosen.rows.find((h) => h.r === search.match.row)!.titles;
       plain = PLAIN_FIELDS.flatMap((field) => (columns[field] === undefined ? [] : [{ field, column: columns[field] }]));
+      codes = CODE_FIELDS.map((field) => ({ field, column: columns[field]!, width: config.codeWidths[field] }));
+      dateColumn = columns.date!;
+      amountColumn = columns.amount!;
+      amountCurrency1Column = columns.amountCurrency1 ?? -1;
       titled = new Uint8Array(SHEET_WIDTH);
       for (const c of Object.values(columns)) titled[c] = 1;
       const unique = unmappedColumns(match);

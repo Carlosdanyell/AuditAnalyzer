@@ -11,7 +11,7 @@ import { requireIntact, sha256 } from './integrity';
 import type { IngestInput } from './pipeline';
 import type { ProgressReporter } from './progress';
 import { CellKind, SheetParser, type ParsedRow } from './sheetStream';
-import { SharedStringsParser } from './sst';
+import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath, type WorkbookSheet } from './workbook';
 import { ZipFormatError, readEntry, readEntryBytes, readEntryHead, readZipDirectory, type ZipEntry } from './zip';
 
@@ -120,14 +120,9 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
   let strings: string[] = [];
   progress.begin('sharedStrings', fileIndex, sstEntry?.uncompressedSize ?? 0, 'bytes', `Lendo as strings compartilhadas de ${name}`);
   if (sstEntry) {
-    const sst = new SharedStringsParser();
-    const decoder = new TextDecoder('utf-8');
-    const integrity = await readEntry(blob, sstEntry, (c) => sst.push(decoder.decode(c, { stream: true })), {
-      inflateMode,
-      onBytes: (b) => progress.update(b),
-    });
+    const sst = new SharedStringsBytesParser();
+    const integrity = await readEntry(blob, sstEntry, (c) => sst.push(c), { inflateMode, onBytes: (b) => progress.update(b) });
     checked.set(sstEntry.name, requireIntact(integrity, 'sharedStrings'));
-    sst.push(decoder.decode());
     try {
       strings = sst.finish();
     } catch (e) {

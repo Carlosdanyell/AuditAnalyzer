@@ -43,10 +43,42 @@ describe('packed text columns', () => {
     expect(c.width).toBe(2);
     expect(c.get(0)).toBe('v0');
     expect(c.get(299)).toBe('v299');
+    // Many rows for each distinct value: codes stay cheaper than the texts themselves.
+    for (let i = 0; i < 2_000_000; i++) c.push('v1');
     for (let i = 300; i < 70_000; i++) c.push(`v${i}`);
+    expect(c.mode).toBe('codes');
     expect(c.width).toBe(4);
-    expect(c.get(69_999)).toBe('v69999');
+    expect(c.get(c.length - 1)).toBe('v69999');
     expect(c.get(255)).toBe('v255');
+  });
+
+  it('keeps a column of mostly distinct texts as UTF-8 bytes, without a table, values unchanged', () => {
+    const c = new PackedColumn();
+    const value = (i: number): string | number | null =>
+      i % 7 === 0 ? null : i % 11 === 0 ? i / 4 : i % 13 === 0 ? `LANÇAMENTO Nº ${i} — AÇÃO` : `HISTORICO DO LANCAMENTO ${i}`;
+    for (let i = 0; i < 100_000; i++) c.push(value(i));
+    expect(c.mode).toBe('text');
+    expect(c.length).toBe(100_000);
+    for (const i of [0, 1, 11, 13, 77, 143, 65_535, 65_536, 99_999]) expect(c.get(i), String(i)).toBe(value(i));
+    // About the bytes of the texts plus 4 per row: far below a table of 100 thousand strings.
+    expect(c.bytes()).toBeLessThan(100_000 * (4 + 32) + (1 << 20));
+    c.padTo(100_002);
+    expect(c.get(100_001)).toBeNull();
+  });
+
+  it('ranks the rows of a text column like a column of codes: empty first, equal texts tied', () => {
+    const c = new PackedColumn();
+    for (let i = 0; i < 70_000; i++) c.push(`T${String(69_999 - i).padStart(5, '0')}${'x'.repeat(30)}`);
+    c.push(null);
+    c.push('T00001' + 'x'.repeat(30));
+    expect(c.mode).toBe('text');
+    const rank = c.ranks();
+    const r = (i: number) => rank[c.code(i)]!;
+    expect(r(70_000)).toBe(0);
+    expect(r(69_999)).toBe(1);
+    expect(r(70_001)).toBe(r(69_998));
+    expect(r(0)).toBe(70_000);
+    expect(r(0)).toBeGreaterThan(r(1));
   });
 
   it('switches to 8-byte numbers when a column has many distinct numbers, and back when a text arrives', () => {
