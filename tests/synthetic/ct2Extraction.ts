@@ -96,6 +96,8 @@ export interface Ct2ExtractionOptions {
   date1904?: boolean;
   /** Other sheets, written before the extraction sheet: raw rows from row 1. */
   extraSheets?: Record<string, Ct2Value[][]>;
+  /** Store the entries without compression (method 0). */
+  stored?: boolean;
 }
 
 /** Spreadsheet column name of a 0-based index (0 = A, 26 = AA). */
@@ -216,7 +218,7 @@ export function buildCt2Extraction(o: Ct2ExtractionOptions): Uint8Array {
         '</sst>',
     );
   }
-  return zipSync(entries, { mtime: new Date(2026, 0, 1) });
+  return zipSync(entries, { mtime: new Date(2026, 0, 1), ...(o.stored && { level: 0 as const }) });
 }
 
 export const ct2Blob = (o: Ct2ExtractionOptions) => new Blob([buildCt2Extraction(o) as Uint8Array<ArrayBuffer>]);
