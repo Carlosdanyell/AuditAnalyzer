@@ -3,7 +3,7 @@ import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { INVALID_TIME, dayFromExcelSerial, formatDay, parseDate } from '../../src/shared/dates';
 import { centsFromBrText, centsFromNumberText } from '../../src/shared/money';
 import { CellKind } from '../../src/worker/ingest/sheetStream';
-import { codeFromCell, entryTypeLookup, lineOrdinal, sidesOf } from '../../src/worker/modules/ct2Integrity/values';
+import { codeFromCell, entryTypeLookup, lineOrdinal, otherValue, sidesOf } from '../../src/worker/modules/ct2Integrity/values';
 
 /** Conversions of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2 and 4). */
 describe('amounts in cents', () => {
@@ -70,5 +70,16 @@ describe('codes, lines and entry types', () => {
     expect(sidesOf('credit', 500)).toEqual({ debit: 0, credit: 500 });
     expect(sidesOf('historyContinuation', 500)).toEqual({ debit: 0, credit: 0 });
     expect(sidesOf(null, 500)).toEqual({ debit: 0, credit: 0 });
+  });
+});
+
+describe('values of the other columns of the extraction', () => {
+  it('keep numbers as numbers and texts as read; an empty cell stays empty, never 0', () => {
+    expect(otherValue(CellKind.Number, '12.5')).toBe(12.5);
+    expect(otherValue(CellKind.Number, '')).toBeNull();
+    expect(otherValue(CellKind.Number, ' ')).toBe(' ');
+    expect(otherValue(CellKind.Text, '007 ')).toBe('007 ');
+    expect(otherValue(CellKind.Shared, '')).toBeNull();
+    expect(otherValue(CellKind.Other, '#N/A')).toBe('#N/A');
   });
 });

@@ -128,3 +128,14 @@ test('cópia de segurança da versão 1.0.0 é restaurada sem perda', async ({ p
   await expect(page.getByText('3 diferença(s) em relação ao padrão CT2.')).toBeVisible();
   expect(await idb(page, 'platformConfig')).toEqual({ schemaVersion: 1, holidays: ['07/09/2026', '12/10/2026'] });
 });
+
+test('cópia de segurança restaurada depois de carregar um arquivo (sem análise na memória)', async ({ page, files }) => {
+  await page.goto('');
+  // Loading a file starts the worker (the probe of the first rows): the restore must not depend on a loaded analysis.
+  await page.locator('input[type=file]').first().setInputFiles([files.august]);
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByLabel('Arquivo da cópia de segurança').setInputFiles('tests/synthetic/backups/backup-v1.json');
+  await page.getByRole('button', { name: 'Restaurar', exact: true }).click();
+  await expect(page.getByText(/Cópia restaurada/)).toBeVisible();
+  await expect(page.getByText('3 diferença(s) em relação ao padrão CT2.')).toBeVisible();
+});

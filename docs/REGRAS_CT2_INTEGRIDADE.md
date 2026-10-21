@@ -33,9 +33,11 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
   chave, é detalhe e falha o invariante CI-4 (regra conservadora, decisão de 21/10/2026): nenhuma linha com conteúdo
   sai da conta sem aviso.
 - **Abas:** com várias abas, vale a que tem o cabeçalho nas primeiras linhas; duas abas com o cabeçalho é erro de
-  leitura, assim como coluna obrigatória repetida (título ou alias em duas colunas). Coluna obrigatória ausente: erro
+  leitura, assim como coluna mapeada repetida (título ou alias de um campo, obrigatório ou opcional, em duas colunas:
+  não haveria como escolher qual vale). Coluna obrigatória ausente: erro
   com a lista do que faltou e dos títulos encontrados.
 - **Valores fora das colunas:** valor numa coluna sem título (ou além da coluna 256) não entra na base e falha CI-1.
+  Célula só com formatação ou só com espaços não é valor.
 - **Reconciliação de leitura (por arquivo):** linhas após o cabeçalho − linhas em branco = linhas de detalhe.
 - SHA-256 do arquivo, CRC32 e tamanho de cada parte do ZIP: mesma rotina do módulo CFGR700.
 
@@ -66,7 +68,7 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 
 Coluna obrigatória ausente: erro na etapa de leitura, com a lista do que faltou e do que foi encontrado. Colunas não
 mapeadas são lidas e exportadas na Base como texto/número, na ordem original; um título não mapeado repetido ganha o
-número da ocorrência (`Filial (2)`). Com vários arquivos, as colunas são unidas pelo título, com alerta quando os
+número da ocorrência (`Filial (2)`), ou o próximo número livre quando o arquivo já tem uma coluna com esse título. Com vários arquivos, as colunas são unidas pelo título, com alerta quando os
 conjuntos diferem; coluna opcional ausente gera alerta (os testes que dependem dela ficam desligados, CI-9). Campos
 da chave do documento precisam ser colunas obrigatórias (a configuração recusa outro caso).
 
@@ -437,7 +439,7 @@ Situação em 20/10/2026 (decisões na seção 13):
   - **Linhas depois de 999:** ordenadas pela **ordem do texto** (`A00` < `A01` < … < `B00`); E2 continua valendo
     só para `001`–`999`.
   - **Padrões de leitura aprovados com o plano:** títulos comparados depois de tirar os espaços das pontas e reduzir
-    os repetidos (maiúsculas e acentos contam); título obrigatório repetido é erro; com várias abas vale a que tem o
+    os repetidos (maiúsculas e acentos contam); título repetido de coluna mapeada é erro; com várias abas vale a que tem o
     cabeçalho (duas é erro); códigos sem espaços nas pontas, célula numérica completada com zeros na largura
     configurada (lote 6, documento 6, linha 3, sub-lote 3, moeda 2, tipo de saldo 1), outros códigos não; serial do
     Excel com fração é CI-4; texto de valor só no formato pt-BR; vários arquivos unidos pelo título das colunas, com

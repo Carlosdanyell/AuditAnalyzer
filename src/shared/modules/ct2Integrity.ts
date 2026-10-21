@@ -56,9 +56,12 @@ export interface Ct2FileReconciliation {
     /** Rows absent from the XML (gaps in the r attribute and after the last row), included in blankRows. */
     missingRows: number;
     detailRows: number;
-    /** rowsAfterHeader − blankRows = detailRows. */
+    /** rowsAfterHeader − blankRows = detailRows, and the Base received exactly the detail rows of the file. */
     balanced: boolean;
-    /** Values in columns without a title, or beyond the columns read: not stored, so the reading fails CI-1. */
+    /**
+     * Values in columns without a title, or beyond the columns read: not stored, so the reading fails CI-1. A cell
+     * without text (only a style, or spaces) is not a value.
+     */
     outsideCells: number;
   };
   unreadable: Ct2Unreadable & { rows: number; examples: number[] };

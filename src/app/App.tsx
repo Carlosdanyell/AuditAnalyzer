@@ -123,7 +123,9 @@ export function App() {
   }, []);
 
   const sendJustifications = useCallback(async (items: Justification[], replace: boolean) => {
-    const answer = await clientRef.current?.query({ type: 'setJustifications', items, replace });
+    // Without an analysis that takes justifications (none loaded, or another module), the worker answers that it
+    // has none: the justifications are already saved and go to the next analysis.
+    const answer = await clientRef.current?.query({ type: 'setJustifications', items, replace }).catch(() => undefined);
     if (answer) setUnknownCount(answer.unknown);
     setJustRefresh((v) => v + 1);
   }, []);
@@ -308,18 +310,37 @@ export function App() {
       const seen = new Set(current.map(fileKey));
       return [...current, ...added.filter((f) => !seen.has(fileKey(f)))];
     });
-    // The first rows of each file, to warn about a file of another analysis; never blocks.
+  }
+
+  // The first rows of each file listed, to warn about a file of another analysis (never blocks). A probe cut short
+  // by Cancelar or Nova análise (the worker is ended) is asked again when the start screen comes back.
+  const probing = useRef(new Set<string>());
+  const [probeRound, setProbeRound] = useState(0);
+  useEffect(() => {
+    if (phase !== 'select') return;
+    const pending = files.filter((f) => !samples.has(fileKey(f)) && !probing.current.has(fileKey(f)));
+    if (pending.length === 0) return;
+    const keys = pending.map(fileKey);
+    keys.forEach((k) => probing.current.add(k));
+    // Released before the next state change, so the effect it triggers sees these files as not being probed.
+    const release = () => keys.forEach((k) => probing.current.delete(k));
     void client()
-      .query({ type: 'probe', files: added, rows: PROBE_ROWS })
-      .then((answer) =>
+      .query({ type: 'probe', files: pending, rows: PROBE_ROWS })
+      .then((answer) => {
+        release();
         setSamples((current) => {
           const next = new Map(current);
-          added.forEach((f, i) => next.set(fileKey(f), answer.files[i] ?? null));
+          keys.forEach((k, i) => next.set(k, answer.files[i] ?? null));
           return next;
-        }),
-      )
-      .catch(() => undefined);
-  }
+        });
+      })
+      .catch(() => {
+        release();
+        setProbeRound((n) => n + 1);
+      });
+    // client() creates the worker once and returns the same client afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, samples, phase, probeRound]);
 
   function analyze() {
     const started = performance.now();

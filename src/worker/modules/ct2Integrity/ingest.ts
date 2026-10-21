@@ -24,7 +24,7 @@ import { CellKind, type ParsedRow } from '../../ingest/sheetStream';
 import type { PackedColumn } from '../../store/packedColumn';
 import { checkOrder, firstDifference, keyLevels, sortBase, sortKeys } from './order';
 import { Ct2Store, RowFlag, TEXT_FIELDS, type Ct2StoreRow, type RowProblem, type TextField } from './store';
-import { codeFromCell, entryTypeLookup, sidesOf, type EntryType } from './values';
+import { codeFromCell, entryTypeLookup, otherValue, sidesOf, type EntryType } from './values';
 
 /** Columns read per row; values beyond them are counted as outside the columns (CI-1). */
 const SHEET_WIDTH = 256;
@@ -59,15 +59,22 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const isBlank = (t: string) => t === '' || (t.charCodeAt(0) <= 32 && t.trim() === '') || (t.charCodeAt(0) > 127 && t.trim() === '');
 
 /**
- * Unmapped titles of one file, made unique by occurrence ("Filial", "Filial (2)") so a repeated title never shares
- * a column of the Base; the same occurrence joins across files.
+ * Unmapped titles of one file, made unique so a repeated title never shares a column of the Base: the n-th
+ * occurrence becomes "Filial (n)", or the next free number when the file already has a column with that title.
+ * The same occurrence joins across files.
  */
 function unmappedColumns(match: HeaderMatch): { index: number; title: string }[] {
+  const used = new Set(match.unmapped.map((u) => u.title));
   const seen = new Map<string, number>();
   return match.unmapped.map(({ index, title }) => {
-    const n = (seen.get(title) ?? 0) + 1;
-    seen.set(title, n);
-    return { index, title: n === 1 ? title : `${title} (${n})` };
+    const occurrence = (seen.get(title) ?? 0) + 1;
+    seen.set(title, occurrence);
+    if (occurrence === 1) return { index, title };
+    let n = occurrence;
+    while (used.has(`${title} (${n})`)) n++;
+    const unique = `${title} (${n})`;
+    used.add(unique);
+    return { index, title: unique };
   });
 }
 
@@ -90,6 +97,7 @@ async function readFile(
   let match: HeaderMatch | null = null;
   let date1904 = false;
   const timingsStart = progress.timings.length;
+  const rowsBefore = store.rows;
 
   // Per row: the text of each cell (reused), the mapped columns and the unmapped ones with their column in the store.
   const texts = new Array<string>(SHEET_WIDTH).fill('');
@@ -134,7 +142,7 @@ async function readFile(
   const onRow = (r: number, row: ParsedRow, cell: CellText, invalidShared: () => number): void => {
     const header = match!.row;
     if (r < header) return;
-    outsideCells += row.extraCells;
+    outsideCells += row.extraValues;
     if (r === header) {
       previous = r;
       return;
@@ -211,11 +219,7 @@ async function readFile(
     stored.entryType = type === null ? 0 : ENTRY_TYPE_CODES.indexOf(type) + 1;
     stored.flags = flags;
     store.pushRow(stored);
-    for (const { index, column } of others) {
-      const t = texts[index]!;
-      const n = row.kind[index] === CellKind.Number ? Number(t) : NaN;
-      column.push(Number.isFinite(n) ? n : t);
-    }
+    for (const { index, column } of others) column.push(otherValue(row.kind[index] as CellKind, texts[index]!));
   };
 
   const read = await readSheet(input, {
@@ -322,7 +326,8 @@ async function readFile(
         blankRows,
         missingRows,
         detailRows,
-        balanced: rowsAfterHeader - blankRows === detailRows,
+        // The count of the rows read, and the rows the Base received from this file (an independent count).
+        balanced: rowsAfterHeader - blankRows === detailRows && store.rows - rowsBefore === detailRows,
         outsideCells,
       },
       unreadable,

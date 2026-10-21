@@ -20,6 +20,16 @@ export function codeFromCell(kind: CellKind, text: string, width: number): strin
   return text.trim();
 }
 
+/** Value of a cell of a column not mapped to a field (kept in the Base): numbers stay numbers; empty is null. */
+export function otherValue(kind: CellKind, text: string): string | number | null {
+  if (text === '') return null;
+  if (kind === CellKind.Number && text.trim() !== '') {
+    const n = Number(text);
+    if (Number.isFinite(n)) return n;
+  }
+  return text;
+}
+
 /** Ordinal of a numeric line ("001" → 1); null for the alphanumeric ones ("A00"), which sort after 999 by their text. */
 export function lineOrdinal(line: string): number | null {
   return /^\d+$/.test(line) ? Number(line) : null;

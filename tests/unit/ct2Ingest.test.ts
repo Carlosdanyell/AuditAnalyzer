@@ -5,7 +5,8 @@ import { CT2_STAGES, isCt2Reconciliation, isCt2Summary, type Ct2Reconciliation, 
 import type { WorkerEvent } from '../../src/shared/protocol';
 import { createCommandHandler } from '../../src/worker/handler';
 import { buildCfgr700 } from '../synthetic/cfgr700';
-import { CT2_COLUMNS, ct2Line, type Ct2ExtractionOptions, buildCt2Extraction } from '../synthetic/ct2Extraction';
+import { CT2_COLUMNS, ct2Blob, ct2Line, type Ct2ExtractionOptions, buildCt2Extraction } from '../synthetic/ct2Extraction';
+import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { fileA, fileB } from '../synthetic/ct2Fixtures';
 import { fileA as cfgr700FileA } from '../synthetic/fixtures';
 
@@ -153,6 +154,19 @@ describe('CT2 reading: several files and layouts', () => {
       'a.xlsx: 1 linha tem "Valor Moeda1" ilegível.',
     ]);
     expect(r!.checks.every((c) => c.passed)).toBe(true);
+  });
+
+  it('names a repeated other column apart from a title that already has the number', async () => {
+    // CT2_COLUMNS already has one "Filial"; the second becomes "Filial (3)", since "Filial (2)" is a title of the file.
+    const columns = [...CT2_COLUMNS, 'Filial', 'Filial (2)'];
+    const rows = [ct2Line({}, { 'Filial (2)': 'B' }), ct2Line({ line: '002' }, { Filial: '02', 'Filial (2)': 'C' })];
+    const { reconciliation, store } = await ingestCt2([{ name: 'a.xlsx', blob: ct2Blob({ rows, columns }) }], ct2DefaultConfig(), () => {});
+    expect(reconciliation.files[0]!.header.unmapped.filter((t) => t.startsWith('Filial'))).toEqual(['Filial', 'Filial (3)', 'Filial (2)']);
+    const values = (title: string) => Array.from({ length: store.rows }, (_, i) => store.other.get(title)!.get(i));
+    expect(values('Filial')).toEqual(['01', '02']);
+    expect(values('Filial (3)')).toEqual(['01', '02']);
+    expect(values('Filial (2)')).toEqual(['B', 'C']);
+    expect([...store.other.values()].every((c) => c.length === store.rows)).toBe(true);
   });
 
   it('fails CI-1 when a value sits in a column without a title', async () => {
