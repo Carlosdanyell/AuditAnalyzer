@@ -51,6 +51,14 @@ describe('CT2 integrity configuration', () => {
     }
   });
 
+  it('accepts another field in the document key only when its column is mandatory', () => {
+    const c = ct2DefaultConfig();
+    c.documentKey = ['date', 'batch', 'subBatch', 'document', 'origin'];
+    expect(readCt2Config(c).ok).toBe(false);
+    c.columns.origin.required = true;
+    expect(readCt2Config(c).ok).toBe(true);
+  });
+
   it('refuses an entry type value mapped to two types', () => {
     const c = ct2DefaultConfig();
     c.entryTypes.debit = ['Debito', '3'];

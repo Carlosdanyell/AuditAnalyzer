@@ -31,7 +31,7 @@ function compare(keys: KeyPart[], a: number, b: number): number {
 }
 
 /** First key part where two rows differ (the number of parts when they are equal). */
-function firstDifference(keys: KeyPart[], a: number, b: number): number {
+export function firstDifference(keys: KeyPart[], a: number, b: number): number {
   for (let k = 0; k < keys.length; k++) if (keys[k]![a] !== keys[k]![b]) return k;
   return keys.length;
 }
@@ -41,6 +41,15 @@ export function sortBase(keys: KeyPart[], rows: number): Uint32Array {
   const order = new Uint32Array(rows);
   for (let i = 0; i < rows; i++) order[i] = i;
   return order.sort((a, b) => compare(keys, a, b));
+}
+
+/**
+ * Number of key parts that identify each level: a row starts a new block of a level when it differs from the
+ * previous one before that many parts. Key parts: segment (2), date, batch, sub-batch, the rest of the document key,
+ * then the line and its origin.
+ */
+export function keyLevels(config: Ct2IntegrityConfig): { segment: number; day: number; batch: number; document: number } {
+  return { segment: 2, day: 3, batch: 5, document: 2 + config.documentKey.length };
 }
 
 export interface OrderCheck {
@@ -62,8 +71,7 @@ export function checkOrder(keys: KeyPart[], order: Uint32Array, config: Ct2Integ
     if (i >= rows || seen[i]) return fail('A base não contém cada linha lida exatamente uma vez.');
     seen[i] = 1;
   }
-  // Key parts: segment (2), date, batch, sub-batch, the rest of the document key, then the line and its origin.
-  const ends = { segment: 2, day: 3, batch: 5, document: 2 + config.documentKey.length };
+  const ends = keyLevels(config);
   const counts = { segments: 0, days: 0, batches: 0, documents: 0 };
   for (let p = 0; p < rows; p++) {
     const b = order[p]!;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCommandHandler } from '../../src/worker/handler';
+import { cfgr700Worker } from '../../src/worker/modules/cfgr700';
+import type { WorkerModules } from '../../src/worker/modules/registry';
 import type { WorkerModule } from '../../src/worker/modules/types';
 import type { WorkerEvent } from '../../src/shared/protocol';
 import { defaultConfig } from '../../src/config/schema';
@@ -7,9 +9,9 @@ import { buildCfgr700 } from '../synthetic/cfgr700';
 import { fileA } from '../synthetic/fixtures';
 import { buildWorkbook } from '../synthetic/workbook';
 
-function setup() {
+function setup(modules?: WorkerModules) {
   const events: WorkerEvent[] = [];
-  const handle = createCommandHandler((e) => events.push(e));
+  const handle = createCommandHandler((e) => events.push(e), {}, modules);
   return { events, handle };
 }
 
@@ -161,7 +163,8 @@ describe('worker command handler with analysis modules (docs/MODULOS.md)', () =>
   });
 
   it('refuses a module that is not available, without keeping the previous session', async () => {
-    const { events, handle } = setup();
+    // A version whose worker has only the CFGR700.
+    const { events, handle } = setup({ cfgr700: cfgr700Worker });
     await handle(ingestA());
     events.length = 0;
     await handle({ type: 'ingest', module: 'ct2Integrity', files: [], config: defaultConfig() });

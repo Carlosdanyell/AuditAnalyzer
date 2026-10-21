@@ -5,7 +5,6 @@
  *
  * Payload types marked "phase N" are placeholders and get their real shape in that phase.
  */
-import type { AnalyzerConfig } from '../config/schema';
 import type { ModuleId } from './modules';
 import type {
   Justification,
@@ -18,6 +17,7 @@ import type {
   TableFilter,
   TableId,
 } from './modules/cfgr700';
+import type { Ct2Reconciliation, Ct2Summary } from './modules/ct2Integrity';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -60,6 +60,10 @@ export type {
   ScopeSummary,
   Summary,
 } from './modules/cfgr700';
+
+/** Reconciliation and summary of the module of the session (the CFGR700 ones carry no mark). */
+export type ModuleReconciliation = Reconciliation | Ct2Reconciliation;
+export type ModuleSummary = Summary | Ct2Summary;
 
 /** Processing stages of the modules ('sort': integrity of the CT2) plus the query/export stages. */
 export type Stage = PipelineStage | 'sort' | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
@@ -121,7 +125,8 @@ export interface CheckResult {
 
 export type Command =
   /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
-  | { type: 'ingest'; module?: ModuleId; files: File[]; config: AnalyzerConfig }
+  /** `config`: the configuration of the module, validated by the worker. */
+  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown }
   | { type: 'cancel' }
   | { type: 'settings'; requestId: number; settings: PanelSettings }
   /** `period` null = full log; `cutoffDay` null = default cutoff. */
@@ -153,8 +158,8 @@ export type WorkerEvent =
       rows?: number;
       message: string;
     }
-  | { type: 'reconciliation'; data: Reconciliation }
-  | { type: 'ready'; summary: Summary; checks: CheckResult[] }
+  | { type: 'reconciliation'; data: ModuleReconciliation }
+  | { type: 'ready'; summary: ModuleSummary; checks: CheckResult[] }
   | { type: 'panel'; requestId: number; data: PanelData }
   | { type: 'settings'; requestId: number; settings: PanelSettings }
   /** unknown = justifications whose document (of that kind) is not in the current log (kept, not discarded). */

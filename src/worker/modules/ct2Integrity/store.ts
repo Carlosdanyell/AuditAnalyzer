@@ -28,6 +28,18 @@ export const TEXT_FIELDS = [
 ] as const;
 export type TextField = (typeof TEXT_FIELDS)[number];
 
+/** Reading problems of a detail row (CI-4), one bit each. */
+export const RowFlag = {
+  incompleteKey: 1,
+  line: 2,
+  segment: 4,
+  date: 8,
+  amount: 16,
+  code: 32,
+  sharedString: 64,
+} as const;
+export type RowProblem = keyof typeof RowFlag;
+
 export interface Ct2StoreRow {
   source: number;
   sourceRow: number;
@@ -71,14 +83,17 @@ export class Ct2Store {
     for (const f of TEXT_FIELDS) this.text[f].push(row.text[f] ?? null);
   }
 
-  /** The unmapped column with this title, created empty for the rows already stored. */
+  /**
+   * The unmapped column with this title, empty for the rows already stored (created if new). Called at the start of
+   * each file, before its rows: then one value is pushed after each pushRow.
+   */
   otherColumn(title: string): PackedColumn {
     let column = this.other.get(title);
     if (!column) {
       column = new PackedColumn();
-      column.padTo(this.rows - 1);
       this.other.set(title, column);
     }
+    column.padTo(this.rows);
     return column;
   }
 

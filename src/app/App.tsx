@@ -5,7 +5,8 @@ import { ModuleSelector } from '../components/ModuleSelector';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import type { Justification, PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import { isCt2Reconciliation, isCt2Summary } from '../shared/modules/ct2Integrity';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { buildBackup } from '../shared/backup';
@@ -67,8 +68,8 @@ export function App() {
   const [phase, setPhase] = useState<Phase>('select');
   const [run, setRun] = useState<Run | null>(null);
   const [now, setNow] = useState(0);
-  const [reconciliation, setReconciliation] = useState<Reconciliation | null>(null);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [reconciliation, setReconciliation] = useState<ModuleReconciliation | null>(null);
+  const [summary, setSummary] = useState<ModuleSummary | null>(null);
   const [error, setError] = useState<WorkerError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<View>('reconciliation');
@@ -247,7 +248,7 @@ export function App() {
               void sendJustifications([...justificationsRef.current.values()], true);
             }
             setSummary(event.summary);
-            setScope(Math.max(0, event.summary.scopes.length - 1));
+            setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
             setTableRequest({ table: 'documents', filter: {} });
             setPhase('done');
@@ -383,7 +384,10 @@ export function App() {
           ? { eyebrow: `${current.title} · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
           : { eyebrow: 'Nova análise', title: current.start.heading, description: current.start.headingDescription };
 
-  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && summary !== null && summary.scopes.length > 1;
+  // The CFGR700 payloads (the views of the CT2 module come with its screens).
+  const logReconciliation = reconciliation && !isCt2Reconciliation(reconciliation) ? reconciliation : null;
+  const logSummary = summary && !isCt2Summary(summary) ? summary : null;
+  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
 
   return (
     <div className={styles.shell}>
@@ -513,7 +517,7 @@ export function App() {
                 <label className={styles.scope}>
                   Escopo
                   <select className={ui.input} value={scope} onChange={(e) => setScope(Number(e.target.value))}>
-                    {summary!.scopes.map((s, i) => (
+                    {logSummary!.scopes.map((s, i) => (
                       <option key={s.label} value={i}>
                         {s.label}
                       </option>
@@ -752,10 +756,10 @@ export function App() {
             </div>
           )}
 
-          {screen === 'main' && done && reconciliation && (
+          {screen === 'main' && done && logReconciliation && (
             <div className={styles.view} key={view}>
               {view === 'reconciliation' && (
-                <ReconciliationView data={reconciliation} summary={summary} valueField={(analyzedConfig ?? config).fields.value} />
+                <ReconciliationView data={logReconciliation} summary={logSummary} valueField={(analyzedConfig ?? config).fields.value} />
               )}
               {view === 'panel' && (
                 <PanelView
@@ -796,13 +800,13 @@ export function App() {
                   onExport={exportJson}
                 />
               )}
-              {view === 'export' && summary && (
+              {view === 'export' && logSummary && (
                 <ExportView
                   client={client()}
-                  summary={summary}
+                  summary={logSummary}
                   scope={scope}
                   onScopeChange={setScope}
-                  failures={reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
+                  failures={logReconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
                   justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
                   onOpenJustifications={() => setView('justifications')}
                 />

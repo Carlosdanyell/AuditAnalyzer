@@ -82,6 +82,10 @@ export const ct2IntegrityConfigSchema = z
     if (k[0] !== 'date' || k[1] !== 'batch' || k[2] !== 'subBatch' || !k.includes('document') || new Set(k).size !== k.length) {
       ctx.addIssue({ code: 'custom', message: 'A chave do documento começa por data, lote e sub-lote e inclui o documento, sem repetir campos.', path: ['documentKey'] });
     }
+    const optional = k.filter((f) => !c.columns[f].required);
+    if (optional.length > 0) {
+      ctx.addIssue({ code: 'custom', message: `Campos da chave do documento precisam ser colunas obrigatórias: ${optional.join(', ')}.`, path: ['documentKey'] });
+    }
     const forbidden = k.filter((f) => NOT_IN_DOCUMENT_KEY.includes(f));
     if (forbidden.length > 0) {
       ctx.addIssue({ code: 'custom', message: `Campos que não entram na chave do documento: ${forbidden.join(', ')} (seção 3).`, path: ['documentKey'] });

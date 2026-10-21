@@ -23,6 +23,12 @@ export interface HeadRow {
 
 export type CellText = (row: ParsedRow, c: number) => string;
 
+/** What the module may need of the workbook before reading the rows. */
+export interface WorkbookInfo {
+  /** Dates of the workbook counted from 1904 (Excel for Mac), not 1900. */
+  date1904: boolean;
+}
+
 export interface SheetReadOptions {
   fileIndex: number;
   progress: ProgressReporter;
@@ -31,11 +37,18 @@ export interface SheetReadOptions {
   width: number;
   /**
    * Index of the sheet to read, or the message of the reading error when none fits. `head` gives the first rows of
-   * a sheet (not checked; the chosen sheet is read in full).
+   * a sheet (not checked; the chosen sheet is read in full). May also throw an IngestError of its own.
    */
-  chooseSheet(sheets: WorkbookSheet[], head: (sheet: WorkbookSheet, rows: number) => Promise<HeadRow[]>): Promise<number | string>;
-  /** Each row present in the sheet, in order. `row` is reused: read it during the call. */
-  onRow(r: number, row: ParsedRow, cell: CellText): void;
+  chooseSheet(
+    sheets: WorkbookSheet[],
+    head: (sheet: WorkbookSheet, rows: number) => Promise<HeadRow[]>,
+    workbook: WorkbookInfo,
+  ): Promise<number | string>;
+  /**
+   * Each row present in the sheet, in order. `row` is reused: read it during the call. `invalidShared` counts the
+   * cells read so far that point outside the shared strings (`cell` gives '' for them).
+   */
+  onRow(r: number, row: ParsedRow, cell: CellText, invalidShared: () => number): void;
 }
 
 export interface SheetReadResult {
@@ -85,6 +98,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     return new TextDecoder().decode(bytes);
   };
   const workbookXml = await readText('xl/workbook.xml');
+  const date1904 = DATE_1904.test(workbookXml);
   const sheets = parseWorkbookSheets(workbookXml);
   const rels = parseRelationships(await readText('xl/_rels/workbook.xml.rels'));
   const relTarget = new Map(rels.map((r) => [r.id, resolvePartPath(r.target)]));
@@ -139,6 +153,8 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     }
   };
 
+  const invalidShared = () => invalidSharedIndex;
+
   // 3. The sheet chosen by the module, streamed; then the integrity of the other sheets.
   const head = async (sheet: WorkbookSheet, count: number): Promise<HeadRow[]> => {
     const out: HeadRow[] = [];
@@ -154,7 +170,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     }, inflateMode);
     return out;
   };
-  const chosen = await o.chooseSheet(sheets, head);
+  const chosen = await o.chooseSheet(sheets, head, { date1904 });
   if (typeof chosen === 'string') throw new IngestError('rows', chosen);
   const sheet = sheets[chosen]!;
   const entry = entryOf(sheet);
@@ -167,7 +183,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     lastRow = r;
     presentRows++;
     extraCells += row.extraCells;
-    o.onRow(r, row, cell);
+    o.onRow(r, row, cell, invalidShared);
   }, o.width);
   const integrity = await readEntry(blob, entry, (c) => parser.push(c), { inflateMode, onBytes: (b) => progress.update(b, presentRows) });
   checked.set(entry.name, requireIntact(integrity, 'rows'));
@@ -190,7 +206,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     entries: entries.map((e) => checked.get(e.name)!).filter((e) => e !== undefined),
     sheetNames: sheets.map((s) => s.name),
     sheetName: sheet.name,
-    date1904: DATE_1904.test(workbookXml),
+    date1904,
     dimensionRows: parser.dimension?.lastRow ?? null,
     lastRow,
     extraCells,

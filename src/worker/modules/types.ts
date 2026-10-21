@@ -10,11 +10,11 @@ import type {
   Justification,
   JustificationImportPreview,
   PanelData,
+  ModuleReconciliation,
+  ModuleSummary,
   PanelSettings,
   Period,
-  Reconciliation,
   Sort,
-  Summary,
   TableFilter,
   TableId,
   WorkerEvent,
@@ -47,8 +47,8 @@ export interface ModuleSession {
 
 /** Result of an ingestion: reading and analysis run together, as in runIngestion. */
 export interface IngestedSession {
-  reconciliation: Reconciliation;
-  summary: Summary;
+  reconciliation: ModuleReconciliation;
+  summary: ModuleSummary;
   checks: CheckResult[];
   session: ModuleSession;
 }
