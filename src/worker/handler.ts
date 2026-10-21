@@ -1,6 +1,7 @@
 import { DEFAULT_MODULE_ID } from '../shared/modules';
-import type { Command, Stage, WorkerEvent } from '../shared/protocol';
+import type { Command, SheetSample, Stage, WorkerEvent } from '../shared/protocol';
 import { IngestError, type IngestOptions } from './ingest/pipeline';
+import { probeWorkbook } from './ingest/probe';
 import { WORKER_MODULES, findWorkerModule, type WorkerModules } from './modules/registry';
 import type { Ingest, ModuleSession } from './modules/types';
 
@@ -36,6 +37,14 @@ export function createCommandHandler(
       // Cancellation is done by the UI terminating the worker; nothing to do here.
       case 'cancel':
         return;
+
+      // Never an error: a file that cannot be read is simply not recognized (the analysis reports it).
+      case 'probe': {
+        const files: (SheetSample[] | null)[] = [];
+        for (const file of command.files) files.push(await probeWorkbook(file, command.rows, options.inflateMode).catch(() => null));
+        post({ type: 'probe', requestId: command.requestId, files });
+        return;
+      }
 
       case 'ingest': {
         // The previous session is released before the new files are read.

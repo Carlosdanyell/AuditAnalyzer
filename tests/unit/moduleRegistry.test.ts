@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { defaultConfig } from '../../src/config/schema';
 import { cfgr700Module } from '../../src/modules/cfgr700/module';
+import { ct2IntegrityModule } from '../../src/modules/ct2Integrity/module';
 import { MODULES, getModule, resolveInitialModule } from '../../src/modules/registry';
 import { configHash } from '../../src/shared/configTools';
 import { DEFAULT_MODULE_ID, MODULE_IDS } from '../../src/shared/modules';
@@ -28,7 +30,9 @@ describe('module registry', () => {
     expect(m.title).toBe('Log de auditoria (CFGR700)');
     expect(m.accepts).toEqual({ extensions: ['.xlsx'], maxFiles: 255 });
     expect(m.helpAnchor).toBe('cfgr700');
-    expect(m.features).toEqual({ justifications: true });
+    expect(m.preview).toBeNull();
+    expect(m.features).toEqual({ panel: true, tables: true, justifications: true, export: true });
+    expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(defaultConfig());
     // The default configuration is the one recorded in the workbook of every analysis so far.
     expect(await configHash(m.config.defaults())).toBe('c1b677af09cf086a84df99daabdaaf548759881385db6c2a908958796bf5a7a6');
@@ -36,15 +40,22 @@ describe('module registry', () => {
     expect(read.ok && read.config.balanceToleranceCents).toBe(5);
   });
 
-  it('shows the CT2 integrity module only as coming soon', () => {
-    const m = getModule('ct2Integrity');
-    expect(m).toMatchObject({ status: 'comingSoon', title: 'Integridade da CT2', helpAnchor: null });
-    expect('config' in m).toBe(false);
+  it('offers the CT2 integrity module as a preview: reading and reconciliation, with its default rules', () => {
+    expect(getModule('ct2Integrity')).toBe(ct2IntegrityModule);
+    const m = ct2IntegrityModule;
+    expect(m).toMatchObject({ status: 'available', title: 'Integridade da CT2', helpAnchor: 'ct2' });
+    expect(m.preview).toMatch(/^Prévia: /);
+    expect(m.features).toEqual({ panel: false, tables: false, justifications: false, export: false });
+    expect(m.config.saved).toBe(false);
+    expect(m.config.defaults()).toEqual(ct2DefaultConfig());
+    expect(m.progress.stages.map((s) => s.id)).toEqual(['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'checks']);
+    expect(m.progress.perFile).toBe(3);
   });
 
   it('starts with the last module used only when it can be used', () => {
     expect(resolveInitialModule('cfgr700')).toBe('cfgr700');
-    for (const stored of [undefined, null, 'ct2Integrity', 'xyz', 'constructor', 42, {}]) {
+    expect(resolveInitialModule('ct2Integrity')).toBe('ct2Integrity');
+    for (const stored of [undefined, null, 'xyz', 'constructor', 42, {}]) {
       expect(resolveInitialModule(stored)).toBe('cfgr700');
     }
   });

@@ -1,4 +1,6 @@
-import { PIPELINE_STAGES, type PipelineStage, type Stage, type WorkerEvent } from '../shared/protocol';
+import { CFGR700_STEPS } from '../modules/cfgr700/module';
+import type { ProgressSteps } from '../modules/types';
+import type { Stage, WorkerEvent } from '../shared/protocol';
 import { formatBytes, formatDuration, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
 import { cx } from './cx';
@@ -7,28 +9,11 @@ import styles from './StageProgress.module.css';
 
 export type ProgressEvent = Extract<WorkerEvent, { type: 'progress' }>;
 
-const LABELS: Record<PipelineStage, string> = {
-  fileCheck: 'Conferência do arquivo (SHA-256 e ZIP)',
-  parameters: 'Leitura dos parâmetros',
-  sharedStrings: 'Leitura das strings compartilhadas',
-  rows: 'Leitura das linhas',
-  reconciliation: 'Reconciliação de linhas',
-  events: 'Montagem de eventos',
-  documents: 'Registros, documentos e classificação',
-  checks: 'Verificação dos invariantes',
-};
-
 /** Stages not executed in this version of the tool. */
 const NOT_AVAILABLE = new Set<Stage>();
 
-/** Stages of a module, in order; the first `perFile` repeat for each file, the others run once for all files. */
-export interface ProgressSteps {
-  stages: readonly { id: Stage; label: string }[];
-  perFile: number;
-}
-
-/** The stages of the CFGR700 analysis. */
-export const CFGR700_STEPS: ProgressSteps = { stages: PIPELINE_STAGES.map((id) => ({ id, label: LABELS[id] })), perFile: 4 };
+export type { ProgressSteps };
+export { CFGR700_STEPS };
 
 interface StageProgressProps {
   fileNames: string[];

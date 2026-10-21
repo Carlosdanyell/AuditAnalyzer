@@ -123,11 +123,19 @@ export interface CheckResult {
   message: string;
 }
 
+/** First rows of a sheet, as text (probe of the start screen, docs/MODULOS.md, section 3.1). */
+export interface SheetSample {
+  name: string;
+  rows: { r: number; titles: string[] }[];
+}
+
 export type Command =
   /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
   /** `config`: the configuration of the module, validated by the worker. */
   | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown }
   | { type: 'cancel' }
+  /** First `rows` rows of every sheet of each file, to warn about a file of another analysis. Never answers an error. */
+  | { type: 'probe'; requestId: number; files: File[]; rows: number }
   | { type: 'settings'; requestId: number; settings: PanelSettings }
   /** `period` null = full log; `cutoffDay` null = default cutoff. */
   | { type: 'panel'; requestId: number; scope: number; period: Period | null; cutoffDay: number | null }
@@ -167,6 +175,8 @@ export type WorkerEvent =
   | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
   | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
   | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
+  /** One entry per file probed: its sheets, or null when it could not be read. */
+  | { type: 'probe'; requestId: number; files: (SheetSample[] | null)[] }
   /** Failing blocking checks: the export needs the user's explicit confirmation. */
   | { type: 'exportBlocked'; requestId: number; failures: CheckResult[] }
   | { type: 'error'; stage: Stage; message: string; detail?: string; requestId?: number };

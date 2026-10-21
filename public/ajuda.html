@@ -74,6 +74,14 @@
           <li><a href="#sinalizacoes">Sinalizações do painel</a></li>
           <li><a href="#limitacoes">Limitações</a></li>
         </ol>
+        <p class="group">Integridade da CT2 (prévia)</p>
+        <ol>
+          <li><a href="#ct2-para-que-serve">Para que serve</a></li>
+          <li><a href="#ct2-extracao">Extração da CT2</a></li>
+          <li><a href="#ct2-leitura">Leitura e reconciliação</a></li>
+          <li><a href="#ct2-verificacoes">Conferências da leitura</a></li>
+          <li><a href="#ct2-limitacoes">O que a prévia ainda não faz</a></li>
+        </ol>
         <ul>
           <li><a href="#privacidade">Privacidade e cópias</a></li>
         </ul>
@@ -89,11 +97,12 @@
             <thead><tr><th>Análise</th><th>Arquivo esperado</th><th>Situação</th></tr></thead>
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
-              <tr><td>Integridade da CT2</td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Em breve</td></tr>
+              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Prévia: leitura e reconciliação</td></tr>
             </tbody>
           </table>
           <ul>
             <li>A última análise usada já vem marcada na próxima vez.</li>
+            <li>Se um arquivo carregado parecer ser de outra análise (por exemplo, um relatório CFGR700 com a Integridade da CT2 escolhida), a tela avisa e oferece a troca, mantendo a lista de arquivos. O aviso não impede de analisar.</li>
             <li><strong>Trocar análise</strong> (no topo, depois de analisar) encerra a sessão: descarta a análise da memória e limpa a lista de arquivos. <strong>Nova análise</strong> mantém a análise escolhida e os arquivos.</li>
             <li>Cada análise tem a própria configuração. Os <strong>feriados</strong> valem para todas as análises e ficam na tela Configuração.</li>
           </ul>
@@ -244,6 +253,56 @@
           </ul>
         </section>
 
+        </div>
+
+        <div id="ct2">
+        <p class="group">Integridade da CT2 (prévia)</p>
+        <section id="ct2-para-que-serve">
+          <h2>1. Para que serve</h2>
+          <p>
+            Confere a extração da tabela CT2 (lançamentos contábeis) antes de usá-la: integridade dos arquivos, reconciliação de todas
+            as linhas e valores legíveis. Nesta prévia, a análise mostra as linhas, os documentos e os totais de débito e crédito por
+            tipo de saldo e moeda. A aglutinação por documento, lote e dia, os testes e a planilha amarrada por fórmulas chegam nas
+            próximas versões.
+          </p>
+        </section>
+
+        <section id="ct2-extracao">
+          <h2>2. Extração da CT2</h2>
+          <ul>
+            <li>Uma ou mais planilhas <code>.xlsx</code> exportadas da consulta da tabela CT2. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
+            <li>O cabeçalho é a primeira linha, entre as 30 primeiras da aba, que tem todos os títulos obrigatórios: Data Lcto, Numero Lote, Sub Lote, Numero Doc, Numero Linha, Tipo do Sld, Moeda Lancto, Tipo Lcto, Cta Debito, Cta Credito, Valor e Hist Lanc (ou os nomes de campo CT2_DATA, CT2_LOTE e assim por diante). Espaços nas pontas dos títulos não importam.</li>
+            <li>Se o arquivo tiver várias abas, vale a que tem o cabeçalho; duas abas com o cabeçalho é erro.</li>
+            <li>Códigos (lote, documento, linha, tipo de saldo, moeda) são lidos como texto, com os zeros à esquerda. Valores numéricos ou em texto no formato <code>1.234,56</code>; datas como data do Excel ou <code>dd/mm/aaaa</code>.</li>
+          </ul>
+        </section>
+
+        <section id="ct2-leitura">
+          <h2>3. Leitura e reconciliação</h2>
+          <ul>
+            <li>Em cada arquivo: <strong>linhas após o cabeçalho − linhas em branco = linhas de detalhe</strong>. Linha com qualquer valor é detalhe, mesmo que falte parte da chave.</li>
+            <li>A base fica em ordem de tipo de saldo e moeda, data, lote, sub-lote, documento e linha. As linhas depois da 999 (A00, A01…) vêm depois da 999, na ordem do texto.</li>
+            <li>Os totais são separados por tipo de saldo e moeda e nunca somados entre eles. Partida dobrada entra nos dois lados; continuação de histórico, em nenhum.</li>
+          </ul>
+        </section>
+
+        <section id="ct2-verificacoes">
+          <h2>4. Conferências da leitura</h2>
+          <ul>
+            <li><strong>Linhas da extração conferidas:</strong> a reconciliação de linhas fecha em cada arquivo, todo valor está numa coluna com título, e o SHA-256, o CRC32 e o tamanho de cada parte do arquivo conferem.</li>
+            <li><strong>Base em blocos contíguos:</strong> cada documento, lote e dia forma um único bloco de linhas na ordem da base.</li>
+            <li><strong>Valores legíveis:</strong> toda linha de detalhe tem data válida, lote, sub-lote, documento, linha, tipo de saldo, moeda e valor legível (valor vazio só em continuação de histórico). A tela lista as primeiras linhas com problema de cada arquivo.</li>
+          </ul>
+          <p>As três são bloqueantes: com alguma falha, a base não deve ser usada como está.</p>
+        </section>
+
+        <section id="ct2-limitacoes">
+          <h2>5. O que a prévia ainda não faz</h2>
+          <ul>
+            <li>Sem painel, tabelas, justificativas nem planilha exportada.</li>
+            <li>Usa os títulos e as regras padrão da extração; a configuração da CT2 ainda não é editável.</li>
+          </ul>
+        </section>
         </div>
 
         <section id="privacidade">

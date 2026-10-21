@@ -116,6 +116,16 @@ export class SharedStringsBytesParser {
   private readonly strings: string[] = [];
   declaredUniqueCount: number | null = null;
 
+  /** Strings parsed so far. */
+  get count(): number {
+    return this.strings.length;
+  }
+
+  /** The strings parsed so far (a partial read stops early). */
+  partial(): string[] {
+    return this.strings;
+  }
+
   push(chunk: Uint8Array): void {
     let buf = chunk;
     if (this.carry) {

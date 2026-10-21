@@ -56,6 +56,7 @@ export function ModuleSelector({ modules, selected, onSelect, helpBase, autoFocu
                   <span className={styles.mark} aria-hidden="true" />
                   <strong>{m.title}</strong>
                   {soon && <span className={cx(ui.pill, styles.badge)}>Em breve</span>}
+                  {m.status === 'available' && m.preview !== null && <span className={cx(ui.pill, styles.badge)}>Prévia</span>}
                 </span>
                 <span id={`${id}-${m.id}`} className={styles.description}>
                   {m.description}

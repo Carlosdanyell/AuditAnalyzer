@@ -2,6 +2,7 @@
 import { DEFAULT_MODULE_ID, MODULE_IDS, isModuleId, type ModuleId } from '../shared/modules';
 import { cfgr700Module } from './cfgr700/module';
 import { ct2IntegrityModule } from './ct2Integrity/module';
+import type { SheetSample } from '../shared/protocol';
 import type { AvailableModule, ModuleDescriptor } from './types';
 
 const BY_ID: { readonly [K in ModuleId]: ModuleDescriptor } = {
@@ -25,4 +26,24 @@ export function availableModule(id: ModuleId): AvailableModule {
   const m = BY_ID[id];
   if (m.status !== 'available') throw new Error(`Análise indisponível: ${m.title}.`);
   return m;
+}
+
+/**
+ * Another analysis for the files listed (docs/MODULOS.md, section 4): the first available module whose input some file
+ * matches while the chosen module does not recognize it ('no'), with the indexes of those files. `samples` follows the
+ * list of files (undefined while a file is being probed, null when it could not be read). Never blocks the analysis.
+ */
+export function suggestModule(
+  chosen: AvailableModule,
+  samples: readonly (readonly SheetSample[] | null | undefined)[],
+  configOf: (module: AvailableModule) => unknown,
+): { module: AvailableModule; files: number[] } | null {
+  for (const other of MODULES) {
+    if (other.status !== 'available' || other.id === chosen.id) continue;
+    const files = samples.flatMap((sample, i) =>
+      sample && chosen.detect(sample, configOf(chosen)) === 'no' && other.detect(sample, configOf(other)) === 'match' ? [i] : [],
+    );
+    if (files.length > 0) return { module: other, files };
+  }
+  return null;
 }
