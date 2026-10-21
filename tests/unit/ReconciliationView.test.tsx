@@ -53,3 +53,32 @@ describe('progress screen', () => {
     expect(html).toContain('Cancelar');
   });
 });
+
+describe('progress screen of another module', () => {
+  it('shows the stages and the per-file share given by the module', () => {
+    const steps = {
+      perFile: 2,
+      stages: [
+        { id: 'fileCheck', label: 'Conferência do arquivo' },
+        { id: 'rows', label: 'Leitura das linhas' },
+        { id: 'sort', label: 'Ordenação da base' },
+      ],
+    } as const;
+    const html = renderToStaticMarkup(
+      <StageProgress
+        fileNames={['a.xlsx']}
+        steps={steps}
+        progress={{ type: 'progress', stage: 'sort', done: 1, total: 2, unit: 'steps', message: 'Ordenando' }}
+        startedAt={0}
+        stageStartedAt={0}
+        now={1_000}
+        onCancel={() => {}}
+      />,
+    );
+    expect(html).toContain('Ordenação da base');
+    expect(html).not.toContain('Montagem de eventos');
+    expect(html.match(/por arquivo/g)).toHaveLength(2);
+    expect(html).toContain('83%');
+  });
+});
+

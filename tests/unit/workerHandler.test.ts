@@ -227,4 +227,23 @@ describe('worker command handler with analysis modules (docs/MODULOS.md)', () =>
       { ...notOffered, stage: 'justifications', requestId: 6 },
     ]);
   });
+
+  it('answers queries a module does not offer (panel, tables, export) with an error carrying the request id', async () => {
+    const reading: WorkerModule = {
+      configure: () => async () => ({ reconciliation: { files: [] } as never, summary: { scopes: [] } as never, checks: [], session: {} }),
+    };
+    const events: WorkerEvent[] = [];
+    const handle = createCommandHandler((e) => events.push(e), {}, { cfgr700: reading });
+    await handle({ type: 'ingest', module: 'cfgr700', files: [], config: defaultConfig() });
+    events.length = 0;
+    await handle({ type: 'panel', requestId: 1, scope: 0, period: null, cutoffDay: null });
+    await handle({ type: 'page', requestId: 2, scope: 0, table: 'documents', offset: 0, limit: 10 });
+    await handle({ type: 'export', requestId: 3, options: { scope: 0, language: 'pt', confirmFailures: false, generatedAt: 'x' } });
+    const notOffered = { type: 'error', message: 'Recurso não disponível nesta análise.' };
+    expect(events).toEqual([
+      { ...notOffered, stage: 'panel', requestId: 1 },
+      { ...notOffered, stage: 'page', requestId: 2 },
+      { ...notOffered, stage: 'export', requestId: 3 },
+    ]);
+  });
 });

@@ -6,7 +6,6 @@
  *
  * Runs in the worker, but only depends on Blob/streams, so tests run it directly in Node.
  */
-import { createSHA256 } from 'hash-wasm';
 import { OPERATION_KEYS, REPORT_COLUMN_ROLES, type AnalyzerConfig, type ReportColumnRole } from '../../config/schema';
 import { INVALID_TIME, parseDate, parseDateTime } from '../../shared/dates';
 import type {
@@ -17,7 +16,6 @@ import type {
   OperationCount,
   ParameterPair,
   Reconciliation,
-  Stage,
   Summary,
   WorkerEvent,
 } from '../../shared/protocol';
@@ -27,23 +25,17 @@ import { countEvents, sortByEventKey, OP_UNKNOWN, OP_UPDATE, type EventCounts } 
 import { coverageAlerts } from '../engine/periods';
 import { DetailColumns } from '../store/columns';
 import { Dictionary, EMPTY_ID } from '../store/dictionary';
+import { IngestError } from './errors';
 import type { InflateMode } from './inflate';
+import { requireIntact, sha256 } from './integrity';
 import { checkParameters, normalizeLabel, parseParameterRows } from './parametros';
+import { ProgressReporter } from './progress';
 import { CellKind, SheetParser, type ParsedRow } from './sheetStream';
 import { SharedStringsParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath } from './workbook';
 import { ZipFormatError, readEntry, readEntryBytes, readZipDirectory, type ZipEntry } from './zip';
 
-export class IngestError extends Error {
-  override name = 'IngestError';
-  constructor(
-    readonly stage: Stage,
-    message: string,
-    readonly detail?: string,
-  ) {
-    super(message);
-  }
-}
+export { IngestError } from './errors';
 
 export interface IngestInput {
   name: string;
@@ -65,82 +57,11 @@ export interface IngestionResult {
   details: DetailColumns;
 }
 
-type ProgressEvent = Extract<WorkerEvent, { type: 'progress' }>;
-
-/** Emits a progress event at each stage start and at most every `intervalMs` in between. */
-class ProgressReporter {
-  private current: ProgressEvent | null = null;
-  private lastEmit = -Infinity;
-  private stageStart = 0;
-  readonly timings: { stage: Stage; ms: number }[] = [];
-
-  constructor(
-    private readonly post: (e: WorkerEvent) => void,
-    private readonly now: () => number,
-    private readonly intervalMs: number,
-  ) {}
-
-  begin(stage: Stage, fileIndex: number | undefined, total: number, unit: ProgressEvent['unit'], message: string): void {
-    this.closeStage();
-    this.current = { type: 'progress', stage, done: 0, total, unit, message, ...(fileIndex !== undefined && { fileIndex }) };
-    this.stageStart = this.now();
-    this.emit();
-  }
-
-  update(done: number, rows?: number): void {
-    if (!this.current) return;
-    this.current.done = done;
-    if (rows !== undefined) this.current.rows = rows;
-    if (this.now() - this.lastEmit >= this.intervalMs) this.emit();
-  }
-
-  /** Records the duration of the current stage. */
-  closeStage(): void {
-    if (this.current) {
-      this.timings.push({ stage: this.current.stage, ms: Math.round(this.now() - this.stageStart) });
-      this.current = null;
-    }
-  }
-
-  private emit(): void {
-    if (!this.current) return;
-    this.lastEmit = this.now();
-    this.post({ ...this.current });
-  }
-}
-
 interface FileState {
   recon: FileReconciliation;
 }
 
 const noop = () => {};
-
-async function sha256(blob: Blob, progress: ProgressReporter): Promise<string> {
-  const hasher = await createSHA256();
-  hasher.init();
-  const reader = (blob.stream() as ReadableStream<Uint8Array>).getReader();
-  let done = 0;
-  for (;;) {
-    const r = await reader.read();
-    if (r.done) break;
-    hasher.update(r.value);
-    done += r.value.length;
-    progress.update(done);
-  }
-  return hasher.digest('hex');
-}
-
-function requireIntact(integrity: EntryIntegrity, stage: Stage): EntryIntegrity {
-  if (!integrity.ok) {
-    throw new IngestError(
-      stage,
-      `O arquivo está corrompido: o CRC32 ou o tamanho da entrada ${integrity.name} não confere com o diretório do ZIP.`,
-      `CRC32 esperado ${integrity.expectedCrc.toString(16)}, obtido ${integrity.actualCrc.toString(16)}; ` +
-        `tamanho esperado ${integrity.expectedSize}, obtido ${integrity.actualSize}.`,
-    );
-  }
-  return integrity;
-}
 
 interface RawCell {
   kind: number;

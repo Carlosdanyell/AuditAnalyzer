@@ -61,8 +61,8 @@ export type {
   Summary,
 } from './modules/cfgr700';
 
-/** Processing stages of the modules plus the query/export stages. */
-export type Stage = PipelineStage | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
+/** Processing stages of the modules ('sort': integrity of the CT2) plus the query/export stages. */
+export type Stage = PipelineStage | 'sort' | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
 
 /** Event-date interval in day numbers (days since 2000-01-01, see shared/dates.ts), both ends included. */
 export interface Period {

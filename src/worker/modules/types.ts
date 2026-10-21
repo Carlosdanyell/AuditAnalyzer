@@ -21,16 +21,19 @@ import type {
 } from '../../shared/protocol';
 import type { IngestInput, IngestOptions } from '../ingest/pipeline';
 
-/** The loaded files of one ingestion. A new object per ingestion: nothing of a session is kept in the module. */
+/**
+ * The loaded files of one ingestion. A new object per ingestion: nothing of a session is kept in the module. Every
+ * query is optional: a module answers only what it offers (the handler replies "Recurso não disponível" otherwise).
+ */
 export interface ModuleSession {
-  panel(scope: number, period: Period | null, cutoffDay: number | null): PanelData;
+  panel?(scope: number, period: Period | null, cutoffDay: number | null): PanelData;
   /** `limit` arrives already capped at MAX_PAGE_ROWS. */
-  page(scope: number, table: TableId, filter: TableFilter | undefined, sort: Sort | undefined, offset: number, limit: number): {
+  page?(scope: number, table: TableId, filter: TableFilter | undefined, sort: Sort | undefined, offset: number, limit: number): {
     columns: ColumnSpec[];
     rows: Cell[][];
     total: number;
   };
-  export(
+  export?(
     options: ExportOptions,
     onProgress: (done: number, total: number) => void,
   ): Promise<{ blob: Blob; fileName: string } | { blocked: CheckResult[] }>;

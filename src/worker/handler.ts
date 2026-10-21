@@ -101,8 +101,8 @@ export function createCommandHandler(
       }
 
       case 'panel': {
-        if (!session) {
-          post({ type: 'error', stage: 'panel', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.panel) {
+          post({ type: 'error', stage: 'panel', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
         try {
@@ -114,8 +114,8 @@ export function createCommandHandler(
       }
 
       case 'page': {
-        if (!session) {
-          post({ type: 'error', stage: 'page', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.page) {
+          post({ type: 'error', stage: 'page', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
         try {
@@ -129,8 +129,8 @@ export function createCommandHandler(
       }
 
       case 'export': {
-        if (!session) {
-          post({ type: 'error', stage: 'export', message: NO_SESSION, requestId: command.requestId });
+        if (!session || !session.export) {
+          post({ type: 'error', stage: 'export', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
           return;
         }
         const { requestId } = command;
