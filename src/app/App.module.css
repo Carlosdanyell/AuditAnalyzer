@@ -489,6 +489,10 @@
   align-items: start;
 }
 
+.selectorRow {
+  grid-column: 1 / -1;
+}
+
 .upload {
   gap: 20px;
   padding: 28px;

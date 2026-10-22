@@ -19,3 +19,30 @@ export function parseCents(text: string): number {
   const cents = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
   return Number.isSafeInteger(cents) ? cents : MONEY_INVALID;
 }
+
+/**
+ * Amount of a numeric cell (the text of <v>, e.g. "1234.5599999999999") → integer cents, Math.round(v * 100)
+ * (docs/REGRAS_CT2_INTEGRIDADE.md, section 2); NaN when it is not a finite number or out of the exact range.
+ */
+export function centsFromNumberText(text: string): number {
+  if (text.trim() === '') return NaN;
+  const v = Number(text);
+  if (!Number.isFinite(v)) return NaN;
+  const cents = Math.round(v * 100);
+  // + 0 turns -0 into 0.
+  return Number.isSafeInteger(cents) ? cents + 0 : NaN;
+}
+
+const BR_FORMAT = /^(-?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?$/;
+
+/**
+ * Amount written as pt-BR text ("1.234,56": optional minus, thousands with dots, up to two decimals after the comma)
+ * → integer cents; NaN for any other format (never guessed).
+ */
+export function centsFromBrText(text: string): number {
+  const m = BR_FORMAT.exec(text.trim());
+  if (!m) return NaN;
+  const cents = Number(m[2]!.replace(/\./g, '')) * 100 + Number((m[3] ?? '').padEnd(2, '0'));
+  if (!Number.isSafeInteger(cents)) return NaN;
+  return m[1] && cents !== 0 ? -cents : cents;
+}

@@ -1,4 +1,6 @@
-import { PIPELINE_STAGES, type PipelineStage, type WorkerEvent } from '../shared/protocol';
+import { CFGR700_STEPS } from '../modules/cfgr700/module';
+import type { ProgressSteps } from '../modules/types';
+import type { Stage, WorkerEvent } from '../shared/protocol';
 import { formatBytes, formatDuration, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
 import { cx } from './cx';
@@ -7,21 +9,11 @@ import styles from './StageProgress.module.css';
 
 export type ProgressEvent = Extract<WorkerEvent, { type: 'progress' }>;
 
-const LABELS: Record<PipelineStage, string> = {
-  fileCheck: 'Conferência do arquivo (SHA-256 e ZIP)',
-  parameters: 'Leitura dos parâmetros',
-  sharedStrings: 'Leitura das strings compartilhadas',
-  rows: 'Leitura das linhas',
-  reconciliation: 'Reconciliação de linhas',
-  events: 'Montagem de eventos',
-  documents: 'Registros, documentos e classificação',
-  checks: 'Verificação dos invariantes',
-};
-
 /** Stages not executed in this version of the tool. */
-const NOT_AVAILABLE = new Set<PipelineStage>();
-/** Stages repeated for each file; the others run once for all files. */
-const PER_FILE = 4;
+const NOT_AVAILABLE = new Set<Stage>();
+
+export type { ProgressSteps };
+export { CFGR700_STEPS };
 
 interface StageProgressProps {
   fileNames: string[];
@@ -30,21 +22,25 @@ interface StageProgressProps {
   stageStartedAt: number;
   now: number;
   onCancel: () => void;
+  /** Stages of the module being read (CFGR700 by default). */
+  steps?: ProgressSteps;
 }
 
 /** Share of the whole run: the per-file stages of every file, then the stages that run once. */
-function overall(current: number, fileIndex: number, files: number, fraction: number): number {
-  const steps = files * PER_FILE + (PIPELINE_STAGES.length - PER_FILE);
-  const done = current < PER_FILE ? fileIndex * PER_FILE + current : files * PER_FILE + (current - PER_FILE);
-  return Math.min(1, (done + fraction) / steps);
+function overall(steps: ProgressSteps, current: number, fileIndex: number, files: number, fraction: number): number {
+  const { perFile } = steps;
+  const total = files * perFile + (steps.stages.length - perFile);
+  const done = current < perFile ? fileIndex * perFile + current : files * perFile + (current - perFile);
+  return Math.min(1, (done + fraction) / total);
 }
 
-export function StageProgress({ fileNames, progress, startedAt, stageStartedAt, now, onCancel }: StageProgressProps) {
-  const current = progress ? PIPELINE_STAGES.indexOf(progress.stage as PipelineStage) : 0;
+export function StageProgress({ fileNames, progress, startedAt, stageStartedAt, now, onCancel, steps = CFGR700_STEPS }: StageProgressProps) {
+  const PER_FILE = steps.perFile;
+  const current = progress ? steps.stages.findIndex((s) => s.id === progress.stage) : 0;
   const fileIndex = progress?.fileIndex ?? fileNames.length - 1;
   const stageElapsed = now - stageStartedAt;
   const fraction = progress && progress.total > 0 ? Math.min(1, progress.done / progress.total) : 0;
-  const share = progress ? overall(Math.max(0, current), Math.max(0, fileIndex), fileNames.length, fraction) : 0;
+  const share = progress ? overall(steps, Math.max(0, current), Math.max(0, fileIndex), fileNames.length, fraction) : 0;
   const perFile = current < PER_FILE;
 
   return (
@@ -79,7 +75,7 @@ export function StageProgress({ fileNames, progress, startedAt, stageStartedAt, 
 
       <div className={styles.body}>
         <ol className={styles.stages}>
-          {PIPELINE_STAGES.map((stage, i) => {
+          {steps.stages.map(({ id: stage, label }, i) => {
             const status = NOT_AVAILABLE.has(stage) ? 'na' : i < current ? 'done' : i === current ? 'running' : 'waiting';
             return (
               <li key={stage} className={styles[status]}>
@@ -88,7 +84,7 @@ export function StageProgress({ fileNames, progress, startedAt, stageStartedAt, 
                 </span>
                 <div className={styles.stageBody}>
                   <span className={styles.label}>
-                    {LABELS[stage]}
+                    {label}
                     {i < PER_FILE && <span className={styles.scope}>por arquivo</span>}
                     {status === 'na' && <em> — disponível na próxima versão</em>}
                   </span>

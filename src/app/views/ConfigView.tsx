@@ -447,7 +447,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
       </Section>
 
       <Section title="Calendário e atalhos de período" icon="calendar">
-        {field('Feriados (dd/mm/aaaa)', ['calendar', 'holidays'], listInput(['calendar', 'holidays'], 4), 'Não contam como dias úteis nas sinalizações.')}
+        {field('Feriados (dd/mm/aaaa)', ['calendar', 'holidays'], listInput(['calendar', 'holidays'], 4), 'Não contam como dias úteis nas sinalizações. Valem para todas as análises.')}
         {field('Atalhos de período', ['panel', 'periodPresets'], <PresetsInput value={value(['panel', 'periodPresets'])} onChange={(p) => set(['panel', 'periodPresets'], p)} />, 'Também editáveis no painel.')}
       </Section>
 

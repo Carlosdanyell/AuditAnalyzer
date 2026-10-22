@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WorkerClient, type WorkerLike } from '../../src/app/workerClient';
+import { defaultConfig } from '../../src/config/schema';
 import type { Command, WorkerEvent } from '../../src/shared/protocol';
 
 class FakeWorker implements WorkerLike {
@@ -37,6 +38,13 @@ describe('WorkerClient', () => {
     client.send({ type: 'cancel' });
     expect(workers).toHaveLength(1);
     expect(workers[0]!.sent).toEqual([{ type: 'cancel' }]);
+  });
+
+  it('forwards the module named by an ingest unchanged', () => {
+    const { client, workers } = setup();
+    const command: Command = { type: 'ingest', module: 'cfgr700', files: [], config: defaultConfig() };
+    client.send(command);
+    expect(workers[0]!.sent).toEqual([command]);
   });
 
   it('delivers worker events to subscribers and stops after unsubscribe', () => {

@@ -28,6 +28,8 @@ export class ParsedRow {
   readonly text: string[];
   /** Cells beyond `width` columns (ignored). */
   extraCells = 0;
+  /** Of those, cells with some text besides spaces (a styled empty cell has none). */
+  extraValues = 0;
 
   constructor(readonly width: number) {
     this.kind = new Uint8Array(width);
@@ -38,6 +40,7 @@ export class ParsedRow {
   reset(): void {
     this.kind.fill(0);
     this.extraCells = 0;
+    this.extraValues = 0;
   }
 }
 
@@ -53,7 +56,9 @@ const EQ = 61;
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const P_ROW = bytes('<row');
-const P_ROW_END = bytes('</row>');
+const N_ROW = bytes('row');
+const N_C = bytes('c');
+const N_V = bytes('v');
 const P_SHEETDATA = bytes('<sheetData');
 const P_SHEETDATA_END = bytes('</sheetData>');
 const P_DIMENSION = bytes('<dimension');
@@ -79,6 +84,35 @@ function find(buf: Uint8Array, pattern: Uint8Array, from: number, to = buf.lengt
     i = buf.indexOf(first, i + 1);
   }
   return -1;
+}
+
+/**
+ * Start of the end tag `</name>` in [from, to), spaces before the '>' allowed (valid XML); -1 if absent. The usual
+ * `</name>` is found at the same position as by find().
+ */
+function findEndTag(buf: Uint8Array, name: Uint8Array, from: number, to: number): number {
+  let i = buf.indexOf(LT, from);
+  while (i >= 0 && i + name.length + 2 < to + 1) {
+    if (buf[i + 1] === SLASH && matchAt(buf, i + 2, name)) {
+      let j = i + 2 + name.length;
+      while (j < to && buf[j]! <= 32) j++;
+      if (j < to && buf[j] === GT) return i;
+    }
+    i = buf.indexOf(LT, i + 1);
+  }
+  return -1;
+}
+
+/** True if bytes [from, to) hold text other than spaces outside tags (the content of a cell). */
+function hasText(buf: Uint8Array, from: number, to: number): boolean {
+  let inTag = false;
+  for (let i = from; i < to; i++) {
+    const b = buf[i]!;
+    if (b === LT) inTag = true;
+    else if (b === GT) inTag = false;
+    else if (!inTag && b > 32) return true;
+  }
+  return false;
 }
 
 /** True if the byte ends a tag name: whitespace, '>' or '/'. */
@@ -175,7 +209,7 @@ export class SheetParser {
         const selfClosing = buf[tagEnd - 1] === SLASH;
         let close = -1;
         if (!selfClosing) {
-          close = find(buf, P_ROW_END, tagEnd + 1);
+          close = findEndTag(buf, N_ROW, tagEnd + 1, buf.length);
           if (close < 0) return lt;
         }
         this.scanAttributes(buf, lt + 4, selfClosing ? tagEnd - 1 : tagEnd);
@@ -184,7 +218,7 @@ export class SheetParser {
         if (!selfClosing) this.readCells(buf, tagEnd + 1, close);
         this.lastRowNumber = rowNumber;
         this.onRow(rowNumber, this.row);
-        pos = selfClosing ? tagEnd + 1 : close + P_ROW_END.length;
+        pos = selfClosing ? tagEnd + 1 : buf.indexOf(GT, close) + 1;
         continue;
       }
 
@@ -279,10 +313,27 @@ export class SheetParser {
         column++;
       }
 
-      const close = selfClosing ? -1 : find(buf, P_C_END, tagEnd + 1, to);
-      pos = selfClosing ? tagEnd + 1 : close + P_C_END.length;
+      // Usual cell, <c …><v>value</v></c>: one search finds the value and the end of the cell (the value has no
+      // '<'). The same positions the general searches below would find.
+      let vFrom = -1;
+      let vTo = -1;
+      let close = -1;
+      if (!selfClosing && buf[tagEnd + 1] === LT && buf[tagEnd + 2] === 118 /* v */ && buf[tagEnd + 3] === GT) {
+        const lt2 = buf.indexOf(LT, tagEnd + 4);
+        if (lt2 >= 0 && lt2 + 8 <= to && matchAt(buf, lt2, P_V_END) && matchAt(buf, lt2 + 4, P_C_END)) {
+          vFrom = tagEnd + 4;
+          vTo = lt2;
+          close = lt2 + 4;
+        }
+      }
+      if (!selfClosing && close < 0) {
+        close = findEndTag(buf, N_C, tagEnd + 1, to);
+        if (close < 0) throw new Error('Célula sem fechamento (</c>) dentro da linha.');
+      }
+      pos = selfClosing ? tagEnd + 1 : buf.indexOf(GT, close) + 1;
       if (column < 0 || column >= row.width) {
         row.extraCells++;
+        if (!selfClosing && hasText(buf, tagEnd + 1, close)) row.extraValues++;
         continue;
       }
       if (selfClosing) continue;
@@ -296,12 +347,14 @@ export class SheetParser {
       }
 
       // Value in <v>…</v>.
-      const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
-      if (vOpen < 0) continue;
-      const vFrom = buf.indexOf(GT, vOpen) + 1;
-      if (buf[vFrom - 2] === SLASH) continue; // <v/>
-      const vTo = find(buf, P_V_END, vFrom, close);
-      if (vTo < 0) continue;
+      if (vTo < 0) {
+        const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
+        if (vOpen < 0) continue;
+        vFrom = buf.indexOf(GT, vOpen) + 1;
+        if (buf[vFrom - 2] === SLASH) continue; // <v/>
+        vTo = findEndTag(buf, N_V, vFrom, close);
+        if (vTo < 0) continue;
+      }
 
       if (tLen === 1 && t0 === 115 /* s */) {
         let n = 0;

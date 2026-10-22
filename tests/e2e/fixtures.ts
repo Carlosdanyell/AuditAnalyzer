@@ -5,6 +5,8 @@
 import { writeFileSync } from 'node:fs';
 import { test as base, expect, type Page } from '@playwright/test';
 import { buildCfgr700 } from '../synthetic/cfgr700';
+import { buildCt2Extraction } from '../synthetic/ct2Extraction';
+import { fileA as ct2FileA, fileB as ct2FileB } from '../synthetic/ct2Fixtures';
 import { EVENTS } from '../synthetic/engineFixture';
 import { ct2Line, toReportRows, type LogEvent } from '../synthetic/logBuilder';
 import { SEG_EVENTS, SEG_PARAMETERS } from '../synthetic/segregationFixture';
@@ -19,6 +21,12 @@ interface Files {
   september: string;
 }
 
+/** Synthetic CT2 extractions (tests/synthetic/ct2Fixtures.ts): A has unreadable values, B is clean. */
+interface Ct2Files {
+  withProblems: string;
+  clean: string;
+}
+
 /** A synthetic extraction large enough (~240 thousand report rows) to cancel while it is being read. */
 function bigFileBytes(): Uint8Array {
   const events: LogEvent[] = [];
@@ -29,7 +37,7 @@ function bigFileBytes(): Uint8Array {
   return buildCfgr700({ rows: toReportRows(events, 0), parameters: PERIODS.august });
 }
 
-export const test = base.extend<{ files: Files; segregationFiles: string[]; bigFile: string; guard: void }>({
+export const test = base.extend<{ files: Files; ct2Files: Ct2Files; segregationFiles: string[]; bigFile: string; guard: void }>({
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
   files: async ({}, use, testInfo) => {
     const august = testInfo.outputPath('agosto.xlsx');
@@ -37,6 +45,14 @@ export const test = base.extend<{ files: Files; segregationFiles: string[]; bigF
     writeFileSync(august, buildCfgr700({ rows: toReportRows(EVENTS, 0), parameters: PERIODS.august }));
     writeFileSync(september, buildCfgr700({ rows: toReportRows(EVENTS, 1), parameters: PERIODS.september }));
     await use({ august, september });
+  },
+  // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
+  ct2Files: async ({}, use, testInfo) => {
+    const withProblems = testInfo.outputPath('ct2-a.xlsx');
+    const clean = testInfo.outputPath('ct2-b.xlsx');
+    writeFileSync(withProblems, buildCt2Extraction(ct2FileA()));
+    writeFileSync(clean, buildCt2Extraction(ct2FileB()));
+    await use({ withProblems, clean });
   },
   // Cases of the segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13).
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern
@@ -83,9 +99,17 @@ export const test = base.extend<{ files: Files; segregationFiles: string[]; bigF
 
 export { expect };
 
+/** Chooses the analysis on the selector of the start screen (docs/MODULOS.md, section 4). */
+export async function chooseModule(page: Page, title = 'Log de auditoria (CFGR700)'): Promise<void> {
+  const option = page.getByRole('radio', { name: title, exact: true });
+  await option.click();
+  await expect(option).toBeChecked();
+}
+
 /** Loads the files, runs the analysis and waits for the result screens. */
 export async function analyze(page: Page, paths: string[]): Promise<void> {
   await page.goto('');
+  await chooseModule(page);
   await page.locator('input[type=file]').first().setInputFiles(paths);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('button', { name: 'Painel' })).toBeVisible({ timeout: 60_000 });

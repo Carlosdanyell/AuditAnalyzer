@@ -29,7 +29,8 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 const TYPE_NAMES: Record<string, string> = { string: 'texto', number: 'número', array: 'lista', object: 'objeto', boolean: 'sim/não' };
 
-function message(issue: z.core.$ZodIssue): string {
+/** Message in Portuguese for a validation issue (also used by the configurations of other modules). */
+export function issueMessage(issue: z.core.$ZodIssue): string {
   switch (issue.code) {
     case 'too_small':
       return issue.origin === 'string' && Number(issue.minimum) <= 1
@@ -76,7 +77,7 @@ export function readConfig(input: unknown): ConfigRead {
   const migrated = migrate(input);
   if ('path' in migrated) return { ok: false, errors: [migrated] };
   const parsed = analyzerConfigSchema.safeParse(migrated.value);
-  if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.map(String).join('.'), message: message(issue) })) };
+  if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.map(String).join('.'), message: issueMessage(issue) })) };
   return { ok: true, config: parsed.data, ...(migrated.from !== undefined && { migratedFrom: migrated.from }) };
 }
 

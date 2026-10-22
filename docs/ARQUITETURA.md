@@ -57,6 +57,27 @@ páginas de linhas para as tabelas virtualizadas.
   valor em centavos.
 - Ao terminar a ingestão de um arquivo, descartar buffers intermediários.
 
+**Extrações largas (Fase 9, módulo `ct2Integrity`).** A extração da CT2 tem ~80 colunas, guardadas inteiras na base:
+- Leitura genérica de uma aba (`ingest/readSheet.ts`), comum aos módulos: SHA-256, diretório do ZIP, CRC32 e tamanho
+  de todas as entradas, strings compartilhadas e as linhas da aba escolhida pelo módulo, uma a uma. O CFGR700 segue
+  com o próprio caminho (`ingest/pipeline.ts`), sem mudança.
+- Números em typed arrays que crescem em **blocos fixos** de 65.536 linhas (`store/chunked.ts`): sem dobrar o tamanho a
+  cada crescimento, o pico fica perto do que é guardado.
+- Textos em colunas compactadas (`store/packedColumn.ts`): nada enquanto a coluna está vazia ou constante; um código
+  de 1, 2 ou 4 bytes por linha numa tabela dos valores distintos; números de 8 bytes quando há muitos números
+  distintos; e, para colunas de textos quase todos distintos (históricos, sequências), os **bytes UTF-8 de cada
+  linha** em blocos de 1 MB mais 4 bytes por linha, sem tabela. A tabela custa ~100 bytes por valor distinto além dos
+  caracteres; a troca é decidida uma vez, quando os códigos de 2 bytes deixam de bastar.
+- Strings compartilhadas lidas nos **bytes** (`SharedStringsBytesParser`), cada item decodificado sozinho: cortar
+  strings de um pedaço decodificado faz o motor JavaScript manter o pedaço inteiro vivo enquanto houver uma string
+  dele (na medição, ~180 MB para uma sharedStrings de 80 MB).
+- Parser da aba: a célula usual `<c …><v>valor</v></c>` é resolvida com uma busca só; qualquer outra forma segue o
+  caminho geral, que acharia as mesmas posições (o CFGR700 também ganha).
+- Ordem da base como permutação (`Uint32Array`) sobre os postos de cada parte da chave; as colunas ficam na ordem
+  de leitura.
+- `DecompressionStream` do Node lê adiante toda a parte comprimida da aba (sem contrapressão); no navegador o fluxo
+  tem contrapressão. Por isso a memória medida no Node usa o `fflate` (`docs/MEDICOES.md`).
+
 ### 1.4 Metas de desempenho (medir na prova de conceito)
 | Métrica | Meta inicial |
 |---|---|
@@ -127,6 +148,17 @@ um arquivo, o consolidado); a resposta, ou o erro, devolve o mesmo `requestId` (
 `{ startDay, endDay }` em números de dia. As tabelas são filtradas, ordenadas e paginadas no worker
 (`engine/tables.ts`, com cache das últimas consultas); a tela só virtualiza as linhas (TanStack Virtual). O TanStack
 Table não foi adotado: com ordenação, filtro e paginação no worker, ele não teria função.
+
+Fase 8 (plataforma de módulos, seção 9): o `ingest` ganhou `module?: ModuleId` (ausente = `cfgr700`); as demais
+mensagens seguem o módulo da sessão e nenhum evento mudou. O handler (`src/worker/handler.ts`) guarda a sessão devolvida
+pelo módulo e limita `page` a 2.000 linhas.
+
+Fase 9: comando `probe` (`{ requestId, files, rows }`) com as primeiras linhas de cada aba de cada arquivo
+(`ingest/probe.ts`: lê só o começo das abas e da sharedStrings, até a última string usada), para o aviso de arquivo
+trocado; responde `null` para o arquivo que não consegue ler e nunca envia erro. `reconciliation` e `ready` levam a
+carga do módulo da sessão (`ModuleReconciliation`, `ModuleSummary`): as do `ct2Integrity` têm `module:
+'ct2Integrity'`; as do CFGR700 continuam sem marca, com o mesmo conteúdo. O `ingest` recebe `config: unknown`,
+validada pelo módulo. A etapa `sort` entrou em `Stage`.
 
 Seção 13: `PanelData.segregated` traz, para o período, as categorias por fase (`byPhase`), os eventos por fase e
 operação, as exceções, os informativos, as marcações e a segregação de funções. A tabela `segregation` tem uma linha por
@@ -199,6 +231,27 @@ com os mesmos arquivos. A Rastreabilidade da planilha traz o SHA-256 e a lista d
 Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave `tipo|documento`) e, no store
 `config`, a data da última cópia em JSON e da última alteração. A tela envia as justificativas ao worker
 (`setJustifications`); a importação de planilha é lida no worker (`importJustifications`, mesmo leitor de ZIP/XML).
+Fase 8 (plataforma de módulos): o banco continua na versão 2; no store `config` entram chaves novas.
+
+| Chave | Conteúdo |
+|---|---|
+| `analyzerConfig:cfgr700` | configuração do módulo CFGR700 (com os feriados da plataforma em `calendar.holidays`) |
+| `analyzerConfig` | a mesma configuração, gravada junto em todo salvamento: chave da versão 1.0.0, mantida como espelho para que uma aba aberta com a versão anterior use as regras atuais |
+| `platformConfig` | `{ schemaVersion: 1, holidays }`: feriados da plataforma, usados por todos os módulos |
+| `lastModule` | última análise usada (`src/app/moduleStore.ts`) |
+| `uiTheme`, `panelSettings` (antiga, migrada e apagada), metadados das justificativas | como antes |
+
+`src/shared/configStorage.ts` decide, como função pura (`planConfigLoad`), o que ler e gravar; `configStore.ts` aplica
+numa única transação. Regras: na primeira abertura depois da 1.0.0, a chave antiga é copiada para a do módulo e os
+feriados para `platformConfig`; espelho diferente da chave do módulo = gravação de uma versão anterior, adotada;
+chave do módulo ilegível (ex.: gravada por uma versão mais nova) não é sobrescrita e o espelho é usado, com aviso;
+`platformConfig` inválida é ignorada e regravada; uma configuração válida salva nunca é trocada pelo padrão (se a
+gravação de volta falhar, por exemplo com o disco cheio, as regras lidas continuam valendo, com aviso). Os
+feriados da plataforma são copiados sem reordenar para `calendar.holidays`, de modo que o worker recebe o mesmo objeto
+de antes: o SHA-256 e as diferenças da Rastreabilidade não mudam.
+Cópia de segurança (`src/shared/backup.ts`): versão 2 = versão 1 + `platform` (feriados); na leitura, os feriados de
+`platform` são copiados para a configuração. A versão 1 continua sendo lida (feriados vindos da configuração);
+`tests/synthetic/backups/backup-v1.json` é uma cópia gerada pela 1.0.0 que precisa ser restaurada sem perda.
 
 ## 7. Segurança e privacidade
 
@@ -238,3 +291,39 @@ Fase 4: store `justifications` (versão 2 do banco) com as justificativas (chave
   orientação de alterados sem documento), justificativas (escrever, JSON, importar), exportação em PT e EN com o
   Resumo conferido pelo avaliador, configuração (salvar, reprocessar, persistir, cópia de segurança) e ajuda. Todo
   teste reprova requisição fora da origem e erro não tratado. Localmente usam o Chrome instalado (`E2E_CHANNEL`).
+- **Plataforma de módulos (Fase 8):** `tests/unit/moduleRegistry.test.ts` (registro, hash padrão, âncora da ajuda,
+  nenhum código compartilhado compara ids de módulo), casos novos em `tests/unit/workerHandler.test.ts` (o `ingest`
+  com `module: 'cfgr700'` dá os mesmos eventos e os mesmos bytes exportados que sem `module`; módulo indisponível ou
+  nome de membro de objeto recusado; capacidades opcionais), `tests/unit/configStorage.test.ts` (cada caso da
+  migração, com idempotência), `tests/unit/backupV1.test.ts` e `tests/e2e/modules.spec.ts` (seletor, "Trocar
+  análise", `lastModule`, chave da 1.0.0 semeada no IndexedDB e cópia da 1.0.0 restaurada).
+
+## 9. Plataforma de módulos (a partir da Fase 8)
+
+O app passa a hospedar módulos de análise independentes sobre a mesma infraestrutura (leitura em fluxo, worker,
+gerador XLSX, tema, rastreabilidade). O contrato de um módulo, o que é compartilhado e a estrutura de pastas alvo
+estão em `docs/MODULOS.md`. Tudo o que está acima descreve o módulo `cfgr700`; o módulo `ct2Integrity` está em
+`docs/REGRAS_CT2_INTEGRIDADE.md` (a seção 7 descreve a planilha amarrada por fórmulas, que usa agregação por blocos
+contíguos em vez de SUMIFS por linha).
+
+Implementado na Fase 8:
+- `src/shared/modules/index.ts`: `MODULE_IDS`, `ModuleId`, `DEFAULT_MODULE_ID` (`cfgr700`).
+- Tela: `src/modules/registry.ts` com um descritor por módulo (`src/modules/<id>/module.ts`, sem React): textos do
+  seletor e da tela inicial, arquivos aceitos, âncora da ajuda, recursos (`justifications`) e configuração. O
+  `ct2Integrity` é um cartão "Em breve". `src/components/ModuleSelector.tsx` mostra o seletor na tela inicial.
+- Worker: `src/worker/modules/registry.ts` (`WORKER_MODULES`, consulta só por chave própria) e o adaptador
+  `src/worker/modules/cfgr700/index.ts`, que valida a configuração (`configure`) e devolve, a cada ingestão, uma
+  sessão nova sobre `runIngestion` + `Session` (que não mudaram). Atalhos/feriados (`settings`) e justificativas são
+  capacidades opcionais da sessão; sem elas, o handler responde "Recurso não disponível nesta análise.".
+- Imports estáticos (sem `import()` sob demanda): a CSP não muda e não há arquivos buscados depois do carregamento.
+- O `App.tsx` continua hospedando as visões do CFGR700; a extração da área de trabalho por módulo fica para a Fase 12.
+
+Implementado na Fase 9:
+- Tipos do CFGR700 em `src/shared/modules/cfgr700.ts` (reexportados por `protocol.ts`); tipos da CT2 em
+  `src/shared/modules/ct2Integrity.ts`.
+- `ct2Integrity` registrado no worker (`src/worker/modules/ct2Integrity/`: `ingest.ts`, `store.ts`, `order.ts`,
+  `values.ts`) e disponível na tela como **prévia**: leitura, reconciliação e invariantes CI-1, CI-2 e CI-4.
+- Descritor da tela com `preview`, passos de "Como funciona", etapas do processamento (`progress`), visões oferecidas
+  (`features`; as demais aparecem bloqueadas), `config.saved` (configuração salva ou padrão do módulo) e `detect()`.
+- Tela de reconciliação por módulo: `Ct2ReconciliationView` reaproveita as partes comuns (`ReconciliationParts`) da do
+  CFGR700, cujo HTML não mudou (referência congelada em `tests/synthetic/expected/screens`).

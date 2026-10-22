@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
+import { ModuleSelector } from '../components/ModuleSelector';
+import { Ct2ReconciliationView } from '../components/Ct2ReconciliationView';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import type { Justification, PanelSettings, Reconciliation, Summary, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
+import { isCt2Reconciliation, isCt2Summary } from '../shared/modules/ct2Integrity';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { buildBackup } from '../shared/backup';
@@ -23,6 +26,10 @@ import { ExportView } from './views/ExportView';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
+import { MODULES, availableModule, resolveInitialModule, suggestModule } from '../modules/registry';
+import type { AvailableModule } from '../modules/types';
+import { DEFAULT_MODULE_ID, type ModuleId } from '../shared/modules';
+import { loadLastModule, saveLastModule } from './moduleStore';
 import ui from '../components/ui.module.css';
 import styles from './App.module.css';
 
@@ -38,6 +45,9 @@ interface Run {
 type Phase = 'select' | 'running' | 'done';
 type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
+/** Rows of each sheet read by the probe of the start screen (the header of every module is in the first 30). */
+const PROBE_ROWS = 30;
+
 const VIEWS: { id: View; label: string; icon: IconName; description: string }[] = [
   { id: 'reconciliation', label: 'Reconciliação', icon: 'reconciliation', description: 'Integridade dos arquivos, reconciliação de linhas e verificações' },
   { id: 'panel', label: 'Painel', icon: 'panel', description: 'Categorias por origem, competência, sinalizações e cobertura' },
@@ -52,14 +62,24 @@ const download = (text: string, fileName: string) => downloadBlob(new Blob([text
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
+/** Every view but the reconciliation is a feature of the module; the others are shown locked. */
+const offered = (m: AvailableModule, view: View) => view === 'reconciliation' || m.features[view];
+
 export function App() {
   const clientRef = useRef<WorkerClient | null>(null);
+  // Analysis module (docs/MODULOS.md): chosen on the start screen; the last one used is restored at startup.
+  const [moduleId, setModuleId] = useState<ModuleId>(DEFAULT_MODULE_ID);
+  const moduleChosen = useRef(false);
+  const analyzedModule = useRef<ModuleId>(DEFAULT_MODULE_ID);
+  const [focusSelector, setFocusSelector] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  /** First rows of each file listed, by fileKey (undefined while probing, null when unreadable). */
+  const [samples, setSamples] = useState<ReadonlyMap<string, SheetSample[] | null>>(new Map());
   const [phase, setPhase] = useState<Phase>('select');
   const [run, setRun] = useState<Run | null>(null);
   const [now, setNow] = useState(0);
-  const [reconciliation, setReconciliation] = useState<Reconciliation | null>(null);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [reconciliation, setReconciliation] = useState<ModuleReconciliation | null>(null);
+  const [summary, setSummary] = useState<ModuleSummary | null>(null);
   const [error, setError] = useState<WorkerError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<View>('reconciliation');
@@ -103,7 +123,9 @@ export function App() {
   }, []);
 
   const sendJustifications = useCallback(async (items: Justification[], replace: boolean) => {
-    const answer = await clientRef.current?.query({ type: 'setJustifications', items, replace });
+    // Without an analysis that takes justifications (none loaded, or another module), the worker answers that it
+    // has none: the justifications are already saved and go to the next analysis.
+    const answer = await clientRef.current?.query({ type: 'setJustifications', items, replace }).catch(() => undefined);
     if (answer) setUnknownCount(answer.unknown);
     setJustRefresh((v) => v + 1);
   }, []);
@@ -152,6 +174,13 @@ export function App() {
   const openJustifications = useCallback((table: TableId, filter: TableFilter) => {
     setJustRequest({ table, filter });
     setView('justifications');
+  }, []);
+
+  useEffect(() => {
+    void loadLastModule().then((stored) => {
+      // Never overrides a choice made (or files added) before IndexedDB answered.
+      if (!moduleChosen.current) setModuleId(resolveInitialModule(stored));
+    });
   }, []);
 
   useEffect(() => {
@@ -227,9 +256,11 @@ export function App() {
             setReconciliation(event.data);
             break;
           case 'ready':
-            void sendJustifications([...justificationsRef.current.values()], true);
+            if (availableModule(analyzedModule.current).features.justifications) {
+              void sendJustifications([...justificationsRef.current.values()], true);
+            }
             setSummary(event.summary);
-            setScope(Math.max(0, event.summary.scopes.length - 1));
+            setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
             setTableRequest({ table: 'documents', filter: {} });
             setPhase('done');
@@ -266,7 +297,13 @@ export function App() {
     return () => clearInterval(id);
   }, [phase]);
 
+  /** The configuration an analysis runs with: the one saved on this computer, or the defaults of the module. */
+  function configOf(m: AvailableModule): unknown {
+    return m.config.saved ? configRef.current : m.config.defaults();
+  }
+
   function addFiles(added: File[]) {
+    moduleChosen.current = true;
     setError(null);
     setNotice(null);
     setFiles((current) => {
@@ -274,6 +311,36 @@ export function App() {
       return [...current, ...added.filter((f) => !seen.has(fileKey(f)))];
     });
   }
+
+  // The first rows of each file listed, to warn about a file of another analysis (never blocks). A probe cut short
+  // by Cancelar or Nova análise (the worker is ended) is asked again when the start screen comes back.
+  const probing = useRef(new Set<string>());
+  const [probeRound, setProbeRound] = useState(0);
+  useEffect(() => {
+    if (phase !== 'select') return;
+    const pending = files.filter((f) => !samples.has(fileKey(f)) && !probing.current.has(fileKey(f)));
+    if (pending.length === 0) return;
+    const keys = pending.map(fileKey);
+    keys.forEach((k) => probing.current.add(k));
+    // Released before the next state change, so the effect it triggers sees these files as not being probed.
+    const release = () => keys.forEach((k) => probing.current.delete(k));
+    void client()
+      .query({ type: 'probe', files: pending, rows: PROBE_ROWS })
+      .then((answer) => {
+        release();
+        setSamples((current) => {
+          const next = new Map(current);
+          keys.forEach((k, i) => next.set(k, answer.files[i] ?? null));
+          return next;
+        });
+      })
+      .catch(() => {
+        release();
+        setProbeRound((n) => n + 1);
+      });
+    // client() creates the worker once and returns the same client afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, samples, phase, probeRound]);
 
   function analyze() {
     const started = performance.now();
@@ -283,8 +350,12 @@ export function App() {
     setSummary(null);
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
-    setAnalyzedConfig(configRef.current);
-    client().send({ type: 'ingest', files, config: configRef.current });
+    // Only a saved configuration can change after the analysis (and call for reprocessing).
+    setAnalyzedConfig(current.config.saved ? configRef.current : null);
+    setFocusSelector(false);
+    analyzedModule.current = moduleId;
+    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current) });
+    void saveLastModule(moduleId);
   }
 
   function cancel() {
@@ -321,6 +392,31 @@ export function App() {
     setNotice(null);
   }
 
+  /** Another analysis on the selector: the files listed belong to the previous one. */
+  function selectModule(id: ModuleId) {
+    moduleChosen.current = true;
+    if (id === moduleId) return;
+    setModuleId(id);
+    setFiles([]);
+    setError(null);
+    setNotice(null);
+  }
+
+  /** The analysis a listed file belongs to (wrong-file notice): the files stay listed. */
+  function switchKeepingFiles(id: ModuleId) {
+    moduleChosen.current = true;
+    setModuleId(id);
+    setError(null);
+    setNotice(null);
+  }
+
+  /** "Trocar análise": ends the session, as "Encerrar sessão", and goes back to the selector. */
+  function switchModule() {
+    endSession();
+    setScreen('main');
+    setFocusSelector(true);
+  }
+
   function moveFile(index: number, delta: -1 | 1) {
     setFiles((current) => {
       const target = index + delta;
@@ -331,6 +427,7 @@ export function App() {
     });
   }
 
+  const current = availableModule(moduleId);
   const done = phase === 'done' && reconciliation !== null;
   const currentView = VIEWS.find((v) => v.id === view)!;
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
@@ -338,12 +435,18 @@ export function App() {
     screen === 'config'
       ? { eyebrow: 'Preferências', title: 'Configuração', description: 'Regras da leitura e da análise, cópia de segurança' }
       : phase === 'running'
-        ? { eyebrow: 'Análise', title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
+        ? { eyebrow: current.title, title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
         : done
-          ? { eyebrow: `Análise · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
-          : { eyebrow: 'Nova análise', title: 'Arquivos do log', description: 'Relatório de log de auditoria CFGR700 do Protheus' };
+          ? { eyebrow: `${current.title} · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
+          : { eyebrow: 'Nova análise', title: current.start.heading, description: current.start.headingDescription };
 
-  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && summary !== null && summary.scopes.length > 1;
+  // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
+  const logReconciliation = reconciliation && !isCt2Reconciliation(reconciliation) ? reconciliation : null;
+  const logSummary = summary && !isCt2Summary(summary) ? summary : null;
+  const ct2Reconciliation = reconciliation && isCt2Reconciliation(reconciliation) ? reconciliation : null;
+  const ct2Summary = summary && isCt2Summary(summary) ? summary : null;
+  const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
+  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
 
   return (
     <div className={styles.shell}>
@@ -357,7 +460,7 @@ export function App() {
           </span>
           <span className={styles.brandText}>
             <strong>AuditAnalyzer</strong>
-            <span>CFGR700 · Protheus</span>
+            <span>{current.brandSubtitle}</span>
           </span>
         </div>
 
@@ -379,6 +482,14 @@ export function App() {
             <span className={styles.navLabel}>Análise</span>
             {VIEWS.map((v) => {
               const active = screen === 'main' && v.id === view;
+              if (!offered(current, v.id)) {
+                return (
+                  <span key={v.id} className={cx(styles.navItem, styles.navLocked)} title="Ainda não disponível nesta análise">
+                    <Icon name={v.icon} />
+                    {v.label}
+                  </span>
+                );
+              }
               return (
                 <button
                   key={v.id}
@@ -462,7 +573,7 @@ export function App() {
 
       <div className={styles.content}>
         <header className={styles.topbar}>
-          <div className={styles.heading} key={`${screen}-${phase}-${view}`}>
+          <div className={styles.heading} key={`${screen}-${phase}-${view}-${moduleId}`}>
             <span className={styles.eyebrow}>{heading.eyebrow}</span>
             <h1>{heading.title}</h1>
             <span className={styles.description}>{heading.description}</span>
@@ -473,7 +584,7 @@ export function App() {
                 <label className={styles.scope}>
                   Escopo
                   <select className={ui.input} value={scope} onChange={(e) => setScope(Number(e.target.value))}>
-                    {summary!.scopes.map((s, i) => (
+                    {logSummary!.scopes.map((s, i) => (
                       <option key={s.label} value={i}>
                         {s.label}
                       </option>
@@ -481,7 +592,7 @@ export function App() {
                   </select>
                 </label>
               )}
-              {view !== 'export' && (
+              {view !== 'export' && current.features.export && (
                 <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setView('export')}>
                   <Icon name="download" size={17} />
                   Exportar planilha
@@ -490,6 +601,10 @@ export function App() {
               <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
                 <Icon name="refresh" size={17} />
                 Nova análise
+              </button>
+              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={switchModule}>
+                <Icon name="swap" size={17} />
+                Trocar análise
               </button>
             </div>
           )}
@@ -531,17 +646,35 @@ export function App() {
 
           {screen === 'main' && phase === 'select' && (
             <div className={cx(styles.start, ui.stagger)}>
+              <ModuleSelector
+                className={styles.selectorRow}
+                modules={MODULES}
+                selected={moduleId}
+                onSelect={selectModule}
+                helpBase={import.meta.env.BASE_URL}
+                autoFocus={focusSelector}
+              />
               <section className={cx(ui.card, styles.upload)} aria-labelledby="upload-title">
                 <div>
                   <h2 id="upload-title" className={styles.uploadTitle}>
-                    Carregue as extrações do CFGR700
+                    {current.start.uploadTitle}
                   </h2>
-                  <p className={ui.sub}>
-                    Uma ou mais extrações do relatório, em .xlsx. Com mais de um arquivo, a ordem da lista define a ordem das fontes.
-                  </p>
+                  <p className={ui.sub}>{current.start.uploadDescription}</p>
                 </div>
 
-                <FileDrop onFiles={addFiles} />
+                {current.preview && (
+                  <p className={cx(ui.alert, ui.info)}>
+                    <Icon name="info" />
+                    <span>{current.preview}</span>
+                  </p>
+                )}
+
+                <FileDrop
+                  onFiles={addFiles}
+                  title={current.start.dropTitle}
+                  extensions={current.accepts.extensions}
+                  multiple={current.accepts.maxFiles > 1}
+                />
 
                 {files.length > 0 && (
                   <ol className={styles.fileList}>
@@ -607,6 +740,18 @@ export function App() {
                   </button>
                 </div>
 
+                {suggestion && (
+                  <div className={cx(ui.alert, ui.warn)} role="status">
+                    <Icon name="alert" />
+                    <span>
+                      {suggestion.files.length === 1 ? 'Este arquivo parece ser' : 'Estes arquivos parecem ser'} {suggestion.module.title}:{' '}
+                      {suggestion.files.map((i) => files[i]!.name).join(', ')}. Trocar de análise? A lista de arquivos é mantida.
+                    </span>
+                    <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} onClick={() => switchKeepingFiles(suggestion.module.id)}>
+                      Mudar para {suggestion.module.title}
+                    </button>
+                  </div>
+                )}
                 {notice && (
                   <p className={cx(ui.alert, ui.info)}>
                     <Icon name="info" />
@@ -633,22 +778,12 @@ export function App() {
                 <section className={cx(ui.card, styles.steps)}>
                   <h3>Como funciona</h3>
                   <ol>
-                    <li>
-                      <strong>Carregue</strong>
-                      <span>as extrações do CFGR700, na ordem das fontes.</span>
-                    </li>
-                    <li>
-                      <strong>Confira</strong>
-                      <span>a integridade, a reconciliação de linhas e as verificações.</span>
-                    </li>
-                    <li>
-                      <strong>Analise e justifique</strong>
-                      <span>exclusões, alterações e desbalanceamentos por período e origem.</span>
-                    </li>
-                    <li>
-                      <strong>Exporte</strong>
-                      <span>o papel de trabalho em Excel, com rastreabilidade.</span>
-                    </li>
+                    {current.start.guide.map((step) => (
+                      <li key={step.title}>
+                        <strong>{step.title}</strong>
+                        <span>{step.text}</span>
+                      </li>
+                    ))}
                   </ol>
                 </section>
                 <ul className={styles.features}>
@@ -676,7 +811,7 @@ export function App() {
                     </span>
                     <span>
                       <strong>Sem rede e sem cache</strong>
-                      Os dados do log ficam só na memória desta aba e somem ao encerrar a sessão.
+                      Os dados lidos ficam só na memória desta aba e somem ao encerrar a sessão.
                     </span>
                   </li>
                 </ul>
@@ -693,14 +828,15 @@ export function App() {
                 stageStartedAt={run.stageStartedAt}
                 now={Math.max(now, run.startedAt)}
                 onCancel={cancel}
+                steps={current.progress}
               />
             </div>
           )}
 
-          {screen === 'main' && done && reconciliation && (
+          {screen === 'main' && done && logReconciliation && (
             <div className={styles.view} key={view}>
               {view === 'reconciliation' && (
-                <ReconciliationView data={reconciliation} summary={summary} valueField={(analyzedConfig ?? config).fields.value} />
+                <ReconciliationView data={logReconciliation} summary={logSummary} valueField={(analyzedConfig ?? config).fields.value} />
               )}
               {view === 'panel' && (
                 <PanelView
@@ -741,17 +877,22 @@ export function App() {
                   onExport={exportJson}
                 />
               )}
-              {view === 'export' && summary && (
+              {view === 'export' && logSummary && current.features.export && (
                 <ExportView
                   client={client()}
-                  summary={summary}
+                  summary={logSummary}
                   scope={scope}
                   onScopeChange={setScope}
-                  failures={reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
+                  failures={logReconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
                   justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
                   onOpenJustifications={() => setView('justifications')}
                 />
               )}
+            </div>
+          )}
+          {screen === 'main' && done && ct2Reconciliation && (
+            <div className={styles.view} key={view}>
+              <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
             </div>
           )}
         </main>

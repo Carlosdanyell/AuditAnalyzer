@@ -9,7 +9,8 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   (`src/config/`) e funções compartilhadas (`src/shared/`) **não precisam mudar** para redesenhar a tela.
 - A interface conversa com o processamento só por `WorkerClient` (`src/app/workerClient.ts`) e pelos tipos de
   `src/shared/protocol.ts`:
-  - `send({ type: 'ingest', files, config })` e eventos `progress`, `reconciliation`, `ready`, `error`;
+  - `send({ type: 'ingest', module, files, config })` (`module` = análise escolhida, `src/shared/modules`) e eventos
+    `progress`, `reconciliation`, `ready`, `error`;
   - `query(...)` com resposta pelo mesmo `requestId`: `panel`, `page`, `settings`, `setJustifications`,
     `importJustifications`, `export` (respostas `exported` ou `exportBlocked`);
   - `cancel()` encerra o worker (descarta os dados da sessão).
@@ -18,7 +19,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   - `src/shared/justifications.ts` (`mergeImport`, `findConflicts`, `buildJsonExport`, `justificationKey`);
   - `src/shared/configTools.ts` (`readConfig`, `configDiff`, `configHash`, `configToJson`);
   - `src/app/configEditor.ts` (edição por caminho, listas, reais ↔ centavos, erros por campo);
-  - `src/app/configStore.ts` e `src/app/justificationStore.ts` (IndexedDB), `src/app/download.ts` (salvar arquivo).
+  - `src/app/configStore.ts`, `src/app/justificationStore.ts` e `src/app/moduleStore.ts` (IndexedDB),
+    `src/app/download.ts` (salvar arquivo);
+  - `src/modules/registry.ts` (descritores das análises: textos, arquivos aceitos, âncora da ajuda, recursos).
 
 ## Restrições que afetam a tela
 
@@ -28,18 +31,32 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   inteiro — só páginas (`page`) de até 2.000 linhas.
 - Thread principal abaixo de 150 MB e sem travar: nada de processamento pesado na tela.
 - Nenhum dado do log em `localStorage`, `sessionStorage`, Cache Storage ou service worker. IndexedDB só para
-  configuração e justificativas (a preferência de tema claro/escuro fica no mesmo store `config`, chave `uiTheme`).
+  configuração e justificativas (as preferências de tema claro/escuro e da última análise usada ficam no mesmo store
+  `config`, chaves `uiTheme` e `lastModule`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
 - Textos em português; fonte `Aptos, "Segoe UI", system-ui, sans-serif`; sem baixar fontes.
 - Aviso permanente: "Os arquivos são processados neste computador e não são enviados para nenhum servidor."
 
 ## Telas e comportamentos obrigatórios
 
+0. **Início — seletor de análises** (`docs/MODULOS.md`, seção 4) — um cartão por módulo (título, descrição, arquivo
+   esperado, link "Manual desta análise"), na mesma tela da área de arquivos; a análise escolhida vem marcada desde
+   a primeira renderização (a última usada, `lastModule`, gravada ao Analisar; padrão CFGR700). Módulo "Em breve" não
+   pode ser escolhido; módulo em prévia (Integridade da CT2, Fase 9) tem o selo "Prévia" e o aviso do que já faz, na
+   tela inicial e na reconciliação. Escolher outra análise com arquivos na lista limpa a lista. Arquivo que parece
+   ser de outra análise: aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e
+   mantém a lista; o aviso nunca impede de analisar. O nome da análise aparece no topo.
+   **"Trocar análise"** (topo, depois de analisar) encerra a sessão como "Encerrar sessão" e volta ao seletor;
+   **"Nova análise"** continua mantendo a análise e os arquivos.
 1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo;
-   Analisar (envia a configuração salva). Mensagens de erro com detalhe técnico recolhido.
+   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
+   erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e
    **Cancelar** (termina o worker e avisa que os dados lidos foram descartados).
 3. **Reconciliação** — por arquivo: SHA-256, integridade do ZIP, parâmetros, reconciliação de linhas, eventos por
-   operação e verificações (bloqueantes e alertas); resumo da análise por escopo.
+   operação e verificações (bloqueantes e alertas); resumo da análise por escopo. Integridade da CT2: linhas após o
+   cabeçalho − em branco = detalhe, valores ilegíveis por tipo com as primeiras linhas de origem, colunas encontradas,
+   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4. Visões que o módulo não
+   oferece ficam bloqueadas no menu.
 4. **Painel** (`panel`) — escopo (cada arquivo e Consolidado); período por atalho (inclui os do usuário) ou datas;
    data de corte editável; quadros: categorias por origem (cada número abre a tabela filtrada por categoria,
    período e origem), período × demais dias × log completo, competência (com o indicador de fechamento),
@@ -69,8 +86,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App).
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
-   configuração e as justificativas (`buildBackup`) e restaurar com confirmação (`readBackup`, `restoreBackup` do
-   App), substituindo tudo.
+   configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 2) e restaurar com confirmação
+   (`readBackup`, que também lê as cópias da versão 1.0.0; `restoreBackup` do App), substituindo tudo. Os feriados
+   valem para todas as análises.
 9. **Tema** — claro (padrão) e escuro, trocados na barra lateral (`src/app/themeStore.ts`: `<html data-theme>`,
    preferência no IndexedDB). Cores só por tokens de `src/app/global.css`; os dois temas devem continuar legíveis.
    Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
@@ -88,10 +106,14 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
-  "Aplicar importação", "Ver no Consolidado (mesmo período)", link "Ajuda"; opções (radio) "Geral" e "Segregado",
+  "Aplicar importação", "Ver no Consolidado (mesmo período)", "Trocar análise", link "Ajuda" e "Manual desta análise";
+  opções (radio) "Log de auditoria (CFGR700)", "Integridade da CT2", "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
-  citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Cada teste também reprova
+  citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
+  trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
+  "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o seletor, a análise
+  da CT2 em prévia e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

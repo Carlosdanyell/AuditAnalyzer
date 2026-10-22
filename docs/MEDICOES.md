@@ -105,3 +105,31 @@ Custo da análise segregada: ~0,4 s (≈ 4–5%) e ~1 MB de heap para 147 mil ev
 ~14 bytes por evento na linha do tempo + 12 bytes por evento por escopo (typed arrays, nenhum objeto por evento). O
 heap inclui o arquivo sintético e as linhas mantidos pelo teste, por isso não é comparável com a memória do worker no
 navegador. Repetir com os arquivos reais (`npm run test:local`) no computador do trabalho.
+
+## 2026-10-21 — Fase 9 (Integridade da CT2: leitura), ambiente de nuvem (Linux, 4 núcleos, Node 22)
+
+Extrações **sintéticas** da CT2 (`tests/synthetic/ct2Large.ts`: 80 colunas, ~60 células por linha, strings
+compartilhadas, metade dos históricos distintos e uma sequência distinta por linha), geradas uma vez na pasta
+temporária do sistema. `MEDIR_CT2=1 npm run test:local` (`tests/local/ct2Measure.test.ts`), um caso por processo.
+Memória = heap + ArrayBuffers acima do que estava em uso antes: **pico vivo** amostrado depois de uma coleta de lixo
+a cada ~1 s (comparável à medição do navegador com `measureUserAgentSpecificMemory`) e o que a base mantém no fim.
+
+Primeira medição (1 arquivo, ~1 milhão de linhas): 47,5 s; mantido 290 MB; pico vivo 420 MB. Três causas corrigidas
+(`docs/ARQUITETURA.md`, seção 1.3): tabela de strings para colunas de textos quase todos distintos (~145 bytes por
+valor), strings compartilhadas presas aos pedaços decodificados e ~8 buscas por célula no parser da aba.
+
+| Caso | Tempo | Leitura das linhas | Pico vivo | Mantido (base) |
+|---|---|---|---|---|
+| 1 arquivo, ~1 milhão de linhas (263 MB) | 44,9 s | 41,7 s | 219 MB | 152 MB (113 MB) |
+| 2 arquivos, ~1,3 milhão de linhas | 55,9 s | 27,9 s + 23,9 s | 220 MB | 194 MB (144 MB) |
+
+- Descompressão: `fflate`. O `DecompressionStream` do Node lê adiante toda a parte comprimida da aba (sem
+  contrapressão; 255 MB a mais no início da leitura do arquivo de 1 milhão de linhas, liberados aos poucos); no
+  navegador o fluxo tem contrapressão. Com o nativo, o tempo é o mesmo (45,2 s e 54,9 s).
+- Ordenação da base e invariantes: < 1 s para 1,3 milhão de linhas.
+- O tempo depende do número de células por linha: o parser custa ~0,3 µs por célula, o mesmo do CFGR700.
+- O CFGR700 usa o mesmo parser da aba (atalho da célula usual): saídas idênticas (testes congelados); o tempo do
+  CFGR700 não foi medido de novo nesta rodada.
+- Pendente: medir no Chromium com a tela da prévia (memória do worker) e repetir no computador do trabalho com as
+  extrações reais (`tests/local/ct2Golden.test.ts` mostra o tempo e a memória na saída local).
+

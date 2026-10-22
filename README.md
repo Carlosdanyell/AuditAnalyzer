@@ -27,7 +27,8 @@ e gera um papel de trabalho em Excel pronto para revisão.
 > [!IMPORTANT]
 > **Nenhum dado sai do computador.** Não há servidor, analytics, CDN nem fontes externas: o aplicativo é um conjunto
 > de arquivos estáticos e a política de segurança do navegador (`connect-src 'self'`) bloqueia qualquer envio.
-> Os dados do log ficam só na memória da sessão; o IndexedDB guarda apenas a configuração e as justificativas.
+> Os dados do log ficam só na memória da sessão; o IndexedDB guarda apenas a configuração, as justificativas e as
+> preferências da tela.
 
 ## O que a ferramenta responde
 
@@ -93,7 +94,8 @@ responsiva com arquivos de cerca de 1 milhão de linhas.
 ## Uso
 
 1. Abra o [aplicativo](https://carlosdanyell.github.io/AuditAnalyzer/) no Chrome ou no Edge. Não há instalação.
-2. Carregue uma ou mais extrações do CFGR700 (`.xlsx`), em ordem cronológica, e clique em **Analisar**.
+2. Escolha a análise (hoje, **Log de auditoria (CFGR700)**; **Integridade da CT2** em breve), carregue uma ou mais
+   extrações do CFGR700 (`.xlsx`), em ordem cronológica, e clique em **Analisar**.
 3. Confira a **Reconciliação**, navegue pelo **Painel** e registre as **Justificativas**.
 4. Clique em **Exportar planilha** e escolha o escopo e o idioma.
 
@@ -118,7 +120,10 @@ npm run build       # build de produção para o GitHub Pages
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes (especificação) |
+| [`docs/MODULOS.md`](docs/MODULOS.md) | Plataforma de análises: contrato dos módulos |
+| [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes do log de auditoria (especificação) |
+| [`docs/REGRAS_CT2_INTEGRIDADE.md`](docs/REGRAS_CT2_INTEGRIDADE.md) | Regras do módulo Integridade da CT2 (em desenvolvimento) |
+| [`docs/ROTEIRO.md`](docs/ROTEIRO.md) | Fases de desenvolvimento e situação |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Leitura em fluxo, armazenamento colunar, motor, exportação |
 | [`docs/INTERFACE.md`](docs/INTERFACE.md) | Comportamentos obrigatórios das telas |
 | [`docs/MEDICOES.md`](docs/MEDICOES.md) | Tempo e memória medidos |

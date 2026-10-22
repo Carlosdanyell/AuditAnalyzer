@@ -14,6 +14,11 @@ A lógica de negócio já foi validada manualmente em Python contra entregas rea
 em TypeScript, de forma configurável, com interface própria. As regras estão em `docs/REGRAS_CFGR700.md`
 e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever código.**
 
+**Plataforma de análises (a partir da Fase 8):** o app hospeda módulos de análise independentes — `cfgr700` (log de
+auditoria, acima) e `ct2Integrity` (aglutinação e integridade da extração da CT2, com planilha toda amarrada por
+fórmulas). Contrato dos módulos em `docs/MODULOS.md`; regras do novo módulo em `docs/REGRAS_CT2_INTEGRIDADE.md`.
+Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições abaixo valem para todos.
+
 ## Restrições inegociáveis
 
 1. **Nada sai da máquina.** Sem backend, sem chamadas de rede em tempo de execução, sem analytics, sem CDN,
@@ -25,7 +30,7 @@ e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever códi
    (ZIP → inflate → XML em partes), armazenamento colunar em typed arrays com dicionário de strings.
    Metas: pico do worker < 400 MB com dois arquivos (~1,3 milhão de linhas de detalhe); thread principal < 150 MB.
 4. **Sem cache de dados.** Dados do log ficam só na memória do worker durante a sessão. IndexedDB apenas para
-   configuração e justificativas (pequenos). Nenhum dado em localStorage, Cache Storage ou service worker.
+   configuração, justificativas e preferências da tela (pequenos; chaves em `docs/ARQUITETURA.md`, seção 6). Nenhum dado em localStorage, Cache Storage ou service worker.
 5. **Integridade verificável.** Toda execução calcula SHA-256 dos arquivos de entrada, confere CRC32 e tamanho
    de cada entrada do ZIP, reconcilia contagens de linhas e eventos e roda invariantes. Invariante que falha
    bloqueia a exportação (ou exige confirmação explícita, registrada no arquivo exportado).
@@ -57,15 +62,22 @@ e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever códi
 ```
 src/
   app/                 # React: páginas, layout, estado da UI
-  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter...)
+  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter, ModuleSelector...)
+  modules/             # descritores dos módulos para a tela: registry.ts, <id>/module.ts (sem React)
   worker/
     index.ts           # ponto de entrada do worker e protocolo de mensagens
-    ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts
-    store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts
+    handler.ts         # despacho dos comandos para a sessão do módulo
+    modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor;
+                       # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts)
+    ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
+                       # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado)
+    store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts; chunked.ts e packedColumn.ts
+                       # (extrações largas: blocos fixos, códigos estreitos, textos distintos em bytes)
     engine/            # events.ts, records.ts, documents.ts, classify.ts, periods.ts, checks.ts
     export/            # xlsxWriter.ts, styles.ts, sheets/*.ts, traceability.ts
-  config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json; tela em app/views/ConfigView.tsx
-  shared/              # tipos compartilhados, formatação pt-BR, datas, centavos
+  config/              # schema.ts (zod, schemaVersion 2), defaults/ct2.json (CFGR700), platform.ts (feriados);
+                       # tela em app/views/ConfigView.tsx
+  shared/              # tipos compartilhados, formatação pt-BR, datas, centavos; modules/ (ids dos módulos)
 tests/
   synthetic/           # gerador de CFGR700 sintético + respostas esperadas
   unit/ integration/
@@ -80,7 +92,8 @@ docs/
 - Datas: parse manual de `dd/mm/aaaa` e `dd/mm/aaaa hh:mm:ss`; representar como inteiros (dias ou segundos desde
   uma época fixa, sem fuso). Proibido `new Date(string)` na lógica.
 - Dinheiro: converter o texto do log para centavos inteiros na leitura; somar em centavos; converter só na saída.
-- Toda regra de negócio vem da configuração (`config/defaults/ct2.json`), não de constantes espalhadas.
+- Toda regra de negócio vem da configuração do módulo (`config/defaults/<módulo>.json`; CFGR700: `ct2.json`), não de
+  constantes espalhadas. Código compartilhado não compara ids de módulo (`docs/MODULOS.md`, seção 1).
 - Toda função do motor é pura e testável fora do worker.
 - Nenhuma dependência nova sem justificar no PR/commit (tamanho, manutenção, uso de rede).
 
@@ -114,7 +127,8 @@ npm run lint
 - Testes sintéticos passando; testes locais passando quando a tarefa toca no motor ou na ingestão.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.
 - UI continua responsiva com o arquivo grande (verificar manualmente com o arquivo de ~1 milhão de linhas).
-- Invariantes novos documentados em `docs/REGRAS_CFGR700.md`.
+- Invariantes novos documentados no documento de regras do módulo (`docs/REGRAS_CFGR700.md` ou
+  `docs/REGRAS_CT2_INTEGRIDADE.md`).
 - Mudanças de regra de negócio refletidas na configuração padrão e na documentação.
 
 ## Como trabalhar neste repositório

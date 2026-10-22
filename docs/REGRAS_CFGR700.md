@@ -254,7 +254,9 @@ painel é igual ao total da tabela aberta por ele, em todos os presets, e a comp
   Linhas identificadas com CT2_DATA ilegível aparecem numa coluna própria ("Data contábil ilegível").
 - **Período × demais dias × log completo:** demais dias = log completo − período, categoria por categoria.
 - **Feriados:** lista editável na configuração (`calendar.holidays`, dd/mm/aaaa; vazia por padrão), guardada em
-  IndexedDB. Feriados não contam como dias úteis nas sinalizações nem nos alertas de cobertura entre extrações
+  IndexedDB. Desde a Fase 8 os feriados são configuração da plataforma (valem para todas as análises; chave
+  `platformConfig`) e são copiados, sem reordenar, para `calendar.holidays`: o hash e as diferenças da configuração
+  não mudam (`docs/ARQUITETURA.md`, seção 6). Feriados não contam como dias úteis nas sinalizações nem nos alertas de cobertura entre extrações
   (seção 3; estes valem a partir da análise seguinte à mudança).
 - **Sinalizações, calculadas sobre o período selecionado:**
   - Documentos desbalanceados: documentos da categoria Desbalanceado no período.

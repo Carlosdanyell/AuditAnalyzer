@@ -135,6 +135,27 @@ export async function readEntry(
   };
 }
 
+/**
+ * Streams only the beginning of an entry: stops as soon as `onChunk` returns false. Partial reads are not checked
+ * (CRC32 and size need the whole entry); used to look at the first rows of a sheet.
+ */
+export async function readEntryHead(
+  blob: Blob,
+  entry: ZipEntry,
+  onChunk: (chunk: Uint8Array) => boolean,
+  inflateMode: InflateMode = 'auto',
+): Promise<void> {
+  const reader = (await openEntry(blob, entry, inflateMode)).getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || !onChunk(value)) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
 /** Reads a (small) entry fully into memory. */
 export async function readEntryBytes(
   blob: Blob,

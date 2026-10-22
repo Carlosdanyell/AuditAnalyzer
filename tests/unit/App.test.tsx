@@ -21,3 +21,14 @@ describe('start screen', () => {
     expect(html).toContain('Encerrar sessão');
   });
 });
+
+describe('start screen of the platform (docs/MODULOS.md, section 4)', () => {
+  const html = renderToStaticMarkup(<App />);
+
+  it('shows the selector of analyses with the CFGR700 module already chosen, next to the file area', () => {
+    expect(html).toMatch(/role="radio" aria-checked="true" aria-label="Log de auditoria \(CFGR700\)"/);
+    expect(html).toMatch(/aria-label="Integridade da CT2"/);
+    expect(html).toContain('Carregue as extrações do CFGR700');
+    expect(html).toMatch(/<input[^>]*type="file"[^>]*>/);
+  });
+});

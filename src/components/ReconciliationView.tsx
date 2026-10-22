@@ -1,6 +1,7 @@
-import type { CheckResult, FileReconciliation, OperationCount, Reconciliation, ScopeStats, Stage, Summary } from '../shared/protocol';
-import { formatBytes, formatCrc, formatDateTime, formatElapsed, formatInteger } from '../shared/format';
-import { Icon, type IconName } from './Icon';
+import type { FileReconciliation, OperationCount, Reconciliation, ScopeStats, Stage, Summary } from '../shared/protocol';
+import { formatBytes, formatDateTime, formatElapsed, formatInteger } from '../shared/format';
+import { Icon } from './Icon';
+import { Alerts, Checks, RunStatus, ZipIntegrity, type StatusTile } from './ReconciliationParts';
 import { cx } from './cx';
 import ui from './ui.module.css';
 import styles from './ReconciliationView.module.css';
@@ -56,20 +57,8 @@ export function ReconciliationView({ data, summary, valueField = 'CT2_VALOR' }: 
 
 /** Headline of the run: integrity verdict and the size of what was read. */
 function Status({ data }: { data: Reconciliation }) {
-  const failures = data.checks.filter((c) => !c.passed && c.severity === 'error').length;
-  const warnings = data.checks.filter((c) => !c.passed && c.severity === 'warning').length;
-  const passed = data.checks.filter((c) => c.passed).length;
-  const tone = failures ? 'error' : warnings ? 'warn' : 'ok';
-  const title = failures
-    ? `${n(failures)} verificação(ões) bloqueante(s) falhou(aram)`
-    : warnings
-      ? `Integridade confirmada, com ${n(warnings)} alerta(s)`
-      : 'Integridade confirmada';
-  const text = failures
-    ? 'A exportação exige confirmação explícita, registrada na planilha. Confira os detalhes abaixo.'
-    : 'Arquivos íntegros, linhas reconciliadas e invariantes conferidos. Os números da análise podem ser usados.';
   const c = data.consolidated;
-  const tiles: { icon: IconName; label: string; value: string }[] = [
+  const tiles: StatusTile[] = [
     { icon: 'sheet', label: 'Arquivos', value: n(data.files.length) },
     { icon: 'database', label: 'Linhas de detalhe', value: n(c.detailRows) },
     { icon: 'activity', label: 'Eventos', value: n(c.totalEvents) },
@@ -77,85 +66,12 @@ function Status({ data }: { data: Reconciliation }) {
     { icon: 'clock', label: 'Processamento', value: formatElapsed(data.totalMs) },
   ];
   return (
-    <section className={cx(ui.card, styles.status, styles[`status_${tone}`])}>
-      <div className={styles.statusHead}>
-        <span className={styles.statusIcon}>
-          <Icon name={failures ? 'xCircle' : warnings ? 'alert' : 'shield'} size={28} />
-        </span>
-        <div>
-          <h2 className={styles.statusTitle}>{title}</h2>
-          <p className={ui.sub}>{text}</p>
-        </div>
-        <div className={styles.statusCount}>
-          <Ring value={data.checks.length ? passed / data.checks.length : 1} tone={tone} />
-          <span>
-            <strong>
-              {passed}/{data.checks.length}
-            </strong>
-            verificações OK
-          </span>
-        </div>
-      </div>
-      <dl className={styles.tiles}>
-        {tiles.map((t) => (
-          <div key={t.label}>
-            <dt>
-              <Icon name={t.icon} size={15} />
-              {t.label}
-            </dt>
-            <dd>{t.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function Ring({ value, tone }: { value: number; tone: string }) {
-  const r = 16;
-  const length = 2 * Math.PI * r;
-  return (
-    <svg className={cx(styles.ring, styles[`ring_${tone}`])} viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r={r} />
-      {value > 0 && <circle cx="20" cy="20" r={r} strokeDasharray={`${length * value} ${length}`} />}
-    </svg>
-  );
-}
-
-const CHECK_ORDER = (c: CheckResult) => (c.passed ? 2 : c.severity === 'error' ? 0 : 1);
-
-function Checks({ checks, totalMs }: { checks: CheckResult[]; totalMs: number }) {
-  const blocking = checks.filter((c) => !c.passed && c.severity === 'error').length;
-  // Failures and alerts first; the sort is stable, so the order of the engine is kept inside each group.
-  const ordered = [...checks].sort((a, b) => CHECK_ORDER(a) - CHECK_ORDER(b));
-  return (
-    <section className={cx(ui.card, blocking > 0 && styles.cardError)}>
-      <div className={ui.cardHead}>
-        <h2 className={ui.cardTitle}>
-          <span className={ui.cardIcon}>
-            <Icon name="reconciliation" />
-          </span>
-          Verificações
-        </h2>
-        <span className={ui.muted}>concluído em {formatElapsed(totalMs)}</span>
-      </div>
-      <ul className={styles.checks}>
-        {ordered.map((c) => {
-          const kind = c.passed ? 'pass' : c.severity === 'error' ? 'fail' : 'warn';
-          return (
-            <li key={c.id} className={styles[kind]}>
-              <span className={styles.checkIcon}>
-                <Icon name={kind === 'pass' ? 'check' : kind === 'fail' ? 'x' : 'alert'} size={14} strokeWidth={2.4} />
-              </span>
-              <span>
-                <span className={styles.badge}>{c.passed ? 'OK' : c.severity === 'error' ? 'Falha' : 'Alerta'}</span>
-                <strong>{c.label}.</strong> {c.message}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+    <RunStatus
+      checks={data.checks}
+      tiles={tiles}
+      okText="Arquivos íntegros, linhas reconciliadas e invariantes conferidos. Os números da análise podem ser usados."
+      failText="A exportação exige confirmação explícita, registrada na planilha. Confira os detalhes abaixo."
+    />
   );
 }
 
@@ -178,20 +94,6 @@ function Events({ events, total }: { events: OperationCount[]; total: number }) 
         </tr>
       </tfoot>
     </table>
-  );
-}
-
-function Alerts({ alerts }: { alerts: { level: string; message: string }[] }) {
-  if (alerts.length === 0) return null;
-  return (
-    <ul className={styles.alerts}>
-      {alerts.map((a, i) => (
-        <li key={i} className={cx(ui.alert, a.level === 'warning' ? ui.warn : ui.info)}>
-          <Icon name={a.level === 'warning' ? 'alert' : 'info'} size={17} />
-          <span>{a.message}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -295,38 +197,7 @@ function FileCard({ file }: { file: FileReconciliation }) {
         </table>
       </details>
 
-      <details className={styles.more}>
-        <summary>
-          <Icon name="chevronRight" size={16} />
-          Integridade do ZIP ({file.entries.filter((e) => e.ok).length} de {file.entries.length} entradas conferem)
-        </summary>
-        <table className={`${styles.table} ${styles.wide}`}>
-          <thead>
-            <tr>
-              <th>Entrada</th>
-              <th>Tamanho</th>
-              <th>CRC32 esperado</th>
-              <th>CRC32 obtido</th>
-              <th>Situação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {file.entries.map((e) => (
-              <tr key={e.name}>
-                <th scope="row" className={styles.mono}>
-                  {e.name}
-                </th>
-                <td>{formatBytes(e.actualSize)}</td>
-                <td className={styles.mono}>{formatCrc(e.expectedCrc)}</td>
-                <td className={styles.mono}>{formatCrc(e.actualCrc)}</td>
-                <td>
-                  <span className={cx(ui.pill, e.ok ? ui.ok : ui.error)}>{e.ok ? 'confere' : 'diverge'}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+      <ZipIntegrity entries={file.entries} />
 
       <details className={styles.more}>
         <summary>

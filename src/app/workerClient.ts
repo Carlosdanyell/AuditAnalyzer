@@ -40,8 +40,10 @@ export class WorkerClient {
   query(command: Query<'setJustifications'>): Promise<Answer<'justificationsSet'>>;
   query(command: Query<'importJustifications'>): Promise<Answer<'justificationImport'>>;
   query(command: Query<'export'>): Promise<Answer<'exported'> | Answer<'exportBlocked'>>;
+  query(command: Query<'probe'>): Promise<Answer<'probe'>>;
   query(
     command:
+      | Query<'probe'>
       | Query<'panel'>
       | Query<'page'>
       | Query<'settings'>
