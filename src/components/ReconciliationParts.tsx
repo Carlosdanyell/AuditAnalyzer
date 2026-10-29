@@ -79,8 +79,11 @@ const CHECK_ORDER = (c: CheckResult) => (c.passed ? 2 : c.severity === 'error' ?
 
 export function Checks({ checks, totalMs }: { checks: CheckResult[]; totalMs: number }) {
   const blocking = checks.filter((c) => !c.passed && c.severity === 'error').length;
-  // Failures and alerts first; the sort is stable, so the order of the engine is kept inside each group.
+  // Failures and alerts open, first; the passed checks folded in one line. The sort is stable, so the order of the
+  // engine is kept inside each group.
   const ordered = [...checks].sort((a, b) => CHECK_ORDER(a) - CHECK_ORDER(b));
+  const open = ordered.filter((c) => !c.passed);
+  const passed = ordered.filter((c) => c.passed);
   return (
     <section className={cx(ui.card, blocking > 0 && styles.cardError)}>
       <div className={ui.cardHead}>
@@ -92,23 +95,38 @@ export function Checks({ checks, totalMs }: { checks: CheckResult[]; totalMs: nu
         </h2>
         <span className={ui.muted}>concluído em {formatElapsed(totalMs)}</span>
       </div>
-      <ul className={styles.checks}>
-        {ordered.map((c) => {
-          const kind = c.passed ? 'pass' : c.severity === 'error' ? 'fail' : 'warn';
-          return (
-            <li key={c.id} className={styles[kind]}>
-              <span className={styles.checkIcon}>
-                <Icon name={kind === 'pass' ? 'check' : kind === 'fail' ? 'x' : 'alert'} size={14} strokeWidth={2.4} />
-              </span>
-              <span>
-                <span className={styles.badge}>{c.passed ? 'OK' : c.severity === 'error' ? 'Falha' : 'Alerta'}</span>
-                <strong>{c.label}.</strong> {c.message}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      {open.length > 0 && <CheckList checks={open} />}
+      {passed.length > 0 && (
+        <details className={styles.more}>
+          <summary>
+            <Icon name="chevronRight" size={16} />
+            {passed.length === checks.length ? `Todas as ${passed.length} verificações OK` : `${passed.length} verificação(ões) OK`}
+          </summary>
+          <CheckList checks={passed} />
+        </details>
+      )}
     </section>
+  );
+}
+
+function CheckList({ checks }: { checks: CheckResult[] }) {
+  return (
+    <ul className={styles.checks}>
+      {checks.map((c) => {
+        const kind = c.passed ? 'pass' : c.severity === 'error' ? 'fail' : 'warn';
+        return (
+          <li key={c.id} className={styles[kind]}>
+            <span className={styles.checkIcon}>
+              <Icon name={kind === 'pass' ? 'check' : kind === 'fail' ? 'x' : 'alert'} size={14} strokeWidth={2.4} />
+            </span>
+            <span>
+              <span className={styles.badge}>{c.passed ? 'OK' : c.severity === 'error' ? 'Falha' : 'Alerta'}</span>
+              <strong>{c.label}.</strong> {c.message}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -39,18 +39,12 @@
 }
 
 .primary {
-  background: var(--accent-grad);
+  background: var(--accent);
   color: var(--on-accent);
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 18%) inset,
-    0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 .primary:hover:not(:disabled) {
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 18%) inset,
-    0 10px 24px -8px color-mix(in srgb, var(--accent) 80%, transparent);
-  filter: brightness(1.06);
+  background: var(--accent-hover);
 }
 
 .secondary {
@@ -453,42 +447,31 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 
 /* ── Motion ── */
 
+/* Entrances: opacity and a short move only (no layout work), quick enough not to delay reading. */
 .enter {
-  animation: rise 420ms var(--ease) both;
+  animation: rise 220ms var(--ease) both;
 }
 
 .stagger > * {
-  animation: rise 460ms var(--ease) both;
+  animation: rise 220ms var(--ease) both;
 }
 
 .stagger > :nth-child(2) {
-  animation-delay: 50ms;
+  animation-delay: 30ms;
 }
 
 .stagger > :nth-child(3) {
-  animation-delay: 100ms;
+  animation-delay: 60ms;
 }
 
-.stagger > :nth-child(4) {
-  animation-delay: 150ms;
-}
-
-.stagger > :nth-child(5) {
-  animation-delay: 200ms;
-}
-
-.stagger > :nth-child(6) {
-  animation-delay: 240ms;
-}
-
-.stagger > :nth-child(n + 7) {
-  animation-delay: 280ms;
+.stagger > :nth-child(n + 4) {
+  animation-delay: 90ms;
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
 
   to {

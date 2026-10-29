@@ -482,7 +482,8 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         )}
       </Section>
 
-      <div className={styles.footer}>
+      {/* Floats at the bottom of the window only while there is something to save. */}
+      <div className={styles.footer} data-floating={dirty || issues.length > 0 ? '' : undefined}>
         {issues.length > 0 ? (
           <IssueList issues={issues} />
         ) : dirty ? (

@@ -21,7 +21,7 @@
   --accent-hover: #1d44b3;
   --accent-soft: #eaf0fd;
   --accent-soft-strong: #d7e2fb;
-  --accent-grad: linear-gradient(135deg, #2f5fe0 0%, #1b3fa8 100%);
+  --accent-grad: var(--accent);
   --on-accent: #ffffff;
   --ring: rgb(37 82 208 / 32%);
   --ok: #157a3f;
@@ -44,7 +44,7 @@
   --radius: 12px;
   --radius-lg: 16px;
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
-  --shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 6px 20px -8px rgb(15 23 42 / 10%);
+  --shadow: 0 1px 2px rgb(15 23 42 / 4%);
   --shadow-lg: 0 24px 60px -16px rgb(15 23 42 / 30%);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --sidebar-w: 256px;
@@ -68,7 +68,7 @@
   --accent-hover: #9cb9ff;
   --accent-soft: rgb(126 164 255 / 12%);
   --accent-soft-strong: rgb(126 164 255 / 22%);
-  --accent-grad: linear-gradient(135deg, #88adff 0%, #5d86f0 100%);
+  --accent-grad: var(--accent);
   --on-accent: #07102a;
   --ring: rgb(126 164 255 / 40%);
   --ok: #52d08f;
@@ -87,7 +87,7 @@
   --series-unbalanced: #c98500;
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
-  --shadow: 0 1px 0 rgb(255 255 255 / 3%) inset, 0 10px 30px -12px rgb(0 0 0 / 55%);
+  --shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
   --shadow-lg: 0 30px 70px -20px rgb(0 0 0 / 70%);
 
   color-scheme: dark;

@@ -16,7 +16,6 @@ import { EXCEPTIONS, INFORMATIVES, MARKS, PHASES, SEGREGATION_PT, balanceText, t
 import type { WorkerClient } from '../workerClient';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../components/cx';
-import { useCountUp } from '../../components/useCountUp';
 import ui from '../../components/ui.module.css';
 import styles from './PanelView.module.css';
 
@@ -345,22 +344,17 @@ export function PanelView({
               </span>
             </p>
           )}
-          <ul className={styles.signals}>
-            {data.signals.map((s) => {
-              const kind = s.requiresAction ? 'action' : s.count > 0 ? 'info' : 'clear';
-              return (
-                <li key={s.id} className={styles[kind]}>
-                  <span className={styles.signalIcon} aria-hidden="true">
-                    <Icon name={kind === 'action' ? 'alert' : kind === 'info' ? 'info' : 'check'} size={15} strokeWidth={2.2} />
-                  </span>
-                  <span className={styles.signalText}>
-                    <span className={styles.signalBadge}>{s.requiresAction ? 'Ação' : s.count > 0 ? 'Informativo' : 'OK'}</span>
-                    <strong>{s.label}.</strong> {s.text}.
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          {/* What calls for attention open; the signals without occurrences folded in one line. */}
+          <SignalList signals={data.signals.filter((s) => s.requiresAction || s.count > 0)} />
+          {data.signals.some((s) => !s.requiresAction && s.count === 0) && (
+            <details className={styles.foldInline}>
+              <summary>
+                <Icon name="chevronRight" size={16} />
+                {data.signals.filter((s) => !s.requiresAction && s.count === 0).length} sinalização(ões) sem ocorrência
+              </summary>
+              <SignalList signals={data.signals.filter((s) => !s.requiresAction && s.count === 0)} />
+            </details>
+          )}
           {data.identification && (
             <IdentificationNote
               hint={data.identification}
@@ -394,39 +388,63 @@ export function PanelView({
         <Daily data={data} />
       </section>
 
-      <section className={ui.card}>
-        <h2 className={ui.cardTitle}>Período × demais dias × log completo</h2>
+      <details className={cx(ui.card, styles.fold)}>
+        <summary>
+          <Icon name="chevronRight" size={18} />
+          <h2 className={ui.cardTitle}>Período × demais dias × log completo</h2>
+        </summary>
         <Comparison data={data} />
-      </section>
+      </details>
 
-      <section className={ui.card}>
-        <div className={ui.cardHead}>
-          <div>
-            <h2 className={ui.cardTitle}>
-              Composição por data contábil
-              <span className={cx(ui.pill, data.compositionMatches ? ui.ok : ui.error)}>
-                <Icon name={data.compositionMatches ? 'check' : 'x'} size={13} strokeWidth={2.6} />
-                {data.compositionMatches ? 'fecha com as categorias' : 'não fecha com as categorias'}
-              </span>
-            </h2>
-            <p className={ui.sub}>Corte em {formatDay(data.cutoffDay)}</p>
-          </div>
-        </div>
+      <details className={cx(ui.card, styles.fold)} open={!data.compositionMatches}>
+        <summary>
+          <Icon name="chevronRight" size={18} />
+          <h2 className={ui.cardTitle}>
+            Composição por data contábil
+            <span className={cx(ui.pill, data.compositionMatches ? ui.ok : ui.error)}>
+              <Icon name={data.compositionMatches ? 'check' : 'x'} size={13} strokeWidth={2.6} />
+              {data.compositionMatches ? 'fecha com as categorias' : 'não fecha com as categorias'}
+            </span>
+          </h2>
+          <span className={ui.sub}>Corte em {formatDay(data.cutoffDay)}</span>
+        </summary>
         <Composition data={data} />
         <p className={ui.note}>
           Data de corte usada: {formatDay(data.cutoffDay)} (padrão: último dia do mês do primeiro evento; editável acima). Este valor é
           registrado na aba Rastreabilidade da exportação.
         </p>
-      </section>
+      </details>
     </div>
+  );
+}
+
+function SignalList({ signals }: { signals: PanelData['signals'] }) {
+  return (
+    <ul className={styles.signals}>
+      {signals.map((s) => {
+        const kind = s.requiresAction ? 'action' : s.count > 0 ? 'info' : 'clear';
+        return (
+          <li key={s.id} className={styles[kind]}>
+            <span className={styles.signalIcon} aria-hidden="true">
+              <Icon name={kind === 'action' ? 'alert' : kind === 'info' ? 'info' : 'check'} size={15} strokeWidth={2.2} />
+            </span>
+            <span className={styles.signalText}>
+              <span className={styles.signalBadge}>{s.requiresAction ? 'Ação' : s.count > 0 ? 'Informativo' : 'OK'}</span>
+              <strong>{s.label}.</strong> {s.text}.
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
 /** One category of the period: documents, lines, debited value and how the documents split by origin. */
 function Kpi({ category, data, onOpen }: { category: (typeof CATEGORIES)[number]; data: CategoryPanel; onOpen: () => void }) {
-  const documents = useCountUp(data.totalDocuments);
-  const lineCount = useCountUp(lines(data));
-  const cents = useCountUp(value(data));
+  // Final values only: an audit figure never shows intermediate amounts on screen.
+  const documents = data.totalDocuments;
+  const lineCount = lines(data);
+  const cents = value(data);
   const split = [
     { label: 'Manual', value: data.manual.documents, className: styles.splitManual },
     { label: 'Automático', value: data.automatic.documents, className: styles.splitAuto },
