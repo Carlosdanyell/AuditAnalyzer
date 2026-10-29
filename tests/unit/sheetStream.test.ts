@@ -80,17 +80,21 @@ describe('streaming sheet parser', () => {
     expect(parse(empty, 3).rows).toEqual([]);
   });
 
-  it('counts the cells beyond the width and, apart, those with a value (a styled empty cell has none)', () => {
+  it('counts the cells beyond the width and keeps those with a value, read like the others', () => {
     const cells =
       '<c r="A1"><v>1</v></c><c r="K1" s="1"/><c r="L1"></c><c r="M1"><v></v></c><c r="N1" t="inlineStr"><is><t> </t></is></c>' +
-      '<c r="O1"><v>2</v></c><c r="P1" t="inlineStr"><is><t>x</t></is></c><c r="Q1" t="s"><v>0</v></c>';
-    const seen: { extra: number; values: number }[] = [];
-    const parser = new SheetParser((_, row) => seen.push({ extra: row.extraCells, values: row.extraValues }), 10);
+      '<c r="O1"><v>2</v></c><c r="P1" t="inlineStr"><is><t>x</t ></is></c><c r="Q1" t="s"><v>0</v></c>';
+    const seen: { extra: number; kept: string[] }[] = [];
+    const parser = new SheetParser((_, row) => {
+      const kept = Array.from({ length: row.extras }, (_, i) => `${row.extraKind[i]}:${row.extraKind[i] === CellKind.Shared ? row.extraShared[i] : row.extraText[i]}`);
+      seen.push({ extra: row.extraCells, kept });
+    }, 10);
     parser.push(sheetOf(`<row r="1">${cells}</row><row r="2"><c r="A2"><v>3</v></c></row>`));
     parser.finish();
+    // The reader resolves the kept cells: the inline space and the shared string are judged by their text.
     expect(seen).toEqual([
-      { extra: 7, values: 3 },
-      { extra: 0, values: 0 },
+      { extra: 7, kept: [`${CellKind.Number}:`, `${CellKind.Text}: `, `${CellKind.Number}:2`, `${CellKind.Text}:x`, `${CellKind.Shared}:0`] },
+      { extra: 0, kept: [] },
     ]);
   });
 
@@ -100,6 +104,8 @@ describe('streaming sheet parser', () => {
       { r: 1, cells: { 0: 's:1', 1: '2:2' }, extra: 0 },
       { r: 2, cells: { 0: '2:5' }, extra: 0 },
     ]);
-    expect(() => parse(sheetOf('<row r="1"><c r="A1"><v>1</v></row>'), 100)).toThrow(/sem fechamento/);
+    expect(() => parse(sheetOf('<row r="7"><c r="A7"><v>1</v></row>'), 100)).toThrow(/sem fechamento \(<\/c>\) na linha 7/);
+    const inline = sheetOf('<row r="1"><c r="A1" t="inlineStr"><is><rPh sb="0" eb="1"><t>p</t></rPh ><t>abc</t ></is></c></row>');
+    expect(parse(inline, 4).rows).toEqual([{ r: 1, cells: { 0: `${CellKind.Text}:abc` }, extra: 0 }]);
   });
 });

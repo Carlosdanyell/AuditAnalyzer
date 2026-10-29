@@ -1,3 +1,4 @@
+import { unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { parseDate } from '../../src/shared/dates';
@@ -26,6 +27,23 @@ async function ingest(files: File[], config: unknown = ct2DefaultConfig(), infla
 }
 
 const check = (r: Ct2Reconciliation | null, id: string) => r?.checks.find((c) => c.id === id);
+
+/** The sheet XML of a synthetic extraction, edited (cells added to a row, an end tag removed). */
+function editSheet(bytes: Uint8Array, edit: (xml: string) => string): Uint8Array {
+  const entries = unzipSync(bytes);
+  const name = 'xl/worksheets/sheet1.xml';
+  entries[name] = new TextEncoder().encode(edit(new TextDecoder().decode(entries[name])));
+  return zipSync(entries);
+}
+const withCells = (bytes: Uint8Array, r: number, cells: string) =>
+  new Blob([
+    editSheet(bytes, (xml) => {
+      const end = xml.indexOf('</row>', xml.indexOf(`<row r="${r}"`));
+      return xml.slice(0, end) + cells + xml.slice(end);
+    }) as Uint8Array<ArrayBuffer>,
+  ]);
+const sharedStrings = (bytes: Uint8Array) =>
+  [...new TextDecoder().decode(unzipSync(bytes)['xl/sharedStrings.xml']).matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map((m) => m[1]);
 
 describe('CT2 reading: one file', () => {
   it('reconciles the rows of the sheet: rows after the header − blank rows = detail rows (CI-1)', async () => {
@@ -140,7 +158,7 @@ describe('CT2 reading: several files and layouts', () => {
     const { reconciliation: r, summary: s } = await ingest([file('a.xlsx', { rows, columns, date1904: true })]);
     expect(s!.firstDay).toBe(parseDate('15/09/2026'));
     expect(r!.files[0]!.unreadable).toMatchObject({ code: 1, date: 0, rows: 1, examples: [5] });
-    expect(r!.files[0]!.header.unmapped.filter((t) => t.startsWith('Filial'))).toEqual(['Filial', 'Filial (2)']);
+    expect(r!.files[0]!.header.unmapped.filter((t) => t.startsWith('Filial'))).toEqual(['Filial', 'Filial [2]']);
   });
 
   it('warns about an absent optional column and an unreadable "Valor Moeda1", without blocking', async () => {
@@ -156,17 +174,52 @@ describe('CT2 reading: several files and layouts', () => {
     expect(r!.checks.every((c) => c.passed)).toBe(true);
   });
 
-  it('names a repeated other column apart from a title that already has the number', async () => {
-    // CT2_COLUMNS already has one "Filial"; the second becomes "Filial (3)", since "Filial (2)" is a title of the file.
-    const columns = [...CT2_COLUMNS, 'Filial', 'Filial (2)'];
-    const rows = [ct2Line({}, { 'Filial (2)': 'B' }), ct2Line({ line: '002' }, { Filial: '02', 'Filial (2)': 'C' })];
-    const { reconciliation, store } = await ingestCt2([{ name: 'a.xlsx', blob: ct2Blob({ rows, columns }) }], ct2DefaultConfig(), () => {});
-    expect(reconciliation.files[0]!.header.unmapped.filter((t) => t.startsWith('Filial'))).toEqual(['Filial', 'Filial (3)', 'Filial (2)']);
+  it('joins the n-th occurrence of a repeated other column across files, apart from a literal title', async () => {
+    // CT2_COLUMNS already has one "Filial": the second of each file is "Filial [2]"; "Filial (2)" is another column.
+    const a = { columns: [...CT2_COLUMNS, 'Filial'], rows: [ct2Line({}, { Filial: '01' })] };
+    const b = { columns: [...CT2_COLUMNS, 'Filial (2)', 'Filial'], rows: [ct2Line({ document: '000009' }, { Filial: '02', 'Filial (2)': 'L' })] };
+    const { reconciliation, store } = await ingestCt2(
+      [{ name: 'a.xlsx', blob: ct2Blob(a) }, { name: 'b.xlsx', blob: ct2Blob(b) }],
+      ct2DefaultConfig(),
+      () => {},
+    );
+    expect(reconciliation.files.map((f) => f.header.unmapped.filter((t) => t.startsWith('Filial')))).toEqual([
+      ['Filial', 'Filial [2]'],
+      ['Filial', 'Filial (2)', 'Filial [2]'],
+    ]);
     const values = (title: string) => Array.from({ length: store.rows }, (_, i) => store.other.get(title)!.get(i));
-    expect(values('Filial')).toEqual(['01', '02']);
-    expect(values('Filial (3)')).toEqual(['01', '02']);
-    expect(values('Filial (2)')).toEqual(['B', 'C']);
+    expect(values('Filial [2]')).toEqual(['01', '02']);
+    expect(values('Filial (2)')).toEqual([null, 'L']);
     expect([...store.other.values()].every((c) => c.length === store.rows)).toBe(true);
+  });
+
+  it('judges the cells beyond column 256 by their text, and keeps an empty numeric cell empty', async () => {
+    const spaces = '   ';
+    const base = buildCt2Extraction({ rows: [ct2Line({}, { 'Campo Livre 01': spaces })] });
+    const sstIndex = sharedStrings(base).indexOf(spaces);
+    expect(sstIndex).toBeGreaterThanOrEqual(0);
+    const blank =
+      `<c r="IW4" s="1"/><c r="IX4" t="s"><v>${sstIndex}</v></c><c r="IY4" t="inlineStr"><is><t>&#32;</t></is></c>` +
+      '<c r="IZ4" t="str"><f>""</f><v></v></c><c r="V4"><v></v></c>';
+    const ok = await ingestCt2([{ name: 'a.xlsx', blob: withCells(base, 4, blank) }], ct2DefaultConfig(), () => {});
+    expect(ok.reconciliation.files[0]!.rows.outsideCells).toBe(0);
+    expect(check(ok.reconciliation, 'ct2-reading')).toMatchObject({ passed: true });
+    expect(ok.store.other.get('C Custo Deb')!.get(0)).toBeNull();
+    const values = '<c r="JA4" t="inlineStr"><is><t>x</t></is></c><c r="JB4" t="str"><v><![CDATA[Y]]></v></c>';
+    const lost = await ingestCt2([{ name: 'a.xlsx', blob: withCells(base, 4, values) }], ct2DefaultConfig(), () => {});
+    expect(lost.reconciliation.files[0]!.rows.outsideCells).toBe(2);
+    expect(check(lost.reconciliation, 'ct2-reading')).toMatchObject({ passed: false });
+  });
+
+  it('stops with a reading error naming the file on a cell without its end', async () => {
+    const bytes = buildCt2Extraction({ rows: [ct2Line(), ct2Line({ line: '002' })] });
+    const broken = editSheet(bytes, (xml) => {
+      const end = xml.indexOf('</row>', xml.indexOf('<row r="5"'));
+      return xml.slice(0, end - 4) + xml.slice(end);
+    });
+    const { error } = await ingest([new File([broken as Uint8Array<ArrayBuffer>], 'a.xlsx')]);
+    expect(error).toMatchObject({ stage: 'rows', message: 'A aba "SCACKST0.XML" de a.xlsx está malformada.' });
+    expect(error?.type === 'error' && error.detail).toMatch(/linha 5/);
   });
 
   it('fails CI-1 when a value sits in a column without a title', async () => {

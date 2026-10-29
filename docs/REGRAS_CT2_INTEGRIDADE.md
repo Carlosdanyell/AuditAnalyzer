@@ -37,7 +37,9 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
   não haveria como escolher qual vale). Coluna obrigatória ausente: erro
   com a lista do que faltou e dos títulos encontrados.
 - **Valores fora das colunas:** valor numa coluna sem título (ou além da coluna 256) não entra na base e falha CI-1.
-  Célula só com formatação ou só com espaços não é valor.
+  Célula só com formatação ou só com espaços não é valor: as células além da coluna 256 são lidas como as demais
+  (string compartilhada, string inline, fórmula) e julgadas pelo texto. XML malformado (célula sem `</c>`) é erro
+  de leitura com o nome do arquivo e da aba.
 - **Reconciliação de leitura (por arquivo):** linhas após o cabeçalho − linhas em branco = linhas de detalhe.
 - SHA-256 do arquivo, CRC32 e tamanho de cada parte do ZIP: mesma rotina do módulo CFGR700.
 
@@ -68,7 +70,8 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 
 Coluna obrigatória ausente: erro na etapa de leitura, com a lista do que faltou e do que foi encontrado. Colunas não
 mapeadas são lidas e exportadas na Base como texto/número, na ordem original; um título não mapeado repetido ganha o
-número da ocorrência (`Filial (2)`), ou o próximo número livre quando o arquivo já tem uma coluna com esse título. Com vários arquivos, as colunas são unidas pelo título, com alerta quando os
+número da ocorrência entre colchetes (`Filial [2]`), o mesmo em todos os arquivos, para que a enésima ocorrência
+se una entre eles (próximo número livre no caso improvável de o arquivo já ter uma coluna com esse título). Com vários arquivos, as colunas são unidas pelo título, com alerta quando os
 conjuntos diferem; coluna opcional ausente gera alerta (os testes que dependem dela ficam desligados, CI-9). Campos
 da chave do documento precisam ser colunas obrigatórias (a configuração recusa outro caso).
 

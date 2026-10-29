@@ -10,7 +10,7 @@ import type { InflateMode } from './inflate';
 import { requireIntact, sha256 } from './integrity';
 import type { IngestInput } from './pipeline';
 import type { ProgressReporter } from './progress';
-import { CellKind, SheetParser, type ParsedRow } from './sheetStream';
+import { CellKind, SheetFormatError, SheetParser, type ParsedRow } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath, type WorkbookSheet } from './workbook';
 import { ZipFormatError, readEntry, readEntryBytes, readEntryHead, readZipDirectory, type ZipEntry } from './zip';
@@ -21,6 +21,7 @@ export interface HeadRow {
   titles: string[];
 }
 
+/** Text of column `c` of a row; `row.width + i` is the i-th extra cell (beyond the columns read). */
 export type CellText = (row: ParsedRow, c: number) => string;
 
 /** What the module may need of the workbook before reading the rows. */
@@ -133,22 +134,34 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     }
   }
   let invalidSharedIndex = 0;
+  // Columns from `row.width` on are the extra cells of the row (ParsedRow.extras), resolved the same way.
   const cell: CellText = (row, c) => {
-    switch (row.kind[c]) {
+    const extra = c >= row.width;
+    const kind = extra ? row.extraKind[c - row.width] : row.kind[c];
+    switch (kind) {
       case CellKind.Empty:
         return '';
       case CellKind.Shared: {
-        const s = strings[row.sharedIndex[c]!];
+        const s = strings[extra ? row.extraShared[c - row.width]! : row.sharedIndex[c]!];
         if (s !== undefined) return s;
         invalidSharedIndex++;
         return '';
       }
       default:
-        return row.text[c]!;
+        return (extra ? row.extraText[c - row.width] : row.text[c])!;
     }
   };
 
   const invalidShared = () => invalidSharedIndex;
+  // Malformed XML of a sheet is a reading error naming the file and the sheet.
+  const push = (parser: SheetParser, sheet: WorkbookSheet, chunk: Uint8Array) => {
+    try {
+      parser.push(chunk);
+    } catch (e) {
+      if (e instanceof SheetFormatError) throw new IngestError('rows', `A aba "${sheet.name}" de ${name} está malformada.`, e.message);
+      throw e;
+    }
+  };
 
   // 3. The sheet chosen by the module, streamed; then the integrity of the other sheets.
   const head = async (sheet: WorkbookSheet, count: number): Promise<HeadRow[]> => {
@@ -160,7 +173,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
       out.push({ r, titles });
     }, o.width);
     await readEntryHead(blob, entryOf(sheet), (c) => {
-      parser.push(c);
+      push(parser, sheet, c);
       return out.length < count;
     }, inflateMode);
     return out;
@@ -180,7 +193,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     extraCells += row.extraCells;
     o.onRow(r, row, cell, invalidShared);
   }, o.width);
-  const integrity = await readEntry(blob, entry, (c) => parser.push(c), { inflateMode, onBytes: (b) => progress.update(b, presentRows) });
+  const integrity = await readEntry(blob, entry, (c) => push(parser, sheet, c), { inflateMode, onBytes: (b) => progress.update(b, presentRows) });
   checked.set(entry.name, requireIntact(integrity, 'rows'));
   try {
     parser.finish();

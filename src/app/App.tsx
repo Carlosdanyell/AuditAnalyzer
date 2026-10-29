@@ -255,9 +255,14 @@ export function App() {
           case 'reconciliation':
             setReconciliation(event.data);
             break;
-          case 'ready':
-            if (availableModule(analyzedModule.current).features.justifications) {
+          case 'ready': {
+            const analyzed = availableModule(analyzedModule.current);
+            if (analyzed.features.justifications) {
               void sendJustifications([...justificationsRef.current.values()], true);
+            }
+            // Presets and holidays saved while the files were being read reach the new analysis too.
+            if (analyzed.config.saved) {
+              void clientRef.current?.query({ type: 'settings', settings: settingsFromConfig(configRef.current) }).catch(() => undefined);
             }
             setSummary(event.summary);
             setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
@@ -265,6 +270,7 @@ export function App() {
             setTableRequest({ table: 'documents', filter: {} });
             setPhase('done');
             break;
+          }
           case 'error':
             setError(event);
             setPhase('select');
@@ -315,6 +321,7 @@ export function App() {
   // The first rows of each file listed, to warn about a file of another analysis (never blocks). A probe cut short
   // by Cancelar or Nova análise (the worker is ended) is asked again when the start screen comes back.
   const probing = useRef(new Set<string>());
+  const retried = useRef(new Set<string>());
   const [probeRound, setProbeRound] = useState(0);
   useEffect(() => {
     if (phase !== 'select') return;
@@ -336,7 +343,11 @@ export function App() {
       })
       .catch(() => {
         release();
-        setProbeRound((n) => n + 1);
+        // Asked again once (cut short by Cancelar or Nova análise); a worker that cannot start is not retried.
+        const retry = keys.filter((k) => !retried.current.has(k));
+        retry.forEach((k) => retried.current.add(k));
+        if (retry.length > 0) setProbeRound((n) => n + 1);
+        else setSamples((current) => new Map([...current, ...keys.map((k) => [k, null] as const)]));
       });
     // client() creates the worker once and returns the same client afterwards.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,6 +395,8 @@ export function App() {
   function endSession() {
     clientRef.current?.cancel();
     setFiles([]);
+    // The first rows of the files probed are data of the files too.
+    setSamples(new Map());
     setRun(null);
     setReconciliation(null);
     setSummary(null);

@@ -60,8 +60,8 @@ const isBlank = (t: string) => t === '' || (t.charCodeAt(0) <= 32 && t.trim() ==
 
 /**
  * Unmapped titles of one file, made unique so a repeated title never shares a column of the Base: the n-th
- * occurrence becomes "Filial (n)", or the next free number when the file already has a column with that title.
- * The same occurrence joins across files.
+ * occurrence becomes "Filial [n]" (a mark the extraction does not use, so the n-th occurrence joins across files),
+ * or the next free number in the unlikely case the file already has a column with that title.
  */
 function unmappedColumns(match: HeaderMatch): { index: number; title: string }[] {
   const used = new Set(match.unmapped.map((u) => u.title));
@@ -71,8 +71,8 @@ function unmappedColumns(match: HeaderMatch): { index: number; title: string }[]
     seen.set(title, occurrence);
     if (occurrence === 1) return { index, title };
     let n = occurrence;
-    while (used.has(`${title} (${n})`)) n++;
-    const unique = `${title} (${n})`;
+    while (used.has(`${title} [${n}]`)) n++;
+    const unique = `${title} [${n}]`;
     used.add(unique);
     return { index, title: unique };
   });
@@ -97,7 +97,6 @@ async function readFile(
   let match: HeaderMatch | null = null;
   let date1904 = false;
   const timingsStart = progress.timings.length;
-  const rowsBefore = store.rows;
 
   // Per row: the text of each cell (reused), the mapped columns and the unmapped ones with their column in the store.
   const texts = new Array<string>(SHEET_WIDTH).fill('');
@@ -142,7 +141,11 @@ async function readFile(
   const onRow = (r: number, row: ParsedRow, cell: CellText, invalidShared: () => number): void => {
     const header = match!.row;
     if (r < header) return;
-    outsideCells += row.extraValues;
+    // Cells beyond the columns read: lost, so any value there fails CI-1 (only spaces or a style is no value).
+    const sharedBefore = invalidShared();
+    let outside = 0;
+    for (let e = 0; e < row.extras; e++) if (!isBlank(cell(row, SHEET_WIDTH + e))) outside++;
+    outsideCells += outside;
     if (r === header) {
       previous = r;
       return;
@@ -150,8 +153,7 @@ async function readFile(
     missingRows += r - previous - 1;
     previous = r;
 
-    const sharedBefore = invalidShared();
-    let content = false;
+    let content = outside > 0;
     for (let c = 0; c < SHEET_WIDTH; c++) {
       if (row.kind[c] === CellKind.Empty) {
         texts[c] = '';
@@ -326,8 +328,7 @@ async function readFile(
         blankRows,
         missingRows,
         detailRows,
-        // The count of the rows read, and the rows the Base received from this file (an independent count).
-        balanced: rowsAfterHeader - blankRows === detailRows && store.rows - rowsBefore === detailRows,
+        balanced: rowsAfterHeader - blankRows === detailRows,
         outsideCells,
       },
       unreadable,
