@@ -37,15 +37,17 @@ function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
   );
 }
 
-test('seletor de análises: CFGR700 marcado e Integridade da CT2 como prévia', async ({ page }) => {
+test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como prévia', async ({ page }) => {
   await page.goto('');
-  await expect(page.getByRole('radio')).toHaveCount(2);
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
-  await expect(page.getByRole('radio', { name: CT2, exact: true })).toBeEnabled();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
+  await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: CT2, exact: true })).toBeEnabled();
   await expect(page.getByText('Prévia', { exact: true })).toBeVisible();
   const manuals = page.getByRole('link', { name: 'Manual desta análise' });
   await expect(manuals.nth(0)).toHaveAttribute('href', /ajuda\.html#cfgr700$/);
   await expect(manuals.nth(1)).toHaveAttribute('href', /ajuda\.html#ct2$/);
+  // No file area before a tool is chosen.
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
 test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exportação bloqueados', async ({ page, ct2Files }) => {
@@ -54,7 +56,8 @@ test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exp
   await expect(page.getByText(/^Prévia: esta versão lê a extração da CT2/)).toBeVisible();
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.withProblems, ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByText(`${CT2} · 2 arquivo(s)`)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(/^2 arquivo\(s\)/)).toBeVisible();
   await expect(page.getByText('1 verificação(ões) bloqueante(s) falhou(aram)')).toBeVisible();
   await expect(page.getByText('Base de lançamentos por tipo de saldo e moeda')).toBeVisible();
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toHaveCount(2);
@@ -74,7 +77,7 @@ test('arquivo de outra análise: avisa, oferece a troca e mantém a lista', asyn
   // The notice never blocks.
   await expect(page.getByRole('button', { name: 'Analisar' })).toBeEnabled();
   await page.getByRole('button', { name: `Mudar para ${CFGR700}` }).click();
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
+  await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(CFGR700, { exact: true })).toBeVisible();
   await expect(page.getByText('agosto.xlsx', { exact: true })).toBeVisible();
   await expect(page.getByText(/parece ser/)).toHaveCount(0);
 
@@ -83,32 +86,41 @@ test('arquivo de outra análise: avisa, oferece a troca e mantém a lista', asyn
   await expect(page.getByText(`Este arquivo parece ser ${CT2}: ct2-b.xlsx.`)).toBeVisible();
 });
 
-test('nome da análise no topo e "Trocar análise" encerra a sessão', async ({ page, files }) => {
+test('trilha no topo; a análise fica aberta ao voltar às ferramentas e termina ao abrir outra', async ({ page, files }) => {
   await analyze(page, [files.august]);
-  await expect(page.getByText(`${CFGR700} · 1 arquivo(s)`)).toBeVisible();
-  await page.getByRole('button', { name: 'Trocar análise' }).click();
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
+  const trail = page.getByRole('navigation', { name: 'Trilha' });
+  await expect(trail.getByText(CFGR700, { exact: true })).toBeVisible();
+  await expect(trail.getByText(/^1 arquivo\(s\)/)).toBeVisible();
+  await trail.getByRole('button', { name: 'Ferramentas' }).click();
+  await expect(page.getByText('Análise aberta')).toBeVisible();
+  // The same tool comes back as it was.
+  await page.getByRole('button', { name: CFGR700, exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible();
+  // Another tool ends the analysis.
+  await chooseModule(page, CT2);
   await expect(page.getByText('Nenhum arquivo selecionado')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Visões' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Analisar' })).toBeDisabled();
+  await page.getByRole('navigation', { name: 'Trilha' }).getByRole('button', { name: 'Ferramentas' }).click();
+  await expect(page.getByText('Análise aberta')).toHaveCount(0);
 });
 
-test('última análise usada: gravada ao analisar; valor desconhecido volta ao CFGR700', async ({ page, files }) => {
+test('última análise usada: gravada ao analisar e marcada no cartão; valor desconhecido não marca nada', async ({ page, files }) => {
   await page.goto('');
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
+  await expect(page.getByText('Última usada')).toHaveCount(0);
   await idb(page, 'lastModule', 'ct2Integrity');
   await page.reload();
-  await expect(page.getByRole('radio', { name: CT2, exact: true })).toBeChecked();
+  await expect(page.getByRole('listitem').filter({ hasText: CT2 }).getByText('Última usada')).toBeVisible();
   await idb(page, 'lastModule', 'xyz');
   await page.reload();
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
+  await expect(page.getByText('Última usada')).toHaveCount(0);
   await analyze(page, [files.august]);
   expect(await idb(page, 'lastModule')).toBe('cfgr700');
 });
 
 test('configuração salva pela versão 1.0.0 é migrada para a chave do módulo, sem perda', async ({ page }) => {
   await page.goto('');
-  await expect(page.getByRole('radio', { name: CFGR700, exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeVisible();
   await idb(page, 'analyzerConfig', { ...defaultConfig(), balanceToleranceCents: 5, calendar: { holidays: ['07/09/2026'] } });
   await page.reload();
   await page.getByRole('button', { name: 'Configuração' }).click();
@@ -131,6 +143,7 @@ test('cópia de segurança da versão 1.0.0 é restaurada sem perda', async ({ p
 
 test('cópia de segurança restaurada depois de carregar um arquivo (sem análise na memória)', async ({ page, files }) => {
   await page.goto('');
+  await chooseModule(page);
   // Loading a file starts the worker (the probe of the first rows): the restore must not depend on a loaded analysis.
   await page.locator('input[type=file]').first().setInputFiles([files.august]);
   await page.getByRole('button', { name: 'Configuração' }).click();

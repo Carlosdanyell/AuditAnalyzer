@@ -8,8 +8,6 @@
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
 
   --bg: #f3f5f9;
-  --bg-glow-a: rgb(47 91 214 / 10%);
-  --bg-glow-b: rgb(20 160 200 / 7%);
   --surface: #ffffff;
   --surface-muted: #f7f9fc;
   --surface-sunken: #eef2f7;
@@ -33,14 +31,9 @@
   --error: #c0292f;
   --error-soft: #fcebec;
 
-  --nav-bg: linear-gradient(185deg, #0e1f4a 0%, #0a1634 55%, #08112a 100%);
-  --nav-text: #c3cee6;
-  --nav-strong: #ffffff;
-  --nav-muted: #8595ba;
-  --nav-hover: rgb(255 255 255 / 6%);
-  --nav-active: rgb(255 255 255 / 11%);
-  --nav-border: rgb(255 255 255 / 9%);
-  --nav-accent: #86adff;
+  --nav-bg: #f8fafc;
+  --nav-hover: rgb(15 23 42 / 5%);
+  --nav-active: var(--accent-soft);
 
   --series-posted: #2a78d6;
   --series-deleted: #eb6834;
@@ -62,8 +55,6 @@
 
 :root[data-theme='dark'] {
   --bg: #080d19;
-  --bg-glow-a: rgb(80 120 255 / 13%);
-  --bg-glow-b: rgb(0 170 220 / 7%);
   --surface: #0f1729;
   --surface-muted: #0c1323;
   --surface-sunken: #0a101e;
@@ -87,8 +78,8 @@
   --error: #ff8189;
   --error-soft: rgb(255 129 137 / 12%);
 
-  --nav-bg: linear-gradient(185deg, #0b1530 0%, #070e20 60%, #060b19 100%);
-  --nav-border: rgb(255 255 255 / 7%);
+  --nav-bg: #0b1222;
+  --nav-hover: rgb(255 255 255 / 5%);
 
   --series-posted: #3987e5;
   --series-deleted: #d95926;
@@ -164,7 +155,7 @@ textarea {
 }
 
 ::view-transition-new(root) {
-  animation: theme-reveal 560ms var(--ease);
+  animation: theme-reveal 420ms var(--ease);
 }
 
 @keyframes theme-reveal {

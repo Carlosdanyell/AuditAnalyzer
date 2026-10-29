@@ -13,7 +13,7 @@ import { Workbook } from '../support/xlsxEval';
 import { synthBlob } from '../synthetic/cfgr700';
 import { EVENTS, KEYS } from '../synthetic/engineFixture';
 import { toReportRows } from '../synthetic/logBuilder';
-import { PERIODS, analyze, expect, openView, test } from './fixtures';
+import { PERIODS, analyze, chooseModule, expect, openView, test } from './fixtures';
 
 test('arquivos, processamento e reconciliação; versão e autoria no rodapé', async ({ page, files }) => {
   await analyze(page, [files.august, files.september]);
@@ -21,12 +21,13 @@ test('arquivos, processamento e reconciliação; versão e autoria no rodapé', 
   await expect(page.getByText('agosto.xlsx').first()).toBeVisible();
   await expect(page.getByText('setembro.xlsx').first()).toBeVisible();
   await expect(page.getByText('Reconciliação de linhas').first()).toBeVisible();
-  await expect(page.getByText(/^AuditAnalyzer .+ processamento local/)).toBeVisible();
+  await expect(page.getByText(/^AuditAnalyzer \S/)).toBeVisible();
   await expect(page.getByText('Desenvolvido por Carlos Danyell')).toBeVisible();
 });
 
 test('cancelar descarta a leitura', async ({ page, bigFile }) => {
   await page.goto('');
+  await chooseModule(page);
   await page.locator('input[type=file]').first().setInputFiles(bigFile);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await page.getByRole('button', { name: 'Cancelar' }).click();

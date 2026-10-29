@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
-import { ModuleSelector } from '../components/ModuleSelector';
+import { ToolHome } from '../components/ToolHome';
 import { Ct2ReconciliationView } from '../components/Ct2ReconciliationView';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
@@ -43,6 +43,7 @@ interface Run {
 }
 
 type Phase = 'select' | 'running' | 'done';
+type Screen = 'home' | 'tool' | 'config';
 type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
 /** Rows of each sheet read by the probe of the start screen (the header of every module is in the first 30). */
@@ -71,7 +72,6 @@ export function App() {
   const [moduleId, setModuleId] = useState<ModuleId>(DEFAULT_MODULE_ID);
   const moduleChosen = useRef(false);
   const analyzedModule = useRef<ModuleId>(DEFAULT_MODULE_ID);
-  const [focusSelector, setFocusSelector] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   /** First rows of each file listed, by fileKey (undefined while probing, null when unreadable). */
   const [samples, setSamples] = useState<ReadonlyMap<string, SheetSample[] | null>>(new Map());
@@ -92,7 +92,11 @@ export function App() {
   const configRef = useRef(config);
   const [configNotice, setConfigNotice] = useState<string | null>(null);
   const [analyzedConfig, setAnalyzedConfig] = useState<AnalyzerConfig | null>(null);
-  const [screen, setScreen] = useState<'main' | 'config'>('main');
+  // Platform start (tool cards), the workspace of the open tool, or the configuration.
+  const [screen, setScreen] = useState<Screen>('home');
+  const [lastUsed, setLastUsed] = useState<ModuleId | null>(null);
+  /** The screen the configuration goes back to. */
+  const configFrom = useRef<Screen>('home');
   const [justifications, setJustifications] = useState<Map<string, Justification>>(new Map());
   const justificationsRef = useRef(justifications);
   const [meta, setMeta] = useState<JustificationMeta>({ lastExportAt: null, lastChangeAt: null });
@@ -178,7 +182,9 @@ export function App() {
 
   useEffect(() => {
     void loadLastModule().then((stored) => {
-      // Never overrides a choice made (or files added) before IndexedDB answered.
+      // Marks the card of the tool used last; never overrides a tool opened before IndexedDB answered.
+      const resolved = resolveInitialModule(stored);
+      if (resolved === stored) setLastUsed(resolved);
       if (!moduleChosen.current) setModuleId(resolveInitialModule(stored));
     });
   }, []);
@@ -363,10 +369,10 @@ export function App() {
     setPhase('running');
     // Only a saved configuration can change after the analysis (and call for reprocessing).
     setAnalyzedConfig(current.config.saved ? configRef.current : null);
-    setFocusSelector(false);
     analyzedModule.current = moduleId;
     client().send({ type: 'ingest', module: moduleId, files, config: configOf(current) });
     void saveLastModule(moduleId);
+    setLastUsed(moduleId);
   }
 
   function cancel() {
@@ -388,7 +394,7 @@ export function App() {
   const needsReprocess = phase === 'done' && analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0;
 
   function reprocess() {
-    setScreen('main');
+    setScreen('tool');
     analyze();
   }
 
@@ -405,14 +411,19 @@ export function App() {
     setNotice(null);
   }
 
-  /** Another analysis on the selector: the files listed belong to the previous one. */
-  function selectModule(id: ModuleId) {
+  /**
+   * Opens the workspace of a tool from the start of the platform. The analysis loaded in another tool ends (the worker
+   * keeps one at a time); the same tool comes back as it was.
+   */
+  function openTool(id: ModuleId) {
     moduleChosen.current = true;
-    if (id === moduleId) return;
-    setModuleId(id);
-    setFiles([]);
+    if (id !== moduleId) {
+      if (files.length > 0 || phase !== 'select') endSession();
+      setModuleId(id);
+    }
     setError(null);
     setNotice(null);
+    setScreen('tool');
   }
 
   /** The analysis a listed file belongs to (wrong-file notice): the files stay listed. */
@@ -423,11 +434,13 @@ export function App() {
     setNotice(null);
   }
 
-  /** "Trocar análise": ends the session, as "Encerrar sessão", and goes back to the selector. */
-  function switchModule() {
-    endSession();
-    setScreen('main');
-    setFocusSelector(true);
+  function toggleConfig() {
+    if (screen === 'config') {
+      setScreen(configFrom.current);
+      return;
+    }
+    configFrom.current = screen;
+    setScreen('config');
   }
 
   function moveFile(index: number, delta: -1 | 1) {
@@ -444,14 +457,10 @@ export function App() {
   const done = phase === 'done' && reconciliation !== null;
   const currentView = VIEWS.find((v) => v.id === view)!;
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
-  const heading =
-    screen === 'config'
-      ? { eyebrow: 'Preferências', title: 'Configuração', description: 'Regras da leitura e da análise, cópia de segurança' }
-      : phase === 'running'
-        ? { eyebrow: current.title, title: 'Processamento', description: 'Leitura em fluxo, conferência de integridade e montagem da análise' }
-        : done
-          ? { eyebrow: `${current.title} · ${reconciliation.files.length} arquivo(s)`, title: currentView.label, description: currentView.description }
-          : { eyebrow: 'Nova análise', title: current.start.heading, description: current.start.headingDescription };
+  const inTool = screen === 'tool';
+  const title = screen === 'home' ? 'Ferramentas' : screen === 'config' ? 'Configuração' : phase === 'running' ? 'Processamento' : done ? currentView.label : current.start.heading;
+  const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
+  const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
 
   // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
   const logReconciliation = reconciliation && !isCt2Reconciliation(reconciliation) ? reconciliation : null;
@@ -459,7 +468,8 @@ export function App() {
   const ct2Reconciliation = reconciliation && isCt2Reconciliation(reconciliation) ? reconciliation : null;
   const ct2Summary = summary && isCt2Summary(summary) ? summary : null;
   const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
-  const showScope = screen === 'main' && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
+  const showScope = inTool && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
+  const openSession = done || phase === 'running' || files.length > 0 ? { id: moduleId, label: done ? 'Análise aberta' : phase === 'running' ? 'Processando' : 'Arquivos carregados' } : null;
 
   return (
     <div className={styles.shell}>
@@ -473,73 +483,59 @@ export function App() {
           </span>
           <span className={styles.brandText}>
             <strong>AuditAnalyzer</strong>
-            <span>{current.brandSubtitle}</span>
+            <span>Ferramentas de auditoria</span>
           </span>
         </div>
 
-        <div className={styles.session} data-state={phase === 'select' && files.length > 0 ? 'ready' : phase}>
-          <span className={styles.sessionDot} aria-hidden="true" />
-          <div className={styles.sessionBody}>
-            <strong>{phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Pronto para analisar' : 'Aguardando arquivos'}</strong>
-            <span>
-              {files.length === 0
-                ? 'Nenhum arquivo carregado'
-                : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`}
-            </span>
-            {done && blocking > 0 && <span className={styles.sessionAlert}>{blocking} verificação(ões) bloqueante(s)</span>}
-          </div>
+        <div className={styles.nav}>
+          <button type="button" className={cx(styles.navItem, screen === 'home' && styles.navActive)} aria-current={screen === 'home' ? 'page' : undefined} onClick={() => setScreen('home')}>
+            <Icon name="layers" />
+            Ferramentas
+          </button>
         </div>
 
-        {done ? (
-          <nav className={styles.nav} aria-label="Visões">
-            <span className={styles.navLabel}>Análise</span>
-            {VIEWS.map((v) => {
-              const active = screen === 'main' && v.id === view;
-              if (!offered(current, v.id)) {
-                return (
-                  <span key={v.id} className={cx(styles.navItem, styles.navLocked)} title="Ainda não disponível nesta análise">
-                    <Icon name={v.icon} />
-                    {v.label}
-                  </span>
-                );
-              }
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  className={cx(styles.navItem, active && styles.navActive)}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => {
-                    setScreen('main');
-                    setView(v.id);
-                  }}
-                >
-                  <Icon name={v.icon} />
-                  {v.label}
-                </button>
-              );
-            })}
-          </nav>
-        ) : (
-          <div className={styles.nav} aria-hidden="true">
-            <span className={styles.navLabel}>Análise</span>
-            {VIEWS.map((v) => (
-              <span key={v.id} className={cx(styles.navItem, styles.navLocked)}>
-                <Icon name={v.icon} />
-                {v.label}
-              </span>
-            ))}
-            <span className={styles.navHint}>{phase === 'running' ? 'Disponível ao fim do processamento' : 'Disponível após analisar os arquivos'}</span>
+        {(inTool || openSession) && (
+          <div className={styles.tool}>
+            <button type="button" className={styles.toolHead} onClick={() => openTool(moduleId)}>
+              <span className={styles.toolName}>{current.shortTitle}</span>
+              {status && (
+                <span className={styles.toolStatus} data-state={phase === 'select' ? 'ready' : phase}>
+                  {status}
+                </span>
+              )}
+            </button>
+            {done && (
+              <nav className={styles.views} aria-label="Visões">
+                {VIEWS.filter((v) => offered(current, v.id)).map((v) => {
+                  const active = inTool && v.id === view;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      className={cx(styles.navItem, active && styles.navActive)}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => {
+                        setScreen('tool');
+                        setView(v.id);
+                      }}
+                    >
+                      <Icon name={v.icon} />
+                      {v.label}
+                      {v.id === 'reconciliation' && blocking > 0 && (
+                        <span className={styles.navCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
+                          {blocking}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
           </div>
         )}
 
         <div className={styles.sideFooter}>
-          <button
-            type="button"
-            className={cx(styles.navItem, screen === 'config' && styles.navActive)}
-            aria-pressed={screen === 'config'}
-            onClick={() => setScreen((s) => (s === 'config' ? 'main' : 'config'))}
-          >
+          <button type="button" className={cx(styles.navItem, screen === 'config' && styles.navActive)} aria-pressed={screen === 'config'} onClick={toggleConfig}>
             <Icon name="sliders" />
             Configuração
           </button>
@@ -551,47 +547,51 @@ export function App() {
             <Icon name="power" />
             Encerrar sessão
           </button>
-
-          <div className={styles.theme} role="group" aria-label="Tema da interface">
-            {(
-              [
-                ['light', 'Claro', 'sun'],
-                ['dark', 'Escuro', 'moon'],
-              ] as const
-            ).map(([id, label, icon]) => (
-              <button
-                key={id}
-                type="button"
-                className={cx(styles.themeOption, theme === id && styles.themeActive)}
-                aria-pressed={theme === id}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  toggleTheme(id, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
-                }}
-              >
-                <Icon name={icon} size={16} />
-                {label}
-              </button>
-            ))}
-          </div>
-
           <p className={styles.privacy}>
-            <Icon name="shield" size={16} />
+            <Icon name="shield" size={14} />
             <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
           </p>
-          <p className={styles.version}>AuditAnalyzer {APP_VERSION_LABEL} · processamento local, sem envio de dados</p>
-          <p className={styles.author}>Desenvolvido por Carlos Danyell</p>
+          <div className={styles.sideMeta}>
+            <span className={styles.credits}>
+              <span>AuditAnalyzer {APP_VERSION_LABEL}</span>
+              <span>Desenvolvido por Carlos Danyell</span>
+            </span>
+            <button
+              type="button"
+              className={styles.themeToggle}
+              aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                toggleTheme(theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+              }}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+            </button>
+          </div>
         </div>
       </aside>
 
       <div className={styles.content}>
         <header className={styles.topbar}>
           <div className={styles.heading} key={`${screen}-${phase}-${view}-${moduleId}`}>
-            <span className={styles.eyebrow}>{heading.eyebrow}</span>
-            <h1>{heading.title}</h1>
-            <span className={styles.description}>{heading.description}</span>
+            {screen !== 'home' && (
+              <nav className={styles.crumbs} aria-label="Trilha">
+                <button type="button" onClick={() => setScreen('home')}>
+                  Ferramentas
+                </button>
+                {screen === 'tool' && (
+                  <>
+                    <Icon name="chevronRight" size={14} />
+                    <span>{current.title}</span>
+                    {fileSummary && done && <span className={styles.crumbMeta}>{fileSummary}</span>}
+                  </>
+                )}
+              </nav>
+            )}
+            <h1>{title}</h1>
           </div>
-          {screen === 'main' && done && (
+          {inTool && done && (
             <div className={styles.topActions}>
               {showScope && (
                 <label className={styles.scope}>
@@ -605,20 +605,16 @@ export function App() {
                   </select>
                 </label>
               )}
+              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={newAnalysis}>
+                <Icon name="refresh" size={17} />
+                Nova análise
+              </button>
               {view !== 'export' && current.features.export && (
                 <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setView('export')}>
                   <Icon name="download" size={17} />
                   Exportar planilha
                 </button>
               )}
-              <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
-                <Icon name="refresh" size={17} />
-                Nova análise
-              </button>
-              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={switchModule}>
-                <Icon name="swap" size={17} />
-                Trocar análise
-              </button>
             </div>
           )}
         </header>
@@ -631,13 +627,19 @@ export function App() {
             </p>
           )}
 
-          {screen === 'main' && done && needsReprocess && (
+          {inTool && done && needsReprocess && (
             <div className={cx(ui.alert, ui.warn, styles.reprocess)} role="status">
               <Icon name="refresh" />
               <span>A configuração mudou depois desta análise; os números na tela ainda usam a configuração anterior.</span>
               <button type="button" className={cx(ui.btn, ui.primary, ui.sm)} onClick={reprocess} disabled={files.length === 0}>
                 Reprocessar com a nova configuração
               </button>
+            </div>
+          )}
+
+          {screen === 'home' && (
+            <div className={ui.enter}>
+              <ToolHome modules={MODULES} lastUsed={lastUsed} open={openSession} onOpen={openTool} helpBase={import.meta.env.BASE_URL} />
             </div>
           )}
 
@@ -650,23 +652,15 @@ export function App() {
                 needsReprocess={needsReprocess}
                 canReprocess={files.length > 0 && phase !== 'running'}
                 onReprocess={reprocess}
-                onClose={() => setScreen('main')}
+                onClose={toggleConfig}
                 onCreateBackup={createBackup}
                 onRestoreBackup={restoreBackup}
               />
             </div>
           )}
 
-          {screen === 'main' && phase === 'select' && (
-            <div className={cx(styles.start, ui.stagger)}>
-              <ModuleSelector
-                className={styles.selectorRow}
-                modules={MODULES}
-                selected={moduleId}
-                onSelect={selectModule}
-                helpBase={import.meta.env.BASE_URL}
-                autoFocus={focusSelector}
-              />
+          {inTool && phase === 'select' && (
+            <div className={cx(styles.start, ui.enter)}>
               <section className={cx(ui.card, styles.upload)} aria-labelledby="upload-title">
                 <div>
                   <h2 id="upload-title" className={styles.uploadTitle}>
@@ -682,21 +676,13 @@ export function App() {
                   </p>
                 )}
 
-                <FileDrop
-                  onFiles={addFiles}
-                  title={current.start.dropTitle}
-                  extensions={current.accepts.extensions}
-                  multiple={current.accepts.maxFiles > 1}
-                />
+                <FileDrop onFiles={addFiles} title={current.start.dropTitle} extensions={current.accepts.extensions} multiple={current.accepts.maxFiles > 1} />
 
                 {files.length > 0 && (
                   <ol className={styles.fileList}>
                     {files.map((file, index) => (
                       <li key={fileKey(file)}>
                         <span className={styles.fileIndex}>{index + 1}</span>
-                        <span className={styles.fileIcon} aria-hidden="true">
-                          <Icon name="sheet" size={20} />
-                        </span>
                         <span className={styles.fileMeta}>
                           <span className={styles.fileName}>{file.name}</span>
                           <span className={styles.fileSize}>{formatBytes(file.size)}</span>
@@ -741,18 +727,6 @@ export function App() {
                   </ol>
                 )}
 
-                <div className={styles.uploadFooter}>
-                  <span className={ui.muted}>
-                    {files.length === 0
-                      ? 'Nenhum arquivo selecionado'
-                      : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`}
-                  </span>
-                  <button type="button" className={cx(ui.btn, ui.primary, ui.lg)} disabled={files.length === 0} onClick={analyze}>
-                    Analisar
-                    <Icon name="arrowRight" size={18} />
-                  </button>
-                </div>
-
                 {suggestion && (
                   <div className={cx(ui.alert, ui.warn)} role="status">
                     <Icon name="alert" />
@@ -765,6 +739,15 @@ export function App() {
                     </button>
                   </div>
                 )}
+
+                <div className={styles.uploadFooter}>
+                  <span className={ui.muted}>{fileSummary ?? 'Nenhum arquivo selecionado'}</span>
+                  <button type="button" className={cx(ui.btn, ui.primary, ui.lg)} disabled={files.length === 0} onClick={analyze}>
+                    Analisar
+                    <Icon name="arrowRight" size={18} />
+                  </button>
+                </div>
+
                 {notice && (
                   <p className={cx(ui.alert, ui.info)}>
                     <Icon name="info" />
@@ -787,52 +770,20 @@ export function App() {
                 )}
               </section>
 
-              <aside className={styles.guide}>
-                <section className={cx(ui.card, styles.steps)}>
-                  <h3>Como funciona</h3>
-                  <ol>
-                    {current.start.guide.map((step) => (
-                      <li key={step.title}>
-                        <strong>{step.title}</strong>
-                        <span>{step.text}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-                <ul className={styles.features}>
-                  <li>
-                    <span className={styles.featureIcon}>
-                      <Icon name="hash" />
-                    </span>
+              <ol className={styles.steps} aria-label="Como funciona">
+                {current.start.guide.map((step, i) => (
+                  <li key={step.title}>
+                    <span className={styles.stepIndex}>{i + 1}</span>
                     <span>
-                      <strong>Integridade verificável</strong>
-                      SHA-256 de cada arquivo, CRC32 de cada entrada do ZIP e invariantes conferidos.
+                      <strong>{step.title}</strong> {step.text}
                     </span>
                   </li>
-                  <li>
-                    <span className={styles.featureIcon}>
-                      <Icon name="zap" />
-                    </span>
-                    <span>
-                      <strong>Leitura em fluxo</strong>
-                      Arquivos de cerca de 1 milhão de linhas, com a tela responsiva e cancelamento a qualquer momento.
-                    </span>
-                  </li>
-                  <li>
-                    <span className={styles.featureIcon}>
-                      <Icon name="lock" />
-                    </span>
-                    <span>
-                      <strong>Sem rede e sem cache</strong>
-                      Os dados lidos ficam só na memória desta aba e somem ao encerrar a sessão.
-                    </span>
-                  </li>
-                </ul>
-              </aside>
+                ))}
+              </ol>
             </div>
           )}
 
-          {screen === 'main' && phase === 'running' && run && (
+          {inTool && phase === 'running' && run && (
             <div className={ui.enter}>
               <StageProgress
                 fileNames={run.fileNames}
@@ -846,7 +797,7 @@ export function App() {
             </div>
           )}
 
-          {screen === 'main' && done && logReconciliation && (
+          {inTool && done && logReconciliation && (
             <div className={styles.view} key={view}>
               {view === 'reconciliation' && (
                 <ReconciliationView data={logReconciliation} summary={logSummary} valueField={(analyzedConfig ?? config).fields.value} />
@@ -867,13 +818,7 @@ export function App() {
                 />
               )}
               {view === 'tables' && (
-                <TablesView
-                  client={client()}
-                  scope={scope}
-                  request={tableRequest}
-                  onRequest={setTableRequest}
-                  balanceType={(analyzedConfig ?? config).balanceType}
-                />
+                <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} balanceType={(analyzedConfig ?? config).balanceType} />
               )}
               {view === 'justifications' && (
                 <JustificationsView
@@ -903,7 +848,8 @@ export function App() {
               )}
             </div>
           )}
-          {screen === 'main' && done && ct2Reconciliation && (
+
+          {inTool && done && ct2Reconciliation && (
             <div className={styles.view} key={view}>
               <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
             </div>

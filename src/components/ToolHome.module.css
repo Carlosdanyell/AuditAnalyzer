@@ -1,0 +1,157 @@
+.home {
+  display: grid;
+  gap: 20px;
+  max-width: 1080px;
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+/* The whole card is clickable through a button stretched over it; the manual link stays above it. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition:
+    border-color 120ms ease,
+    transform 160ms var(--ease);
+}
+
+.card:hover:not(.soon) {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.card:has(.hit:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.open {
+  border-color: var(--accent);
+}
+
+.soon {
+  opacity: 0.65;
+}
+
+.hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.hit:focus-visible {
+  outline: none;
+}
+
+.hit:disabled {
+  cursor: not-allowed;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.badge {
+  font-size: 12px;
+}
+
+.state {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.open .state {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.title {
+  font-size: 18px;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.input {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+.foot {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.go svg {
+  transition: transform 160ms var(--ease);
+}
+
+.card:hover .go svg {
+  transform: translateX(3px);
+}
+
+.help {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.help:hover {
+  color: var(--accent);
+}
