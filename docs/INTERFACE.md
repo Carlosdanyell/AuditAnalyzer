@@ -38,15 +38,25 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 
 ## Telas e comportamentos obrigatórios
 
-0. **Início — seletor de análises** (`docs/MODULOS.md`, seção 4) — um cartão por módulo (título, descrição, arquivo
-   esperado, link "Manual desta análise"), na mesma tela da área de arquivos; a análise escolhida vem marcada desde
-   a primeira renderização (a última usada, `lastModule`, gravada ao Analisar; padrão CFGR700). Módulo "Em breve" não
-   pode ser escolhido; módulo em prévia (Integridade da CT2, Fase 9) tem o selo "Prévia" e o aviso do que já faz, na
-   tela inicial e na reconciliação. Escolher outra análise com arquivos na lista limpa a lista. Arquivo que parece
-   ser de outra análise: aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e
-   mantém a lista; o aviso nunca impede de analisar. O nome da análise aparece no topo.
-   **"Trocar análise"** (topo, depois de analisar) encerra a sessão como "Encerrar sessão" e volta ao seletor;
-   **"Nova análise"** continua mantendo a análise e os arquivos.
+0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — um cartão por ferramenta (código curto,
+   título, descrição, arquivo esperado, link "Manual desta análise"); o cartão inteiro é um botão com o título da
+   ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). A última usada (`lastModule`,
+   gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
+   "Voltar à análise". Ferramenta "Em breve" não abre; em prévia (Integridade da CT2) tem o selo "Prévia" e o aviso do
+   que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
+   ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
+   aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
+   nunca impede de analisar. **"Nova análise"** (topo) mantém a ferramenta e os arquivos.
+   **Estrutura:** barra lateral com Ferramentas, a ferramenta aberta (status) e só as visões que ela oferece, depois
+   Configuração, Ajuda, Encerrar sessão, o aviso de privacidade, versão, autoria e o botão de tema (ícone). Topo com a
+   trilha ("Ferramentas › ferramenta · arquivos") e o título da tela numa linha; a única ação primária é
+   "Exportar planilha".
+   **Densidade e movimento:** o que pede atenção fica aberto (falhas, alertas, sinalizações que exigem ação); o que
+   está OK fica recolhido numa linha ("N verificação(ões) OK", "N sinalização(ões) sem ocorrência"); quadros de
+   consulta do painel ficam recolhidos, com o status no título. Animações só de `transform`/`opacity`, curtas
+   (entradas ≈ 220 ms), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
+   decorativo; números nunca são animados (um valor de auditoria não mostra quantias intermediárias); respeitar
+   `prefers-reduced-motion`.
 1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo;
    Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
    erro com detalhe técnico recolhido.
@@ -56,7 +66,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    operação e verificações (bloqueantes e alertas); resumo da análise por escopo. Integridade da CT2: linhas após o
    cabeçalho − em branco = detalhe, valores ilegíveis por tipo com as primeiras linhas de origem, colunas encontradas,
    totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4. Visões que o módulo não
-   oferece ficam bloqueadas no menu.
+   oferece não aparecem no menu.
 4. **Painel** (`panel`) — escopo (cada arquivo e Consolidado); período por atalho (inclui os do usuário) ou datas;
    data de corte editável; quadros: categorias por origem (cada número abre a tabela filtrada por categoria,
    período e origem), período × demais dias × log completo, competência (com o indicador de fechamento),
@@ -106,13 +116,14 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
-  "Aplicar importação", "Ver no Consolidado (mesmo período)", "Trocar análise", link "Ajuda" e "Manual desta análise";
-  opções (radio) "Log de auditoria (CFGR700)", "Integridade da CT2", "Geral" e "Segregado",
+  "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
+  escuro"/"Usar tema claro", os cartões das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
+  opções (radio) "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
-  "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o seletor, a análise
+  "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
   da CT2 em prévia e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.

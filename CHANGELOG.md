@@ -4,6 +4,14 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Interface: plataforma de ferramentas, menos ruído
+- Início com um cartão por ferramenta; a ferramenta abre o próprio espaço de trabalho. A análise continua aberta ao
+  voltar às Ferramentas e termina ao abrir outra ferramenta (substitui "Trocar análise").
+- Barra lateral enxuta (só as visões da ferramenta aberta, tema como ícone) e topo com trilha e título numa linha.
+- Verificações e sinalizações OK recolhidas; quadros de consulta do painel recolhidos com o status no título.
+- Visual neutro (sem gradientes e brilhos) e animações curtas só onde dão retorno; números do painel não são mais
+  animados.
+
 ### Integridade da CT2: leitura, em prévia (Fase 9, docs/REGRAS_CT2_INTEGRIDADE.md)
 - Nova análise disponível como **prévia**: lê uma ou mais extrações da tabela CT2 (cabeçalho localizado pelos títulos
   nas primeiras 30 linhas, aliases `CT2_*`, códigos como texto, valores em centavos, datas do Excel ou `dd/mm/aaaa`),

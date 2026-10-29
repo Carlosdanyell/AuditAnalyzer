@@ -142,12 +142,12 @@ interface ModuleSession {                               // objeto novo a cada in
 
 ## 4. Tela
 
-- **Início:** seletor de análises (um cartão por módulo: título, descrição, tipo de arquivo esperado, link para a
-  ajuda). A última análise usada fica pré-selecionada (preferência no store `config`, chave `lastModule`, gravada ao
-  clicar em Analisar; valor desconhecido ou "Em breve" volta ao padrão). Implementado na mesma tela da área de
-  arquivos, com o CFGR700 marcado desde a primeira renderização (`src/components/ModuleSelector.tsx`).
-- Depois da escolha, o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → Painel → Tabelas →
-  Exportação. O nome do módulo aparece no topo; "Trocar análise" volta ao início e encerra a sessão.
+- **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: código curto, título,
+  descrição, arquivo esperado, link para a ajuda, "Prévia"/"Em breve"); o cartão abre o espaço de trabalho do módulo.
+  A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e a análise aberta são marcadas
+  no cartão. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
+- No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
+  oferece). A trilha no topo mostra "Ferramentas › módulo · arquivos"; a barra lateral mostra só as visões oferecidas.
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo

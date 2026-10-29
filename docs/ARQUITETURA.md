@@ -310,7 +310,8 @@ Implementado na Fase 8:
 - `src/shared/modules/index.ts`: `MODULE_IDS`, `ModuleId`, `DEFAULT_MODULE_ID` (`cfgr700`).
 - Tela: `src/modules/registry.ts` com um descritor por módulo (`src/modules/<id>/module.ts`, sem React): textos do
   seletor e da tela inicial, arquivos aceitos, âncora da ajuda, recursos (`justifications`) e configuração. O
-  `ct2Integrity` é um cartão "Em breve". `src/components/ModuleSelector.tsx` mostra o seletor na tela inicial.
+  `ct2Integrity` é um cartão "Em breve". O seletor da tela inicial deu lugar, depois da Fase 9, ao início da
+  plataforma com cartões (`src/components/ToolHome.tsx`; `docs/INTERFACE.md`, item 0).
 - Worker: `src/worker/modules/registry.ts` (`WORKER_MODULES`, consulta só por chave própria) e o adaptador
   `src/worker/modules/cfgr700/index.ts`, que valida a configuração (`configure`) e devolve, a cada ingestão, uma
   sessão nova sobre `runIngestion` + `Session` (que não mudaram). Atalhos/feriados (`settings`) e justificativas são
