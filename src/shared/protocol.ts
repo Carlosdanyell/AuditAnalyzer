@@ -5,6 +5,7 @@
  *
  * Payload types marked "phase N" are placeholders and get their real shape in that phase.
  */
+import type { PlatformConfig } from '../config/platform';
 import type { ModuleId } from './modules';
 import type {
   Justification,
@@ -131,8 +132,11 @@ export interface SheetSample {
 
 export type Command =
   /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
-  /** `config`: the configuration of the module, validated by the worker. */
-  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown }
+  /**
+   * `config`: the configuration of the module, validated by the worker. `platform`: the configuration shared by the
+   * modules (holidays); absent = no holidays.
+   */
+  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown; platform?: PlatformConfig }
   | { type: 'cancel' }
   /** First `rows` rows of every sheet of each file, to warn about a file of another analysis. Never answers an error. */
   | { type: 'probe'; requestId: number; files: File[]; rows: number }

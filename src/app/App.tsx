@@ -14,8 +14,11 @@ import { buildBackup } from '../shared/backup';
 import { APP_VERSION_LABEL } from '../shared/version';
 import { JustificationsView } from './views/JustificationsView';
 import { applySettings, settingsFromConfig } from '../shared/settings';
-import { configDiff } from '../shared/configTools';
-import { loadConfig, saveConfig } from './configStore';
+import { canonicalJson, configDiff } from '../shared/configTools';
+import { loadConfig, loadModuleConfig, saveConfig, saveModuleConfig } from './configStore';
+import { platformConfigOf } from '../config/platform';
+import { configViewOf } from './moduleViews';
+import { BackupCard, type RestoredBackup } from './views/BackupCard';
 import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
 import { PanelView, type PanelMode } from './views/PanelView';
@@ -66,6 +69,13 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 /** Every view but the reconciliation is a feature of the module; the others are shown locked. */
 const offered = (m: AvailableModule, view: View) => view === 'reconciliation' || m.features[view];
 
+/** Modules whose configuration is saved under its own key: all but the CFGR700, whose rules carry the platform holidays. */
+const OWN_CONFIG_MODULES = MODULES.filter((m): m is AvailableModule => m.status === 'available' && m.config.saved && m.id !== DEFAULT_MODULE_ID);
+/** Modules with a configuration on the Configuração screen, in the order of the start. */
+const CONFIG_MODULES = MODULES.filter((m): m is AvailableModule => m.status === 'available' && m.config.saved);
+/** How a backup reads back the configuration of each of those modules. */
+const BACKUP_READERS = Object.fromEntries(OWN_CONFIG_MODULES.map((m) => [m.id, { label: m.title, read: m.config.read }]));
+
 export function App() {
   const clientRef = useRef<WorkerClient | null>(null);
   // Analysis module (docs/MODULOS.md): chosen on the start screen; the last one used is restored at startup.
@@ -92,6 +102,15 @@ export function App() {
   const configRef = useRef(config);
   const [configNotice, setConfigNotice] = useState<string | null>(null);
   const [analyzedConfig, setAnalyzedConfig] = useState<AnalyzerConfig | null>(null);
+  // Configurations of the other modules saved on this computer (own keys), and the one of the analysis on screen with
+  // the platform holidays it used.
+  const [moduleConfigs, setModuleConfigs] = useState<Partial<Record<ModuleId, unknown>>>({});
+  const moduleConfigsRef = useRef(moduleConfigs);
+  const [analyzedModuleConfig, setAnalyzedModuleConfig] = useState<{ config: unknown; holidays: readonly string[] } | null>(null);
+  /** The module whose configuration the Configuração screen shows. */
+  const [configModuleId, setConfigModuleId] = useState<ModuleId>(DEFAULT_MODULE_ID);
+  /** Changes when a backup is restored, so the configuration screens start over from what was restored. */
+  const [configVersion, setConfigVersion] = useState(0);
   // Platform start (tool cards), the workspace of the open tool, or the configuration.
   const [screen, setScreen] = useState<Screen>('home');
   const [lastUsed, setLastUsed] = useState<ModuleId | null>(null);
@@ -193,8 +212,22 @@ export function App() {
     void loadConfig().then(({ config: loaded, notice: problem }) => {
       configRef.current = loaded;
       setConfig(loaded);
-      setConfigNotice(problem);
+      setConfigNotice((current) => current ?? problem);
     });
+    for (const m of OWN_CONFIG_MODULES) {
+      void loadModuleConfig(m.id, m.config).then(({ config: loaded, notice: problem }) => {
+        moduleConfigsRef.current = { ...moduleConfigsRef.current, [m.id]: loaded };
+        setModuleConfigs(moduleConfigsRef.current);
+        if (problem) setConfigNotice((current) => current ?? `${m.title}: ${problem}`);
+      });
+    }
+  }, []);
+
+  /** Saves the configuration of a module other than the CFGR700 (it applies to the next analysis). */
+  const applyModuleConfig = useCallback(async (id: ModuleId, next: unknown): Promise<boolean> => {
+    moduleConfigsRef.current = { ...moduleConfigsRef.current, [id]: next };
+    setModuleConfigs(moduleConfigsRef.current);
+    return saveModuleConfig(id, next);
   }, []);
 
   /** Saves the configuration; presets and holidays also apply at once to the analysis on screen. */
@@ -215,17 +248,22 @@ export function App() {
   const createBackup = useCallback(() => {
     const now = Date.now();
     const items = [...justificationsRef.current.values()];
-    download(buildBackup(configRef.current, items, stamp.format(now)), `copia-de-seguranca-auditanalyzer-${stamp.format(now).slice(0, 10)}.json`);
+    download(
+      buildBackup(configRef.current, items, stamp.format(now), moduleConfigsRef.current),
+      `copia-de-seguranca-auditanalyzer-${stamp.format(now).slice(0, 10)}.json`,
+    );
     const nextMeta = { ...meta, lastExportAt: now };
     setMeta(nextMeta);
     void saveMeta(nextMeta);
     return items.length;
   }, [meta]);
 
-  /** Replaces the configuration and every justification by those of a backup. */
+  /** Replaces the configurations in a backup and every justification by those of the backup. */
   const restoreBackup = useCallback(
-    async (restored: AnalyzerConfig, items: Justification[]): Promise<boolean> => {
-      const savedConfig = await applyConfig(restored);
+    async ({ config: restored, modules, justifications: items }: RestoredBackup): Promise<boolean> => {
+      let savedConfig = await applyConfig(restored);
+      for (const [id, moduleConfig] of Object.entries(modules)) savedConfig = (await applyModuleConfig(id as ModuleId, moduleConfig)) && savedConfig;
+      setConfigVersion((n) => n + 1);
       const map = new Map(items.map((j) => [justificationKey(j.kind, j.documentKey), j]));
       justificationsRef.current = map;
       setJustifications(map);
@@ -236,7 +274,7 @@ export function App() {
       await sendJustifications(items, true);
       return savedConfig && savedItems;
     },
-    [applyConfig, sendJustifications],
+    [applyConfig, applyModuleConfig, sendJustifications],
   );
 
 
@@ -266,8 +304,8 @@ export function App() {
             if (analyzed.features.justifications) {
               void sendJustifications([...justificationsRef.current.values()], true);
             }
-            // Presets and holidays saved while the files were being read reach the new analysis too.
-            if (analyzed.config.saved) {
+            // Presets and holidays saved while the files were being read reach the new analysis too (CFGR700).
+            if (analyzed.config.saved && analyzed.id === DEFAULT_MODULE_ID) {
               void clientRef.current?.query({ type: 'settings', settings: settingsFromConfig(configRef.current) }).catch(() => undefined);
             }
             setSummary(event.summary);
@@ -311,7 +349,8 @@ export function App() {
 
   /** The configuration an analysis runs with: the one saved on this computer, or the defaults of the module. */
   function configOf(m: AvailableModule): unknown {
-    return m.config.saved ? configRef.current : m.config.defaults();
+    if (!m.config.saved) return m.config.defaults();
+    return m.id === DEFAULT_MODULE_ID ? configRef.current : (moduleConfigsRef.current[m.id] ?? m.config.defaults());
   }
 
   function addFiles(added: File[]) {
@@ -368,9 +407,12 @@ export function App() {
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
     // Only a saved configuration can change after the analysis (and call for reprocessing).
-    setAnalyzedConfig(current.config.saved ? configRef.current : null);
+    const own = current.config.saved && current.id !== DEFAULT_MODULE_ID;
+    const holidays = configRef.current.calendar.holidays;
+    setAnalyzedConfig(current.config.saved && !own ? configRef.current : null);
+    setAnalyzedModuleConfig(own ? { config: configOf(current), holidays } : null);
     analyzedModule.current = moduleId;
-    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current) });
+    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current), platform: platformConfigOf(holidays) });
     void saveLastModule(moduleId);
     setLastUsed(moduleId);
   }
@@ -391,7 +433,13 @@ export function App() {
   }
 
   // Rules changed after the analysis on screen (presets and holidays apply without reprocessing).
-  const needsReprocess = phase === 'done' && analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0;
+  // The other modules use the platform holidays only when reading the files: a change also calls for reprocessing.
+  const needsReprocess =
+    phase === 'done' &&
+    ((analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0) ||
+      (analyzedModuleConfig !== null &&
+        (canonicalJson(moduleConfigs[analyzedModule.current]) !== canonicalJson(analyzedModuleConfig.config) ||
+          canonicalJson(config.calendar.holidays) !== canonicalJson(analyzedModuleConfig.holidays))));
 
   function reprocess() {
     setScreen('tool');
@@ -440,7 +488,32 @@ export function App() {
       return;
     }
     configFrom.current = screen;
+    setConfigModuleId(OWN_CONFIG_MODULES.some((m) => m.id === moduleId) ? moduleId : DEFAULT_MODULE_ID);
     setScreen('config');
+  }
+
+  /** The configuration screen of the module chosen on the Configuração screen. */
+  function renderConfigView() {
+    const m = availableModule(configModuleId);
+    const loaded = phase === 'done' && analyzedModule.current === m.id;
+    const common = {
+      analysisLoaded: loaded,
+      needsReprocess: loaded && needsReprocess,
+      canReprocess: files.length > 0 && phase !== 'running' && moduleId === m.id,
+      onReprocess: reprocess,
+      onClose: toggleConfig,
+    };
+    const View = configViewOf(m);
+    if (View === null) return <ConfigView key={configVersion} config={config} onSave={applyConfig} {...common} />;
+    return (
+      <View
+        key={configVersion}
+        config={moduleConfigs[m.id] ?? m.config.defaults()}
+        onSave={(next) => applyModuleConfig(m.id, next)}
+        holidays={config.calendar.holidays}
+        {...common}
+      />
+    );
   }
 
   function moveFile(index: number, delta: -1 | 1) {
@@ -644,18 +717,25 @@ export function App() {
           )}
 
           {screen === 'config' && (
-            <div className={ui.enter}>
-              <ConfigView
-                config={config}
-                onSave={applyConfig}
-                analysisLoaded={phase === 'done'}
-                needsReprocess={needsReprocess}
-                canReprocess={files.length > 0 && phase !== 'running'}
-                onReprocess={reprocess}
-                onClose={toggleConfig}
-                onCreateBackup={createBackup}
-                onRestoreBackup={restoreBackup}
-              />
+            <div className={cx(styles.config, ui.enter)}>
+              {CONFIG_MODULES.length > 1 && (
+                <div className={styles.configTabs} role="tablist" aria-label="Configuração de cada análise">
+                  {CONFIG_MODULES.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={configModuleId === m.id}
+                      className={cx(styles.configTab, configModuleId === m.id && styles.configTabActive)}
+                      onClick={() => setConfigModuleId(m.id)}
+                    >
+                      {m.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {renderConfigView()}
+              <BackupCard readers={BACKUP_READERS} onCreate={createBackup} onRestore={restoreBackup} />
             </div>
           )}
 

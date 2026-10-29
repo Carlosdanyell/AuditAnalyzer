@@ -448,3 +448,12 @@ Situação em 20/10/2026 (decisões na seção 13):
     Excel com fração é CI-4; texto de valor só no formato pt-BR; vários arquivos unidos pelo título das colunas, com
     alerta; o aviso de arquivo trocado mantém a lista de arquivos; arquivos reais da CT2 em `local/ct2/`; arquivos
     de medição na pasta temporária do sistema.
+- 29/10/2026 — Fase 10 (motor), respostas do usuário:
+  - **B4, dois vizinhos:** testa primeiro o documento **seguinte** do mesmo lote e segmento (na ordem da Base) e
+    depois o anterior; aponta o primeiro que compensa. A compensação é **exata**: a soma das duas diferenças é 0,00,
+    sem a tolerância do B1.
+  - **I4 com "Valor Moeda1" vazio:** a linha fica **fora do teste** (sem valor para comparar), como a ilegível.
+  - **P3 e segmentos:** o documento é contado pela **chave do documento sem o segmento**: a mesma contabilização em
+    duas moedas não aparece como Seq CTK repetido.
+  - **Tela ao fim da Fase 10:** o módulo continua como prévia e a reconciliação ganha um **quadro de testes** com as
+    ocorrências de cada teste e os invariantes novos.

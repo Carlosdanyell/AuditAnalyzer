@@ -2,6 +2,7 @@
  * Synthetic CT2 extractions for the reading tests (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-4 and 11), with the
  * expected numbers worked out by hand next to each case. No real data.
  */
+import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { CT2_COLUMNS, ct2Line, type Ct2ExtractionOptions, type Ct2Row } from './ct2Extraction';
 
 const NO_KEY = { date: null, batch: null, subBatch: null, document: null, line: null, balanceType: null, currency: null, entryType: null } as const;
@@ -49,3 +50,12 @@ export const fileB = (o: Partial<Ct2ExtractionOptions> = {}): Ct2ExtractionOptio
   ],
   ...o,
 });
+
+/** The default configuration as version 1 wrote it (Phase 9: the reading only, without tests and parameters). */
+export function ct2ConfigV1(): Record<string, unknown> {
+  const c: Record<string, unknown> = { ...ct2DefaultConfig(), schemaVersion: 1 };
+  delete c.tests;
+  delete c.parameters;
+  delete c.manualFlag;
+  return c;
+}

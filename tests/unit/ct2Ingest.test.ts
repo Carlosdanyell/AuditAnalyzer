@@ -109,6 +109,8 @@ describe('CT2 reading: one file', () => {
       days: 4,
       firstDay: day,
       lastDay: day,
+      // The analysis itself is tested in ct2Analysis.test.ts.
+      analysis: expect.objectContaining({ exceptions: expect.any(Number) }),
     });
   });
 
@@ -171,7 +173,8 @@ describe('CT2 reading: several files and layouts', () => {
       'a.xlsx: colunas opcionais ausentes: Rotina (CT2_ROTINA).',
       'a.xlsx: 1 linha tem "Valor Moeda1" ilegível.',
     ]);
-    expect(r!.checks.every((c) => c.passed)).toBe(true);
+    expect(r!.checks.filter((c) => c.severity === 'error').every((c) => c.passed)).toBe(true);
+    expect(check(r, 'ct2-optional')).toMatchObject({ passed: false, message: 'Colunas opcionais ausentes: Rotina (P1 sem a rotina).' });
   });
 
   it('joins the n-th occurrence of a repeated other column across files, apart from a literal title', async () => {

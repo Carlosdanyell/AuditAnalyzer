@@ -531,3 +531,39 @@
     padding: 16px 16px 40px;
   }
 }
+
+/* ── Configuração: one tab per analysis with its own rules, then the backup ── */
+
+.config {
+  display: grid;
+  gap: 16px;
+}
+
+.configTabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.configTab {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.configTab:hover {
+  color: var(--text);
+}
+
+.configTabActive,
+.configTabActive:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}

@@ -1,3 +1,4 @@
+import { readPlatformConfig } from '../config/platform';
 import { DEFAULT_MODULE_ID } from '../shared/modules';
 import type { Command, SheetSample, Stage, WorkerEvent } from '../shared/protocol';
 import { IngestError, type IngestOptions } from './ingest/pipeline';
@@ -57,7 +58,9 @@ export function createCommandHandler(
         }
         let ingest: Ingest;
         try {
-          ingest = workerModule.configure(command.config);
+          const platform = command.platform === undefined ? null : readPlatformConfig(command.platform);
+          if (command.platform !== undefined && platform === null) throw new Error('platform: configuração da plataforma (feriados) inválida.');
+          ingest = workerModule.configure(command.config, platform);
         } catch (e) {
           post({ type: 'error', stage: 'fileCheck', message: 'Configuração inválida.', detail: String(e) });
           return;

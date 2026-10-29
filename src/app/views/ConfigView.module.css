@@ -456,3 +456,36 @@ textarea.input {
     padding: 6px 16px 18px;
   }
 }
+
+/* Tests of a module (CT2): one row per test, on/off and severity. */
+.tests {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tests th,
+.tests td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tests thead th {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.tests tbody th {
+  font-weight: 400;
+}
+
+.tests tbody th .fieldError {
+  display: block;
+}
+
+.tests select {
+  min-width: 110px;
+}

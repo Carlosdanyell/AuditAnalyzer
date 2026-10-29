@@ -1,13 +1,65 @@
 /**
  * Payload types of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md): reading reconciliation (section 2),
- * the invariants of the reading (CI-1, CI-2, CI-4; section 8) and the totals of the Base. They carry
+ * the invariants (section 8), the totals of the Base and the board of tests (section 6). They carry
  * `module: 'ct2Integrity'`; the CFGR700 payloads carry no mark, so their content does not change.
  */
+import type { Ct2Severity, Ct2TestCode } from '../../config/ct2IntegritySchema';
 import type { Alert, CheckResult, EntryIntegrity, Stage } from '../protocol';
 import type { Reconciliation, Summary } from './cfgr700';
 
-/** Processing stages of the CT2 reading; the first three repeat for each file. */
-export const CT2_STAGES = ['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'checks'] as const satisfies readonly Stage[];
+/** Processing stages of the CT2 module; the first three repeat for each file. */
+export const CT2_STAGES = ['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks'] as const satisfies readonly Stage[];
+
+/** Level a test looks at (section 6); the profile (P1-P4) is a summary of the Base. */
+export type Ct2Level = 'line' | 'document' | 'batch' | 'day' | 'profile';
+
+/** Texts of the tests of section 6: what an occurrence means. */
+export const CT2_TEST_INFO: Record<Ct2TestCode, { level: Ct2Level; label: string }> = {
+  B1: { level: 'document', label: 'Documento desbalanceado' },
+  B2: { level: 'batch', label: 'Lote desbalanceado' },
+  B3: { level: 'day', label: 'Dia desbalanceado' },
+  B4: { level: 'document', label: 'Compensação pelo documento vizinho do lote' },
+  B5: { level: 'document', label: 'Documento desbalanceado sem compensação adjacente' },
+  I1: { level: 'line', label: 'Tipo de lançamento incoerente com as contas' },
+  I2: { level: 'line', label: 'Valor zero ou negativo' },
+  I3: { level: 'line', label: 'Mesma conta no débito e no crédito' },
+  I4: { level: 'line', label: 'Valor diferente do valor na moeda 1' },
+  I5: { level: 'line', label: 'Histórico vazio' },
+  E1: { level: 'line', label: 'Linha duplicada' },
+  E2: { level: 'document', label: 'Lacuna na numeração das linhas' },
+  E3: { level: 'line', label: 'Tipo de saldo diferente do esperado' },
+  E4: { level: 'line', label: 'Moeda diferente da esperada' },
+  E5: { level: 'line', label: 'Data fora do período' },
+  E6: { level: 'day', label: 'Dia não útil' },
+  P1: { level: 'profile', label: 'Linhas e valores por rotina e por lançamento padrão' },
+  P2: { level: 'profile', label: 'Linhas e valores por origem (Lcto Manual?)' },
+  P3: { level: 'document', label: 'Seq CTK repetido entre documentos ou mais de um no documento' },
+  P4: { level: 'document', label: 'Documento no limite de linhas' },
+};
+
+/** Parameters of one execution (section 6.5): the defaults of the configuration and the period of the dates read. */
+export interface Ct2RunParameters {
+  /** First and last day of the period (day numbers); null when no date is valid. */
+  periodStart: number | null;
+  periodEnd: number | null;
+  expectedBalanceType: string;
+  expectedCurrency: string;
+  localCurrency: string;
+  toleranceCents: number;
+  documentLineLimit: number;
+}
+
+/** One row of the board of tests. */
+export interface Ct2TestResult {
+  code: Ct2TestCode;
+  severity: Ct2Severity;
+  /** on = ran; off = turned off in the configuration; noColumn = its optional column is absent from every file (CI-9). */
+  state: 'on' | 'off' | 'noColumn';
+  /** Items marked: lines, documents, batches or days, by the level of the test (P1 and P2: groups). */
+  occurrences: number;
+  /** A short result, when the number alone does not say it (B4, P1-P3). */
+  detail: string | null;
+}
 
 /** Detail rows with a value that cannot be used (CI-4), by kind. */
 export interface Ct2Unreadable {
@@ -101,6 +153,8 @@ export interface Ct2Summary {
   /** First and last valid entry date (day numbers); null when none is valid. */
   firstDay: number | null;
   lastDay: number | null;
+  /** The analysis (section 6); absent while only the reading ran. */
+  analysis?: { parameters: Ct2RunParameters; tests: Ct2TestResult[]; exceptions: number };
 }
 
 export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation): r is Ct2Reconciliation {

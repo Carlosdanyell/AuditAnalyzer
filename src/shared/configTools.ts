@@ -81,8 +81,11 @@ export function readConfig(input: unknown): ConfigRead {
   return { ok: true, config: parsed.data, ...(migrated.from !== undefined && { migratedFrom: migrated.from }) };
 }
 
-/** Leaves that differ from the base (default) configuration, sorted by path. Lists are compared as a whole. */
-export function configDiff(config: AnalyzerConfig, base: AnalyzerConfig = defaultConfig()): ConfigDifference[] {
+/**
+ * Leaves that differ from the base (default) configuration, sorted by path. Lists are compared as a whole. Any
+ * module: the base is the default of the CFGR700 unless given.
+ */
+export function configDiff(config: object, base: object = defaultConfig()): ConfigDifference[] {
   const out: ConfigDifference[] = [];
   const walk = (a: unknown, b: unknown, path: string) => {
     if (isObject(a) && isObject(b)) {
@@ -103,12 +106,12 @@ export function canonicalJson(value: unknown): string {
 }
 
 /** SHA-256 of the configuration content (written to the Rastreabilidade tab). */
-export function configHash(config: AnalyzerConfig): Promise<string> {
+export function configHash(config: object): Promise<string> {
   return sha256(canonicalJson(config));
 }
 
 /** Readable JSON for export (schema order: schemaVersion first). */
-export function configToJson(config: AnalyzerConfig): string {
+export function configToJson(config: object): string {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 

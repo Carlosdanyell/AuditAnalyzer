@@ -7,7 +7,7 @@ import type { ModuleId } from '../shared/modules';
 import type { SheetSample, Stage } from '../shared/protocol';
 
 /** Result of reading a configuration of the module (import, IndexedDB, backup). */
-export type ModuleConfigRead<C> = { ok: true; config: C } | { ok: false; errors: { path: string; message: string }[] };
+export type ModuleConfigRead<C> = { ok: true; config: C; migratedFrom?: number } | { ok: false; errors: { path: string; message: string }[] };
 
 interface ModuleTexts {
   id: ModuleId;

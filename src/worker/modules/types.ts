@@ -19,6 +19,7 @@ import type {
   TableId,
   WorkerEvent,
 } from '../../shared/protocol';
+import type { PlatformConfig } from '../../config/platform';
 import type { IngestInput, IngestOptions } from '../ingest/pipeline';
 
 /**
@@ -56,6 +57,9 @@ export interface IngestedSession {
 export type Ingest = (inputs: IngestInput[], post: (event: WorkerEvent) => void, options: IngestOptions) => Promise<IngestedSession>;
 
 export interface WorkerModule {
-  /** Validates the configuration sent by the UI (throws when invalid) and returns the ingestion bound to it. */
-  configure(config: unknown): Ingest;
+  /**
+   * Validates the configuration sent by the UI (throws when invalid) and returns the ingestion bound to it and to the
+   * platform configuration (holidays), when the module uses it.
+   */
+  configure(config: unknown, platform: PlatformConfig | null): Ingest;
 }

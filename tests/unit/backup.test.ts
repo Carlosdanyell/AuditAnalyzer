@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
+import { ct2ConfigV1 } from '../synthetic/ct2Fixtures';
 import { defaultConfig } from '../../src/config/schema';
 import { buildBackup, readBackup } from '../../src/shared/backup';
 import { configHash } from '../../src/shared/configTools';
@@ -50,10 +52,10 @@ describe('backup of configuration and justifications', () => {
 describe('backup version 2: platform holidays (docs/MODULOS.md)', () => {
   const v1 = readFileSync('tests/synthetic/backups/backup-v1.json', 'utf8');
 
-  it('writes version 2 with the platform holidays, as they are', () => {
+  it('writes the platform holidays, as they are', () => {
     const config = { ...defaultConfig(), calendar: { holidays: ['25/12/2026', '07/09/2026'] } };
     const data = JSON.parse(buildBackup(config, [], 't'));
-    expect(data.version).toBe(2);
+    expect(data.version).toBe(3);
     expect(data.platform).toEqual({ schemaVersion: 1, holidays: ['25/12/2026', '07/09/2026'] });
     const read = readBackup(JSON.stringify(data));
     expect(read.ok && read.platform).toEqual({ schemaVersion: 1, holidays: ['25/12/2026', '07/09/2026'] });
@@ -66,7 +68,7 @@ describe('backup version 2: platform holidays (docs/MODULOS.md)', () => {
     expect(read.ok && read.config.calendar.holidays).toEqual(['01/11/2026']);
   });
 
-  it('keeps everything of a version 1 backup when it is saved again as version 2', async () => {
+  it('keeps everything of a version 1 backup when it is saved again', async () => {
     const first = readBackup(v1);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
@@ -81,9 +83,9 @@ describe('backup version 2: platform holidays (docs/MODULOS.md)', () => {
 
   it('refuses a later version and invalid platform holidays', () => {
     const data = JSON.parse(buildBackup(defaultConfig(), [], 't'));
-    expect(readBackup(JSON.stringify({ ...data, version: 3 }))).toEqual({
+    expect(readBackup(JSON.stringify({ ...data, version: 4 }))).toEqual({
       ok: false,
-      errors: ['Versão 3 da cópia de segurança não é suportada por esta versão da ferramenta.'],
+      errors: ['Versão 4 da cópia de segurança não é suportada por esta versão da ferramenta.'],
     });
     expect(readBackup(JSON.stringify({ ...data, platform: { schemaVersion: 1, holidays: ['31/02/2026'] } }))).toEqual({
       ok: false,
@@ -91,5 +93,41 @@ describe('backup version 2: platform holidays (docs/MODULOS.md)', () => {
     });
     delete data.platform;
     expect(readBackup(JSON.stringify(data))).toEqual({ ok: false, errors: ['Feriados — Valor ausente ou inválido.'] });
+  });
+});
+
+describe('backup version 3: the configuration of the other modules (docs/MODULOS.md)', () => {
+  const readers = { ct2Integrity: { label: 'Integridade da CT2', read: readCt2Config } };
+
+  it('keeps the configuration of each module and reads it back with the module rules', () => {
+    const ct2 = ct2DefaultConfig();
+    ct2.parameters.toleranceCents = 5;
+    const text = buildBackup(defaultConfig(), [], 't', { ct2Integrity: ct2 });
+    expect(JSON.parse(text).modules).toEqual({ ct2Integrity: ct2 });
+    const read = readBackup(text, readers);
+    expect(read.ok && read.modules).toEqual({ ct2Integrity: ct2 });
+  });
+
+  it('migrates an older configuration of a module and ignores a module this version does not know', () => {
+    const data = JSON.parse(buildBackup(defaultConfig(), [], 't', { ct2Integrity: ct2ConfigV1(), futuro: { x: 1 } }));
+    const read = readBackup(JSON.stringify(data), readers);
+    expect(read.ok && read.modules).toEqual({ ct2Integrity: ct2DefaultConfig() });
+  });
+
+  it('reports an invalid configuration of a module by its name', () => {
+    const ct2 = ct2DefaultConfig();
+    ct2.parameters.documentLineLimit = 0;
+    const read = readBackup(buildBackup(defaultConfig(), [], 't', { ct2Integrity: ct2 }), readers);
+    expect(read).toEqual({ ok: false, errors: ['Configuração de Integridade da CT2 — parameters.documentLineLimit: Valor abaixo do mínimo (1).'] });
+  });
+
+  it('reads versions 1 and 2 without the other modules', () => {
+    const v1 = readBackup(readFileSync('tests/synthetic/backups/backup-v1.json', 'utf8'), readers);
+    expect(v1.ok && v1.modules).toEqual({});
+    const v2 = JSON.parse(buildBackup(defaultConfig(), [], 't'));
+    v2.version = 2;
+    delete v2.modules;
+    const read = readBackup(JSON.stringify(v2), readers);
+    expect(read.ok && read.modules).toEqual({});
   });
 });

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "table": "CT2",
   "reading": {
     "headerSearchRows": 30
@@ -33,5 +33,38 @@
     "debit": ["Debito", "1"],
     "credit": ["Credito", "2"],
     "historyContinuation": ["Cont.Hist", "4"]
+  },
+  "tests": {
+    "B1": { "enabled": true, "severity": "error" },
+    "B2": { "enabled": true, "severity": "error" },
+    "B3": { "enabled": true, "severity": "error" },
+    "B4": { "enabled": true, "severity": "info" },
+    "B5": { "enabled": true, "severity": "warning" },
+    "I1": { "enabled": true, "severity": "error" },
+    "I2": { "enabled": true, "severity": "error" },
+    "I3": { "enabled": true, "severity": "warning" },
+    "I4": { "enabled": true, "severity": "warning" },
+    "I5": { "enabled": true, "severity": "warning" },
+    "E1": { "enabled": true, "severity": "error" },
+    "E2": { "enabled": true, "severity": "info" },
+    "E3": { "enabled": true, "severity": "warning" },
+    "E4": { "enabled": true, "severity": "warning" },
+    "E5": { "enabled": true, "severity": "error" },
+    "E6": { "enabled": true, "severity": "info" },
+    "P1": { "enabled": true, "severity": "info" },
+    "P2": { "enabled": true, "severity": "info" },
+    "P3": { "enabled": true, "severity": "info" },
+    "P4": { "enabled": true, "severity": "info" }
+  },
+  "parameters": {
+    "expectedBalanceType": "1",
+    "expectedCurrency": "01",
+    "localCurrency": "01",
+    "toleranceCents": 0,
+    "documentLineLimit": 1000
+  },
+  "manualFlag": {
+    "manual": ["1"],
+    "automatic": ["2"]
   }
 }
