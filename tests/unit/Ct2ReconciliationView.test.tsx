@@ -17,7 +17,7 @@ async function render(files: { name: string; blob: Blob }[], analysis?: { holida
 describe('CT2 reconciliation screen', () => {
   it('shows the verdict, the row reconciliation, the unreadable values and the totals by segment', async () => {
     const html = await render([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }]);
-    expect(html).toContain('Prévia: esta versão lê a extração da CT2');
+    expect(html).toContain('Prévia: leitura, testes, painel, tabelas e planilha');
     expect(html).toContain('1 verificação(ões) bloqueante(s) falhou(aram)');
     expect(html).toContain('Reconciliação de linhas — aba “SCACKST0.XML”');
     expect(html).toMatch(/\(=\) Linhas de detalhe<\/th><td>10 <span[^>]*>confere/);

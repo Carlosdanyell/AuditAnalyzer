@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
 import { ToolHome } from '../components/ToolHome';
-import { Ct2ReconciliationView } from '../components/Ct2ReconciliationView';
 import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
@@ -26,7 +25,7 @@ import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
 import { ExportView, cfgr700ExportContent } from './views/ExportView';
-import { CT2_EXPORT, ct2TooLarge } from './views/ct2Export';
+import { Ct2Workspace } from './modules/ct2Integrity/Ct2Workspace';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
@@ -278,6 +277,12 @@ export function App() {
     [applyConfig, applyModuleConfig, sendJustifications],
   );
 
+
+  /** The analysis reapplied by a module (new parameters): its checks and summary on screen. */
+  const onAnalyzed = useCallback((next: ModuleReconciliation, nextSummary: ModuleSummary) => {
+    setReconciliation(next);
+    setSummary(nextSummary);
+  }, []);
 
   const openTable = useCallback((table: TableId, filter: TableFilter) => {
     setTableRequest({ table, filter });
@@ -930,21 +935,18 @@ export function App() {
           )}
 
           {inTool && done && ct2Reconciliation && (
-            <div className={styles.view} key={view}>
-              {view === 'export' && current.features.export ? (
-                <ExportView
-                  client={client()}
-                  scopes={null}
-                  scope={0}
-                  onScopeChange={() => {}}
-                  failures={ct2Reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
-                  content={CT2_EXPORT}
-                  unavailable={ct2TooLarge(ct2Summary)}
-                />
-              ) : (
-                <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
-              )}
-            </div>
+            // The workspace keeps its state (segment, table) across views; it animates each view itself.
+            <Ct2Workspace
+                viewClassName={styles.view}
+                client={client()}
+                view={view === 'justifications' ? 'reconciliation' : view}
+                onView={setView}
+                reconciliation={ct2Reconciliation}
+                summary={ct2Summary}
+                preview={current.preview}
+                exportOffered={current.features.export}
+                onAnalyzed={onAnalyzed}
+              />
           )}
         </main>
       </div>

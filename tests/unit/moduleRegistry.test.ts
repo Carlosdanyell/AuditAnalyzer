@@ -45,7 +45,7 @@ describe('module registry', () => {
     const m = ct2IntegrityModule;
     expect(m).toMatchObject({ status: 'available', title: 'Integridade da CT2', helpAnchor: 'ct2' });
     expect(m.preview).toMatch(/^Prévia: /);
-    expect(m.features).toEqual({ panel: false, tables: false, justifications: false, export: true });
+    expect(m.features).toEqual({ panel: true, tables: true, justifications: false, export: true });
     expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(ct2DefaultConfig());
     expect(m.progress.stages.map((s) => s.id)).toEqual(['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks']);

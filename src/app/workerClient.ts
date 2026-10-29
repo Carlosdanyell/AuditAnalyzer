@@ -41,9 +41,13 @@ export class WorkerClient {
   query(command: Query<'importJustifications'>): Promise<Answer<'justificationImport'>>;
   query(command: Query<'export'>): Promise<Answer<'exported'> | Answer<'exportBlocked'>>;
   query(command: Query<'probe'>): Promise<Answer<'probe'>>;
+  query(command: Query<'segmentPanel'>): Promise<Answer<'segmentPanel'>>;
+  query(command: Query<'analyze'>): Promise<Answer<'analyzed'>>;
   query(
     command:
       | Query<'probe'>
+      | Query<'segmentPanel'>
+      | Query<'analyze'>
       | Query<'panel'>
       | Query<'page'>
       | Query<'settings'>

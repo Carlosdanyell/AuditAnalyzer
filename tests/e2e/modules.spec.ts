@@ -52,10 +52,10 @@ test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como 
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
-test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; painel e tabelas bloqueados', async ({ page, ct2Files }) => {
+test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; oferece painel, tabelas e exportação', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
-  await expect(page.getByText(/^Prévia: esta versão lê a extração da CT2/)).toBeVisible();
+  await expect(page.getByText(/^Prévia: leitura, testes, painel, tabelas e planilha/)).toBeVisible();
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.withProblems, ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
@@ -69,8 +69,8 @@ test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; pai
   await expect(page.getByText(/ct2-a\.xlsx: linhas 13, 14, 15/)).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Visões' });
   await expect(nav.getByRole('button', { name: 'Reconciliação' })).toBeVisible();
-  for (const locked of ['Painel', 'Tabelas', 'Justificativas']) await expect(nav.getByRole('button', { name: locked })).toHaveCount(0);
-  await expect(nav.getByRole('button', { name: 'Exportação' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Justificativas' })).toHaveCount(0);
+  for (const offered of ['Painel', 'Tabelas', 'Exportação']) await expect(nav.getByRole('button', { name: offered })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Exportar planilha' })).toBeVisible();
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
 });
@@ -102,6 +102,47 @@ test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de te
     expect(statuses.length).toBeGreaterThan(5);
     expect(statuses.every((v) => v === 'OK' || v === 'Confere' || v === 'Matches')).toBe(true);
   }
+});
+
+test('Integridade da CT2: painel por segmento, cada número abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.engine]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
+  await expect(page.getByText('Período da análise: 01/09/2026 a 31/10/2026')).toBeVisible();
+
+  // A number of the board opens the table with exactly those rows.
+  await page.getByRole('button', { name: 'B1: 6 documentos' }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Exceções' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('6 linha(s)')).toBeVisible();
+  await expect(page.getByText('B1 · Documento desbalanceado')).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro do painel' }).click();
+  await expect(page.getByText('26 linha(s)')).toBeVisible();
+
+  // The Base shows the mapped columns and, on request, every column of the extraction.
+  await page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Base' }).click();
+  await expect(page.getByText('1.038 linha(s)')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(0);
+  await page.getByLabel('Mostrar todas as colunas').check();
+  await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
+
+  // One segment: every number of the panel follows it.
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await page.getByLabel('Segmento').selectOption({ label: 'Saldo 1 · Moeda 02' });
+  await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
+  await page.getByLabel('Segmento').selectOption({ label: 'Todos os segmentos' });
+
+  // Parameters reapplied without reading the files again: a tolerance of R$ 10,00 leaves two unbalanced documents.
+  await page.getByText('Parâmetros da execução').click();
+  await page.getByLabel('Tolerância (R$)').fill('10,00');
+  await page.getByRole('button', { name: 'Reaplicar os testes' }).click();
+  await expect(page.getByText('Testes reaplicados com os novos parâmetros.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'B1: 2 documentos' })).toBeVisible();
 });
 
 test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {
