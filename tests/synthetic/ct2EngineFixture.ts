@@ -1,7 +1,8 @@
 /**
  * Synthetic CT2 extraction for the analysis (docs/REGRAS_CT2_INTEGRIDADE.md, sections 5, 6 and 11): one case per
- * rule, with the exceptions expected worked out by hand below. Period of the run: September 2026 (month of the first
- * date); holiday 07/09/2026 (a Monday); 19/09/2026 is a Saturday. No real data.
+ * rule, with the exceptions expected worked out by hand below. Period of the run: every month read, 01/09/2026 to
+ * 31/10/2026 (decision of 29/10/2026); E5 comes only with a period informed for September. Holiday 07/09/2026 (a
+ * Monday); 19/09/2026 is a Saturday. No real data.
  */
 import type { Ct2Field } from '../../src/config/ct2IntegritySchema';
 import { ct2Line, type Ct2LineRow, type Ct2Value } from './ct2Extraction';
@@ -66,7 +67,7 @@ export const ENGINE_ROWS: Ct2LineRow[] = [
   pd(10, at(BATCH6, '000049', '002', { ctkSequence: '000201' })),
   pd(10, at(BATCH6, '000050', '001', { ctkSequence: '000300' })), // document 50 in two segments: no E1, no P3
   pd(10, at(BATCH6, '000050', '001', { ctkSequence: '000300', currency: '02' })), // E4
-  // 01/10 (E5), 19/09 (Saturday, E6), 07/09 (holiday, E6).
+  // 01/10 (E5 when the period is September), 19/09 (Saturday, E6), 07/09 (holiday, E6).
   pd(10, { ...doc('01/10/2026', '000007', '000044'), line: '001' }),
   pd(10, { ...doc('19/09/2026', '000008', '000045'), line: '001', manual: '2' }),
   pd(10, { ...doc('07/09/2026', '000009', '000046'), line: '001', manual: null }),
@@ -104,8 +105,10 @@ export const ENGINE_EXCEPTIONS = [
   'E3 linha 000042-001 [2/01]',
   'E4 linha 000043-001 [1/02]',
   'E4 linha 000050-001 [1/02]',
-  'E5 linha 000044-001',
 ];
+
+/** With the period informed as September only: the line of 01/10 is outside it. */
+export const ENGINE_E5 = 'E5 linha 000044-001';
 
 /** Results of the Info tests and of B4. */
 export const ENGINE_INFO = {

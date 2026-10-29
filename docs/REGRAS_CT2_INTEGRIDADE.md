@@ -188,7 +188,7 @@ linhas.
 
 | Parâmetro | Padrão |
 |---|---|
-| Data inicial / final do período | 1º e último dia do mês da menor data lida (editável) |
+| Data inicial / final do período | todos os meses lidos: 1º dia do mês da menor data e último dia do mês da maior data lida (editável; decisão de 29/10/2026) |
 | Tipo de saldo esperado | `1` |
 | Moeda esperada / moeda local | `01` / `01` |
 | Tolerância de balanceamento (R$) | 0,00 |
@@ -475,3 +475,8 @@ Situação em 20/10/2026 (decisões na seção 13):
     duas moedas não aparece como Seq CTK repetido.
   - **Tela ao fim da Fase 10:** o módulo continua como prévia e a reconciliação ganha um **quadro de testes** com as
     ocorrências de cada teste e os invariantes novos.
+  - **Extração com mais de um mês:** não é problema; o período padrão cobre **todos os meses lidos** (do 1º dia do
+    mês da menor data ao último dia do mês da maior), e a tela **sinaliza o período analisado** com a quantidade de
+    meses (reconciliação e quadro de testes). Antes, o padrão era só o mês da menor data, o que fazia as linhas dos
+    meses seguintes caírem em E5. E5 e CI-10 passam a apontar só datas fora de um período informado (tela de
+    parâmetros, Fase 12).

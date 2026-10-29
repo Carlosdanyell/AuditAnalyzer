@@ -299,7 +299,7 @@ export function Ct2ConfigView({ config, onSave, holidays, analysisLoaded, needsR
       </Section>
 
       <Section title="Parâmetros da execução (padrão)" icon="sliders" open>
-        <p className={styles.muted}>Valores usados em cada análise. O período é o mês da menor data lida.</p>
+        <p className={styles.muted}>Valores usados em cada análise. O período cobre todos os meses lidos: do 1º dia do mês da primeira data ao último dia do mês da última.</p>
         <div className={styles.grid}>
           {field('Tipo de saldo esperado (E3)', ['parameters', 'expectedBalanceType'], textInput(['parameters', 'expectedBalanceType']))}
           {field('Moeda esperada (E4)', ['parameters', 'expectedCurrency'], textInput(['parameters', 'expectedCurrency']))}

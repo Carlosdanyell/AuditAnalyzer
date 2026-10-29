@@ -206,7 +206,7 @@ extração real em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`, e a med
 
 **Implementada (29/10/2026).** Decisões do usuário em `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13 (B4 testa primeiro o
 documento seguinte e só compensação exata; I4 deixa fora "Valor Moeda1" vazio; P3 conta o documento sem o segmento;
-quadro de testes na reconciliação). Configuração versão 2 (testes, severidades, parâmetros, códigos do Lcto Manual?)
+quadro de testes na reconciliação; o período padrão cobre todos os meses lidos e aparece na tela). Configuração versão 2 (testes, severidades, parâmetros, códigos do Lcto Manual?)
 salva em `analyzerConfig:ct2Integrity`, com aba própria na Configuração; cópia de segurança versão 3; feriados da
 plataforma no comando de análise. Motor, marcas, exceções, perfil e invariantes CI-3, CI-5, CI-6, CI-9 e CI-10 com o
 caso sintético da seção 11 (exceções exatas); `tests/local/ct2Golden.test.ts` compara também os desbalanceados e a

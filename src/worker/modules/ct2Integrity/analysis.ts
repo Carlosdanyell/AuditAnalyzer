@@ -48,19 +48,28 @@ export const TEST_COLUMNS: Partial<Record<Ct2TestCode, readonly Ct2Field[]>> = {
   P3: ['ctkSequence'],
 };
 
-/** Parameters of the run (section 6.5): the defaults of the configuration and the month of the first date. */
-export function runParameters(config: Ct2IntegrityConfig, firstDay: number | null): Ct2RunParameters {
-  const start = firstDay === null ? null : firstDay - dateParts(firstDay)[2] + 1;
-  return { periodStart: start, periodEnd: firstDay === null ? null : lastDayOfMonth(firstDay), ...config.parameters };
+/**
+ * Parameters of the run (section 6.5): the defaults of the configuration and, as period, every month read (first day
+ * of the month of the first date to the last day of the month of the last one; decision of 29/10/2026).
+ */
+export function runParameters(config: Ct2IntegrityConfig, firstDay: number | null, lastDay: number | null): Ct2RunParameters {
+  if (firstDay === null || lastDay === null) return { periodStart: null, periodEnd: null, ...config.parameters };
+  return { periodStart: firstDay - dateParts(firstDay)[2] + 1, periodEnd: lastDayOfMonth(lastDay), ...config.parameters };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function analyzeCt2(base: Ct2Ingested, config: Ct2IntegrityConfig, holidays: ReadonlySet<number>): Ct2Analysis {
+/** `period`: the period informed for the run (the screen of parameters, Phase 12); absent = every month read. */
+export function analyzeCt2(
+  base: Ct2Ingested,
+  config: Ct2IntegrityConfig,
+  holidays: ReadonlySet<number>,
+  period?: { periodStart: number; periodEnd: number },
+): Ct2Analysis {
   const { store, order, keys, summary, reconciliation } = base;
   const rows = order.length;
   const blocks = aggregate(store, keys, order, config);
-  const parameters = runParameters(config, summary.firstDay);
+  const parameters = { ...runParameters(config, summary.firstDay, summary.lastDay), ...period };
 
   // A test runs when it is on and its column is in some file (in the others, its lines are not tested).
   const present = new Set(reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));

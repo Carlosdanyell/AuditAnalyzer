@@ -15,6 +15,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 - Configuração da CT2 editável e salva neste computador: cada teste ligado ou desligado com a severidade, parâmetros
   padrão e códigos do Lcto Manual?; aba por análise na tela Configuração.
 - Cópia de segurança versão 3, com a configuração da CT2; as versões anteriores continuam sendo restauradas.
+- Extrações com mais de um mês: o período da análise cobre todos os meses lidos e aparece na tela, com a quantidade
+  de meses.
 
 ### Interface: plataforma de ferramentas, menos ruído
 - Início com um cartão por ferramenta; a ferramenta abre o próprio espaço de trabalho. A análise continua aberta ao

@@ -43,13 +43,16 @@ describe('CT2 reconciliation screen', () => {
   it('shows the board of tests: the tests with occurrences open, the others folded with those turned off', async () => {
     const html = await render([{ name: 'a.xlsx', blob: ct2Blob({ rows: ENGINE_ROWS }) }], { holidays: new Set() });
     expect(html).toContain('Quadro de testes');
-    expect(html).toContain('27 exceção(ões) de Erro ou Alerta');
-    expect(html).toContain('Período 01/09/2026 a 30/09/2026 · tipo de saldo 1 · moeda 01 (local 01) · tolerância 0,00 · limite de 1.000 linhas por documento');
+    expect(html).toContain('26 exceção(ões) de Erro ou Alerta');
+    // The period covers every month read, and the screen says so.
+    expect(html).toMatch(/Período da análise<\/dt><dd>01\/09\/2026 a 31\/10\/2026 \(2 meses\)<\/dd>/);
+    expect(html).toContain('Período 01/09/2026 a 31/10/2026 (2 meses) · tipo de saldo 1 · moeda 01 (local 01) · tolerância 0,00 · limite de 1.000 linhas por documento');
     expect(html).toMatch(/B1<\/span> Documento desbalanceado<\/th><td><span[^>]*>Erro<\/span><\/td><td>6 documentos<\/td>/);
     expect(html).toContain('5 compensados pelo documento vizinho, 1 sem compensação');
-    // Without holidays only the Saturday is not a business day; every test ran and found something but none of them.
+    // Without holidays only the Saturday is not a business day.
     expect(html).toMatch(/E6<\/span> Dia não útil<\/th><td><span[^>]*>Info<\/span><\/td><td>1 dia<\/td>/);
-    expect(html).not.toContain('teste(s) sem ocorrência');
+    // Every month read is in the period: E5, the only test without occurrences, is folded.
+    expect(html).toContain('1 teste(s) sem ocorrência ou desligado(s)');
     // The new invariants are in the list of checks.
     expect(html).toContain('Débito e crédito iguais em todos os níveis');
     expect(html).toContain('Período da análise');

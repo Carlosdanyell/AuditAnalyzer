@@ -5,18 +5,18 @@ import { analyzeCt2, compensationText, documentRef, exceptionRow, hasMark, type 
 import { analysisChecks } from '../../src/worker/modules/ct2Integrity/checks';
 import { ingestCt2, type Ct2Ingested } from '../../src/worker/modules/ct2Integrity/ingest';
 import { CT2_COLUMNS, ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
-import { ENGINE_EXCEPTIONS, ENGINE_HOLIDAYS, ENGINE_INFO, ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
+import { ENGINE_E5, ENGINE_EXCEPTIONS, ENGINE_HOLIDAYS, ENGINE_INFO, ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 
 /** Analysis of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 5, 6 and 8). */
 const holidays = new Set(ENGINE_HOLIDAYS.map(parseDate));
 
-async function run(files: Ct2ExtractionOptions[], config: Ct2IntegrityConfig = ct2DefaultConfig()) {
+async function run(files: Ct2ExtractionOptions[], config: Ct2IntegrityConfig = ct2DefaultConfig(), period?: { periodStart: number; periodEnd: number }) {
   const base = await ingestCt2(
     files.map((o, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(o) })),
     config,
     () => {},
   );
-  const analysis = analyzeCt2(base, config, holidays);
+  const analysis = analyzeCt2(base, config, holidays, period);
   return { base, analysis };
 }
 
@@ -51,10 +51,10 @@ const checkOf = (analysis: Ct2Analysis, id: string) => analysis.checks.find((c) 
 describe('CT2 analysis: the synthetic cases of section 11', async () => {
   const { base, analysis } = await run([{ rows: ENGINE_ROWS }]);
 
-  it('derives the parameters of the run: month of the first date and the defaults of the configuration', () => {
+  it('derives the parameters of the run: every month read and the defaults of the configuration', () => {
     expect(analysis.parameters).toEqual({
       periodStart: parseDate('01/09/2026'),
-      periodEnd: parseDate('30/09/2026'),
+      periodEnd: parseDate('31/10/2026'),
       expectedBalanceType: '1',
       expectedCurrency: '01',
       localCurrency: '01',
@@ -115,7 +115,7 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
     expect(counts).toEqual({
       B1: 6, B2: 2, B3: 2, B4: 6, B5: 1,
       I1: 6, I2: 2, I3: 1, I4: 1, I5: 1,
-      E1: 1, E2: 2, E3: 1, E4: 2, E5: 1, E6: 2,
+      E1: 1, E2: 2, E3: 1, E4: 2, E5: 0, E6: 2,
       // P1: groups of segment + routine (1/01 CTBA102 and CTBA500, 1/02 and 2/01 CTBA102) and of standard entry (4).
       P1: 8, P2: 5, P3: 3, P4: 1,
     });
@@ -145,18 +145,27 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
     expect(p.largest).toHaveLength(10);
   });
 
-  it('passes the invariants CI-3, CI-5 and CI-6 and alerts on the period (CI-10)', () => {
+  it('passes the invariants CI-3, CI-5, CI-6 and, with every month read in the period, CI-10', () => {
     expect(checkOf(analysis, 'ct2-totals').passed).toBe(true);
     expect(checkOf(analysis, 'ct2-exceptions').passed).toBe(true);
     expect(checkOf(analysis, 'ct2-counts').passed).toBe(true);
     expect(checkOf(analysis, 'ct2-optional').passed).toBe(true);
     const period = checkOf(analysis, 'ct2-period');
-    expect(period).toMatchObject({ severity: 'warning', passed: false });
-    expect(period.message).toMatch(/01\/09\/2026 a 30\/09\/2026.*1 linha/);
+    expect(period).toMatchObject({ severity: 'warning', passed: true, message: 'O período da análise (01/09/2026 a 31/10/2026) cobre todas as datas lidas.' });
   });
 });
 
 describe('CT2 analysis: configuration and parameters', () => {
+  it('marks the lines outside an informed period (E5) and alerts that it does not cover every date (CI-10)', async () => {
+    const september = { periodStart: parseDate('01/09/2026'), periodEnd: parseDate('30/09/2026') };
+    const { base, analysis } = await run([{ rows: ENGINE_ROWS }], ct2DefaultConfig(), september);
+    expect(analysis.parameters).toMatchObject(september);
+    expect(exceptions(base, analysis)).toEqual([...ENGINE_EXCEPTIONS, ENGINE_E5]);
+    const period = checkOf(analysis, 'ct2-period');
+    expect(period).toMatchObject({ severity: 'warning', passed: false });
+    expect(period.message).toMatch(/01\/09\/2026 a 30\/09\/2026.*1 linha fora dele \(apontadas no teste E5\)/);
+  });
+
   it('follows the tolerance: a difference equal to it is balanced', async () => {
     const config = ct2DefaultConfig();
     config.parameters.toleranceCents = 1000;

@@ -1,6 +1,6 @@
 import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
-import { formatDay } from '../shared/dates';
+import { dateParts, formatDay } from '../shared/dates';
 import { formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
 import { Alerts, Checks, RunStatus, ZipIntegrity, type StatusTile } from './ReconciliationParts';
@@ -31,6 +31,15 @@ function columnName(column: number): string {
 
 const days = (first: number | null, last: number | null) => (first === null || last === null ? '—' : `${formatDay(first)} a ${formatDay(last)}`);
 
+/** The period of the analysis with the number of months it covers ("01/08/2026 a 30/09/2026 (2 meses)"). */
+function periodText(start: number | null, end: number | null): string {
+  if (start === null || end === null) return 'sem datas válidas';
+  const [y1, m1] = dateParts(start);
+  const [y2, m2] = dateParts(end);
+  const months = (y2 - y1) * 12 + m2 - m1 + 1;
+  return `${days(start, end)} (${months} ${months === 1 ? 'mês' : 'meses'})`;
+}
+
 /**
  * Reconciliation of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8): verdict, invariants,
  * the board of tests, totals of the Base by segment and the reading of each file.
@@ -41,6 +50,9 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
     { icon: 'database', label: 'Linhas de detalhe', value: n(data.consolidated.detailRows) },
     { icon: 'layers', label: 'Documentos', value: summary ? n(summary.documents) : '—' },
     { icon: 'calendar', label: 'Datas dos lançamentos', value: summary ? days(summary.firstDay, summary.lastDay) : '—' },
+    ...(summary?.analysis
+      ? [{ icon: 'calendar' as const, label: 'Período da análise', value: periodText(summary.analysis.parameters.periodStart, summary.analysis.parameters.periodEnd) }]
+      : []),
     { icon: 'clock', label: 'Processamento', value: formatElapsed(data.totalMs) },
   ];
   return (
@@ -101,7 +113,7 @@ function TestBoard({ analysis }: { analysis: NonNullable<Ct2Summary['analysis']>
   const p = analysis.parameters;
   const found = analysis.tests.filter((t) => t.state === 'on' && t.occurrences > 0);
   const quiet = analysis.tests.filter((t) => !(t.state === 'on' && t.occurrences > 0));
-  const period = p.periodStart === null || p.periodEnd === null ? 'sem datas válidas' : `${formatDay(p.periodStart)} a ${formatDay(p.periodEnd)}`;
+  const period = periodText(p.periodStart, p.periodEnd);
   return (
     <section className={ui.card}>
       <div className={ui.cardHead}>

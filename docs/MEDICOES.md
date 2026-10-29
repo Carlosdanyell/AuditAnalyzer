@@ -144,6 +144,7 @@ Mesmas extrações sintéticas e mesmo método, agora com a análise na mesma in
 
 - A análise acrescenta ~3 s e ~60 MB ao pico vivo (chaves de ordenação ainda vivas, débito e crédito por posição da
   base, marcas e as tabelas de dispersão do CI-6); continua abaixo da meta de 400 MB do worker.
-- No caso de dois arquivos, quase todas as exceções são E5: o período padrão é o mês da menor data (agosto), e as
-  linhas de setembro ficam fora dele (seção 6.5; o período passa a ser informado na tela na Fase 12).
+- No caso de dois arquivos, quase todas as exceções eram E5: o período padrão era o mês da menor data (agosto), e as
+  linhas de setembro ficavam fora dele. Pela decisão de 29/10/2026, o período padrão cobre todos os meses lidos; as
+  medições acima foram feitas antes dessa mudança, que não altera tempo nem memória.
 

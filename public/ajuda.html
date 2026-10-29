@@ -309,7 +309,7 @@
             <li><strong>E1 a E6</strong> — linha duplicada, lacuna na numeração (só 001–999), tipo de saldo e moeda diferentes dos esperados, data fora do período e dia não útil (sábado, domingo ou feriado).</li>
             <li><strong>P1 a P4</strong> — linhas e valores por rotina, por lançamento padrão e por origem (Lcto Manual?: 1 manual, 2 automático, outro valor não identificado), Seq CTK repetido entre documentos ou mais de um no documento, documentos no limite de linhas (MV_NUMLIN) e os 10 maiores.</li>
           </ul>
-          <p>O período da análise é o mês da menor data lida. Com arquivos de meses seguidos, as linhas dos meses seguintes aparecem em E5 até a tela de parâmetros chegar.</p>
+          <p>O período da análise cobre todos os meses lidos: do 1º dia do mês da primeira data ao último dia do mês da última. Uma extração com vários meses é analisada inteira, e a tela mostra o período analisado e quantos meses ele tem.</p>
         </section>
 
         <section id="ct2-configuracao">
