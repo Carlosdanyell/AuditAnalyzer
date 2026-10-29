@@ -480,3 +480,13 @@ Situação em 20/10/2026 (decisões na seção 13):
     meses (reconciliação e quadro de testes). Antes, o padrão era só o mês da menor data, o que fazia as linhas dos
     meses seguintes caírem em E5. E5 e CI-10 passam a apontar só datas fora de um período informado (tela de
     parâmetros, Fase 12).
+- 29/10/2026 — Fase 11 (planilha), respostas do usuário:
+  - **Excecoes acima do limite do Excel:** continua em outras abas (`Excecoes`, `Excecoes (2)`, …) e o Resumo soma
+    as abas, mantendo a amarração completa. Caso fora da curva: o Protheus não deixa salvar lançamento sem histórico.
+  - **Liberação:** a exportação fica disponível no site já na Fase 11 (idioma pt/en e confirmação de invariante
+    bloqueante); o módulo continua como prévia até a Fase 12.
+  - **Nome do arquivo com mais de um mês:** primeiro e último mês, `CT2_Integridade_<AAAA-MM>_a_<AAAA-MM>_<data>.xlsx`;
+    com um mês, `CT2_Integridade_<AAAA-MM>_<data>.xlsx`.
+  - **Fórmulas alinhadas ao motor (ajustes técnicos à seção 7.4, aprovados com o plano):** I4 só testa com "Valor
+    Moeda1" preenchido; I3 só com as contas preenchidas; `P_TIPO_PD`, `P_TIPO_DEB`, `P_TIPO_CRED` e `P_TIPO_HIST` são
+    listas com os valores do tipo na configuração (texto e código), comparadas por `COUNTIF`.

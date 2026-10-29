@@ -114,12 +114,16 @@ describe('CT2 reading: one file', () => {
     });
   });
 
-  it('answers panel, tables and export as not offered yet', async () => {
+  it('answers the panel as not offered yet and exports the workpaper, blocked until a failed check is confirmed', async () => {
     const { handle, events } = await ingest([file('a.xlsx', fileA())]);
     events.length = 0;
     await handle({ type: 'panel', requestId: 1, scope: 0, period: null, cutoffDay: null });
-    await handle({ type: 'export', requestId: 2, options: { scope: 0, language: 'pt', confirmFailures: true, generatedAt: 'x' } });
-    expect(events.map((e) => (e.type === 'error' ? e.message : e.type))).toEqual(['Recurso não disponível nesta análise.', 'Recurso não disponível nesta análise.']);
+    await handle({ type: 'export', requestId: 2, options: { scope: 0, language: 'pt', confirmFailures: false, generatedAt: '29/10/2026 10:30:00' } });
+    await handle({ type: 'export', requestId: 3, options: { scope: 0, language: 'pt', confirmFailures: true, generatedAt: '29/10/2026 10:30:00' } });
+    const answers = events.filter((e) => e.type !== 'progress');
+    expect(answers.map((e) => (e.type === 'error' ? e.message : e.type))).toEqual(['Recurso não disponível nesta análise.', 'exportBlocked', 'exported']);
+    const exported = answers[2]!;
+    expect(exported.type === 'exported' && exported.fileName).toBe('CT2_Integridade_2026-09_2026-10-29.xlsx');
   });
 });
 

@@ -25,11 +25,11 @@ import { buildPanel, type PanelContext } from './engine/panel';
 import { TableQueries } from './engine/tables';
 import type { IngestionResult } from './ingest/pipeline';
 import { normalizeLabel } from './ingest/parametros';
+import { assertExportableDates, blockingFailures } from './export/common/guards';
 import { buildPaperwork, type PaperworkOutput } from './export/paperwork';
 import { APP_VERSION_LABEL } from '../shared/version';
 
 /** Invariant 9: 01/01/1901 as an Excel serial; no exported date may be earlier (or an empty date written as 0). */
-const FIRST_EXPORTABLE_SERIAL = 367;
 
 export class Session {
   private readonly tables = new Map<number, TableQueries>();
@@ -149,7 +149,7 @@ export class Session {
     options: ExportOptions,
     onProgress: (done: number, total: number) => void = () => {},
   ): Promise<PaperworkOutput | { blocked: CheckResult[] }> {
-    const failures = this.result.reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed);
+    const failures = blockingFailures(this.result.reconciliation.checks);
     if (failures.length > 0 && !options.confirmFailures) return { blocked: failures };
     this.scope(options.scope);
     // The configuration of the analysis with the presets and holidays changed during the session.
@@ -170,9 +170,7 @@ export class Session {
       },
       onProgress,
     );
-    if (out.minDateSerial !== null && out.minDateSerial < FIRST_EXPORTABLE_SERIAL) {
-      throw new Error(`Invariante 9: data anterior a 01/01/1901 na planilha exportada (serial ${out.minDateSerial}).`);
-    }
+    assertExportableDates(out.minDateSerial, 'Invariante 9');
     return out;
   }
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import type { CheckResult, ExportOptions, Summary } from '../../shared/protocol';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { CheckResult, ExportOptions } from '../../shared/protocol';
 import { formatInteger } from '../../shared/format';
 import { downloadBlob } from '../download';
 import type { WorkerClient } from '../workerClient';
@@ -8,16 +8,23 @@ import { cx } from '../../components/cx';
 import ui from '../../components/ui.module.css';
 import styles from './ExportView.module.css';
 
+/** What a module says about its workpaper: the introduction, notes before the button and the tabs. */
+export interface ExportContent {
+  intro: string;
+  facts: ReactNode;
+  sheets: readonly (readonly [name: string, text: string, icon: IconName])[];
+  tabs: readonly string[];
+}
+
 interface Props {
   client: WorkerClient;
-  summary: Summary;
+  /** Scopes to choose from (CFGR700: each file and the consolidated); null = a single one. */
+  scopes: readonly string[] | null;
   scope: number;
   onScopeChange: (scope: number) => void;
   /** Blocking checks that failed in this analysis. */
   failures: CheckResult[];
-  /** Justifications with text loaded in this session. */
-  justificationCount: number;
-  onOpenJustifications: () => void;
+  content: ExportContent;
 }
 
 type Status =
@@ -37,7 +44,43 @@ const SHEETS: [string, string, IconName][] = [
   ['Critérios e Rastreabilidade', 'premissas, limitações, SHA-256 dos arquivos, reconciliação e verificações', 'hash'],
 ];
 
-export function ExportView({ client, summary, scope, onScopeChange, failures, justificationCount, onOpenJustifications }: Props) {
+/** Contents of the CFGR700 workpaper; `justificationCount` with text in this session. */
+export function cfgr700ExportContent(justificationCount: number, onOpenJustifications: () => void): ExportContent {
+  return {
+    intro:
+      'A planilha é gerada neste computador e salva pelo navegador. Os quadros do Resumo são fórmulas: o período e a data de corte podem ser trocados na própria planilha, e as justificativas preenchidas no Excel atualizam situações e cobertura.',
+    facts: (
+      <>
+        <li>
+          <Icon name="calendar" size={16} />
+          <span>
+            <strong>Data de corte:</strong> a última exibida no Painel para este escopo (ou o padrão, último dia do mês do primeiro
+            evento). Pode ser alterada no Resumo.
+          </span>
+        </li>
+        <li>
+          <Icon name="justify" size={16} />
+          <span>
+            <strong>Justificativas:</strong> {formatInteger(justificationCount)} com texto nesta sessão.{' '}
+            {justificationCount === 0 && (
+              <>
+                Os documentos sairão como pendentes.{' '}
+                <button type="button" className={ui.link} onClick={onOpenJustifications}>
+                  Carregar ou escrever justificativas
+                </button>
+              </>
+            )}
+            {justificationCount > 0 && 'A cobertura de cada uma (arquivos e último evento) vai junto e volta na importação.'}
+          </span>
+        </li>
+      </>
+    ),
+    sheets: SHEETS,
+    tabs: ['Resumo', 'Justificativas', 'Documentos', 'Base_Linhas', 'Exclusões'],
+  };
+}
+
+export function ExportView({ client, scopes, scope, onScopeChange, failures, content }: Props) {
   const [language, setLanguage] = useState<ExportOptions['language']>('pt');
   const [confirm, setConfirm] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -84,24 +127,23 @@ export function ExportView({ client, summary, scope, onScopeChange, failures, ju
             <h2 id="export-title" className={styles.title}>
               Exportar papel de trabalho (Excel)
             </h2>
-            <p className={ui.sub}>
-              A planilha é gerada neste computador e salva pelo navegador. Os quadros do Resumo são fórmulas: o período e a data de corte
-              podem ser trocados na própria planilha, e as justificativas preenchidas no Excel atualizam situações e cobertura.
-            </p>
+            <p className={ui.sub}>{content.intro}</p>
           </div>
         </div>
 
         <div className={styles.options}>
-          <label className={ui.field}>
-            Escopo
-            <select className={ui.input} value={scope} onChange={(e) => onScopeChange(Number(e.target.value))} disabled={running}>
-              {summary.scopes.map((s, i) => (
-                <option key={s.label} value={i}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {scopes && (
+            <label className={ui.field}>
+              Escopo
+              <select className={ui.input} value={scope} onChange={(e) => onScopeChange(Number(e.target.value))} disabled={running}>
+                {scopes.map((label, i) => (
+                  <option key={label} value={i}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <fieldset className={styles.fieldset} disabled={running}>
             <legend>Idioma da planilha</legend>
             <div className={styles.languages}>
@@ -126,30 +168,7 @@ export function ExportView({ client, summary, scope, onScopeChange, failures, ju
           </fieldset>
         </div>
 
-        <ul className={styles.facts}>
-          <li>
-            <Icon name="calendar" size={16} />
-            <span>
-              <strong>Data de corte:</strong> a última exibida no Painel para este escopo (ou o padrão, último dia do mês do primeiro
-              evento). Pode ser alterada no Resumo.
-            </span>
-          </li>
-          <li>
-            <Icon name="justify" size={16} />
-            <span>
-              <strong>Justificativas:</strong> {formatInteger(justificationCount)} com texto nesta sessão.{' '}
-              {justificationCount === 0 && (
-                <>
-                  Os documentos sairão como pendentes.{' '}
-                  <button type="button" className={ui.link} onClick={onOpenJustifications}>
-                    Carregar ou escrever justificativas
-                  </button>
-                </>
-              )}
-              {justificationCount > 0 && 'A cobertura de cada uma (arquivos e último evento) vai junto e volta na importação.'}
-            </span>
-          </li>
-        </ul>
+        <ul className={styles.facts}>{content.facts}</ul>
 
         {failures.length > 0 && (
           <div className={cx(ui.alert, ui.warn, styles.warning)} role="alert">
@@ -210,7 +229,7 @@ export function ExportView({ client, summary, scope, onScopeChange, failures, ju
           O que vai na planilha
         </h3>
         <dl className={styles.sheets}>
-          {SHEETS.map(([name, text, icon]) => (
+          {content.sheets.map(([name, text, icon]) => (
             <div key={name}>
               <dt>
                 <span className={styles.sheetIcon} aria-hidden="true">
@@ -223,7 +242,7 @@ export function ExportView({ client, summary, scope, onScopeChange, failures, ju
           ))}
         </dl>
         <div className={styles.tabs} aria-hidden="true">
-          {['Resumo', 'Justificativas', 'Documentos', 'Base_Linhas', 'Exclusões'].map((t, i) => (
+          {content.tabs.map((t, i) => (
             <span key={t} className={i === 0 ? styles.tabActive : undefined}>
               {t}
             </span>

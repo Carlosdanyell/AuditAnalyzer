@@ -25,7 +25,8 @@ import { PanelView, type PanelMode } from './views/PanelView';
 import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
-import { ExportView } from './views/ExportView';
+import { ExportView, cfgr700ExportContent } from './views/ExportView';
+import { CT2_EXPORT } from './views/ct2Export';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
@@ -918,12 +919,11 @@ export function App() {
               {view === 'export' && logSummary && current.features.export && (
                 <ExportView
                   client={client()}
-                  summary={logSummary}
+                  scopes={logSummary.scopes.map((s) => s.label)}
                   scope={scope}
                   onScopeChange={setScope}
                   failures={logReconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
-                  justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
-                  onOpenJustifications={() => setView('justifications')}
+                  content={cfgr700ExportContent([...justifications.values()].filter((j) => j.text.trim()).length, () => setView('justifications'))}
                 />
               )}
             </div>
@@ -931,7 +931,18 @@ export function App() {
 
           {inTool && done && ct2Reconciliation && (
             <div className={styles.view} key={view}>
-              <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
+              {view === 'export' && current.features.export ? (
+                <ExportView
+                  client={client()}
+                  scopes={null}
+                  scope={0}
+                  onScopeChange={() => {}}
+                  failures={ct2Reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
+                  content={CT2_EXPORT}
+                />
+              ) : (
+                <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
+              )}
             </div>
           )}
         </main>

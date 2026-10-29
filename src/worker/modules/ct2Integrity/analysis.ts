@@ -33,6 +33,8 @@ export interface Ct2Analysis {
   documentExceptionLines: Uint32Array;
   /** Documents with B1 in each batch. */
   batchUnbalanced: Uint32Array;
+  /** P3 by document; null when P3 did not run. */
+  sequences: Ct2Sequences | null;
   /** Erro and Alerta occurrences: test (index in CT2_TESTS) and item of its level (Base position or block). */
   exceptions: { count: number; test: ChunkedArray<Uint8Array>; item: ChunkedArray<Uint32Array> };
   tests: Ct2TestResult[];
@@ -152,7 +154,7 @@ export function analyzeCt2(
       if (on.B5 && compensation[d] === -1) document[d]! |= BIT.B5;
     }
   }
-  const seqCtk = on.P3 ? markSequences(base, blocks, document, config) : { repeated: 0, multiple: 0 };
+  const seqCtk = on.P3 ? markSequences(base, blocks, document, config) : null;
 
   // ── Batches and days ──
   const batch = new Uint32Array(blocks.batches);
@@ -206,7 +208,7 @@ export function analyzeCt2(
     B4: `${plural(compensated, 'compensado', 'compensados')} pelo documento vizinho, ${uncompensated} sem compensação`,
     P1: `${plural(profile.routines.length, 'grupo', 'grupos')} por rotina, ${profile.standardEntries.length} por lançamento padrão`,
     P2: `${plural(manualLines('manual'), 'linha manual', 'linhas manuais')}, ${manualLines('automatic')} automática(s), ${manualLines('unidentified')} não identificada(s)`,
-    P3: `${seqCtk.repeated} Seq CTK em mais de um documento; ${plural(seqCtk.multiple, 'documento', 'documentos')} com mais de um Seq CTK`,
+    P3: `${seqCtk?.repeated ?? 0} Seq CTK em mais de um documento; ${plural(seqCtk?.multiple ?? 0, 'documento', 'documentos')} com mais de um Seq CTK`,
     P4: `limite de ${p.documentLineLimit} linhas; maior documento: ${profile.largest[0]?.lines ?? 0} linhas`,
   };
   const tests: Ct2TestResult[] = CT2_TESTS.map((code) => {
@@ -218,7 +220,7 @@ export function analyzeCt2(
   });
 
   const checks = analysisChecks({ base, blocks, marks, exceptions, isException, present, state, parameters, config });
-  return { parameters, blocks, marks, dayNumber, compensation, documentExceptionLines, batchUnbalanced, exceptions, tests, profile, checks };
+  return { parameters, blocks, marks, dayNumber, compensation, documentExceptionLines, batchUnbalanced, sequences: seqCtk, exceptions, tests, profile, checks };
 }
 
 /**
@@ -226,7 +228,7 @@ export function analyzeCt2(
  * currencies is one document. Marks the documents (of each segment) whose key has more than one Seq CTK or holds a
  * Seq CTK found in more than one key. An empty Seq CTK is no sequence.
  */
-function markSequences(base: Ct2Ingested, blocks: Ct2Blocks, document: Uint32Array, config: Ct2IntegrityConfig): { repeated: number; multiple: number } {
+function markSequences(base: Ct2Ingested, blocks: Ct2Blocks, document: Uint32Array, config: Ct2IntegrityConfig): Ct2Sequences {
   const { store, order, keys } = base;
   const rows = order.length;
   const levels = keyLevels(config);
@@ -255,16 +257,30 @@ function markSequences(base: Ct2Ingested, blocks: Ct2Blocks, document: Uint32Arr
   }
   let multiple = 0;
   for (let id = 0; id < keyIds.count; id++) if (sequencesPerKey[id]! > 1) multiple++;
+  const perDocument = new Uint32Array(blocks.documents);
+  const shared = new Uint8Array(blocks.documents);
   for (let d = 0; d < blocks.documents; d++) {
-    for (let pos = blocks.documentStart[d]!; pos < blocks.documentStart[d + 1]!; pos++) {
-      const i = order[pos]!;
-      if (sequencesPerKey[keyIds.ids[i]!]! > 1 || repeatedRanks.has(rank[column.code(i)]!)) {
-        document[d]! |= BIT.P3;
+    const first = blocks.documentStart[d]!;
+    perDocument[d] = sequencesPerKey[keyIds.ids[order[first]!]!]!;
+    for (let pos = first; pos < blocks.documentStart[d + 1]!; pos++) {
+      if (repeatedRanks.has(rank[column.code(order[pos]!)]!)) {
+        shared[d] = 1;
         break;
       }
     }
+    if (perDocument[d]! > 1 || shared[d]) document[d]! |= BIT.P3;
   }
-  return { repeated: repeatedRanks.size, multiple };
+  return { repeated: repeatedRanks.size, multiple, perDocument, shared };
+}
+
+/** P3 by document: the Seq CTK of its key (without the segment) and whether one of them is in another key. */
+export interface Ct2Sequences {
+  repeated: number;
+  multiple: number;
+  /** Distinct Seq CTK of the key of each document. */
+  perDocument: Uint32Array;
+  /** 1 when the document holds a Seq CTK found in another document. */
+  shared: Uint8Array;
 }
 
 // ── Views of an item, for the tables, the export and the tests ──

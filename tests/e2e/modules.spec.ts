@@ -5,6 +5,8 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
+import { readFileSync } from 'node:fs';
+import { Workbook } from '../support/xlsxEval';
 import { analyze, chooseModule, expect, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
@@ -50,7 +52,7 @@ test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como 
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
-test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; painel, tabelas e exportação bloqueados', async ({ page, ct2Files }) => {
+test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; painel e tabelas bloqueados', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
   await expect(page.getByText(/^Prévia: esta versão lê a extração da CT2/)).toBeVisible();
@@ -67,9 +69,39 @@ test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; pai
   await expect(page.getByText(/ct2-a\.xlsx: linhas 13, 14, 15/)).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Visões' });
   await expect(nav.getByRole('button', { name: 'Reconciliação' })).toBeVisible();
-  for (const locked of ['Painel', 'Tabelas', 'Justificativas', 'Exportação']) await expect(nav.getByRole('button', { name: locked })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Exportar planilha' })).toHaveCount(0);
+  for (const locked of ['Painel', 'Tabelas', 'Justificativas']) await expect(nav.getByRole('button', { name: locked })).toHaveCount(0);
+  await expect(nav.getByRole('button', { name: 'Exportação' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Exportar planilha' })).toBeVisible();
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
+});
+
+test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de testes conferem no avaliador', async ({ page, ct2Files }, testInfo) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Exportar planilha' }).click();
+  for (const language of ['pt', 'en'] as const) {
+    await page.getByLabel(language === 'pt' ? 'Português' : 'English').check();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: /^Gerar planilha/ }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(language === 'pt' ? /^CT2_Integridade_2026-09_\d{4}-\d{2}-\d{2}\.xlsx$/ : /^CT2_Integrity_2026-09_\d{4}-\d{2}-\d{2}\.xlsx$/);
+    const path = testInfo.outputPath(`ct2-${language}.xlsx`);
+    await file.saveAs(path);
+    const book = await Workbook.read(new Blob([readFileSync(path)]));
+    const summary = language === 'pt' ? 'Resumo' : 'Summary';
+    const statuses: unknown[] = [];
+    for (let r = 1; r < 200; r++) {
+      const g = book.value(summary, `G${r}`);
+      if (g === 'OK' || g === 'Verificar' || g === 'Check') statuses.push(g);
+      const i = book.value(summary, `I${r}`);
+      if (i === 'Confere' || i === 'Matches' || i === 'Verificar' || i === 'Check') statuses.push(i);
+    }
+    expect(statuses.length).toBeGreaterThan(5);
+    expect(statuses.every((v) => v === 'OK' || v === 'Confere' || v === 'Matches')).toBe(true);
+  }
 });
 
 test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {

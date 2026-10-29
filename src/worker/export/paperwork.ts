@@ -22,6 +22,7 @@ import type { IngestionResult } from '../ingest/pipeline';
 import type { ConfigDifference } from '../../shared/configTools';
 import { CODE_LABELS_EN, FIELD_LABELS_EN, LABELS, SIGNALS_EN, fill, type Language } from './labels';
 import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from './theme';
+import { TraceSheet } from './common/traceability';
 import { XlsxWriter, colName, dateCell, dateTimeCell, type Cell, type CellInput, type SheetWriter } from './xlsxWriter';
 
 export interface PaperworkInput {
@@ -1157,30 +1158,13 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     const TR = L.trace;
     const TW = [34, 14, 19, 19, ...Array.from({ length: 12 }, () => 13), 68];
     const sheet = w.addSheet(L.sheets.trace, { columns: TW.map((width) => ({ width })), showGridLines: false });
-    const cellsSpan = (parts: { cell: Cell & { s: number }; span?: number }[], height?: number) => {
-      const row: CellInput[] = [];
-      const merges: string[] = [];
-      for (const { cell, span = 1 } of parts) {
-        const start = row.length;
-        row.push(cell, ...Array.from({ length: span - 1 }, () => ({ v: null, s: cell.s })));
-        if (span > 1) merges.push(`${colName(start)}:${colName(start + span - 1)}`);
-      }
-      const r = sheet.row(row, height ? { height } : {});
-      for (const m of merges) {
-        const [a, b] = m.split(':');
-        sheet.merge(`${a}${r}:${b}${r}`);
-      }
-      return r;
-    };
-    const headRow = (titles: string[]) =>
-      sheet.row(titles.map((v) => ({ v, s: T.headSummary })), { height: headerHeight(titles.map((h, i) => ({ header: h, width: TW[i]! }))) });
-    const heading = (text: string) => {
-      sheet.skip(1);
-      sheet.row([{ v: text, s: T.h2 }], { height: 22 });
-    };
+    const trace = new TraceSheet(sheet, T, TW);
+    const cellsSpan = trace.cellsSpan.bind(trace);
+    const headRow = trace.headRow.bind(trace);
+    const heading = trace.heading.bind(trace);
     sheet.row([{ v: TR.title, s: T.title }], { height: 30 });
     heading(TR.kv);
-    const kv = (k: string, v: string) => cellsSpan([{ cell: { v: k, s: T.kvLabel } }, { cell: { v, s: T.kvValue }, span: 7 }], 18);
+    const kv = (k: string, v: string) => trace.kv(k, v);
     kv(TR.tool, 'AuditAnalyzer');
     kv(TR.version, input.appVersion);
     kv(TR.generated, input.generatedAt);
@@ -1190,37 +1174,9 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
     kv(TR.cutoff, cutoff === INVALID_TIME ? '—' : formatDay(cutoff));
     kv(TR.holidays, holidays.map(formatDay).join(', ') || '—');
     kv(TR.presets, context.userPresets.map((p) => `${p.label} (${formatDay(p.period.startDay)} a ${formatDay(p.period.endDay)})`).join('; ') || '—');
-    if (failed.length) {
-      sheet.skip(1);
-      cellsSpan([{ cell: { v: fill(TR.confirmed, { when: input.generatedAt }), s: T.fail }, span: 8 }], 22);
-    }
+    if (failed.length) trace.confirmed(fill(TR.confirmed, { when: input.generatedAt }));
     heading(TR.configDiff);
-    if (input.configDifferences.length === 0) {
-      cellsSpan([{ cell: { v: TR.configDefault, s: T.kvValue }, span: 8 }], 18);
-    } else {
-      cellsSpan(
-        [
-          { cell: { v: TR.configDiffCols[0]!, s: T.headSummary }, span: 2 },
-          { cell: { v: TR.configDiffCols[1]!, s: T.headSummary }, span: 3 },
-          { cell: { v: TR.configDiffCols[2]!, s: T.headSummary }, span: 3 },
-        ],
-        20,
-      );
-      const shownValue = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' ? v : JSON.stringify(v));
-      const diffWidth = TW.slice(2, 5).reduce((a, b) => a + b, 0);
-      for (const d of input.configDifferences) {
-        const base = shownValue(d.base);
-        const used = shownValue(d.value);
-        cellsSpan(
-          [
-            { cell: { v: d.path, s: T.text }, span: 2 },
-            { cell: { v: base, s: T.text }, span: 3 },
-            { cell: { v: used, s: T.text }, span: 3 },
-          ],
-          Math.max(18, textHeight(base, diffWidth, 10), textHeight(used, diffWidth, 10)),
-        );
-      }
-    }
+    trace.configDifferences(input.configDifferences, { none: TR.configDefault, cols: TR.configDiffCols });
     heading(TR.files);
     const fileOrder = [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2];
     headRow(fileOrder.map((i) => TR.fileCols[i]!));
@@ -1275,33 +1231,7 @@ export async function buildPaperwork(input: PaperworkInput, onProgress: (step: n
       }
     }
     heading(TR.checks);
-    const detailWidth = TW.slice(3, 16).reduce((a, b) => a + b, 0);
-    cellsSpan(
-      [
-        { cell: { v: TR.checkCols[0]!, s: T.headSummary } },
-        { cell: { v: TR.checkCols[1]!, s: T.headSummary } },
-        { cell: { v: TR.checkCols[2]!, s: T.headSummary } },
-        { cell: { v: TR.checkCols[3]!, s: T.headSummary }, span: 13 },
-      ],
-      20,
-    );
-    const checksFirst = sheet.nextRow;
-    for (const c of result.reconciliation.checks) {
-      cellsSpan(
-        [
-          { cell: { v: c.label, s: T.label } },
-          { cell: { v: c.severity === 'error' ? TR.blocking : TR.warning, s: T.center } },
-          { cell: { v: c.passed ? TR.passed : TR.failed, s: T.center } },
-          { cell: { v: c.message, s: T.text }, span: 13 },
-        ],
-        Math.max(20, textHeight(c.message, detailWidth, 10), textHeight(c.label, TW[0]!, 10)),
-      );
-    }
-    const checksLast = sheet.nextRow - 1;
-    if (checksLast >= checksFirst) {
-      sheet.conditional({ sqref: `C${checksFirst}:C${checksLast}`, formula: `C${checksFirst}=${str(TR.failed)}`, style: { fill: COLORS.badFill, font: { bold: true, color: COLORS.badFont } } });
-      sheet.conditional({ sqref: `C${checksFirst}:C${checksLast}`, formula: `C${checksFirst}=${str(TR.passed)}`, style: { font: { color: COLORS.okFont } } });
-    }
+    trace.checks(result.reconciliation.checks, { cols: TR.checkCols, blocking: TR.blocking, warning: TR.warning, passed: TR.passed, failed: TR.failed }, 13);
     heading(TR.justifications);
     headRow(TR.justCols);
     for (const [kind, list] of [
