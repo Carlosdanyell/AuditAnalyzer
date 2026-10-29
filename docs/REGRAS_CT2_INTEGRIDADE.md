@@ -328,6 +328,27 @@ código, chave.
    balanceamento por nível; quantos desbalanceados têm compensação adjacente; quantos documentos atingiram o limite
    de linhas; testes com Erro. Sem juízo de causa: "indícios" e "a confirmar pelo analista".
 
+### 7.8.1 Como foi implementado (Fase 11, `src/worker/modules/ct2Integrity/workpaper.ts`)
+
+- Ordem das abas: Resumo, Criterios, Documentos, Lotes, Dias, Excecoes (e `Excecoes (2)`… acima do limite), Perfil,
+  Base, Rastreabilidade; em inglês, Summary, Criteria, Documents, Batches, Days, Exceptions, Profile, Base, Traceability.
+- **Coluna Segmento** (texto "Saldo 1 · Moeda 01") na Base, em Documentos, Lotes e Dias: o Resumo e o Perfil filtram por
+  ela, porque um critério só com dígitos ("01") é tratado como número pelo COUNTIFS do Excel.
+- Base: Arquivo, Linha na origem, Segmento, as colunas mapeadas (ordem da seção 2) e as demais colunas da extração
+  (ordem de primeira aparição), depois as colunas de fórmula. Textos comparados com `EXACT` (o "=" do Excel ignora
+  maiúsculas; o motor não). Tipos de lançamento comparados por `COUNTIF(P_TIPO_xx, tipo)`.
+- Documentos: valor "Linha do lote na aba Lotes" — B4 compara essa linha com a do documento vizinho (mesmo segmento,
+  data, lote e sub-lote), em vez de repetir os quatro campos. E2 fica vazio quando a última linha não é numérica.
+- Matriz: cada coluna tem um nível de referência (linhas, débito e crédito: Base; documentos: Documentos; lotes:
+  Lotes); o próprio nível de referência é comparado com a linha Ferramenta. Linha "Maior diferença" por coluna.
+- Quadro de testes: ocorrências de B4 = documentos com B1 (todo B1 é diagnosticado); P1 e P2 = grupos do Perfil.
+  "Situação" é OK sem ocorrências, Verificar com ocorrências, Info para testes Info; a conferência é a coluna
+  "Conferência".
+- Perfil: COUNTIFS/SUMIFS sobre a Base por segmento e valor (critério `"=valor"`); cada grupo tem a contagem da
+  ferramenta e "Conferência". Limitação declarada na aba: códigos só com dígitos que diferem nos zeros à esquerda
+  são somados juntos pelo Excel.
+- Abas de resumo (Resumo, Criterios, Perfil, Rastreabilidade) impressas em paisagem, ajustadas à largura.
+
 ### 7.9 Limites
 
 - Excel: 1.048.576 linhas por aba. Base com mais linhas que isso: exportação bloqueada (CI-8), com mensagem.

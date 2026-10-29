@@ -81,6 +81,7 @@
           <li><a href="#ct2-leitura">Leitura e reconciliação</a></li>
           <li><a href="#ct2-verificacoes">Conferências</a></li>
           <li><a href="#ct2-testes">Testes da análise</a></li>
+          <li><a href="#ct2-planilha">A planilha exportada</a></li>
           <li><a href="#ct2-configuracao">Regras da CT2</a></li>
           <li><a href="#ct2-limitacoes">O que a prévia ainda não faz</a></li>
         </ol>
@@ -264,8 +265,8 @@
           <p>
             Confere a extração da tabela CT2 (lançamentos contábeis): integridade dos arquivos, reconciliação de todas as linhas e
             valores legíveis; depois aglutina os lançamentos por documento, lote e dia e aplica os testes de balanceamento e de
-            integridade. Nesta prévia, o resultado aparece no <strong>quadro de testes</strong> da reconciliação; o painel, as tabelas
-            e a planilha amarrada por fórmulas chegam nas próximas versões.
+            integridade. Nesta prévia, o resultado aparece no <strong>quadro de testes</strong> da reconciliação e na
+            <strong>planilha amarrada por fórmulas</strong> (Exportação); o painel e as tabelas chegam na próxima versão.
           </p>
         </section>
 
@@ -312,8 +313,20 @@
           <p>O período da análise cobre todos os meses lidos: do 1º dia do mês da primeira data ao último dia do mês da última. Uma extração com vários meses é analisada inteira, e a tela mostra o período analisado e quantos meses ele tem.</p>
         </section>
 
+        <section id="ct2-planilha">
+          <h2>6. A planilha exportada</h2>
+          <ul>
+            <li><strong>Resumo:</strong> indicadores por tipo de saldo e moeda, matriz de amarração (cada nível recalculado pelo Excel a partir da Base, com a linha da ferramenta para comparar), quadro de testes ("Confere" quando fórmula, lista de exceções, ferramenta e confirmação na origem batem), os documentos desbalanceados e uma conclusão automática que fala em indícios, nunca em causa.</li>
+            <li><strong>Criterios:</strong> os parâmetros como nomes definidos (<code>P_DATA_INI</code>, <code>P_TOL</code>…). Mudar um parâmetro, por exemplo a tolerância ou o período, recalcula os testes e os status.</li>
+            <li><strong>Documentos, Lotes e Dias:</strong> uma linha por bloco, com as linhas inicial e final do bloco e as somas por fórmula (<code>SUM</code>/<code>ROWS</code> do bloco). <strong>Não reordene nem insira linhas na Base:</strong> os blocos dependem da ordem.</li>
+            <li><strong>Excecoes:</strong> cada ocorrência de Erro ou Alerta, com "Confirmada na origem?" por fórmula. Acima do limite de linhas do Excel, continua em <em>Excecoes (2)</em>.</li>
+            <li><strong>Perfil, Base e Rastreabilidade:</strong> perfil por rotina, lançamento padrão e origem; a extração ordenada com as colunas de teste; SHA-256, leitura de cada arquivo, colunas encontradas e verificações.</li>
+            <li>Base acima de 1.048.575 linhas não cabe numa aba do Excel: a exportação é bloqueada; divida a extração (por exemplo, por mês).</li>
+          </ul>
+        </section>
+
         <section id="ct2-configuracao">
-          <h2>6. Regras da CT2</h2>
+          <h2>7. Regras da CT2</h2>
           <ul>
             <li>Em <strong>Configuração</strong>, aba <em>Integridade da CT2</em>: ligar ou desligar cada teste e escolher a severidade (B4 e o perfil são sempre Info), os valores padrão dos parâmetros (tipo de saldo e moeda esperados, moeda local, tolerância, limite de linhas por documento), os códigos do Lcto Manual? e, no JSON, os títulos das colunas.</li>
             <li>Fica salva neste computador, separada da do CFGR700, e entra na cópia de segurança. Os feriados são os da plataforma, editados na aba do CFGR700.</li>
@@ -321,9 +334,9 @@
         </section>
 
         <section id="ct2-limitacoes">
-          <h2>7. O que a prévia ainda não faz</h2>
+          <h2>8. O que a prévia ainda não faz</h2>
           <ul>
-            <li>Sem painel, tabelas, justificativas nem planilha exportada.</li>
+            <li>Sem painel, tabelas nem justificativas.</li>
             <li>Os parâmetros da execução (período, tolerância…) usam os valores da configuração; a tela para informá-los antes de processar chega com o painel.</li>
           </ul>
         </section>

@@ -11,7 +11,7 @@ import type { ConfigDifference } from '../../../shared/configTools';
 import type { CheckResult } from '../../../shared/protocol';
 import { TraceSheet } from '../../export/common/traceability';
 import type { Language } from '../../export/labels';
-import { COLORS, FORMATS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from '../../export/theme';
+import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from '../../export/theme';
 import { XlsxWriter, colName, dateCell, type CellInput, type SheetWriter } from '../../export/xlsxWriter';
 import { BIT } from './marks';
 import type { Ct2Analysis } from './analysis';
@@ -121,7 +121,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   }
   const w = new XlsxWriter();
   const T = createTheme(w.styles);
-  const inputMoney = w.styles.style({ fill: COLORS.inputFill, font: { bold: true, size: 11, color: COLORS.inputFont }, border: 'box', borderColor: COLORS.inputBorder, numFmt: FORMATS.money, align: { h: 'center', v: 'center' } });
+  const inputMoney = w.styles.style({ fill: COLORS.inputFill, font: { bold: true, size: 11, color: COLORS.inputFont }, border: 'box', borderColor: COLORS.inputBorder, numFmt: '#,##0.00', align: { h: 'center', v: 'center' } });
   const TOTAL_STEPS = 9;
   let step = 0;
   const progress = () => onProgress(++step, TOTAL_STEPS);
@@ -333,6 +333,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       columns: [{ width: 22 }, { width: 40 }, { width: 12 }, { width: 12 }, { width: 13 }, { width: 13 }, { width: 13 }, { width: 15 }, { width: 13 }, { width: 13 }],
       showGridLines: false,
       tabColor: COLORS.navy,
+      fitToWidth: true,
     });
     const S = L.summary;
     sheet.row([{ v: S.title, s: T.title }], { height: 30 });
@@ -526,7 +527,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         [C.batch, `k:batch`, T.center],
         [C.document, `k:document`, T.center],
         [C.difference, 'difference', T.money],
-        ...(on.B4 ? ([[L.testCol('B4'), 't:B4', T.text]] as [string, string, number][]) : []),
+        // Without wrapping: the text runs over the empty cell at its right.
+        ...(on.B4 ? ([[L.testCol('B4'), 't:B4', T.center]] as [string, string, number][]) : []),
       ];
       headRow(listCols.map((c) => c[0]));
       for (const d of unbalancedDocs.slice(0, SUMMARY_UNBALANCED)) {
@@ -555,7 +557,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   {
     const CR = L.criteria;
     const width = [34, 18, 18, 18, 14, 60];
-    const sheet = w.addSheet(SHEET.criteria, { columns: width.map((x) => ({ width: x })), showGridLines: false });
+    const sheet = w.addSheet(SHEET.criteria, { columns: width.map((x) => ({ width: x })), showGridLines: false, fitToWidth: true });
     sheet.row([{ v: CR.title, s: T.title }], { height: 30 });
     sheet.skip(1);
     sheet.row([{ v: CR.params, s: T.h2 }], { height: 22 });
@@ -802,7 +804,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   // ════════ Perfil ════════
   {
     const PR = L.profile;
-    const sheet = w.addSheet(SHEET.profile, { columns: [24, 22, 11, 15, 15, 12, 11].map((width) => ({ width })), showGridLines: false });
+    const sheet = w.addSheet(SHEET.profile, { columns: [24, 22, 11, 15, 15, 12, 11].map((width) => ({ width })), showGridLines: false, fitToWidth: true });
     sheet.row([{ v: PR.title, s: T.title }], { height: 30 });
     sheet.row([{ v: PR.note, s: T.note }], { height: textHeight(PR.note, 110, 9) });
     sheet.merge('A2:G2');
@@ -958,7 +960,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   {
     const TR = L.trace;
     const TW = [30, 16, 18, 14, 14, 14, 14, 14, 14, 68];
-    const sheet = w.addSheet(SHEET.trace, { columns: TW.map((width) => ({ width })), showGridLines: false });
+    const sheet = w.addSheet(SHEET.trace, { columns: TW.map((width) => ({ width })), showGridLines: false, fitToWidth: true });
     const trace = new TraceSheet(sheet, T, TW);
     sheet.row([{ v: TR.title, s: T.title }], { height: 30 });
     trace.heading(TR.kv);

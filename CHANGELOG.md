@@ -4,6 +4,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Integridade da CT2: planilha amarrada por fórmulas (Fase 11, docs/REGRAS_CT2_INTEGRIDADE.md, seção 7)
+- Exportação disponível na prévia, em português e inglês: Resumo (indicadores por tipo de saldo e moeda, matriz de
+  amarração, quadro de testes, documentos desbalanceados, conclusão automática), Criterios (parâmetros editáveis como
+  nomes definidos), Documentos, Lotes e Dias somados por bloco, Excecoes confirmadas na origem, Perfil, Base com as
+  colunas de teste e Rastreabilidade.
+- Mudar um parâmetro na planilha (tolerância, período, tipo de saldo, moeda, limite de linhas) recalcula testes e
+  status como a ferramenta.
+- Exceções acima do limite de linhas do Excel continuam em outra aba; Base acima do limite bloqueia a exportação.
+- Nome do arquivo com o primeiro e o último mês quando a extração tem mais de um mês.
+
 ### Integridade da CT2: motor e quadro de testes, em prévia (Fase 10, docs/REGRAS_CT2_INTEGRIDADE.md)
 - Aglutinação por documento, lote e dia dentro de cada tipo de saldo e moeda, em centavos, e os testes de
   balanceamento (B1–B5, com a compensação pelo documento vizinho), de consistência da linha (I1–I5), de estrutura

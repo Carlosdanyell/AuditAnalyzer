@@ -342,3 +342,17 @@ Implementado na Fase 10 (motor da CT2, funções puras em `src/worker/modules/ct
 - A análise roda na mesma ingestão, na etapa `documents` ("Aglutinação e testes"); a sessão guarda a base e a análise
   e solta as chaves de ordenação. O resumo (`Ct2Summary.analysis`) leva os parâmetros, o quadro de testes e o total de
   exceções; os invariantes da análise entram na lista de verificações.
+
+Implementado na Fase 11 (planilha da CT2):
+- `src/worker/export/common/`: o que toda planilha usa — `traceability.ts` (`TraceSheet`: células mescladas, títulos,
+  pares rótulo/valor, diferenças da configuração e verificações da aba Rastreabilidade) e `guards.ts` (verificações
+  bloqueantes que exigem confirmação e nenhuma data anterior a 1901). A planilha do CFGR700 passou a usá-los sem mudar
+  um byte (SHA-256 das exportações pt e en comparado antes e depois).
+- `src/worker/modules/ct2Integrity/workpaper.ts` (+ `workpaperLabels.ts`): a planilha amarrada da seção 7 de
+  `docs/REGRAS_CT2_INTEGRIDADE.md`, escrita em fluxo pelo mesmo `XlsxWriter`, que ganhou a opção de impressão
+  `fitToWidth` (paisagem, uma página de largura). A sessão do módulo oferece `export`.
+- Tela: `ExportView` recebe o conteúdo do módulo (`ExportContent`); o do CFGR700 é o mesmo de antes
+  (`cfgr700ExportContent`), o da CT2 está em `src/app/views/ct2Export.tsx`.
+- Avaliador de testes (`tests/support/xlsxEval.ts`): `ROWS`, `COUNTA`, `WEEKDAY` (tipo 2), `COUNTIF`, `SUMIF`, `EXACT`, e
+  critério numérico de igualdade que também casa com o texto numérico, como o Excel.
+

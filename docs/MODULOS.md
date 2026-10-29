@@ -147,6 +147,9 @@ interface ModuleSession {                               // objeto novo a cada in
   (`BackupCard`); a tela de cada módulo além do CFGR700 é achada pelo descritor (`src/app/moduleViews.tsx`), nunca
   pelo id. Mudar a configuração ou os feriados depois da análise oferece reprocessar.
 - Imports estáticos nos dois registros: a CSP não muda e nada é buscado depois do carregamento.
+- **Fase 11:** a parte comum das planilhas fica em `src/worker/export/common/` (aba Rastreabilidade, SHA-256 e diferenças
+  da configuração, verificações bloqueantes com confirmação, CI-7 de datas); a mesclagem sobreposta continua barrada
+  pelo próprio `XlsxWriter`. A visão Exportação mostra o conteúdo de cada módulo (`ExportContent`).
 
 ## 4. Tela
 

@@ -198,6 +198,8 @@ export interface SheetOptions {
   showGridLines?: boolean;
   tabColor?: string;
   zoom?: number;
+  /** Printing in landscape, fitted to one page wide (absent: the defaults of Excel). */
+  fitToWidth?: boolean;
 }
 
 export interface Validation {
@@ -225,10 +227,16 @@ const FLUSH_AT = 1 << 16;
 
 /** Rows per worksheet in Excel. */
 const MAX_ROWS = 1048576;
+/** Largest uncompressed entry of the ZIP (fflate writes no ZIP64): a larger sheet would give a corrupt file. */
+export const MAX_ENTRY_BYTES = 0xffffffff;
+/** Compressed output gathered in a Blob every so many bytes, so the browser keeps it (not the worker's heap). */
+const BLOB_PART_BYTES = 16 << 20;
 
 export class SheetWriter {
   private rowNumber = 0;
   private buffer = '';
+  /** Uncompressed bytes written so far (ZIP limit). */
+  private bytes = 0;
   private readonly merges: Range[] = [];
   private readonly mergeRefs: string[] = [];
   private readonly validations: Validation[] = [];
@@ -240,6 +248,7 @@ export class SheetWriter {
     private readonly writer: XlsxWriter,
     private readonly entry: ZipDeflate,
     private readonly options: SheetOptions,
+    private readonly name = '',
   ) {
     const views =
       `<sheetViews><sheetView workbookViewId="0"${options.showGridLines === false ? ' showGridLines="0"' : ''}${options.zoom ? ` zoomScale="${options.zoom}"` : ''}>` +
@@ -252,7 +261,9 @@ export class SheetWriter {
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        (options.tabColor ? `<sheetPr><tabColor rgb="${options.tabColor}"/></sheetPr>` : '') +
+        (options.tabColor || options.fitToWidth
+          ? `<sheetPr>${options.tabColor ? `<tabColor rgb="${options.tabColor}"/>` : ''}${options.fitToWidth ? '<pageSetUpPr fitToPage="1"/>' : ''}</sheetPr>`
+          : '') +
         views +
         '<sheetFormatPr defaultRowHeight="15"/>' +
         cols +
@@ -274,7 +285,12 @@ export class SheetWriter {
   }
 
   private flush(final: boolean): void {
-    this.entry.push(this.writer.encoder.encode(this.buffer), final);
+    const data = this.writer.encoder.encode(this.buffer);
+    this.bytes += data.length;
+    if (this.bytes > this.writer.maxEntryBytes) {
+      throw new RangeError(`A aba "${this.name}" passaria de ${Math.floor(this.writer.maxEntryBytes / 2 ** 20)} MB sem compressão, o limite do formato de arquivo gerado pela ferramenta.`);
+    }
+    this.entry.push(data, final);
     this.buffer = '';
   }
 
@@ -378,7 +394,9 @@ export class SheetWriter {
         '</dataValidations>';
     }
     if (this.links.length) tail += `<hyperlinks>${this.links.join('')}</hyperlinks>`;
-    tail += '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/></worksheet>';
+    tail += '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>';
+    if (this.options.fitToWidth) tail += '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
+    tail += '</worksheet>';
     this.buffer += tail;
     this.flush(true);
     this.writer.sheetEnded();
@@ -398,6 +416,8 @@ export class XlsxWriter {
   minDateSerial: number | null = null;
 
   private readonly chunks: Uint8Array[] = [];
+  private readonly parts: Blob[] = [];
+  private chunkBytes = 0;
   private readonly zip: Zip;
   private readonly sheets: string[] = [];
   private readonly names: { name: string; ref: string; hidden?: boolean }[] = [];
@@ -407,7 +427,13 @@ export class XlsxWriter {
   private resolveDone!: (b: Blob) => void;
   private rejectDone!: (e: Error) => void;
 
-  constructor() {
+  readonly maxEntryBytes: number;
+  private readonly partBytes: number;
+
+  /** Limits smaller than the defaults only in tests. */
+  constructor(limits: { maxEntryBytes?: number; partBytes?: number } = {}) {
+    this.maxEntryBytes = limits.maxEntryBytes ?? MAX_ENTRY_BYTES;
+    this.partBytes = limits.partBytes ?? BLOB_PART_BYTES;
     this.done = new Promise((resolve, reject) => {
       this.resolveDone = resolve;
       this.rejectDone = reject;
@@ -415,7 +441,12 @@ export class XlsxWriter {
     this.zip = new Zip((err, chunk, final) => {
       if (err) return this.rejectDone(err);
       this.chunks.push(chunk);
-      if (final) this.resolveDone(new Blob(this.chunks as Uint8Array<ArrayBuffer>[], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      this.chunkBytes += chunk.length;
+      if (this.chunkBytes >= this.partBytes || final) {
+        this.parts.push(new Blob(this.chunks.splice(0) as Uint8Array<ArrayBuffer>[]));
+        this.chunkBytes = 0;
+      }
+      if (final) this.resolveDone(new Blob(this.parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     });
     this.dateStyle = this.styles.style({ numFmt: 'dd/mm/yyyy', align: { h: 'center' } });
     this.dateTimeStyle = this.styles.style({ numFmt: 'dd/mm/yyyy hh:mm:ss', align: { h: 'center' } });
@@ -444,7 +475,7 @@ export class XlsxWriter {
     if (this.open) throw new Error('Feche a aba anterior antes de abrir outra.');
     if (name.length > 31 || /[\\/?*[\]:]/.test(name)) throw new Error(`Nome de aba inválido para o Excel: ${name}`);
     this.sheets.push(name);
-    this.open = new SheetWriter(this, this.entry(`xl/worksheets/sheet${this.sheets.length}.xml`), options);
+    this.open = new SheetWriter(this, this.entry(`xl/worksheets/sheet${this.sheets.length}.xml`), options, name);
     return this.open;
   }
 
