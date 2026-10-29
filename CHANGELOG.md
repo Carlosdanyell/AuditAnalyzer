@@ -4,6 +4,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Integridade da CT2: painel e tabelas (Fase 12, docs/REGRAS_CT2_INTEGRIDADE.md, seção 9)
+- Painel com seletor de segmento (tipo de saldo e moeda), indicadores, quadro de testes em que cada número abre a
+  tabela com exatamente aquelas linhas, documentos desbalanceados com a compensação, os 10 maiores documentos, perfil
+  e matriz de amarração.
+- Parâmetros da execução no painel: alterar e reaplicar os testes em segundos, sem reler os arquivos; o painel, as
+  tabelas e a planilha seguem os parâmetros em vigor.
+- Tabelas Documentos, Lotes, Dias, Exceções e Base (colunas mapeadas e de teste, com a opção de todas as colunas),
+  com busca, ordenação e segmento.
+- Por dentro: cada análise tem a sua área de trabalho (o `App.tsx` ficou com a casca); a tela do CFGR700 não mudou.
+
 ### Integridade da CT2: planilha amarrada por fórmulas (Fase 11, docs/REGRAS_CT2_INTEGRIDADE.md, seção 7)
 - Exportação disponível na prévia, em português e inglês: Resumo (indicadores por tipo de saldo e moeda, matriz de
   amarração, quadro de testes, documentos desbalanceados, conclusão automática), Criterios (parâmetros editáveis como

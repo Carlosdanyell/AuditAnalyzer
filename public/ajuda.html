@@ -83,6 +83,7 @@
           <li><a href="#ct2-testes">Testes da análise</a></li>
           <li><a href="#ct2-planilha">A planilha exportada</a></li>
           <li><a href="#ct2-configuracao">Regras da CT2</a></li>
+          <li><a href="#ct2-painel">Painel e tabelas</a></li>
           <li><a href="#ct2-limitacoes">O que a prévia ainda não faz</a></li>
         </ol>
         <ul>
@@ -333,11 +334,22 @@
           </ul>
         </section>
 
-        <section id="ct2-limitacoes">
-          <h2>8. O que a prévia ainda não faz</h2>
+        <section id="ct2-painel">
+          <h2>8. Painel e tabelas</h2>
           <ul>
-            <li>Sem painel, tabelas nem justificativas.</li>
-            <li>Os parâmetros da execução (período, tolerância…) usam os valores da configuração; a tela para informá-los antes de processar chega com o painel.</li>
+            <li><strong>Segmento:</strong> "Todos os segmentos" ou um tipo de saldo e moeda; indicadores, quadro de testes, listas e tabelas seguem a escolha. Débito e crédito nunca são somados entre segmentos.</li>
+            <li><strong>Parâmetros da execução:</strong> período, tipo de saldo e moeda esperados, moeda local, tolerância e limite de linhas. Altere e clique em <strong>Reaplicar os testes</strong>: os testes rodam de novo em segundos, sem reler os arquivos, e o painel, as tabelas e a planilha passam a usar os novos valores. Os padrões ficam na Configuração.</li>
+            <li><strong>Quadro de testes:</strong> cada número abre a tabela com exatamente aquelas linhas — Exceções pelo código (Erro e Alerta) ou Documentos, Lotes e Dias pelo teste (Info). O mesmo número aparece no Resumo da planilha.</li>
+            <li>Documentos desbalanceados com a compensação pelo documento vizinho, os 10 maiores documentos com o limite de linhas, o perfil por rotina, lançamento padrão e origem, e a matriz de amarração.</li>
+            <li><strong>Tabelas:</strong> Documentos, Lotes, Dias, Exceções e Base, com busca, ordenação e o filtro do painel. A Base mostra as colunas mapeadas e as de teste; <strong>Mostrar todas as colunas</strong> traz as demais colunas da extração.</li>
+          </ul>
+        </section>
+
+        <section id="ct2-limitacoes">
+          <h2>9. O que a prévia ainda não faz</h2>
+          <ul>
+            <li>Sem justificativas (são do log de auditoria CFGR700).</li>
+            <li>A conferência com extrações reais ainda está em andamento.</li>
           </ul>
         </section>
         </div>

@@ -147,6 +147,12 @@ interface ModuleSession {                               // objeto novo a cada in
   (`BackupCard`); a tela de cada módulo além do CFGR700 é achada pelo descritor (`src/app/moduleViews.tsx`), nunca
   pelo id. Mudar a configuração ou os feriados depois da análise oferece reprocessar.
 - Imports estáticos nos dois registros: a CSP não muda e nada é buscado depois do carregamento.
+- **Fase 12:** comandos `analyze` (reaplica a análise com os parâmetros informados, validados pelo módulo; responde
+  `analyzed` com o resumo e as verificações novas) e `segmentPanel` (painel recortado por segmento); `page` aceita as
+  tabelas e filtros de cada módulo (`AnyTableId`, `AnyTableFilter`). Na tela, cada módulo tem a sua área de trabalho
+  depois da análise (`src/app/modules/<id>/`, contrato em `src/app/modules/workspace.ts`), achada pelo descritor em
+  `workspaceOf` (`src/app/moduleViews.tsx`); o `App.tsx` ficou com a casca (arquivos, processamento, barra lateral,
+  configuração). As visões oferecidas seguem `features` do descritor.
 - **Fase 11:** a parte comum das planilhas fica em `src/worker/export/common/` (aba Rastreabilidade, SHA-256 e diferenças
   da configuração, verificações bloqueantes com confirmação, CI-7 de datas); a mesclagem sobreposta continua barrada
   pelo próprio `XlsxWriter`. A visão Exportação mostra o conteúdo de cada módulo (`ExportContent`).

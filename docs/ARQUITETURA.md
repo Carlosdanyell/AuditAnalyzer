@@ -356,3 +356,13 @@ Implementado na Fase 11 (planilha da CT2):
 - Avaliador de testes (`tests/support/xlsxEval.ts`): `ROWS`, `COUNTA`, `WEEKDAY` (tipo 2), `COUNTIF`, `SUMIF`, `EXACT`, e
   critério numérico de igualdade que também casa com o texto numérico, como o Excel.
 
+Implementado na Fase 12 (painel e tabelas da CT2):
+- Worker: `analyze` reaplica a análise sobre a mesma base (a sessão guarda as chaves de ordenação para isso: 11 colunas
+  de 4 bytes por linha, ~57 MB com 1,3 milhão de linhas, já contadas no "mantido" das medições da Fase 10);
+  `panel.ts` (painel por segmento), `segments.ts` (segmento de cada bloco e posição), `tables.ts` (tabelas paginadas,
+  índices em typed arrays, cache por tabela, filtro e ordenação). Cada número do quadro abre uma tabela com o mesmo
+  total, igual ao Resumo da planilha (`tests/unit/ct2Tables.test.ts`).
+- Tela: `src/app/modules/workspace.ts` (contrato), `src/app/modules/cfgr700/Cfgr700Workspace.tsx` (as visões do CFGR700,
+  tiradas do `App.tsx` sem mudar o que aparece) e `src/app/modules/ct2Integrity/` (`Ct2Workspace`, `Ct2PanelView`);
+  `TablesView` recebe as abas e os filtros de cada módulo (`originFilters`, `toolbar`).
+

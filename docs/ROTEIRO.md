@@ -253,6 +253,12 @@ mais de um mês. Pendente na máquina do desenvolvedor: abrir no Excel (`EXCEL_C
 
 **Pronto quando:** cada número do painel = total da tabela aberta = Resumo da planilha; e2e passando.
 
+**Implementada (29/10/2026).** Decisões do usuário em `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13: parâmetros da
+execução no painel, reaplicados sem reler os arquivos (em vez de uma etapa antes de processar); seletor de segmento;
+Base com as colunas mapeadas e a opção de todas. Comandos `analyze` e `segmentPanel`; painel, tabelas e áreas de
+trabalho por módulo (o `App.tsx` ficou com a casca; a tela do CFGR700 não mudou). Painel = tabela = Resumo conferido
+em todos os segmentos (`tests/unit/ct2Tables.test.ts`) e no navegador (`tests/e2e/modules.spec.ts`).
+
 ---
 
 ## Fase 13 — Entrega da versão 2.0

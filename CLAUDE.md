@@ -61,7 +61,8 @@ Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições a
 
 ```
 src/
-  app/                 # React: páginas, layout, estado da UI
+  app/                 # React: casca da tela (App.tsx), visões, estado da UI; modules/<id>/ = área de trabalho de cada
+                       # módulo depois da análise (contrato em app/modules/workspace.ts, achada em moduleViews.tsx)
   components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter, ToolHome...)
   modules/             # descritores dos módulos para a tela: registry.ts, <id>/module.ts (sem React)
   worker/
@@ -69,7 +70,8 @@ src/
     handler.ts         # despacho dos comandos para a sessão do módulo
     modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor;
                        # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts; motor: aggregate.ts,
-                       # analysis.ts, marks.ts, profile.ts, tuples.ts, checks.ts)
+                       # analysis.ts, marks.ts, profile.ts, tuples.ts, checks.ts; panel.ts, segments.ts,
+                       # tables.ts; workpaper.ts)
     ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
                        # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado)
     store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts; chunked.ts e packedColumn.ts

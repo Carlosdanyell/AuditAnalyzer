@@ -404,7 +404,12 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   adjacente; 10 maiores documentos com o limite de linhas; perfil por rotina.
 - **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste; as demais colunas da extração sob
   "Mostrar todas as colunas"), virtualizadas e paginadas no worker.
-- **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx`.
+- **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx` (com mais de um mês,
+  `<AAAA-MM>_a_<AAAA-MM>`).
+- **Implementado na Fase 12:** os links do quadro levam a Exceções pelo código (testes de Erro e Alerta) ou à tabela do
+  nível pelo teste (Info: B4, E2, P3 e P4 em Documentos; E6 em Dias); P1 e P2 ficam no perfil do painel. A ocorrência
+  de B4 é o número de documentos com B1 (todos são diagnosticados). Com um segmento escolhido, o resultado de B4 é
+  recontado no segmento; os demais resultados aparecem só em "Todos os segmentos".
 
 ## 10. Limitações a declarar (Critérios e painel)
 

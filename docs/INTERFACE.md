@@ -80,10 +80,17 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    linha de total igual ao modo Geral (cada número abre a tabela com a fase), eventos por fase e operação, segregação
    de funções, orientação para eventos Não determinados (extrair com "Exclui campos não alterados = Não" ou consultar a
    tabela pelo Recno) e o texto de limitações da seção 13.
+   **Integridade da CT2** (`segmentPanel`, `src/app/modules/ct2Integrity/Ct2PanelView.tsx`): seletor de segmento
+   ("Todos os segmentos" ou um), parâmetros da execução recolhidos com "Reaplicar os testes" (comando `analyze`, sem
+   reler os arquivos; validados na tela antes de enviar), indicadores por segmento, quadro de testes (cada número abre
+   a tabela com exatamente aquelas linhas; sem ocorrência recolhidos), documentos desbalanceados com a compensação, os
+   10 maiores documentos, perfil e matriz de amarração.
 5. **Tabelas** (`page`) — tabela, busca, ordenação, filtros vindos do painel, paginação e rolagem virtualizada;
    colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). A tabela "Tipo de
    saldo" (`segregation`) tem uma linha por evento; o filtro do painel mostra também fase, operação, exceção,
-   informativo ou marcação, e "Remover filtro do painel" tira todos eles.
+   informativo ou marcação, e "Remover filtro do painel" tira todos eles. Integridade da CT2: Documentos, Lotes, Dias,
+   Exceções e Base, com seletor de segmento, o teste vindo do painel ("Remover filtro do painel") e, na Base,
+   "Mostrar todas as colunas"; sem o filtro de origem do CFGR700.
 6. **Justificativas** — listas de exclusão e de alteração (tabelas `deletionJustifications` e
    `changeJustifications`, com valor do documento, valor excluído e histórico); editor (texto, responsável, copiar
    da outra lista, confirmar que abrange o novo evento); importar planilha exportada ou JSON com prévia, cobertura
