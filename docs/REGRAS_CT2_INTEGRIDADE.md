@@ -352,6 +352,20 @@ código, chave.
 Exportação com invariante bloqueante falhando: mesma regra do CFGR700 (confirmação explícita registrada no Resumo e
 na Rastreabilidade).
 
+**Como são conferidos (Fase 10, `src/worker/modules/ct2Integrity/checks.ts`):** cada invariante reconta por um
+caminho próprio. CI-3 soma as linhas na ordem de leitura (sem a ordem da base) e compara com a base ordenada, os
+documentos, os lotes, os dias, os segmentos e os totais da leitura. CI-5 conta, para cada teste de Erro ou Alerta, as
+marcas do nível e as linhas da lista de exceções. CI-6 conta as chaves distintas (segmento + chave) com uma tabela de
+dispersão, sem a ordem da base, e compara com os blocos e com as contagens da leitura. CI-9 lista as colunas
+opcionais ausentes de todos os arquivos (teste desligado) e de parte deles (essas linhas ficam fora do teste ou com o
+campo vazio). CI-10 conta as linhas com data válida fora do período.
+
+**Detalhes da aplicação dos testes (Fase 10):** valor ilegível (CI-4) conta 0 nas somas e fica fora de I2 e da parte
+de valor de I1 e I4; data inválida fica fora de E5 e o dia sem data válida, de E6; Seq CTK vazio não é sequência
+(P3); grupo de rotina ou de lançamento padrão vazio é um grupo próprio (P1); B4 só diagnostica documentos com B1, e
+B5 só existe com B4 ligado (a configuração recusa B4 sem B1 e B5 sem B4). O teste ligado cuja coluna opcional falta em
+todos os arquivos aparece como "sem a coluna" no quadro de testes.
+
 ## 9. Tela do módulo
 
 Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, exportação, configuração) com:
@@ -389,10 +403,14 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   parâmetro (ex.: `P_TOL`) no avaliador muda os status como o motor muda; determinismo byte a byte.
 - **Locais (fora do git):** as extrações reais em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`
   (`tests/local/ct2Golden.test.ts`, formato no cabeçalho do teste): linhas, documentos e, por segmento, linhas,
-  documentos, débito e crédito (Fase 9); desbalanceados e a compensação esperada entram na Fase 10. Medição de tempo
+  documentos, débito e crédito (Fase 9); desbalanceados, diferença e documento que compensa (B1 e B4, Fase 10). Medição de tempo
   e memória com extrações sintéticas grandes: `MEDIR_CT2=1 npm run test:local` (`tests/local/ct2Measure.test.ts`;
   os arquivos são gerados uma vez na pasta temporária do sistema).
 - **Ponta a ponta:** escolher o módulo, carregar o sintético, conferir painel e exportação, sem requisição externa.
+- **Motor (Fase 10, versionado):** `tests/synthetic/ct2EngineFixture.ts` tem um caso por regra e a lista exata de
+  exceções esperadas, os resultados de B4 e dos testes Info; `tests/unit/ct2Analysis.test.ts` confere também a
+  tolerância, testes desligados, severidade trocada, duplicidade entre arquivos, colunas opcionais ausentes e
+  invariantes que falham numa análise adulterada.
 
 ## 12. Pendências (decidir com o usuário antes de implementar o item)
 

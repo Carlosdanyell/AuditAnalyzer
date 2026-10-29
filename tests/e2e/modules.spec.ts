@@ -50,7 +50,7 @@ test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como 
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
-test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exportação bloqueados', async ({ page, ct2Files }) => {
+test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; painel, tabelas e exportação bloqueados', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
   await expect(page.getByText(/^Prévia: esta versão lê a extração da CT2/)).toBeVisible();
@@ -60,6 +60,9 @@ test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exp
   await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(/^2 arquivo\(s\)/)).toBeVisible();
   await expect(page.getByText('1 verificação(ões) bloqueante(s) falhou(aram)')).toBeVisible();
   await expect(page.getByText('Base de lançamentos por tipo de saldo e moeda')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
+  await expect(page.getByText(/exceção\(ões\) de Erro ou Alerta$/)).toBeVisible();
+  await expect(page.getByText('Débito e crédito iguais em todos os níveis')).toHaveCount(1);
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toHaveCount(2);
   await expect(page.getByText(/ct2-a\.xlsx: linhas 13, 14, 15/)).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Visões' });
@@ -67,6 +70,32 @@ test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exp
   for (const locked of ['Painel', 'Tabelas', 'Justificativas', 'Exportação']) await expect(nav.getByRole('button', { name: locked })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Exportar planilha' })).toHaveCount(0);
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
+});
+
+test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  // The tab of the open tool comes selected.
+  await expect(page.getByRole('tab', { name: CT2 })).toHaveAttribute('aria-selected', 'true');
+  await page.getByLabel('Ligar I5').uncheck();
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
+  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 2, tests: { I5: { enabled: false } } });
+  await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
+  await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  // The other tab keeps the CFGR700 rules, untouched.
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByRole('tab', { name: CFGR700 }).click();
+  await expect(page.getByText('Configuração padrão CT2, sem alterações.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByRole('tab', { name: CT2 }).click();
+  await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
 });
 
 test('arquivo de outra análise: avisa, oferece a troca e mantém a lista', async ({ page, files, ct2Files }) => {

@@ -92,11 +92,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 7. **Exportação** (`export`) — escopo, idioma (português/inglês), lista de verificações bloqueantes com caixa de
    confirmação (sem ela o botão não gera), progresso por etapa, download com `downloadBlob`, mensagem com nome e
    tamanho.
-8. **Configuração** — seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
+8. **Configuração** — uma aba por análise com regras salvas (abre na da ferramenta aberta; a da CT2 tem o quadro
+   de testes com Ligado e Severidade, os parâmetros padrão e os códigos do Lcto Manual?), a cópia de segurança abaixo
+   das abas. Em cada aba: seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
    padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App).
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
-   configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 2) e restaurar com confirmação
+   configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 3, com a configuração de cada análise) e restaurar com confirmação
    (`readBackup`, que também lê as cópias da versão 1.0.0; `restoreBackup` do App), substituindo tudo. Os feriados
    valem para todas as análises.
 9. **Tema** — claro (padrão) e escuro, trocados na barra lateral (`src/app/themeStore.ts`: `<html data-theme>`,

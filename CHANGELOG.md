@@ -4,6 +4,18 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Integridade da CT2: motor e quadro de testes, em prévia (Fase 10, docs/REGRAS_CT2_INTEGRIDADE.md)
+- Aglutinação por documento, lote e dia dentro de cada tipo de saldo e moeda, em centavos, e os testes de
+  balanceamento (B1–B5, com a compensação pelo documento vizinho), de consistência da linha (I1–I5), de estrutura
+  (E1–E6) e de perfil (P1–P4).
+- Quadro de testes na reconciliação: ocorrências de cada teste e resultado de B4, P1–P4; testes sem ocorrência
+  recolhidos.
+- Novas verificações: débito e crédito iguais em todos os níveis (CI-3), exceções conferidas com as marcas (CI-5) e
+  contagens de documentos, lotes e dias (CI-6), bloqueantes; colunas opcionais (CI-9) e período (CI-10), alertas.
+- Configuração da CT2 editável e salva neste computador: cada teste ligado ou desligado com a severidade, parâmetros
+  padrão e códigos do Lcto Manual?; aba por análise na tela Configuração.
+- Cópia de segurança versão 3, com a configuração da CT2; as versões anteriores continuam sendo restauradas.
+
 ### Interface: plataforma de ferramentas, menos ruído
 - Início com um cartão por ferramenta; a ferramenta abre o próprio espaço de trabalho. A análise continua aberta ao
   voltar às Ferramentas e termina ao abrir outra ferramenta (substitui "Trocar análise").

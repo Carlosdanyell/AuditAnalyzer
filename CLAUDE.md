@@ -68,7 +68,8 @@ src/
     index.ts           # ponto de entrada do worker e protocolo de mensagens
     handler.ts         # despacho dos comandos para a sessão do módulo
     modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor;
-                       # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts)
+                       # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts; motor: aggregate.ts,
+                       # analysis.ts, marks.ts, profile.ts, tuples.ts, checks.ts)
     ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
                        # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado)
     store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts; chunked.ts e packedColumn.ts

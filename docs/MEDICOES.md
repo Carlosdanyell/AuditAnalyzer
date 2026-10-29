@@ -133,3 +133,17 @@ valor), strings compartilhadas presas aos pedaços decodificados e ~8 buscas por
 - Pendente: medir no Chromium com a tela da prévia (memória do worker) e repetir no computador do trabalho com as
   extrações reais (`tests/local/ct2Golden.test.ts` mostra o tempo e a memória na saída local).
 
+### Fase 10: leitura + análise (aglutinação, testes, invariantes)
+
+Mesmas extrações sintéticas e mesmo método, agora com a análise na mesma ingestão (configuração padrão, sem feriados).
+
+| Caso | Tempo | Aglutinação e testes | Pico vivo | Mantido (base) | Exceções |
+|---|---|---|---|---|---|
+| 1 arquivo, ~1 milhão de linhas | 47,5 s | 2,0 s | 223 MB | 182 MB (113 MB) | 110.162 |
+| 2 arquivos, ~1,3 milhão de linhas | 58,8 s | 2,8 s | 283 MB | 236 MB (144 MB) | 744.132 |
+
+- A análise acrescenta ~3 s e ~60 MB ao pico vivo (chaves de ordenação ainda vivas, débito e crédito por posição da
+  base, marcas e as tabelas de dispersão do CI-6); continua abaixo da meta de 400 MB do worker.
+- No caso de dois arquivos, quase todas as exceções são E5: o período padrão é o mês da menor data (agosto), e as
+  linhas de setembro ficam fora dele (seção 6.5; o período passa a ser informado na tela na Fase 12).
+

@@ -204,6 +204,15 @@ extração real em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`, e a med
 **Pronto quando:** cada caso sintético produz exatamente as exceções esperadas; local confere com o golden
 (desbalanceados e compensação adjacente).
 
+**Implementada (29/10/2026).** Decisões do usuário em `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13 (B4 testa primeiro o
+documento seguinte e só compensação exata; I4 deixa fora "Valor Moeda1" vazio; P3 conta o documento sem o segmento;
+quadro de testes na reconciliação). Configuração versão 2 (testes, severidades, parâmetros, códigos do Lcto Manual?)
+salva em `analyzerConfig:ct2Integrity`, com aba própria na Configuração; cópia de segurança versão 3; feriados da
+plataforma no comando de análise. Motor, marcas, exceções, perfil e invariantes CI-3, CI-5, CI-6, CI-9 e CI-10 com o
+caso sintético da seção 11 (exceções exatas); `tests/local/ct2Golden.test.ts` compara também os desbalanceados e a
+compensação quando o golden tiver `desbalanceados`. Tempo e memória em `docs/MEDICOES.md`. Pendente na máquina do
+desenvolvedor: preencher `desbalanceados` no golden real e rodar `npm run test:local`.
+
 ---
 
 ## Fase 11 — CT2 Integridade: planilha amarrada

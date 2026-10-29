@@ -79,7 +79,9 @@
           <li><a href="#ct2-para-que-serve">Para que serve</a></li>
           <li><a href="#ct2-extracao">Extração da CT2</a></li>
           <li><a href="#ct2-leitura">Leitura e reconciliação</a></li>
-          <li><a href="#ct2-verificacoes">Conferências da leitura</a></li>
+          <li><a href="#ct2-verificacoes">Conferências</a></li>
+          <li><a href="#ct2-testes">Testes da análise</a></li>
+          <li><a href="#ct2-configuracao">Regras da CT2</a></li>
           <li><a href="#ct2-limitacoes">O que a prévia ainda não faz</a></li>
         </ol>
         <ul>
@@ -260,10 +262,10 @@
         <section id="ct2-para-que-serve">
           <h2>1. Para que serve</h2>
           <p>
-            Confere a extração da tabela CT2 (lançamentos contábeis) antes de usá-la: integridade dos arquivos, reconciliação de todas
-            as linhas e valores legíveis. Nesta prévia, a análise mostra as linhas, os documentos e os totais de débito e crédito por
-            tipo de saldo e moeda. A aglutinação por documento, lote e dia, os testes e a planilha amarrada por fórmulas chegam nas
-            próximas versões.
+            Confere a extração da tabela CT2 (lançamentos contábeis): integridade dos arquivos, reconciliação de todas as linhas e
+            valores legíveis; depois aglutina os lançamentos por documento, lote e dia e aplica os testes de balanceamento e de
+            integridade. Nesta prévia, o resultado aparece no <strong>quadro de testes</strong> da reconciliação; o painel, as tabelas
+            e a planilha amarrada por fórmulas chegam nas próximas versões.
           </p>
         </section>
 
@@ -287,20 +289,42 @@
         </section>
 
         <section id="ct2-verificacoes">
-          <h2>4. Conferências da leitura</h2>
+          <h2>4. Conferências da leitura e da análise</h2>
           <ul>
             <li><strong>Linhas da extração conferidas:</strong> a reconciliação de linhas fecha em cada arquivo, todo valor está numa coluna com título, e o SHA-256, o CRC32 e o tamanho de cada parte do arquivo conferem.</li>
             <li><strong>Base em blocos contíguos:</strong> cada documento, lote e dia forma um único bloco de linhas na ordem da base.</li>
             <li><strong>Valores legíveis:</strong> toda linha de detalhe tem data válida, lote, sub-lote, documento, linha, tipo de saldo, moeda e valor legível (valor vazio só em continuação de histórico). A tela lista as primeiras linhas com problema de cada arquivo.</li>
           </ul>
           <p>As três são bloqueantes: com alguma falha, a base não deve ser usada como está.</p>
+          <p>Depois dos testes, mais três conferências bloqueantes provam que a análise não perdeu nada: <strong>débito e crédito iguais em todos os níveis</strong> (linhas, documentos, lotes, dias e totais), <strong>exceções conferidas com as marcas</strong> e <strong>contagens de documentos, lotes e dias</strong> (refeitas sem depender da ordem da base). Dois alertas não bloqueiam: colunas opcionais ausentes (com os testes desligados por isso) e datas lidas fora do período da análise.</p>
+        </section>
+
+        <section id="ct2-testes">
+          <h2>5. Testes da análise</h2>
+          <p>Todo balanceamento é medido dentro de cada tipo de saldo e moeda, em centavos. <strong>Erro</strong> e <strong>Alerta</strong> são exceções (entram na lista de exceções); <strong>Info</strong> é perfil. Nenhum teste altera ou exclui linhas.</p>
+          <ul>
+            <li><strong>B1, B2, B3</strong> — documento, lote e dia com |débito − crédito| maior que a tolerância (padrão 0,00).</li>
+            <li><strong>B4</strong> — para cada documento desbalanceado, se o documento seguinte do mesmo lote compensa exatamente a diferença (depois, o anterior); <strong>B5</strong> — desbalanceado sem compensação adjacente. A compensação é um indício, não a prova da causa.</li>
+            <li><strong>I1 a I5</strong> — tipo de lançamento incoerente com as contas, valor zero ou negativo, mesma conta no débito e no crédito, valor diferente do valor na moeda 1 (moeda local; célula vazia fica fora) e histórico vazio.</li>
+            <li><strong>E1 a E6</strong> — linha duplicada, lacuna na numeração (só 001–999), tipo de saldo e moeda diferentes dos esperados, data fora do período e dia não útil (sábado, domingo ou feriado).</li>
+            <li><strong>P1 a P4</strong> — linhas e valores por rotina, por lançamento padrão e por origem (Lcto Manual?: 1 manual, 2 automático, outro valor não identificado), Seq CTK repetido entre documentos ou mais de um no documento, documentos no limite de linhas (MV_NUMLIN) e os 10 maiores.</li>
+          </ul>
+          <p>O período da análise é o mês da menor data lida. Com arquivos de meses seguidos, as linhas dos meses seguintes aparecem em E5 até a tela de parâmetros chegar.</p>
+        </section>
+
+        <section id="ct2-configuracao">
+          <h2>6. Regras da CT2</h2>
+          <ul>
+            <li>Em <strong>Configuração</strong>, aba <em>Integridade da CT2</em>: ligar ou desligar cada teste e escolher a severidade (B4 e o perfil são sempre Info), os valores padrão dos parâmetros (tipo de saldo e moeda esperados, moeda local, tolerância, limite de linhas por documento), os códigos do Lcto Manual? e, no JSON, os títulos das colunas.</li>
+            <li>Fica salva neste computador, separada da do CFGR700, e entra na cópia de segurança. Os feriados são os da plataforma, editados na aba do CFGR700.</li>
+          </ul>
         </section>
 
         <section id="ct2-limitacoes">
-          <h2>5. O que a prévia ainda não faz</h2>
+          <h2>7. O que a prévia ainda não faz</h2>
           <ul>
             <li>Sem painel, tabelas, justificativas nem planilha exportada.</li>
-            <li>Usa os títulos e as regras padrão da extração; a configuração da CT2 ainda não é editável.</li>
+            <li>Os parâmetros da execução (período, tolerância…) usam os valores da configuração; a tela para informá-los antes de processar chega com o painel.</li>
           </ul>
         </section>
         </div>

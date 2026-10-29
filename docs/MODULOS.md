@@ -8,7 +8,7 @@ próprias e gera o seu papel de trabalho em Excel.
 | Módulo | Entrada | Regras | Situação |
 |---|---|---|---|
 | `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | versão 1.0.0, em uso |
-| `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | especificado (Fases 8–13) |
+| `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | prévia: leitura e testes (Fases 9–10); planilha, painel e tabelas nas Fases 11–12 |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
 escopo; outra área = ferramenta própria"). Novas análises entram como módulos desta plataforma, não como ferramentas
@@ -136,8 +136,16 @@ interface ModuleSession {                               // objeto novo a cada in
 - Feriados da plataforma: chave `platformConfig`, copiados sem reordenar para `calendar.holidays` da configuração do
   CFGR700, que continua no mesmo esquema (versão 2): o SHA-256 e as diferenças da Rastreabilidade não mudam.
 - Cópia de segurança: o campo continua `version` (uma versão anterior leria `schemaVersion` como "Versão undefined"),
-  agora `2`, com `platform` (feriados); a versão 1 continua sendo lida. As configurações de outros módulos entram na
-  cópia quando existirem (Fase 10), com nova versão.
+  `2` com `platform` (feriados) e, a partir da Fase 10, `3` com `modules` (configuração de cada outro módulo, por id,
+  validada e migrada pelas regras do módulo; um id desconhecido é ignorado). As versões 1 e 2 continuam sendo lidas,
+  sem os outros módulos (a configuração deles fica como está).
+- **Fase 10:** a configuração de cada módulo além do CFGR700 fica na chave própria `analyzerConfig:<id>` (sem chave
+  antiga para migrar; `planModuleConfigLoad` em `src/shared/configStorage.ts`): ausente = padrão, sem gravar; versão
+  anterior = migrada e regravada; ilegível = padrão com aviso, sem sobrescrever. O comando `ingest` leva `platform`
+  (feriados) e `WorkerModule.configure(config, platform)` recebe os dois; o CFGR700 continua com os feriados dentro da
+  própria configuração. A tela Configuração tem uma aba por análise com regras salvas e a cópia de segurança abaixo
+  (`BackupCard`); a tela de cada módulo além do CFGR700 é achada pelo descritor (`src/app/moduleViews.tsx`), nunca
+  pelo id. Mudar a configuração ou os feriados depois da análise oferece reprocessar.
 - Imports estáticos nos dois registros: a CSP não muda e nada é buscado depois do carregamento.
 
 ## 4. Tela
