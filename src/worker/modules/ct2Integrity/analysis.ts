@@ -61,17 +61,20 @@ export function runParameters(config: Ct2IntegrityConfig, firstDay: number | nul
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** `period`: the period informed for the run (the screen of parameters, Phase 12); absent = every month read. */
+/**
+ * `informed`: parameters informed for the run (the quadro de parâmetros of the panel, decision of 29/10/2026) over the
+ * defaults of the configuration and the period of every month read.
+ */
 export function analyzeCt2(
   base: Ct2Ingested,
   config: Ct2IntegrityConfig,
   holidays: ReadonlySet<number>,
-  period?: { periodStart: number; periodEnd: number },
+  informed?: Partial<Ct2RunParameters>,
 ): Ct2Analysis {
   const { store, order, keys, summary, reconciliation } = base;
   const rows = order.length;
   const blocks = aggregate(store, keys, order, config);
-  const parameters = { ...runParameters(config, summary.firstDay, summary.lastDay), ...period };
+  const parameters: Ct2RunParameters = { ...runParameters(config, summary.firstDay, summary.lastDay), ...informed };
 
   // A test runs when it is on and its column is in some file (in the others, its lines are not tested).
   const present = new Set(reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));
@@ -85,7 +88,7 @@ export function analyzeCt2(
 
   // ── Lines ──
   const line = new Uint32Array(rows);
-  const p = config.parameters;
+  const p = parameters;
   const { periodStart, periodEnd } = parameters;
   const lineTests = { I1: on.I1, I2: on.I2, I3: on.I3, I4: on.I4, I5: on.I5, E1: on.E1, E3: on.E3, E4: on.E4, E5: on.E5 && periodStart !== null };
   const t = store.text;

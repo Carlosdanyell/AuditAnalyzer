@@ -3,6 +3,7 @@ import { DEFAULT_MODULE_ID } from '../shared/modules';
 import type { Command, SheetSample, Stage, WorkerEvent } from '../shared/protocol';
 import { IngestError, type IngestOptions } from './ingest/pipeline';
 import { probeWorkbook } from './ingest/probe';
+import { ParametersError } from './modules/types';
 import { WORKER_MODULES, findWorkerModule, type WorkerModules } from './modules/registry';
 import type { Ingest, ModuleSession } from './modules/types';
 
@@ -108,6 +109,33 @@ export function createCommandHandler(
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
           post({ type: 'error', stage: 'justifications', message: `Não foi possível ler as justificativas: ${message}`, requestId: command.requestId });
+        }
+        return;
+      }
+
+      case 'analyze': {
+        if (!session || !session.analyze) {
+          post({ type: 'error', stage: 'documents', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'analyzed', requestId: command.requestId, ...session.analyze(command.parameters) });
+        } catch (e) {
+          if (e instanceof ParametersError) post({ type: 'error', stage: 'documents', message: 'Parâmetros inválidos.', detail: e.message, requestId: command.requestId });
+          else post(errorEvent(e, 'documents', command.requestId));
+        }
+        return;
+      }
+
+      case 'segmentPanel': {
+        if (!session || !session.segmentPanel) {
+          post({ type: 'error', stage: 'panel', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'segmentPanel', requestId: command.requestId, data: session.segmentPanel(command.segment) });
+        } catch (e) {
+          post(errorEvent(e, 'panel', command.requestId));
         }
         return;
       }

@@ -145,6 +145,36 @@ export const ct2IntegrityConfigSchema = z
 
 export type Ct2IntegrityConfig = z.infer<typeof ct2IntegrityConfigSchema>;
 
+/**
+ * Parameters of one execution (section 6.5), informed on the panel: the period as day numbers (both or none) and the
+ * values of the configuration parameters.
+ */
+export const ct2RunParametersSchema = z
+  .object({
+    periodStart: z.number().int().nullable(),
+    periodEnd: z.number().int().nullable(),
+    expectedBalanceType: text,
+    expectedCurrency: text,
+    localCurrency: text,
+    toleranceCents: z.number().int().min(0),
+    documentLineLimit: z.number().int().min(1),
+  })
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.periodStart === null) !== (p.periodEnd === null)) {
+      ctx.addIssue({ code: 'custom', message: 'Informe a data inicial e a final do período, ou nenhuma.', path: ['periodEnd'] });
+    } else if (p.periodStart !== null && p.periodEnd !== null && p.periodEnd < p.periodStart) {
+      ctx.addIssue({ code: 'custom', message: 'A data final é anterior à inicial.', path: ['periodEnd'] });
+    }
+  });
+
+/** Validated parameters of an execution, or the problems by field (in Portuguese). */
+export function readCt2RunParameters(input: unknown): { ok: true; parameters: z.infer<typeof ct2RunParametersSchema> } | { ok: false; errors: ConfigIssue[] } {
+  const parsed = ct2RunParametersSchema.safeParse(input);
+  if (parsed.success) return { ok: true, parameters: parsed.data };
+  return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.map(String).join('.'), message: issueMessage(issue) })) };
+}
+
 export type Ct2ConfigRead = { ok: true; config: Ct2IntegrityConfig; migratedFrom?: number } | { ok: false; errors: ConfigIssue[] };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

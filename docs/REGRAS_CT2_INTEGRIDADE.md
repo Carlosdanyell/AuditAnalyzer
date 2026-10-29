@@ -396,12 +396,14 @@ todos os arquivos aparece como "sem a coluna" no quadro de testes.
 
 Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, exportação, configuração) com:
 
-- **Parâmetros** antes de processar (seção 6.5), com o período pré-preenchido depois da leitura do cabeçalho e das
-  datas mínima e máxima.
+- **Parâmetros** da execução (seção 6.5) num quadro do painel: os testes rodam com os padrões e são reaplicados em
+  segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
+- **Seletor de segmento:** "Todos os segmentos" ou um segmento, para o painel e as tabelas.
 - **Painel:** indicadores; matriz de amarração com OK/Verificar; quadro de testes (cada número abre a tabela filtrada:
   Excecoes pelo código, ou Documentos/Lotes/Dias pelo status); documentos desbalanceados com a compensação
   adjacente; 10 maiores documentos com o limite de linhas; perfil por rotina.
-- **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste), virtualizadas e paginadas no worker.
+- **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste; as demais colunas da extração sob
+  "Mostrar todas as colunas"), virtualizadas e paginadas no worker.
 - **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx`.
 
 ## 10. Limitações a declarar (Critérios e painel)
@@ -522,4 +524,13 @@ Situação em 20/10/2026 (decisões na seção 13):
     continua com **todas as colunas** da extração. Alternativas rejeitadas: Base como valores acima do limite (perderia
     o recálculo dos testes de linha), ZIP64 com 1 milhão de linhas (arquivo de ~500 MB que não recalcula em tempo
     viável) e Base só com as colunas mapeadas. O tamanho típico da extração mensal real ainda não é conhecido.
+- 29/10/2026 — Fase 12 (painel e tabelas), respostas do usuário:
+  - **Parâmetros da execução depois, com reaplicação:** os testes rodam com os padrões da configuração (período de
+    todos os meses lidos); um quadro de parâmetros no painel permite alterar e **reaplicar os testes** em segundos, sem
+    reler os arquivos. Painel, tabelas e planilha seguem os parâmetros em vigor. (Substitui "parâmetros antes de
+    processar" da seção 9.)
+  - **Seletor de segmento** no topo do painel: "Todos os segmentos" (padrão) ou um segmento; indicadores, quadro de
+    testes, listas e tabelas seguem a escolha; em "Todos", contagens somadas e valores mostrados por segmento.
+  - **Tabela Base:** por padrão as colunas mapeadas e as de teste, com a opção "Mostrar todas as colunas"; a
+    planilha continua com todas.
 

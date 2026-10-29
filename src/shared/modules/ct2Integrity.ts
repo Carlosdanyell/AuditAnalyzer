@@ -170,3 +170,85 @@ export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation): r is
 export function isCt2Summary(s: Summary | Ct2Summary): s is Ct2Summary {
   return 'module' in s && s.module === 'ct2Integrity';
 }
+
+// ── Panel and tables (section 9; decisions of 29/10/2026) ──
+
+/** Tables of the CT2 module, paged by the worker. */
+export type Ct2TableId = 'ct2Documents' | 'ct2Batches' | 'ct2Days' | 'ct2Exceptions' | 'ct2Base';
+
+/** Filter of a CT2 table: within a segment, the rows of a test (code in Exceções, mark elsewhere) and a search. */
+export interface Ct2TableFilter {
+  search?: string;
+  /** Index of the segment (Ct2PanelData.segments); absent = every segment. */
+  segment?: number;
+  test?: Ct2TestCode;
+  /** Base: every column of the extraction (otherwise the mapped ones and the tests). */
+  allColumns?: boolean;
+}
+
+export interface Ct2SegmentInfo {
+  index: number;
+  balanceType: string;
+  currency: string;
+  label: string;
+}
+
+export interface Ct2Indicator {
+  balanceType: string;
+  currency: string;
+  days: number;
+  batches: number;
+  documents: number;
+  lines: number;
+  debitCents: number;
+  creditCents: number;
+  /** Documents with B1 (null when B1 is off). */
+  unbalancedDocuments: number | null;
+}
+
+export interface Ct2MatrixRow {
+  level: 'base' | 'documents' | 'batches' | 'days';
+  lines: number;
+  documents: number | null;
+  batches: number | null;
+  debitCents: number;
+  creditCents: number;
+  /** Equal to the Base (lines, debit, credit) and to the level that counts documents and batches. */
+  ok: boolean;
+}
+
+export interface Ct2DocumentRow {
+  /** Index of the document (row of the Documentos table). */
+  index: number;
+  balanceType: string;
+  currency: string;
+  day: number;
+  batch: string;
+  subBatch: string;
+  document: string;
+}
+
+export interface Ct2ProfileGroup {
+  balanceType: string;
+  currency: string;
+  value: string;
+  lines: number;
+  debitCents: number;
+  creditCents: number;
+}
+
+export interface Ct2PanelData {
+  segment: number | null;
+  segments: Ct2SegmentInfo[];
+  parameters: Ct2RunParameters;
+  indicators: Ct2Indicator[];
+  totals: { days: number; batches: number; documents: number; lines: number; unbalancedDocuments: number | null };
+  exceptions: { error: number; warning: number };
+  matrix: Ct2MatrixRow[];
+  /** The tests in force with their occurrences in the segment and the table that lists them. */
+  board: (Ct2TestResult & { link: Ct2TableId | null })[];
+  unbalanced: { total: number; rows: (Ct2DocumentRow & { differenceCents: number; compensation: string | null })[] };
+  largest: { limit: number; atLimit: number; rows: (Ct2DocumentRow & { lines: number; atLimit: boolean })[] };
+  profile: { routines: Ct2ProfileGroup[]; standardEntries: Ct2ProfileGroup[]; manual: (Omit<Ct2ProfileGroup, 'value'> & { origin: 'manual' | 'automatic' | 'unidentified' })[] };
+}
+

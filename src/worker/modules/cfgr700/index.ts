@@ -5,6 +5,7 @@
 import { parseConfig } from '../../../config/schema';
 import { runIngestion } from '../../ingest/pipeline';
 import { Session } from '../../session';
+import type { TableId } from '../../../shared/protocol';
 import type { WorkerModule } from '../types';
 
 export const cfgr700Worker: WorkerModule = {
@@ -20,7 +21,8 @@ export const cfgr700Worker: WorkerModule = {
         checks: result.reconciliation.checks,
         session: {
           panel: (scope, period, cutoffDay) => session.panel(scope, period, cutoffDay),
-          page: (scope, table, filter, sort, offset, limit) => session.page(scope, table, filter, sort, offset, limit),
+          // Only the tables of the CFGR700 (the ids of another module never reach this session).
+          page: (scope, table, filter, sort, offset, limit) => session.page(scope, table as TableId, filter, sort, offset, limit),
           export: (options, onProgress) => session.export(options, onProgress),
           settings: { update: (settings) => session.updateSettings(settings) },
           justifications: {
