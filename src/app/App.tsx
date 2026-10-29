@@ -2,30 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
 import { ToolHome } from '../components/ToolHome';
-import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
-import { isCt2Reconciliation, isCt2Summary } from '../shared/modules/ct2Integrity';
+import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, WorkerEvent } from '../shared/protocol';
+import { isCt2Summary } from '../shared/modules/ct2Integrity';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { buildBackup } from '../shared/backup';
 import { APP_VERSION_LABEL } from '../shared/version';
-import { JustificationsView } from './views/JustificationsView';
 import { applySettings, settingsFromConfig } from '../shared/settings';
 import { canonicalJson, configDiff } from '../shared/configTools';
 import { loadConfig, loadModuleConfig, saveConfig, saveModuleConfig } from './configStore';
 import { platformConfigOf } from '../config/platform';
-import { configViewOf } from './moduleViews';
+import { configViewOf, workspaceOf } from './moduleViews';
+import type { View } from './modules/workspace';
 import { BackupCard, type RestoredBackup } from './views/BackupCard';
 import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
-import { PanelView, type PanelMode } from './views/PanelView';
-import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
-import { ExportView, cfgr700ExportContent } from './views/ExportView';
-import { Ct2Workspace } from './modules/ct2Integrity/Ct2Workspace';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
@@ -47,7 +42,6 @@ interface Run {
 
 type Phase = 'select' | 'running' | 'done';
 type Screen = 'home' | 'tool' | 'config';
-type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
 /** Rows of each sheet read by the probe of the start screen (the header of every module is in the first 30). */
 const PROBE_ROWS = 30;
@@ -94,9 +88,8 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<View>('reconciliation');
   const [scope, setScope] = useState(0);
-  const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
-  /** Panel mode (docs/REGRAS_CFGR700.md, section 13): kept while the user opens tables and comes back. */
-  const [panelMode, setPanelMode] = useState<PanelMode>('general');
+  /** Changes with each new analysis (the workspace of the module starts its tables over). */
+  const [analysisId, setAnalysisId] = useState(0);
   // Configuration saved on this computer (IndexedDB) and the one used by the analysis on screen.
   const [config, setConfig] = useState<AnalyzerConfig>(defaultConfig);
   const configRef = useRef(config);
@@ -120,7 +113,6 @@ export function App() {
   const justificationsRef = useRef(justifications);
   const [meta, setMeta] = useState<JustificationMeta>({ lastExportAt: null, lastChangeAt: null });
   const [unknownCount, setUnknownCount] = useState(0);
-  const [justRequest, setJustRequest] = useState<TableRequest>({ table: 'deletionJustifications', filter: {} });
   const [justRefresh, setJustRefresh] = useState(0);
   const [theme, setTheme] = useState<Theme>('light');
 
@@ -193,11 +185,6 @@ export function App() {
     void saveMeta(nextMeta);
     return { fileName, count: items.length };
   }, [meta]);
-
-  const openJustifications = useCallback((table: TableId, filter: TableFilter) => {
-    setJustRequest({ table, filter });
-    setView('justifications');
-  }, []);
 
   useEffect(() => {
     void loadLastModule().then((stored) => {
@@ -284,11 +271,6 @@ export function App() {
     setSummary(nextSummary);
   }, []);
 
-  const openTable = useCallback((table: TableId, filter: TableFilter) => {
-    setTableRequest({ table, filter });
-    setView('tables');
-  }, []);
-
   function client(): WorkerClient {
     if (!clientRef.current) {
       const created = new WorkerClient(createAnalyzerWorker);
@@ -317,7 +299,7 @@ export function App() {
             setSummary(event.summary);
             setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
-            setTableRequest({ table: 'documents', filter: {} });
+            setAnalysisId((n) => n + 1);
             setPhase('done');
             break;
           }
@@ -542,10 +524,8 @@ export function App() {
   const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
 
   // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
-  const logReconciliation = reconciliation && !isCt2Reconciliation(reconciliation) ? reconciliation : null;
   const logSummary = summary && !isCt2Summary(summary) ? summary : null;
-  const ct2Reconciliation = reconciliation && isCt2Reconciliation(reconciliation) ? reconciliation : null;
-  const ct2Summary = summary && isCt2Summary(summary) ? summary : null;
+  const Workspace = workspaceOf(current);
   const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
   const showScope = inTool && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
   const openSession = done || phase === 'running' || files.length > 0 ? { id: moduleId, label: done ? 'Análise aberta' : phase === 'running' ? 'Processando' : 'Arquivos carregados' } : null;
@@ -883,70 +863,32 @@ export function App() {
             </div>
           )}
 
-          {inTool && done && logReconciliation && (
-            <div className={styles.view} key={view}>
-              {view === 'reconciliation' && (
-                <ReconciliationView data={logReconciliation} summary={logSummary} valueField={(analyzedConfig ?? config).fields.value} />
-              )}
-              {view === 'panel' && (
-                <PanelView
-                  client={client()}
-                  scope={scope}
-                  onOpenTable={openTable}
-                  onOpenJustifications={openJustifications}
-                  onSettingsChange={changeSettings}
-                  refreshKey={justRefresh}
-                  onScopeChange={setScope}
-                  table={(analyzedConfig ?? config).table}
-                  balanceType={(analyzedConfig ?? config).balanceType}
-                  mode={panelMode}
-                  onModeChange={setPanelMode}
-                />
-              )}
-              {view === 'tables' && (
-                <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} balanceType={(analyzedConfig ?? config).balanceType} />
-              )}
-              {view === 'justifications' && (
-                <JustificationsView
-                  client={client()}
-                  scope={scope}
-                  request={justRequest}
-                  onRequest={setJustRequest}
-                  justifications={justifications}
-                  meta={meta}
-                  unknownCount={unknownCount}
-                  refreshKey={justRefresh}
-                  onSave={saveItems}
-                  onReplaceAll={replaceAll}
-                  onExport={exportJson}
-                />
-              )}
-              {view === 'export' && logSummary && current.features.export && (
-                <ExportView
-                  client={client()}
-                  scopes={logSummary.scopes.map((s) => s.label)}
-                  scope={scope}
-                  onScopeChange={setScope}
-                  failures={logReconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
-                  content={cfgr700ExportContent([...justifications.values()].filter((j) => j.text.trim()).length, () => setView('justifications'))}
-                />
-              )}
-            </div>
-          )}
-
-          {inTool && done && ct2Reconciliation && (
-            // The workspace keeps its state (segment, table) across views; it animates each view itself.
-            <Ct2Workspace
-                viewClassName={styles.view}
-                client={client()}
-                view={view === 'justifications' ? 'reconciliation' : view}
-                onView={setView}
-                reconciliation={ct2Reconciliation}
-                summary={ct2Summary}
-                preview={current.preview}
-                exportOffered={current.features.export}
-                onAnalyzed={onAnalyzed}
-              />
+          {inTool && done && reconciliation && (
+            // The workspace keeps its state (tables, panel mode, segment) across views; it animates each view itself.
+            <Workspace
+              viewClassName={styles.view}
+              client={client()}
+              module={current}
+              view={offered(current, view) ? view : 'reconciliation'}
+              onView={setView}
+              reconciliation={reconciliation}
+              summary={summary}
+              analysisId={analysisId}
+              onAnalyzed={onAnalyzed}
+              cfgr700={{
+                config: analyzedConfig ?? config,
+                scope,
+                onScopeChange: setScope,
+                onSettingsChange: changeSettings,
+                justifications,
+                meta,
+                unknownCount,
+                justificationsVersion: justRefresh,
+                onSaveJustifications: saveItems,
+                onReplaceJustifications: replaceAll,
+                onExportJustifications: exportJson,
+              }}
+            />
           )}
         </main>
       </div>

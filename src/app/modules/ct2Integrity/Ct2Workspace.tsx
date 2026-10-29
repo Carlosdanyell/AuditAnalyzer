@@ -3,16 +3,15 @@
  * panel (segment, parameters reapplied, board of tests), tables and export. The shell (App.tsx) owns the files, the
  * processing and the view chosen in the sidebar.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Ct2ReconciliationView } from '../../../components/Ct2ReconciliationView';
 import { Icon } from '../../../components/Icon';
 import ui from '../../../components/ui.module.css';
-import { CT2_TEST_INFO, type Ct2Reconciliation, type Ct2RunParameters, type Ct2Summary, type Ct2TableFilter, type Ct2TableId } from '../../../shared/modules/ct2Integrity';
-import type { ModuleReconciliation, ModuleSummary } from '../../../shared/protocol';
+import { CT2_TEST_INFO, isCt2Reconciliation, isCt2Summary, type Ct2RunParameters, type Ct2TableFilter, type Ct2TableId } from '../../../shared/modules/ct2Integrity';
 import { ExportView } from '../../views/ExportView';
 import { TablesView, type TableRequest } from '../../views/TablesView';
 import { CT2_EXPORT, ct2TooLarge } from '../../views/ct2Export';
-import type { WorkerClient } from '../../workerClient';
+import type { WorkspaceProps } from '../workspace';
 import { Ct2PanelView } from './Ct2PanelView';
 import styles from './Ct2Workspace.module.css';
 
@@ -24,27 +23,17 @@ export const CT2_TABLES: { id: Ct2TableId; label: string }[] = [
   { id: 'ct2Base', label: 'Base' },
 ];
 
-export type Ct2View = 'reconciliation' | 'panel' | 'tables' | 'export';
-
-interface Props {
-  client: WorkerClient;
-  view: Ct2View;
-  onView: (view: Ct2View) => void;
-  reconciliation: Ct2Reconciliation;
-  summary: Ct2Summary | null;
-  preview: string | null;
-  exportOffered: boolean;
-  /** The analysis reapplied: the new reconciliation (checks) and summary. */
-  onAnalyzed: (reconciliation: ModuleReconciliation, summary: ModuleSummary) => void;
-  /** Class of the element of each view (its entrance). */
-  viewClassName: string | undefined;
-}
-
 /** The state of the workspace (segment, table, filters) stays while the views change; each view is a new element (its entrance). */
-export function Ct2Workspace({ viewClassName, client, view, onView, reconciliation, summary, preview, exportOffered, onAnalyzed }: Props) {
+export function Ct2Workspace({ viewClassName, client, module, view, onView, reconciliation: anyReconciliation, summary: anySummary, analysisId, onAnalyzed }: WorkspaceProps) {
   const [segment, setSegment] = useState<number | null>(null);
   const [request, setRequest] = useState<TableRequest>({ table: 'ct2Documents', filter: {} });
   const [refresh, setRefresh] = useState(0);
+
+  // A new analysis starts the segment and the tables over.
+  useEffect(() => {
+    setSegment(null);
+    setRequest({ table: 'ct2Documents', filter: {} });
+  }, [analysisId]);
 
   const openTable = useCallback(
     (table: Ct2TableId, filter: Ct2TableFilter) => {
@@ -62,6 +51,12 @@ export function Ct2Workspace({ viewClassName, client, view, onView, reconciliati
     },
     [client, onAnalyzed],
   );
+
+  if (!isCt2Reconciliation(anyReconciliation)) return null;
+  const reconciliation = anyReconciliation;
+  const summary = anySummary && isCt2Summary(anySummary) ? anySummary : null;
+  const preview = module.preview;
+  const exportOffered = module.features.export;
 
   return (
     <div className={viewClassName} key={view}>

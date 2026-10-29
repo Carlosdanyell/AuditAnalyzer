@@ -425,6 +425,8 @@ function Parameters({ current, onReapply }: { current: Ct2RunParameters; onReapp
   );
   const [form, setForm] = useState(initial);
   const [status, setStatus] = useState<{ kind: 'idle' | 'running' | 'done' | 'error'; text?: string }>({ kind: 'idle' });
+  // Opened and closed by the user only: the result of reapplying stays in sight.
+  const [open, setOpen] = useState(false);
   useEffect(() => setForm(initial), [initial]);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const cents = centsFromReais(form.tolerance);
@@ -454,7 +456,7 @@ function Parameters({ current, onReapply }: { current: Ct2RunParameters; onReapp
   }
 
   return (
-    <details className={cx(ui.card, styles.fold)} open={dirty || status.kind === 'error'}>
+    <details className={cx(ui.card, styles.fold)} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
         <Icon name="chevronRight" size={18} />
         <span className={ui.cardTitle}>
