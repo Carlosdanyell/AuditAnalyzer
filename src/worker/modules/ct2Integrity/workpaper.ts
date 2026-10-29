@@ -6,8 +6,9 @@
  */
 import { CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
-import { CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
+import { CT2_MAX_EXPORT_ROWS, CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
+import { formatInteger } from '../../../shared/format';
 import type { CheckResult } from '../../../shared/protocol';
 import { TraceSheet } from '../../export/common/traceability';
 import type { Language } from '../../export/labels';
@@ -36,6 +37,8 @@ export interface Ct2WorkpaperInput {
   confirmedFailures: CheckResult[];
   /** Rows per sheet (Excel: 1.048.576); smaller only in tests. */
   sheetRows?: number;
+  /** Lines of the Base per export (MAX_EXPORT_ROWS); smaller only in tests. */
+  maxRows?: number;
 }
 
 export interface Ct2WorkpaperOutput {
@@ -47,6 +50,8 @@ export interface Ct2WorkpaperOutput {
 
 /** Rows per worksheet in Excel. */
 export const EXCEL_ROWS = 1048576;
+/** Lines of the Base per export (CI-8). */
+export const MAX_EXPORT_ROWS = CT2_MAX_EXPORT_ROWS;
 /** Unbalanced documents listed on the Resumo. */
 const SUMMARY_UNBALANCED = 50;
 
@@ -114,9 +119,11 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const p = a.parameters;
   const sheetRows = input.sheetRows ?? EXCEL_ROWS;
   const rows = order.length;
-  if (rows + 1 > sheetRows) {
+  const maxRows = Math.min(sheetRows - 1, input.maxRows ?? MAX_EXPORT_ROWS);
+  if (rows > maxRows) {
     throw new Error(
-      `CI-8: a base tem ${rows} linhas e não cabe numa aba do Excel (${sheetRows - 1} linhas de dados). Divida a extração (por exemplo, por mês) e analise cada parte.`,
+      `CI-8: a base tem ${formatInteger(rows)} linhas e a planilha amarrada por fórmulas aceita até ${formatInteger(maxRows)} linhas por exportação ` +
+        '(acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por mês ou quinzena, e analise cada parte.',
     );
   }
   const w = new XlsxWriter();

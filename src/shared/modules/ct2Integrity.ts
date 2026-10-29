@@ -10,6 +10,12 @@ import type { Reconciliation, Summary } from './cfgr700';
 /** Processing stages of the CT2 module; the first three repeat for each file. */
 export const CT2_STAGES = ['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks'] as const satisfies readonly Stage[];
 
+/**
+ * Lines of the Base per export of the workpaper (CI-8; decision of 29/10/2026, docs/MEDICOES.md): up to 300 thousand
+ * the workpaper recalculates in a few minutes; with 1 million the Base passes 4 GB and does not recalculate.
+ */
+export const CT2_MAX_EXPORT_ROWS = 300_000;
+
 /** Level a test looks at (section 6); the profile (P1-P4) is a summary of the Base. */
 export type Ct2Level = 'line' | 'document' | 'batch' | 'day' | 'profile';
 

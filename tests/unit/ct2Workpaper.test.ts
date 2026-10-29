@@ -3,7 +3,7 @@ import { ct2DefaultConfig, type Ct2IntegrityConfig, type Ct2TestCode } from '../
 import { formatDay, parseDate } from '../../src/shared/dates';
 import { analyzeCt2, compensationText, documentRef, hasMark } from '../../src/worker/modules/ct2Integrity/analysis';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
-import { buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
+import { MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
 import { CT2_LABELS } from '../../src/worker/modules/ct2Integrity/workpaperLabels';
 import type { Language } from '../../src/worker/export/labels';
 import { ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
@@ -13,7 +13,7 @@ import { Workbook, type Value } from '../support/xlsxEval';
 /** The CT2 workpaper tied out by formulas (docs/REGRAS_CT2_INTEGRIDADE.md, section 7), evaluated by the test evaluator. */
 const holidays = ENGINE_HOLIDAYS.map(parseDate);
 
-async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number } = {}) {
+async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number } = {}) {
   const config = o.config ?? ct2DefaultConfig();
   const ingested = await ingestCt2(
     (o.files ?? [{ rows: ENGINE_ROWS }]).map((f, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(f) })),
@@ -34,6 +34,7 @@ async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityC
       configDifferences: [],
       confirmedFailures: [],
       ...(o.sheetRows !== undefined && { sheetRows: o.sheetRows }),
+      ...(o.maxRows !== undefined && { maxRows: o.maxRows }),
     },
     () => {},
   );
@@ -196,10 +197,17 @@ describe('CT2 workpaper: configuration, language, limits and determinism', () =>
     expect(book.value('Resumo', `B${rowOf(book, 'Resumo', 'Exceções de Erro').r}`)).toBe(6);
   });
 
-  it('blocks a Base above the rows of a sheet (CI-8)', async () => {
-    const error = await build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], sheetRows: 6 }).catch((e: Error) => e);
-    expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toMatch(/^CI-8: a base tem 8 linhas e não cabe numa aba do Excel \(5 linhas de dados\)/);
+  it('blocks a Base above the rows a workpaper can recalculate (CI-8; decision of 29/10/2026), and above a sheet', async () => {
+    expect(MAX_EXPORT_ROWS).toBe(300_000);
+    const above = await build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], maxRows: 7 }).catch((e: Error) => e);
+    expect(above).toBeInstanceOf(Error);
+    expect((above as Error).message).toBe(
+      'CI-8: a base tem 8 linhas e a planilha amarrada por fórmulas aceita até 7 linhas por exportação (acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por mês ou quinzena, e analise cada parte.',
+    );
+    const sheet = await build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], sheetRows: 6 }).catch((e: Error) => e);
+    expect((sheet as Error).message).toMatch(/^CI-8: a base tem 8 linhas e a planilha amarrada por fórmulas aceita até 5 linhas/);
+    // At the limit it is exported.
+    await expect(build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], maxRows: 8 })).resolves.toBeDefined();
   });
 
   it('is deterministic: the same input gives the same bytes', async () => {

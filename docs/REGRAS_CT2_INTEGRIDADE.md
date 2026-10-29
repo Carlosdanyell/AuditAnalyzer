@@ -351,9 +351,14 @@ código, chave.
 
 ### 7.9 Limites
 
-- Excel: 1.048.576 linhas por aba. Base com mais linhas que isso: exportação bloqueada (CI-8), com mensagem.
-- Tempo de recálculo: medir na Fase 11 (`docs/MEDICOES.md`) com 40 mil, 300 mil e 1 milhão de linhas sintéticas.
-  Se 1 milhão não for viável, **parar e discutir** (seção 12) — não trocar fórmula por valor sem decisão.
+- **Até 300.000 linhas por exportação** (CI-8; decisão de 29/10/2026). Acima disso a exportação é bloqueada, com a
+  mensagem para dividir a extração (por exemplo, por mês ou quinzena) e analisar cada parte; a tela já avisa antes do
+  clique. A leitura, os testes e o quadro de testes valem para qualquer tamanho.
+- Medido na Fase 11 (`docs/MEDICOES.md`): 40 mil linhas, 29 MB e 14 s de recálculo; 300 mil, 218 MB e 140 s; 1 milhão
+  não é viável (com ~80 colunas a Base passa de 4 GB sem compressão, o limite de uma parte do ZIP sem ZIP64; só com
+  as colunas mapeadas, 465 MB e o LibreOffice esgota 15 GB de memória ao recalcular). Excel: 1.048.576 linhas por aba.
+- A gravação para com erro claro se uma aba passar de 4 GB sem compressão (nunca um arquivo corrompido).
+- Fórmula nunca trocada por valor para caber: decisão do usuário.
 
 ## 8. Invariantes (verificados a cada execução)
 
@@ -366,7 +371,7 @@ código, chave.
 | CI-5 | Para cada teste, ocorrências pelas marcas de linha/nível = linhas da Excecoes (Erro/Alerta) | sim |
 | CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
-| CI-8 | Base cabe numa aba do Excel | sim |
+| CI-8 | Base com até 300.000 linhas (limite da planilha amarrada, seção 7.9) e cabendo numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
 
@@ -448,7 +453,8 @@ Situação em 20/10/2026 (decisões na seção 13):
    em lançamentos de rotina pode trazer algo no fim, mas o módulo não o interpreta e P2 não usa usuário.
 5. **Chave do documento com tipo de saldo e moeda — decidido.** A chave não inclui tipo de saldo e moeda; os dois
    formam o segmento, que separa a análise (seção 3).
-6. **Teto do modo amarrado — pendente.** Resultado da medição da seção 7.9 (Fase 11).
+6. **Teto do modo amarrado — decidido.** 300.000 linhas por exportação; acima, bloquear e dividir (seção 7.9).
+   Pendente, sem bloquear: o tamanho típico da extração mensal real (o usuário não sabe agora; o teste local mostra).
 
 ## 13. Decisões registradas
 
@@ -511,3 +517,9 @@ Situação em 20/10/2026 (decisões na seção 13):
   - **Fórmulas alinhadas ao motor (ajustes técnicos à seção 7.4, aprovados com o plano):** I4 só testa com "Valor
     Moeda1" preenchido; I3 só com as contas preenchidas; `P_TIPO_PD`, `P_TIPO_DEB`, `P_TIPO_CRED` e `P_TIPO_HIST` são
     listas com os valores do tipo na configuração (texto e código), comparadas por `COUNTIF`.
+  - **Teto da planilha amarrada (seção 7.9):** com 1 milhão de linhas a planilha não é viável (medições em
+    `docs/MEDICOES.md`). Decidido: **bloquear acima de 300.000 linhas por exportação e dividir a extração**; a Base
+    continua com **todas as colunas** da extração. Alternativas rejeitadas: Base como valores acima do limite (perderia
+    o recálculo dos testes de linha), ZIP64 com 1 milhão de linhas (arquivo de ~500 MB que não recalcula em tempo
+    viável) e Base só com as colunas mapeadas. O tamanho típico da extração mensal real ainda não é conhecido.
+

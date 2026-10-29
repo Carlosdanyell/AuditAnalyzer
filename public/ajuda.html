@@ -321,7 +321,7 @@
             <li><strong>Documentos, Lotes e Dias:</strong> uma linha por bloco, com as linhas inicial e final do bloco e as somas por fórmula (<code>SUM</code>/<code>ROWS</code> do bloco). <strong>Não reordene nem insira linhas na Base:</strong> os blocos dependem da ordem.</li>
             <li><strong>Excecoes:</strong> cada ocorrência de Erro ou Alerta, com "Confirmada na origem?" por fórmula. Acima do limite de linhas do Excel, continua em <em>Excecoes (2)</em>.</li>
             <li><strong>Perfil, Base e Rastreabilidade:</strong> perfil por rotina, lançamento padrão e origem; a extração ordenada com as colunas de teste; SHA-256, leitura de cada arquivo, colunas encontradas e verificações.</li>
-            <li>Base acima de 1.048.575 linhas não cabe numa aba do Excel: a exportação é bloqueada; divida a extração (por exemplo, por mês).</li>
+            <li>Até 300.000 linhas por exportação: acima disso o Excel não recalcula a planilha em tempo viável, e a exportação é bloqueada. Divida a extração (por exemplo, por mês ou quinzena) e analise cada parte; a leitura e o quadro de testes valem para qualquer tamanho.</li>
           </ul>
         </section>
 

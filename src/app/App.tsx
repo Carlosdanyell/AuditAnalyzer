@@ -26,7 +26,7 @@ import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
 import { ExportView, cfgr700ExportContent } from './views/ExportView';
-import { CT2_EXPORT } from './views/ct2Export';
+import { CT2_EXPORT, ct2TooLarge } from './views/ct2Export';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
@@ -939,6 +939,7 @@ export function App() {
                   onScopeChange={() => {}}
                   failures={ct2Reconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
                   content={CT2_EXPORT}
+                  unavailable={ct2TooLarge(ct2Summary)}
                 />
               ) : (
                 <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />

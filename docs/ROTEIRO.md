@@ -232,6 +232,13 @@ desenvolvedor: preencher `desbalanceados` no golden real e rodar `npm run test:l
 parâmetro muda os status como o motor; no Excel, abre sem reparo e recalcula sem erros (teste local com
 `EXCEL_CHECK=1`); visual conferido em PDF.
 
+**Implementada (29/10/2026).** Planilha da seção 7 em pt e en, liberada na prévia; parte comum das planilhas em
+`src/worker/export/common/` sem mudar um byte da do CFGR700; avaliador com as funções novas. No avaliador e no
+LibreOffice (recalculando de verdade), matriz e quadro conferem com 40 mil e 300 mil linhas. 1 milhão de linhas não
+é viável: decisão do usuário de bloquear acima de 300.000 linhas por exportação e dividir a extração, com todas as
+colunas (seção 13). Decisões também sobre Excecoes acima do limite de linhas (outras abas) e o nome do arquivo com
+mais de um mês. Pendente na máquina do desenvolvedor: abrir no Excel (`EXCEL_CHECK=1`) e medir com a extração real.
+
 ---
 
 ## Fase 12 — CT2 Integridade: painel e tabelas

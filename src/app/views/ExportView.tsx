@@ -25,6 +25,8 @@ interface Props {
   /** Blocking checks that failed in this analysis. */
   failures: CheckResult[];
   content: ExportContent;
+  /** Why this analysis cannot be exported (e.g. too large); the button stays disabled. */
+  unavailable?: string | null;
 }
 
 type Status =
@@ -80,7 +82,7 @@ export function cfgr700ExportContent(justificationCount: number, onOpenJustifica
   };
 }
 
-export function ExportView({ client, scopes, scope, onScopeChange, failures, content }: Props) {
+export function ExportView({ client, scopes, scope, onScopeChange, failures, content, unavailable = null }: Props) {
   const [language, setLanguage] = useState<ExportOptions['language']>('pt');
   const [confirm, setConfirm] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -95,7 +97,7 @@ export function ExportView({ client, scopes, scope, onScopeChange, failures, con
     [client],
   );
 
-  const blocked = failures.length > 0 && !confirm;
+  const blocked = (failures.length > 0 && !confirm) || unavailable !== null;
   const running = status.kind === 'running';
 
   async function run() {
@@ -170,7 +172,14 @@ export function ExportView({ client, scopes, scope, onScopeChange, failures, con
 
         <ul className={styles.facts}>{content.facts}</ul>
 
-        {failures.length > 0 && (
+        {unavailable && (
+          <p className={cx(ui.alert, ui.warn)} role="alert">
+            <Icon name="alert" />
+            <span>{unavailable}</span>
+          </p>
+        )}
+
+        {failures.length > 0 && !unavailable && (
           <div className={cx(ui.alert, ui.warn, styles.warning)} role="alert">
             <Icon name="alert" />
             <div>

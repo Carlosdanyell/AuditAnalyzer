@@ -11,7 +11,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   colunas de teste e Rastreabilidade.
 - Mudar um parâmetro na planilha (tolerância, período, tipo de saldo, moeda, limite de linhas) recalcula testes e
   status como a ferramenta.
-- Exceções acima do limite de linhas do Excel continuam em outra aba; Base acima do limite bloqueia a exportação.
+- Exceções acima do limite de linhas do Excel continuam em outra aba. Até 300.000 linhas por exportação (acima disso
+  o recálculo não é viável): a tela avisa e pede para dividir a extração.
 - Nome do arquivo com o primeiro e o último mês quando a extração tem mais de um mês.
 
 ### Integridade da CT2: motor e quadro de testes, em prévia (Fase 10, docs/REGRAS_CT2_INTEGRIDADE.md)
