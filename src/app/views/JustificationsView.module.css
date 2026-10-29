@@ -73,7 +73,7 @@
   flex-direction: column;
   gap: 6px;
   color: var(--text-muted);
-  animation: open 280ms var(--ease);
+  animation: open 180ms var(--ease);
 }
 
 .help strong {

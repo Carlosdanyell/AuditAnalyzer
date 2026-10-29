@@ -62,7 +62,7 @@ Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições a
 ```
 src/
   app/                 # React: páginas, layout, estado da UI
-  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter, ModuleSelector...)
+  components/          # componentes reutilizáveis (Progress, DataTable, PeriodFilter, ToolHome...)
   modules/             # descritores dos módulos para a tela: registry.ts, <id>/module.ts (sem React)
   worker/
     index.ts           # ponto de entrada do worker e protocolo de mensagens

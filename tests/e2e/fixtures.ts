@@ -99,11 +99,11 @@ export const test = base.extend<{ files: Files; ct2Files: Ct2Files; segregationF
 
 export { expect };
 
-/** Chooses the analysis on the selector of the start screen (docs/MODULOS.md, section 4). */
+/** Opens a tool from the start of the platform (docs/MODULOS.md, section 4); `page` starts on any screen. */
 export async function chooseModule(page: Page, title = 'Log de auditoria (CFGR700)'): Promise<void> {
-  const option = page.getByRole('radio', { name: title, exact: true });
-  await option.click();
-  await expect(option).toBeChecked();
+  await page.getByRole('button', { name: 'Ferramentas', exact: true }).first().click();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(title, { exact: true })).toBeVisible();
 }
 
 /** Loads the files, runs the analysis and waits for the result screens. */

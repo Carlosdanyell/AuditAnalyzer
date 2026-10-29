@@ -23,9 +23,8 @@
   width: 52px;
   height: 52px;
   border-radius: 15px;
-  background: linear-gradient(140deg, #22a565 0%, #137a45 100%);
-  color: #ffffff;
-  box-shadow: 0 12px 26px -12px rgb(19 122 69 / 80%);
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 
 .title {

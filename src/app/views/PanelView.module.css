@@ -81,7 +81,7 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 18px 32px;
   margin-top: 14px;
-  animation: open 280ms var(--ease);
+  animation: open 180ms var(--ease);
 }
 
 @keyframes open {
@@ -155,9 +155,7 @@
   padding: 18px 18px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background:
-    radial-gradient(260px 120px at 100% 0%, color-mix(in srgb, var(--series) 12%, transparent), transparent 70%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--text);
   text-align: left;
@@ -180,7 +178,6 @@
 .kpi:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--series) 45%, var(--border));
-  box-shadow: var(--shadow-lg);
 }
 
 .kpiHead {
@@ -262,7 +259,7 @@
 
 .kpiSplit span {
   flex-basis: 0;
-  animation: split-in 700ms var(--ease) both 150ms;
+  animation: split-in 400ms var(--ease) both;
   transform-origin: left;
 }
 
@@ -466,7 +463,7 @@ thead .totalCol {
   padding: 14px 16px;
   border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
-  background: linear-gradient(135deg, var(--accent-soft), transparent 80%);
+  background: var(--accent-soft);
   font-size: 13.5px;
 }
 
@@ -547,7 +544,7 @@ thead .totalCol {
 
 .ring circle:last-child:not(:first-child) {
   stroke-linecap: round;
-  animation: ring-in 1s var(--ease) both 200ms;
+  animation: ring-in 500ms var(--ease) both;
   transition: stroke-dasharray 500ms var(--ease);
 }
 
@@ -724,7 +721,7 @@ thead .totalCol {
   border-radius: 4px 4px 0 0;
   overflow: hidden;
   transform-origin: bottom;
-  animation: bar-in 620ms var(--ease) both;
+  animation: bar-in 360ms var(--ease) both;
   transition: filter 150ms;
 }
 
@@ -840,7 +837,7 @@ thead .totalCol {
 
 .tableToggle[open] > :not(summary) {
   margin-top: 10px;
-  animation: open 280ms var(--ease);
+  animation: open 180ms var(--ease);
 }
 
 .dailyTable td,
@@ -895,7 +892,7 @@ thead .totalCol {
 
 .exceptionsFound {
   border-left-color: var(--warn);
-  background: linear-gradient(135deg, var(--warn-soft), var(--surface) 70%);
+  background: var(--warn-soft);
 }
 
 .exceptionsClear {
@@ -982,4 +979,53 @@ thead .totalCol {
   font-size: 13.5px;
   line-height: 1.55;
   color: var(--text-muted);
+}
+
+/* Sections folded by default: the title (and its status) stays visible. */
+.fold > summary,
+.foldInline > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.fold > summary::-webkit-details-marker,
+.foldInline > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg,
+.foldInline > summary > svg {
+  flex: none;
+  color: var(--text-subtle);
+  transition: transform 160ms var(--ease);
+}
+
+.fold[open] > summary > svg,
+.foldInline[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.fold > summary .sub,
+.fold > summary > span {
+  margin-left: auto;
+}
+
+.fold[open] > summary {
+  margin-bottom: 16px;
+}
+
+.foldInline {
+  margin-top: 10px;
+}
+
+.foldInline > summary {
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.foldInline[open] > summary {
+  margin-bottom: 10px;
 }

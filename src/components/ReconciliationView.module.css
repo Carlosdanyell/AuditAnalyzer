@@ -33,7 +33,7 @@
   width: 360px;
   height: 260px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--tone) 16%, transparent), transparent);
+  background: none;
   pointer-events: none;
 }
 
@@ -74,15 +74,6 @@
   border-radius: 18px;
   background: var(--tone-soft);
   color: var(--tone);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone) 7%, transparent);
-  animation: badge-in 600ms var(--ease) both;
-}
-
-@keyframes badge-in {
-  from {
-    transform: scale(0.6) rotate(-12deg);
-    opacity: 0;
-  }
 }
 
 .statusTitle {
@@ -128,7 +119,7 @@
 
 .ring circle:last-child:not(:first-child) {
   stroke-linecap: round;
-  animation: ring-in 900ms var(--ease) both 150ms;
+  animation: ring-in 500ms var(--ease) both;
 }
 
 .ring_ok circle:last-child:not(:first-child) {
@@ -471,7 +462,7 @@
 
 .more > :not(summary) {
   margin-top: 12px;
-  animation: open 280ms var(--ease);
+  animation: open 180ms var(--ease);
 }
 
 @keyframes open {

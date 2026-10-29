@@ -22,25 +22,44 @@ export const CellKind = {
 } as const;
 export type CellKind = (typeof CellKind)[keyof typeof CellKind];
 
+/** The XML of the sheet is malformed (e.g. a cell without its end); the reader names the file and the sheet. */
+export class SheetFormatError extends Error {}
+
 export class ParsedRow {
   readonly kind: Uint8Array;
   readonly sharedIndex: Int32Array;
   readonly text: string[];
-  /** Cells beyond `width` columns (ignored). */
+  /** Cells beyond `width` columns (not kept in the columns). */
   extraCells = 0;
-  /** Of those, cells with some text besides spaces (a styled empty cell has none). */
-  extraValues = 0;
+  /**
+   * Of those, the ones with a value, read like the others (kind, sharedIndex, text at index `width + i` of
+   * `extraKind`…): the reader resolves them, e.g. a shared string with only spaces is no value.
+   */
+  extras = 0;
+  readonly extraKind: number[] = [];
+  readonly extraShared: number[] = [];
+  readonly extraText: string[] = [];
 
   constructor(readonly width: number) {
-    this.kind = new Uint8Array(width);
-    this.sharedIndex = new Int32Array(width);
-    this.text = new Array<string>(width).fill('');
+    // One spare slot at `width`, where a cell beyond the columns read is parsed.
+    this.kind = new Uint8Array(width + 1);
+    this.sharedIndex = new Int32Array(width + 1);
+    this.text = new Array<string>(width + 1).fill('');
   }
 
   reset(): void {
     this.kind.fill(0);
     this.extraCells = 0;
-    this.extraValues = 0;
+    this.extras = 0;
+  }
+
+  /** Keeps the cell parsed into the spare slot as the next extra cell. */
+  keepExtra(): void {
+    const w = this.width;
+    this.extraKind[this.extras] = this.kind[w]!;
+    this.extraShared[this.extras] = this.sharedIndex[w]!;
+    this.extraText[this.extras] = this.text[w]!;
+    this.extras++;
   }
 }
 
@@ -59,15 +78,15 @@ const P_ROW = bytes('<row');
 const N_ROW = bytes('row');
 const N_C = bytes('c');
 const N_V = bytes('v');
+const N_T = bytes('t');
+const N_RPH = bytes('rPh');
 const P_SHEETDATA = bytes('<sheetData');
 const P_SHEETDATA_END = bytes('</sheetData>');
 const P_DIMENSION = bytes('<dimension');
 const P_C_END = bytes('</c>');
 const P_V_OPEN = bytes('<v');
 const P_V_END = bytes('</v>');
-const P_T_END = bytes('</t>');
 const P_RPH = bytes('<rPh');
-const P_RPH_END = bytes('</rPh>');
 
 function matchAt(buf: Uint8Array, at: number, pattern: Uint8Array): boolean {
   if (at + pattern.length > buf.length) return false;
@@ -103,18 +122,6 @@ function findEndTag(buf: Uint8Array, name: Uint8Array, from: number, to: number)
   return -1;
 }
 
-/** True if bytes [from, to) hold text other than spaces outside tags (the content of a cell). */
-function hasText(buf: Uint8Array, from: number, to: number): boolean {
-  let inTag = false;
-  for (let i = from; i < to; i++) {
-    const b = buf[i]!;
-    if (b === LT) inTag = true;
-    else if (b === GT) inTag = false;
-    else if (!inTag && b > 32) return true;
-  }
-  return false;
-}
-
 /** True if the byte ends a tag name: whitespace, '>' or '/'. */
 function endsName(b: number | undefined): boolean {
   return b !== undefined && (b <= 32 || b === GT || b === SLASH);
@@ -138,6 +145,9 @@ export class SheetParser {
   private dimensionSeen = false;
   private inSheetData = false;
   private done = false;
+
+  /** Row being read (for error messages). */
+  private rowNumber = 0;
 
   // Attribute ranges filled by scanAttributes().
   private rFrom = -1;
@@ -215,6 +225,7 @@ export class SheetParser {
         this.scanAttributes(buf, lt + 4, selfClosing ? tagEnd - 1 : tagEnd);
         const rowNumber = this.rFrom >= 0 ? Number(ascii(buf, this.rFrom, this.rTo)) : this.lastRowNumber + 1;
         this.row.reset();
+        this.rowNumber = rowNumber;
         if (!selfClosing) this.readCells(buf, tagEnd + 1, close);
         this.lastRowNumber = rowNumber;
         this.onRow(rowNumber, this.row);
@@ -328,57 +339,63 @@ export class SheetParser {
       }
       if (!selfClosing && close < 0) {
         close = findEndTag(buf, N_C, tagEnd + 1, to);
-        if (close < 0) throw new Error('Célula sem fechamento (</c>) dentro da linha.');
+        if (close < 0) throw new SheetFormatError(`Célula sem fechamento (</c>) na linha ${this.rowNumber}.`);
       }
       pos = selfClosing ? tagEnd + 1 : buf.indexOf(GT, close) + 1;
-      if (column < 0 || column >= row.width) {
-        row.extraCells++;
-        if (!selfClosing && hasText(buf, tagEnd + 1, close)) row.extraValues++;
-        continue;
-      }
+      const extra = column < 0 || column >= row.width;
+      if (extra) row.extraCells++;
       if (selfClosing) continue;
+      // A cell beyond the columns read is read into the spare slot and kept in the list of extra cells.
+      const slot = extra ? row.width : column;
+      if (extra) row.kind[slot] = CellKind.Empty;
+      this.readValue(buf, tagEnd, close, vFrom, vTo, slot);
+      if (extra && row.kind[slot] !== CellKind.Empty) row.keepExtra();
+    }
+  }
 
-      const tLen = this.tTo - this.tFrom;
-      const t0 = this.tFrom >= 0 ? buf[this.tFrom] : -1;
-      if (tLen === 9 && t0 === 105 /* inlineStr */) {
-        row.kind[column] = CellKind.Text;
-        row.text[column] = this.readInlineString(buf, tagEnd + 1, close);
-        continue;
-      }
+  /** Value of the cell whose start tag ends at `tagEnd` and whose </c> starts at `close`, into `slot` of the row. */
+  private readValue(buf: Uint8Array, tagEnd: number, close: number, vFrom: number, vTo: number, slot: number): void {
+    const row = this.row;
+    const tLen = this.tTo - this.tFrom;
+    const t0 = this.tFrom >= 0 ? buf[this.tFrom] : -1;
+    if (tLen === 9 && t0 === 105 /* inlineStr */) {
+      row.kind[slot] = CellKind.Text;
+      row.text[slot] = this.readInlineString(buf, tagEnd + 1, close);
+      return;
+    }
 
-      // Value in <v>…</v>.
-      if (vTo < 0) {
-        const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
-        if (vOpen < 0) continue;
-        vFrom = buf.indexOf(GT, vOpen) + 1;
-        if (buf[vFrom - 2] === SLASH) continue; // <v/>
-        vTo = findEndTag(buf, N_V, vFrom, close);
-        if (vTo < 0) continue;
-      }
+    // Value in <v>…</v>.
+    if (vTo < 0) {
+      const vOpen = find(buf, P_V_OPEN, tagEnd + 1, close);
+      if (vOpen < 0) return;
+      vFrom = buf.indexOf(GT, vOpen) + 1;
+      if (buf[vFrom - 2] === SLASH) return; // <v/>
+      vTo = findEndTag(buf, N_V, vFrom, close);
+      if (vTo < 0) return;
+    }
 
-      if (tLen === 1 && t0 === 115 /* s */) {
-        let n = 0;
-        let ok = vTo > vFrom;
-        for (let i = vFrom; i < vTo; i++) {
-          const d = buf[i]! - 48;
-          if (d < 0 || d > 9) {
-            ok = false;
-            break;
-          }
-          n = n * 10 + d;
+    if (tLen === 1 && t0 === 115 /* s */) {
+      let n = 0;
+      let ok = vTo > vFrom;
+      for (let i = vFrom; i < vTo; i++) {
+        const d = buf[i]! - 48;
+        if (d < 0 || d > 9) {
+          ok = false;
+          break;
         }
-        row.kind[column] = CellKind.Shared;
-        row.sharedIndex[column] = ok ? n : -1;
-      } else if (this.tFrom < 0 || (tLen === 1 && t0 === 110 /* n */)) {
-        row.kind[column] = CellKind.Number;
-        row.text[column] = ascii(buf, vFrom, vTo);
-      } else if (tLen === 3 && t0 === 115 /* str */) {
-        row.kind[column] = CellKind.Text;
-        row.text[column] = decodeCellText(utf8.decode(buf.subarray(vFrom, vTo)));
-      } else {
-        row.kind[column] = CellKind.Other;
-        row.text[column] = decodeCellText(utf8.decode(buf.subarray(vFrom, vTo)));
+        n = n * 10 + d;
       }
+      row.kind[slot] = CellKind.Shared;
+      row.sharedIndex[slot] = ok ? n : -1;
+    } else if (this.tFrom < 0 || (tLen === 1 && t0 === 110 /* n */)) {
+      row.kind[slot] = CellKind.Number;
+      row.text[slot] = ascii(buf, vFrom, vTo);
+    } else if (tLen === 3 && t0 === 115 /* str */) {
+      row.kind[slot] = CellKind.Text;
+      row.text[slot] = decodeCellText(utf8.decode(buf.subarray(vFrom, vTo)));
+    } else {
+      row.kind[slot] = CellKind.Other;
+      row.text[slot] = decodeCellText(utf8.decode(buf.subarray(vFrom, vTo)));
     }
   }
 
@@ -390,17 +407,17 @@ export class SheetParser {
       const lt = buf.indexOf(LT, pos);
       if (lt < 0 || lt >= to) break;
       if (matchAt(buf, lt, P_RPH)) {
-        const end = find(buf, P_RPH_END, lt, to);
+        const end = findEndTag(buf, N_RPH, lt, to);
         if (end < 0) break;
-        pos = end + P_RPH_END.length;
+        pos = buf.indexOf(GT, end) + 1;
         continue;
       }
       const gt = buf.indexOf(GT, lt);
       if (buf[lt + 1] === 116 /* t */ && endsName(buf[lt + 2]) && buf[gt - 1] !== SLASH) {
-        const end = find(buf, P_T_END, gt + 1, to);
+        const end = findEndTag(buf, N_T, gt + 1, to);
         if (end < 0) break;
         out += utf8.decode(buf.subarray(gt + 1, end));
-        pos = end + P_T_END.length;
+        pos = buf.indexOf(GT, end) + 1;
         continue;
       }
       pos = gt + 1;

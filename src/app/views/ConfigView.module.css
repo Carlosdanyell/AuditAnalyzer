@@ -259,7 +259,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 6px 22px 22px 60px;
-  animation: open 280ms var(--ease);
+  animation: open 180ms var(--ease);
 }
 
 @keyframes open {
@@ -413,10 +413,8 @@ textarea.input {
   overflow: auto;
 }
 
-/* Save bar: always within reach at the bottom of the screen. */
+/* Save bar: at the end of the page; within reach at the bottom of the window while there are changes. */
 .footer {
-  position: sticky;
-  bottom: 16px;
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
@@ -429,6 +427,11 @@ textarea.input {
   backdrop-filter: saturate(160%) blur(14px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+}
+
+.footer[data-floating] {
+  position: sticky;
+  bottom: 16px;
   box-shadow: var(--shadow-lg);
 }
 
@@ -446,13 +449,6 @@ textarea.input {
   height: 8px;
   border-radius: 50%;
   background: var(--warn);
-  animation: blink 1.6s ease-in-out infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.35;
-  }
 }
 
 @media (width < 700px) {

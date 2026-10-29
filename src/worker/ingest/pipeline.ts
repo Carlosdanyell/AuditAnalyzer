@@ -30,7 +30,7 @@ import type { InflateMode } from './inflate';
 import { requireIntact, sha256 } from './integrity';
 import { checkParameters, normalizeLabel, parseParameterRows } from './parametros';
 import { ProgressReporter } from './progress';
-import { CellKind, SheetParser, type ParsedRow } from './sheetStream';
+import { CellKind, SheetFormatError, SheetParser, type ParsedRow } from './sheetStream';
 import { SharedStringsParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath } from './workbook';
 import { ZipFormatError, readEntry, readEntryBytes, readZipDirectory, type ZipEntry } from './zip';
@@ -308,7 +308,14 @@ async function ingestFile(
   };
 
   const parser = new SheetParser(onRow, 16);
-  const reportIntegrity = await readEntry(blob, reportEntry, (c) => parser.push(c), {
+  const reportIntegrity = await readEntry(blob, reportEntry, (c) => {
+    try {
+      parser.push(c);
+    } catch (e) {
+      if (e instanceof SheetFormatError) throw new IngestError('rows', `A aba "${reportSheet.name}" de ${name} está malformada.`, e.message);
+      throw e;
+    }
+  }, {
     inflateMode,
     onBytes: (b) => progress.update(b, presentRows),
   });
