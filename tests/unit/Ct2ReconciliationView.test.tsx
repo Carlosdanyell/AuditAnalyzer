@@ -9,15 +9,18 @@ import { fileA, fileB } from '../synthetic/ct2Fixtures';
 import { ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 
 /** Reconciliation screen of the CT2 module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8). */
-async function render(files: { name: string; blob: Blob }[], analysis?: { holidays: ReadonlySet<number> }) {
+async function render(files: { name: string; blob: Blob }[], analysis?: { holidays: ReadonlySet<number> }, preview: string | null = ct2IntegrityModule.preview) {
   const { reconciliation, summary } = await ingestCt2(files, ct2DefaultConfig(), () => {}, { now: () => 0 }, analysis);
-  return renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={ct2IntegrityModule.preview} />);
+  return renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={preview} />);
 }
 
 describe('CT2 reconciliation screen', () => {
   it('shows the verdict, the row reconciliation, the unreadable values and the totals by segment', async () => {
     const html = await render([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }]);
-    expect(html).toContain('Prévia: leitura, testes, painel, tabelas e planilha');
+    // Out of preview since the check with a real extraction (30/10/2026): no notice.
+    expect(html).not.toContain('Prévia');
+    // A module in preview still gets its notice on the reconciliation.
+    expect(await render([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }], undefined, 'Prévia: em conferência.')).toContain('Prévia: em conferência.');
     expect(html).toContain('1 verificação(ões) bloqueante(s) falhou(aram)');
     expect(html).toContain('Reconciliação de linhas — aba “SCACKST0.XML”');
     expect(html).toMatch(/\(=\) Linhas de detalhe<\/th><td>10 <span[^>]*>confere/);

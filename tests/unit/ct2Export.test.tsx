@@ -11,7 +11,7 @@ const summary = (lines: number): Ct2Summary => ({ module: 'ct2Integrity', lines,
 describe('CT2 export screen', () => {
   it('says why a Base above 600 thousand lines cannot be exported, and nothing up to it (one year: decision of 30/10/2026)', () => {
     expect(ct2TooLarge(null)).toBeNull();
-    expect(ct2TooLarge(summary(339_167))).toBeNull();
+    expect(ct2TooLarge(summary(450_000))).toBeNull();
     expect(ct2TooLarge(summary(600_000))).toBeNull();
     expect(ct2TooLarge(summary(600_001))).toMatch(/^A base tem 600\.001 linhas e a planilha amarrada por fórmulas aceita até 600\.000 linhas por exportação/);
     expect(ct2TooLarge(summary(600_001))).toContain('por semestre ou trimestre');

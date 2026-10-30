@@ -15,7 +15,10 @@ describe('tool cards', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Log de auditoria \(CFGR700\)"/);
     expect(html).toMatch(/<button[^>]*aria-label="Integridade da CT2"/);
     expect(html).toContain('Relatório CFGR700 do Protheus (tabela CT2), em .xlsx');
-    expect(html.match(/Prévia/g)).toHaveLength(1);
+    // No tool in preview since the CT2 integrity left it (30/10/2026); a tool in preview gets the mark.
+    expect(html).not.toContain('Prévia');
+    const inPreview = render({ modules: MODULES.map((m) => (m.status === 'available' && m.id === 'ct2Integrity' ? { ...m, preview: 'Prévia: em conferência.' } : m)) });
+    expect(inPreview.match(/Prévia/g)).toHaveLength(1);
   });
 
   it('links each tool to its section of the manual', () => {

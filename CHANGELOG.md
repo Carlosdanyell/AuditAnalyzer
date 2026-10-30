@@ -4,6 +4,11 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.1.0] — 2026-10-30
+
+A Integridade da CT2 deixa de ser prévia: conferida no Excel com uma extração real de nove meses (matriz de
+amarração toda "OK" e quadro de testes todo "Confere").
+
 ### Um ano numa exportação da Integridade da CT2
 - A planilha amarrada aceita até 600.000 linhas (antes, 300.000): um ano de uma extração típica, com folga. Depois de
   300.000 linhas a Base continua nas abas "Base (2)", "Base (3)"…, sempre no início de um dia; todas as colunas e

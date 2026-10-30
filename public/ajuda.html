@@ -74,7 +74,7 @@
           <li><a href="#sinalizacoes">Sinalizações do painel</a></li>
           <li><a href="#limitacoes">Limitações</a></li>
         </ol>
-        <p class="group">Integridade da CT2 (prévia)</p>
+        <p class="group">Integridade da CT2</p>
         <ol>
           <li><a href="#ct2-para-que-serve">Para que serve</a></li>
           <li><a href="#ct2-extracao">Extração da CT2</a></li>
@@ -84,7 +84,7 @@
           <li><a href="#ct2-planilha">A planilha exportada</a></li>
           <li><a href="#ct2-configuracao">Regras da CT2</a></li>
           <li><a href="#ct2-painel">Painel e tabelas</a></li>
-          <li><a href="#ct2-limitacoes">O que a prévia ainda não faz</a></li>
+          <li><a href="#ct2-limitacoes">Limites</a></li>
         </ol>
         <ul>
           <li><a href="#privacidade">Privacidade e cópias</a></li>
@@ -101,7 +101,7 @@
             <thead><tr><th>Análise</th><th>Arquivo esperado</th><th>Situação</th></tr></thead>
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
-              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Prévia: leitura, testes, painel, tabelas e planilha</td></tr>
+              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Disponível</td></tr>
             </tbody>
           </table>
           <ul>
@@ -260,15 +260,14 @@
         </div>
 
         <div id="ct2">
-        <p class="group">Integridade da CT2 (prévia)</p>
+        <p class="group">Integridade da CT2</p>
         <section id="ct2-para-que-serve">
           <h2>1. Para que serve</h2>
           <p>
             Confere a extração da tabela CT2 (lançamentos contábeis): integridade dos arquivos, reconciliação de todas as linhas e
             valores legíveis; depois aglutina os lançamentos por documento, lote e dia e aplica os testes de balanceamento e de
             integridade. O resultado aparece no <strong>quadro de testes</strong> da reconciliação, no <strong>painel</strong> por tipo de
-            saldo e moeda, nas <strong>tabelas</strong> e na <strong>planilha amarrada por fórmulas</strong> (Exportação). É uma prévia enquanto
-            a conferência com extrações reais não termina.
+            saldo e moeda, nas <strong>tabelas</strong> e na <strong>planilha amarrada por fórmulas</strong> (Exportação).
           </p>
         </section>
 
@@ -347,10 +346,11 @@
         </section>
 
         <section id="ct2-limitacoes">
-          <h2>9. O que a prévia ainda não faz</h2>
+          <h2>9. Limites</h2>
           <ul>
             <li>Sem justificativas (são do log de auditoria CFGR700).</li>
-            <li>A conferência com extrações reais ainda está em andamento.</li>
+            <li>Até 600.000 linhas por exportação da planilha; a leitura, os testes e o painel valem para qualquer tamanho.</li>
+            <li>Só as linhas presentes na extração: lançamentos excluídos antes da extração não aparecem (veja o log de auditoria CFGR700).</li>
           </ul>
         </section>
         </div>

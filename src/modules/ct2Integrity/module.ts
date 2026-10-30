@@ -1,6 +1,7 @@
 /**
- * Integrity of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md): a preview that reads, reconciles and runs the
- * tests (Phases 9 and 10), exports the workpaper (Phase 11) and offers the panel and the tables (Phase 12).
+ * Integrity of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md): reads, reconciles and runs the tests (Phases 9 and
+ * 10), exports the workpaper (Phase 11) and offers the panel and the tables (Phase 12). Out of preview since the check
+ * with a real extraction on 30/10/2026.
  */
 import { ct2DefaultConfig, readCt2Config, type Ct2IntegrityConfig } from '../../config/ct2IntegritySchema';
 import { CT2_STAGES } from '../../shared/modules/ct2Integrity';
@@ -26,8 +27,7 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   description: 'Aglutinação dos lançamentos por documento, lote e dia, testes de balanceamento e de integridade, planilha amarrada por fórmulas.',
   input: 'Extração da tabela CT2 (lançamentos), em .xlsx',
   brandSubtitle: 'Integridade da CT2 · Protheus',
-  preview:
-    'Prévia: leitura, testes, painel, tabelas e planilha amarrada por fórmulas disponíveis; a conferência com extrações reais ainda está em andamento.',
+  preview: null,
   start: {
     heading: 'Extração da CT2',
     headingDescription: 'Lançamentos contábeis exportados da tabela CT2 do Protheus',

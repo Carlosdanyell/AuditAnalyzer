@@ -39,12 +39,12 @@ function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
   );
 }
 
-test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como prévia', async ({ page }) => {
+test('início da plataforma: uma linha por ferramenta, as duas disponíveis', async ({ page }) => {
   await page.goto('');
   await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
   await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: CT2, exact: true })).toBeEnabled();
-  await expect(page.getByText('Prévia', { exact: true })).toBeVisible();
+  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(0);
   const manuals = page.getByRole('link', { name: 'Manual desta análise' });
   await expect(manuals.nth(0)).toHaveAttribute('href', /ajuda\.html#cfgr700$/);
   await expect(manuals.nth(1)).toHaveAttribute('href', /ajuda\.html#ct2$/);
@@ -55,7 +55,7 @@ test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como 
 test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; oferece painel, tabelas e exportação', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
-  await expect(page.getByText(/^Prévia: leitura, testes, painel, tabelas e planilha/)).toBeVisible();
+  await expect(page.getByText(/^Prévia/)).toHaveCount(0);
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.withProblems, ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });

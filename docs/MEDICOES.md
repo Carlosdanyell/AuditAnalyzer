@@ -175,8 +175,8 @@ Resumo em CSV; depois do recálculo, a matriz de amarração e o quadro de teste
 
 ### 2026-10-30 — um ano numa exportação (Base em abas de dias inteiros)
 
-A extração real de janeiro a setembro tem 339.167 linhas (cerca de 37,7 mil por mês; um ano, cerca de 450 mil) e
-passava do teto de 300.000. Mesmo método e máquina; `MEDIR_CT2_LINHAS=450000,600000`.
+Uma extração real de nove meses passava do teto de 300.000 linhas (um ano típico, cerca de 450 mil). Mesmo método e
+máquina; `MEDIR_CT2_LINHAS=450000,600000`.
 
 | Linhas | Base | Geração | Arquivo | Maior aba (sem compressão) | Pico da geração | Recálculo no LibreOffice | Matriz e quadro |
 |---|---|---|---|---|---|---|---|
@@ -190,4 +190,7 @@ passava do teto de 300.000. Mesmo método e máquina; `MEDIR_CT2_LINHAS=450000,6
 - A divisão não muda o tamanho do arquivo e deixou o recálculo mais rápido (188 s contra 241 s com 450 mil linhas).
 - Decisão de 30/10/2026 (seção 7.9 das regras): até 600.000 linhas por exportação, com todas as colunas e todas as
   fórmulas.
+- Verificado pelo usuário em 30/10/2026 no computador do trabalho, com a extração real de nove meses: a planilha
+  abriu no Excel e recalculou em alguns minutos, com a matriz de amarração e o quadro de testes conferindo. Os
+  tamanhos e as contagens reais ficam em `local/`.
 

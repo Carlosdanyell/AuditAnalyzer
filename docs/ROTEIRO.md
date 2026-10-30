@@ -20,7 +20,8 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 10 — CT2 Integridade: motor | concluída em 29/10/2026 (seções 5, 6 e 8) |
 | 11 — CT2 Integridade: planilha amarrada | concluída em 29/10/2026 (seção 7); até 300.000 linhas por exportação |
 | 12 — CT2 Integridade: painel e tabelas | concluída em 29/10/2026 (seção 9) |
-| 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0`; a Integridade da CT2 segue em prévia até a conferência com extrações reais (`npm run test:local` e o arquivo de ~1 milhão de linhas na máquina do desenvolvedor) |
+| 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0` |
+| Depois da 2.0 — versão 2.1.0 | concluída em 30/10/2026: um ano por exportação da CT2 (até 600.000 linhas, Base em abas de dias inteiros), escolha da aba a analisar; Integridade da CT2 conferida com uma extração real no Excel e fora da prévia |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
