@@ -4,6 +4,12 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.0.0] — 2026-10-30
+
+O AuditAnalyzer passa a ser uma plataforma de ferramentas: o log de auditoria (CFGR700) continua igual e ganha a
+companhia da **Integridade da CT2**, em prévia até a conferência com extrações reais. Nova interface (console),
+nova logo e cópias de segurança da 1.0.0 restauradas sem perda.
+
 ### Nova interface: console corporativo
 - Trilho azul-marinho estreito com ícone e rótulo em cada item, marca vermelha na visão ativa e contagem das
   verificações bloqueantes; topo com a trilha e as ações; faixa de indicadores-chave da análise (linhas, documentos,

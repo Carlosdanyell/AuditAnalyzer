@@ -4,20 +4,20 @@
 
 # AuditAnalyzer
 
-**Análise do log de auditoria CFGR700 do TOTVS Protheus (tabela CT2), 100% no navegador.**
+**Plataforma de análises contábeis do TOTVS Protheus, 100% no navegador.**
 
-Lê as extrações do relatório, reconcilia linha a linha, responde às perguntas de auditoria interna/SOX
+Cada ferramenta lê o seu tipo de extração, reconcilia linha a linha, responde às perguntas de auditoria interna/SOX
 e gera um papel de trabalho em Excel pronto para revisão.
 
 [![Publicar no GitHub Pages](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml/badge.svg)](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.0-1f3864)
-![Processamento local](https://img.shields.io/badge/dados-100%25%20locais-157a3f)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-2552d0?logo=typescript&logoColor=white)
-![React 18](https://img.shields.io/badge/React-18-2552d0?logo=react&logoColor=white)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-2.0.0-0f2742)
+![Processamento local](https://img.shields.io/badge/dados-100%25%20locais-1d7a46)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-1e6495?logo=typescript&logoColor=white)
+![React 18](https://img.shields.io/badge/React-18-1e6495?logo=react&logoColor=white)
 
 [**Abrir o aplicativo**](https://carlosdanyell.github.io/AuditAnalyzer/) ·
 [Manual do usuário](public/ajuda.html) ·
-[Regras de negócio](docs/REGRAS_CFGR700.md) ·
+[Plataforma e módulos](docs/MODULOS.md) ·
 [Histórico de versões](CHANGELOG.md)
 
 </div>
@@ -27,29 +27,51 @@ e gera um papel de trabalho em Excel pronto para revisão.
 > [!IMPORTANT]
 > **Nenhum dado sai do computador.** Não há servidor, analytics, CDN nem fontes externas: o aplicativo é um conjunto
 > de arquivos estáticos e a política de segurança do navegador (`connect-src 'self'`) bloqueia qualquer envio.
-> Os dados do log ficam só na memória da sessão; o IndexedDB guarda apenas a configuração, as justificativas e as
+> Os dados ficam só na memória da sessão; o IndexedDB guarda apenas a configuração, as justificativas e as
 > preferências da tela.
 
-## O que a ferramenta responde
+## Ferramentas
+
+| Ferramenta | Lê | Situação |
+|---|---|---|
+| **Log de auditoria** (`CFGR700`) | Relatório CFGR700 do Protheus (tabela CT2), um ou mais `.xlsx` de até ~1 milhão de linhas | Em uso desde a 1.0.0 |
+| **Integridade da CT2** (`CT2`) | Extração da tabela CT2 (lançamentos), um ou mais `.xlsx` | Prévia na 2.0.0: completa, em conferência com extrações reais |
+
+A plataforma recebe outras ferramentas contábeis (por exemplo, conciliações) pelo mesmo contrato
+([`docs/MODULOS.md`](docs/MODULOS.md)): cada uma traz as próprias regras, telas e planilha e usa a casca, a marca, a
+leitura em fluxo, a rastreabilidade e as verificações comuns.
+
+## O que cada ferramenta responde
+
+**Log de auditoria (CFGR700)**
 
 | Pergunta de auditoria | Onde aparece |
 |---|---|
 | Quais lançamentos e documentos foram **excluídos**, **alterados**, **postados** ou estão **desbalanceados** no período? | Painel e Resumo, por origem (manual, automático, misto) |
 | A alteração mudou conteúdo ou foi só efetivação/carimbo de usuário? | Critério de corte das alterações |
 | O que ocorreu em **pré-lançamento (9)** e o que ocorreu **após a postagem (1)**? | Modo **Segregado** e aba Segregacao |
-| Houve alteração, exclusão ou reabertura de lançamento postado? | Exceções da fase Postado (1), em destaque |
 | O mesmo usuário incluiu e efetivou o documento? | Segregação de funções, por documento |
 | Todo documento excluído ou alterado tem justificativa? | Justificativas, com cobertura por arquivo e período |
 | Nada ficou de fora? | Reconciliação de linhas, eventos e 15 invariantes verificados a cada execução |
+
+**Integridade da CT2**
+
+| Pergunta de auditoria | Onde aparece |
+|---|---|
+| A extração está completa e legível? | Reconciliação de linhas por arquivo, valores e chaves legíveis, colunas encontradas |
+| Débito = crédito em cada documento, lote e dia, por tipo de saldo e moeda? | Testes B1–B3; B4/B5 indicam a compensação pelo documento vizinho |
+| Há linhas incoerentes, duplicadas, fora do período ou em dia não útil? | Testes I1–I5 e E1–E6, com a lista de exceções |
+| Como se distribuem os lançamentos por rotina, lançamento padrão e origem? | Perfil (P1–P4) e os 10 maiores documentos |
+| A planilha prova os números sozinha? | Papel de trabalho **amarrado por fórmulas**: mudar a tolerância ou o período nos Critérios recalcula testes e status |
 
 ## Como funciona
 
 ```mermaid
 flowchart LR
-    A["Extrações CFGR700<br/>(.xlsx)"] --> B["Leitura em fluxo<br/>ZIP → XML, SHA-256, CRC32"]
+    A["Extrações do Protheus<br/>(.xlsx)"] --> B["Leitura em fluxo<br/>ZIP → XML, SHA-256, CRC32"]
     B --> C["Base colunar<br/>typed arrays + dicionário"]
-    C --> D["Motor de análise<br/>eventos · registros · documentos · fases"]
-    D --> E["Invariantes<br/>bloqueantes e alertas"]
+    C --> D["Motor da ferramenta<br/>CFGR700 · Integridade da CT2 · …"]
+    D --> E["Verificações<br/>bloqueantes e alertas"]
     E --> F["Painel e tabelas"]
     E --> G["Papel de trabalho<br/>Excel (pt ou en)"]
 ```
@@ -63,29 +85,30 @@ responsiva com arquivos de cerca de 1 milhão de linhas.
 <tr>
 <td width="50%" valign="top">
 
+**Plataforma**
+- Console: trilho com as visões, trilha, indicadores-chave da análise e barra de status
+- Configuração própria de cada ferramenta e feriados comuns, com cópia de segurança única
+- Aviso quando o arquivo parece ser de outra ferramenta
+- Tema claro e escuro; fontes servidas pelo próprio app
+
 **Leitura e integridade**
 - SHA-256 de cada arquivo; CRC32 e tamanho de cada parte do ZIP
 - Reconciliação: linhas após o cabeçalho − cabeçalhos repetidos − linhas em branco = linhas de detalhe
-- Vários arquivos no mesmo escopo, com alerta de sobreposição e dias sem extração
-
-**Painel**
-- Períodos por atalho ou datas livres, data de corte da competência
-- Cada número abre a tabela com exatamente aquelas linhas
-- Modo **Geral** ou **Segregado** por tipo de saldo
-- Sinalizações, cobertura das justificativas e movimento diário
+- Vários arquivos na mesma análise, com alerta de sobreposição e dias sem extração
 
 </td>
 <td width="50%" valign="top">
 
-**Papel de trabalho em Excel**
-- Resumo vivo por fórmulas (compatível com o Excel 2016)
-- Abas de justificativas editáveis, dados, critérios e rastreabilidade
-- Português ou inglês; datas como datas do Excel, valores em reais
+**Painel e tabelas**
+- Cada número abre a tabela com exatamente aquelas linhas
+- CFGR700: períodos, data de corte, modo **Geral** ou **Segregado**, sinalizações, justificativas
+- CT2: segmento (tipo de saldo e moeda), parâmetros reaplicados em segundos, quadro de testes
 
-**Controle**
-- 15 invariantes; falha bloqueante impede a exportação sem confirmação registrada
+**Papel de trabalho em Excel**
+- Resumo vivo por fórmulas, critérios editáveis, exceções, dados e rastreabilidade
+- Português ou inglês; datas como datas do Excel, valores em reais
+- Verificação bloqueante impede a exportação sem confirmação registrada
 - Mesma entrada + mesma configuração = mesma saída
-- Configuração versionada, com diferenças em relação ao padrão na rastreabilidade
 
 </td>
 </tr>
@@ -94,13 +117,14 @@ responsiva com arquivos de cerca de 1 milhão de linhas.
 ## Uso
 
 1. Abra o [aplicativo](https://carlosdanyell.github.io/AuditAnalyzer/) no Chrome ou no Edge. Não há instalação.
-2. Escolha a análise (hoje, **Log de auditoria (CFGR700)**; **Integridade da CT2** em breve), carregue uma ou mais
-   extrações do CFGR700 (`.xlsx`), em ordem cronológica, e clique em **Analisar**.
-3. Confira a **Reconciliação**, navegue pelo **Painel** e registre as **Justificativas**.
-4. Clique em **Exportar planilha** e escolha o escopo e o idioma.
+2. Em **Ferramentas**, abra a análise; carregue uma ou mais extrações (`.xlsx`), em ordem cronológica, e clique em
+   **Analisar**.
+3. Confira a **Reconciliação** e navegue pelo **Painel** e pelas **Tabelas**; no CFGR700, registre as
+   **Justificativas**.
+4. Clique em **Exportar planilha** e escolha o idioma (e, no CFGR700, o escopo).
 
-O passo a passo completo, com o ciclo mensal recomendado, está no [manual do usuário](public/ajuda.html), também
-disponível no botão **Ajuda** do aplicativo.
+O passo a passo de cada ferramenta está no [manual do usuário](public/ajuda.html), também disponível no botão
+**Ajuda** do aplicativo.
 
 ## Desenvolvimento
 
@@ -120,17 +144,17 @@ npm run build       # build de produção para o GitHub Pages
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/MODULOS.md`](docs/MODULOS.md) | Plataforma de análises: contrato dos módulos |
-| [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes do log de auditoria (especificação) |
-| [`docs/REGRAS_CT2_INTEGRIDADE.md`](docs/REGRAS_CT2_INTEGRIDADE.md) | Regras do módulo Integridade da CT2 (em desenvolvimento) |
+| [`docs/MODULOS.md`](docs/MODULOS.md) | Plataforma de análises: contrato dos módulos e o que uma ferramenta nova traz |
+| [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes do log de auditoria |
+| [`docs/REGRAS_CT2_INTEGRIDADE.md`](docs/REGRAS_CT2_INTEGRIDADE.md) | Regras, testes e planilha da Integridade da CT2 |
 | [`docs/ROTEIRO.md`](docs/ROTEIRO.md) | Fases de desenvolvimento e situação |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Leitura em fluxo, armazenamento colunar, motor, exportação |
-| [`docs/INTERFACE.md`](docs/INTERFACE.md) | Comportamentos obrigatórios das telas |
+| [`docs/INTERFACE.md`](docs/INTERFACE.md) | Comportamentos obrigatórios das telas e padrão visual |
 | [`docs/MEDICOES.md`](docs/MEDICOES.md) | Tempo e memória medidos |
 | [`CLAUDE.md`](CLAUDE.md) | Restrições e convenções para quem contribui |
 
 **Stack:** Vite · React 18 · TypeScript strict · Web Worker · TanStack Virtual · zod · hash-wasm · fflate ·
-Vitest · Playwright.
+Vitest · Playwright. Fontes Sora, Geist e Geist Mono (SIL OFL, em `public/licencas`).
 
 ---
 

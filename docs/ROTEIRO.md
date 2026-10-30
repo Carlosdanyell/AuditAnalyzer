@@ -16,11 +16,11 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 6 — Configuração | concluída em 26/09/2026 para a CT2 (tela, versões, importação/exportação); generalização para outras tabelas fora do escopo |
 | 7 — Entrega | concluída (testes de ponta a ponta no CI, ajuda, versão, cópia de segurança); nova interface entregue; versão 1.0.0 publicada |
 | 8 — Plataforma de módulos | concluída em 21/10/2026: seletor de análises, registro de módulos, despacho no worker, configuração por módulo e feriados da plataforma, cópia de segurança versão 2; CFGR700 sem mudança de comportamento |
-| 9 — CT2 Integridade: leitura | a fazer (`docs/REGRAS_CT2_INTEGRIDADE.md` seções 2–4) |
-| 10 — CT2 Integridade: motor | a fazer (seções 5, 6 e 8) |
-| 11 — CT2 Integridade: planilha amarrada | a fazer (seção 7) |
-| 12 — CT2 Integridade: painel e tabelas | a fazer (seção 9) |
-| 13 — Entrega da versão 2.0 | a fazer |
+| 9 — CT2 Integridade: leitura | concluída em 21/10/2026 (`docs/REGRAS_CT2_INTEGRIDADE.md` seções 2–4) |
+| 10 — CT2 Integridade: motor | concluída em 29/10/2026 (seções 5, 6 e 8) |
+| 11 — CT2 Integridade: planilha amarrada | concluída em 29/10/2026 (seção 7); até 300.000 linhas por exportação |
+| 12 — CT2 Integridade: painel e tabelas | concluída em 29/10/2026 (seção 9) |
+| 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0`; a Integridade da CT2 segue em prévia até a conferência com extrações reais (`npm run test:local` e o arquivo de ~1 milhão de linhas na máquina do desenvolvedor) |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
