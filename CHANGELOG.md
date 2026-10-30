@@ -13,6 +13,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   cartões.
 - Cores azul-marinho, azul-aço e vermelho só para marcas; superfícies planas com cantos pequenos, sem sombras nem
   ícones em ladrilho; contraste do texto secundário reforçado.
+- Nova logo, o "tique de auditoria" (linhas do razão e o tique vermelho de item conferido), no trilho e no favicon;
+  ela vale para a plataforma inteira, que deve receber outras ferramentas (por exemplo, conciliações).
 - Fontes Sora, Geist e Geist Mono servidas pelo próprio app (licença SIL OFL, nada baixado de fora); números com
   algarismos tabulares.
 

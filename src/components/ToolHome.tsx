@@ -23,7 +23,7 @@ interface ToolHomeProps {
 export function ToolHome({ modules, lastUsed, open, onOpen, helpBase }: ToolHomeProps) {
   return (
     <div className={styles.home}>
-      <p className={styles.lead}>Cada ferramenta lê um tipo de extração do Protheus e gera o próprio papel de trabalho.</p>
+      <p className={styles.lead}>Cada ferramenta lê o seu tipo de extração e gera o próprio papel de trabalho.</p>
       <div className={styles.list}>
         <div className={styles.columns} aria-hidden="true">
           <span>Ferramenta</span>

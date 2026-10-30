@@ -35,7 +35,7 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
    * screens, saying what it does so far. Null when complete.
    */
   preview: string | null;
-  /** Short name for the sidebar and the heading ("CFGR700"). */
+  /** Code of the tool in the rail and on the start list ("CFGR700"): 2 to 8 capitals, digits or hyphens (100 px rail). */
   shortTitle: string;
   /** Subtitle of the brand in the sidebar. */
   brandSubtitle: string;

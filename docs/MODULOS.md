@@ -2,8 +2,9 @@
 
 A partir da versão 2, o AuditAnalyzer é uma **plataforma de análises**: um único aplicativo estático, com as mesmas
 restrições do `CLAUDE.md` (nada sai da máquina, memória controlada, determinismo, integridade verificável), que
-hospeda **módulos de análise** independentes. Cada módulo recebe um tipo de extração do Protheus, aplica regras
-próprias e gera o seu papel de trabalho em Excel.
+hospeda **módulos de análise** independentes. Cada módulo recebe o seu tipo de extração (os de hoje, do Protheus),
+aplica regras próprias e gera o seu papel de trabalho em Excel. A plataforma é feita para receber outras ferramentas
+contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca nem a marca.
 
 | Módulo | Entrada | Regras | Situação |
 |---|---|---|---|
@@ -167,6 +168,11 @@ interface ModuleSession {                               // objeto novo a cada in
   oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
   oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
   `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
+- **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para
+  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição e arquivo esperado para a linha
+  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até seis
+  indicadores-chave (`KeyFigures`). Cores, fontes, logo e componentes são os da plataforma: a ferramenta não traz
+  marca própria.
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo

@@ -60,6 +60,12 @@ describe('module registry', () => {
     }
   });
 
+  it('gives every available tool a code that fits the rail: 2 to 8 capitals, digits or hyphens', () => {
+    for (const m of MODULES) {
+      if (m.status === 'available') expect(m.shortTitle, m.id).toMatch(/^[A-Z0-9-]{2,8}$/);
+    }
+  });
+
   it('points every module to an existing section of the manual', () => {
     const help = readFileSync('public/ajuda.html', 'utf8');
     for (const m of MODULES.filter((d) => d.helpAnchor !== null)) expect(help, m.id).toContain(`id="${m.helpAnchor}"`);

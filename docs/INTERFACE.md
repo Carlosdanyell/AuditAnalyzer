@@ -48,6 +48,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
    aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
    nunca impede de analisar. **"Nova análise"** (topo) mantém a ferramenta e os arquivos.
+   **Marca:** a logo é o "tique de auditoria" (linhas do razão e o tique vermelho de item conferido): no trilho, sem o
+   ladrilho, acima do nome; no favicon (`public/favicon.svg`), sobre o ladrilho azul-marinho. Vale para a plataforma
+   inteira; uma ferramenta nova não traz marca própria.
    **Estrutura (console):** trilho azul-marinho estreito à esquerda, com ícone e rótulo curto em cada item:
    Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece, e no pé Configuração, Ajuda e
    Encerrar sessão; a visão na tela tem fundo claro e uma marca vermelha na borda (o vermelho só marca: visão ativa,

@@ -535,12 +535,10 @@ export function App() {
     <div className={styles.shell}>
       <aside className={styles.rail}>
         <div className={styles.brand} title="AuditAnalyzer">
-          <span className={styles.logo} aria-hidden="true">
-            <svg viewBox="0 0 32 32">
-              <path d="M9 23V9h9.5L23 13.5V23z" />
-              <path className={styles.logoMark} d="M12 19.5l3-3 2.2 2.2 3-4.2" />
-            </svg>
-          </span>
+          <svg className={styles.logo} viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M12 15h24M12 23h15M12 31h9" />
+            <path className={styles.logoMark} d="M26.5 31.5l4.5 4.5 8-10" />
+          </svg>
           <span className={styles.brandName}>AuditAnalyzer</span>
         </div>
 
