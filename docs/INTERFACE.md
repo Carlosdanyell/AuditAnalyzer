@@ -43,7 +43,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    colunas (código curto, título e descrição, arquivo esperado, situação, "Abrir" e o link "Manual desta análise"); a
    linha inteira é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). A última usada (`lastModule`,
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
-   "Voltar à análise". Ferramenta "Em breve" não abre; em prévia (Integridade da CT2) tem o selo "Prévia" e o aviso do
+   "Voltar à análise". Ferramenta "Em breve" não abre; em prévia tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
    ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
    aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
@@ -145,7 +145,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
-  da CT2 em prévia e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
+  da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

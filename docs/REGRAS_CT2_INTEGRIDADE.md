@@ -547,12 +547,15 @@ Situação em 20/10/2026 (decisões na seção 13):
   - **Tabela Base:** por padrão as colunas mapeadas e as de teste, com a opção "Mostrar todas as colunas"; a
     planilha continua com todas.
 - 30/10/2026 — depois da versão 2.0.0, respostas do usuário:
-  - **Um ano numa exportação:** a extração real de janeiro a setembro tem 339.167 linhas (cerca de 37,7 mil por mês;
-    um ano, cerca de 450 mil) e passava do teto de 300.000. Decidido: **600.000 linhas por exportação, com a Base
+  - **Um ano numa exportação:** uma extração real de nove meses passava do teto de 300.000 linhas (um ano típico,
+    cerca de 450 mil). Decidido: **600.000 linhas por exportação, com a Base
     continuando em outras abas na virada de um dia**, todas as colunas e todas as fórmulas mantidas. Alternativas
     rejeitadas: Base só com as colunas dos testes acima de 300 mil linhas e uma planilha por período (sem uma planilha
     única do ano). Medições em `docs/MEDICOES.md`.
   - **Aba a analisar:** arquivo com mais de uma aba ganha a escolha da aba na lista de arquivos, com "Automática" como
     padrão (a regra de cada análise); se mais de uma aba parece ser da análise, a tela pede a escolha em vez de dar
     erro. Vale para todas as análises.
+- 30/10/2026 — conferência com extração real (computador do trabalho): a exportação de uma extração de nove meses,
+  com a Base em duas abas, abriu no Excel e recalculou em alguns minutos; a matriz de amarração ficou toda "OK" e o
+  quadro de testes todo "Confere". Decidido pelo usuário: **o módulo deixa de ser prévia** (versão 2.1.0).
 

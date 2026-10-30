@@ -40,11 +40,11 @@ describe('module registry', () => {
     expect(read.ok && read.config.balanceToleranceCents).toBe(5);
   });
 
-  it('offers the CT2 integrity module as a preview: reading, tests and the workpaper, with rules saved on this computer', () => {
+  it('offers the CT2 integrity module, out of preview since the check with a real extraction (30/10/2026), with rules saved on this computer', () => {
     expect(getModule('ct2Integrity')).toBe(ct2IntegrityModule);
     const m = ct2IntegrityModule;
     expect(m).toMatchObject({ status: 'available', title: 'Integridade da CT2', helpAnchor: 'ct2' });
-    expect(m.preview).toMatch(/^Prévia: /);
+    expect(m.preview).toBeNull();
     expect(m.features).toEqual({ panel: true, tables: true, justifications: false, export: true });
     expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(ct2DefaultConfig());
