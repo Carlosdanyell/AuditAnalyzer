@@ -173,3 +173,21 @@ Resumo em CSV; depois do recálculo, a matriz de amarração e o quadro de teste
   por exportação, com todas as colunas; acima disso, a exportação é bloqueada e a extração deve ser dividida.
 - Pendente: medir no Excel do computador do trabalho (`EXCEL_CHECK=1`) e com a extração real.
 
+### 2026-10-30 — um ano numa exportação (Base em abas de dias inteiros)
+
+A extração real de janeiro a setembro tem 339.167 linhas (cerca de 37,7 mil por mês; um ano, cerca de 450 mil) e
+passava do teto de 300.000. Mesmo método e máquina; `MEDIR_CT2_LINHAS=450000,600000`.
+
+| Linhas | Base | Geração | Arquivo | Maior aba (sem compressão) | Pico da geração | Recálculo no LibreOffice | Matriz e quadro |
+|---|---|---|---|---|---|---|---|
+| 450 mil | uma aba (antes da divisão) | — | 327 MB | 3,2 GB | — | 241 s | todos OK |
+| 600 mil | uma aba (antes da divisão) | — | 436 MB | 4,2 GB (no limite de 4 GiB) | — | 360 s | todos OK |
+| 450 mil | 2 abas de dias inteiros | 71,9 s | 328 MB | 1,9 GB | 55 MB | 188 s | todos OK |
+| 600 mil | 2 abas de dias inteiros | 100,1 s | 437 MB | 2,0 GB | 39 MB | 266 s | todos OK |
+
+- Com 600 mil linhas numa aba só, a Base fica a 2% do limite de uma parte do ZIP sem ZIP64. Dividida a cada 300 mil
+  linhas, na virada de um dia, cada aba fica do tamanho já medido com 300 mil linhas, longe do limite.
+- A divisão não muda o tamanho do arquivo e deixou o recálculo mais rápido (188 s contra 241 s com 450 mil linhas).
+- Decisão de 30/10/2026 (seção 7.9 das regras): até 600.000 linhas por exportação, com todas as colunas e todas as
+  fórmulas.
+
