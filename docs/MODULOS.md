@@ -58,7 +58,7 @@ interface ModuleDescriptor {            // tela e worker
 }
 
 interface WorkerModule {                // só no worker; funções puras + estado da sessão
-  ingest(files: File[], config, progress): Promise<Reconciliation>;
+  ingest(files: { name; blob; sheet?: string }[], config, progress): Promise<Reconciliation>;   // sheet: escolhida na tela
   analyze(config, progress): Promise<{ summary: Summary; checks: CheckResult[] }>;
   panel(query): PanelData;              // agregados pequenos
   page(query): { rows; total };         // páginas de até 2.000 linhas

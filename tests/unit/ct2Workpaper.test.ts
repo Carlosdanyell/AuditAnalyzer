@@ -3,7 +3,7 @@ import { ct2DefaultConfig, type Ct2IntegrityConfig, type Ct2TestCode } from '../
 import { formatDay, parseDate } from '../../src/shared/dates';
 import { analyzeCt2, compensationText, documentRef, hasMark } from '../../src/worker/modules/ct2Integrity/analysis';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
-import { MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
+import { BASE_SHEET_ROWS, MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
 import { CT2_LABELS } from '../../src/worker/modules/ct2Integrity/workpaperLabels';
 import type { Language } from '../../src/worker/export/labels';
 import { ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
@@ -13,7 +13,7 @@ import { Workbook, type Value } from '../support/xlsxEval';
 /** The CT2 workpaper tied out by formulas (docs/REGRAS_CT2_INTEGRIDADE.md, section 7), evaluated by the test evaluator. */
 const holidays = ENGINE_HOLIDAYS.map(parseDate);
 
-async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number } = {}) {
+async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number; baseSheetRows?: number } = {}) {
   const config = o.config ?? ct2DefaultConfig();
   const ingested = await ingestCt2(
     (o.files ?? [{ rows: ENGINE_ROWS }]).map((f, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(f) })),
@@ -35,6 +35,7 @@ async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityC
       confirmedFailures: [],
       ...(o.sheetRows !== undefined && { sheetRows: o.sheetRows }),
       ...(o.maxRows !== undefined && { maxRows: o.maxRows }),
+      ...(o.baseSheetRows !== undefined && { baseSheetRows: o.baseSheetRows }),
     },
     () => {},
   );
@@ -197,17 +198,83 @@ describe('CT2 workpaper: configuration, language, limits and determinism', () =>
     expect(book.value('Resumo', `B${rowOf(book, 'Resumo', 'Exceções de Erro').r}`)).toBe(6);
   });
 
-  it('blocks a Base above the rows a workpaper can recalculate (CI-8; decision of 29/10/2026), and above a sheet', async () => {
-    expect(MAX_EXPORT_ROWS).toBe(300_000);
+  it('continues the Base on other sheets at a day boundary, and every level still ties out (decision of 30/10/2026)', { timeout: 60_000 }, async () => {
+    const whole = await build();
+    const { book, analysis, ingested } = await build({ baseSheetRows: 20 });
+    const bases = [...book.sheets.keys()].filter((x) => x.startsWith('Base'));
+    expect(bases.length).toBeGreaterThan(2);
+    expect(bases).toEqual(bases.map((_, k) => (k === 0 ? 'Base' : `Base (${k + 1})`)));
+    // The Base sheets sit where the Base was: after Perfil, before Rastreabilidade.
+    const names = [...book.sheets.keys()];
+    expect(names.slice(names.indexOf('Perfil') + 1, names.indexOf('Rastreabilidade'))).toEqual(bases);
+    // No day is cut: each segment + date lives in one sheet; a sheet passes 20 rows only when it holds a single day.
+    const home = new Map<string, string>();
+    let lines = 0;
+    for (const sheet of bases) {
+      const segments = column(book, sheet, 'Segmento');
+      const dates = column(book, sheet, 'Data Lcto');
+      const n = segments.length;
+      lines += n;
+      const days = new Set(segments.map((s, k) => `${s}|${dates[k]}`));
+      if (n > 20) expect(days.size, sheet).toBe(1);
+      for (const d of days) {
+        expect(home.get(d) ?? sheet, d).toBe(sheet);
+        home.set(d, sheet);
+      }
+    }
+    expect(lines).toBe(ingested.summary.lines);
+    // The matrix, the board, the exceptions and the profile give what the whole Base gives.
+    for (const level of ['Base', 'Documentos', 'Lotes', 'Dias', 'Ferramenta (motor)']) {
+      const split = rowOf(book, 'Resumo', level, 10);
+      const one = rowOf(whole.book, 'Resumo', level, 10);
+      expect(['B', 'C', 'D', 'E', 'F', 'G'].map(split.cells), level).toEqual(['B', 'C', 'D', 'E', 'F', 'G'].map(one.cells));
+      expect(split.cells('G'), level).toBe('OK');
+    }
+    for (const t of analysis.tests.filter((x) => x.state === 'on')) {
+      const row = rowOf(book, 'Resumo', t.code, 10);
+      expect([row.cells('E'), row.cells('I')], t.code).toEqual([t.occurrences, 'Confere']);
+    }
+    expect(column(book, 'Excecoes', 'Confirmada na origem?').every((v) => v === 'Sim')).toBe(true);
+    // A line exception points to the Base sheet that holds its line.
+    const origin = column(book, 'Excecoes', 'Aba de origem');
+    expect(origin.filter((v) => typeof v === 'string' && v.startsWith('Base (')).length).toBeGreaterThan(0);
+    for (const r of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]) {
+      const label = book.value('Perfil', `G${r}`);
+      if (label === 'Confere' || label === 'Verificar') expect(label, `Perfil linha ${r}`).toBe('Confere');
+    }
+    // Documentos says which Base sheet holds each document; its rows are rows of that sheet.
+    const docSheet = column(book, 'Documentos', 'Aba da Base');
+    expect(docSheet).toHaveLength(analysis.blocks.documents);
+    expect(new Set(docSheet)).toEqual(new Set(bases));
+    // Each line keeps the marks of the engine, sheet after sheet.
+    const marks = bases.flatMap((sheet) => column(book, sheet, 'I1 Exceção?'));
+    marks.forEach((v, pos) => expect(v, `I1 linha ${pos}`).toBe(yes(whole.L, hasMark(analysis.marks.line, pos, 'I1'))));
+  });
+
+  it('keeps one Base sheet, without the sheet column in Documentos, up to the rows of a sheet', async () => {
+    expect(BASE_SHEET_ROWS).toBe(300_000);
+    const { book } = await build();
+    expect([...book.sheets.keys()].filter((x) => x.startsWith('Base'))).toEqual(['Base']);
+    expect(() => column(book, 'Documentos', 'Aba da Base')).toThrow();
+  });
+
+  it('blocks a Base above the rows a workpaper can recalculate (CI-8; decision of 30/10/2026), and a day above a sheet', async () => {
+    expect(MAX_EXPORT_ROWS).toBe(600_000);
     const above = await build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], maxRows: 7 }).catch((e: Error) => e);
     expect(above).toBeInstanceOf(Error);
     expect((above as Error).message).toBe(
-      'CI-8: a base tem 8 linhas e a planilha amarrada por fórmulas aceita até 7 linhas por exportação (acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por mês ou quinzena, e analise cada parte.',
+      'CI-8: a base tem 8 linhas e a planilha amarrada por fórmulas aceita até 7 linhas por exportação (acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por semestre ou trimestre, e analise cada parte.',
     );
-    const sheet = await build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], sheetRows: 6 }).catch((e: Error) => e);
-    expect((sheet as Error).message).toMatch(/^CI-8: a base tem 8 linhas e a planilha amarrada por fórmulas aceita até 5 linhas/);
     // At the limit it is exported.
     await expect(build({ files: [{ rows: ENGINE_ROWS.slice(0, 8) }], maxRows: 8 })).resolves.toBeDefined();
+    // Days are never cut: a day with more lines than a sheet holds cannot be written.
+    const day = (date: string, n: number) => Array.from({ length: n }, (_, k) => ct2Line({ date, document: '000001', line: String(k + 1).padStart(3, '0'), amount: 10, amountCurrency1: 10 }));
+    const big = await build({ files: [{ rows: day('15/09/2026', 6) }], sheetRows: 6 }).catch((e: Error) => e);
+    expect((big as Error).message).toBe('CI-8: o dia 15/09/2026 (saldo 1, moeda 01) tem 6 linhas e não cabe numa aba da Base (até 5 linhas).');
+    // Two days of 4 lines in sheets of 5 rows: two Base sheets.
+    const two = await build({ files: [{ rows: [...day('15/09/2026', 4), ...day('16/09/2026', 4)] }], sheetRows: 6 });
+    expect([...two.book.sheets.keys()].filter((x) => x.startsWith('Base'))).toEqual(['Base', 'Base (2)']);
+    expect(rowOf(two.book, 'Resumo', 'Base', 10).cells('G')).toBe('OK');
   });
 
   it('is deterministic: the same input gives the same bytes', async () => {

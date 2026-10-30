@@ -6,7 +6,7 @@
  */
 import { CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
-import { CT2_MAX_EXPORT_ROWS, CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
+import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
 import { formatInteger } from '../../../shared/format';
 import type { CheckResult } from '../../../shared/protocol';
@@ -39,6 +39,8 @@ export interface Ct2WorkpaperInput {
   sheetRows?: number;
   /** Lines of the Base per export (MAX_EXPORT_ROWS); smaller only in tests. */
   maxRows?: number;
+  /** Rows of each Base sheet before it continues on the next (BASE_SHEET_ROWS); smaller only in tests. */
+  baseSheetRows?: number;
 }
 
 export interface Ct2WorkpaperOutput {
@@ -52,6 +54,8 @@ export interface Ct2WorkpaperOutput {
 export const EXCEL_ROWS = 1048576;
 /** Lines of the Base per export (CI-8). */
 export const MAX_EXPORT_ROWS = CT2_MAX_EXPORT_ROWS;
+/** Rows of each Base sheet; the Base continues on the next sheet where a day starts (decision of 30/10/2026). */
+export const BASE_SHEET_ROWS = CT2_BASE_SHEET_ROWS;
 /** Unbalanced documents listed on the Resumo. */
 const SUMMARY_UNBALANCED = 50;
 
@@ -119,13 +123,48 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const p = a.parameters;
   const sheetRows = input.sheetRows ?? EXCEL_ROWS;
   const rows = order.length;
-  const maxRows = Math.min(sheetRows - 1, input.maxRows ?? MAX_EXPORT_ROWS);
+  const maxRows = input.maxRows ?? MAX_EXPORT_ROWS;
   if (rows > maxRows) {
     throw new Error(
       `CI-8: a base tem ${formatInteger(rows)} linhas e a planilha amarrada por fórmulas aceita até ${formatInteger(maxRows)} linhas por exportação ` +
-        '(acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por mês ou quinzena, e analise cada parte.',
+        '(acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por semestre ou trimestre, e analise cada parte.',
     );
   }
+  // The Base in sheets of whole days (CI-8): a sheet takes days while they fit in BASE_SHEET_ROWS; a larger day takes
+  // a sheet of its own, up to the rows of a sheet. Documents and batches are inside a day, so no block is ever split.
+  const dayFirst = (k: number) => b.documentStart[b.batchStart[b.dayStart[k]!]!]!;
+  const perBaseSheet = Math.min(sheetRows - 1, input.baseSheetRows ?? BASE_SHEET_ROWS);
+  const parts: { start: number; end: number }[] = [];
+  {
+    let start = 0;
+    for (let k = 0; k < b.days; k++) {
+      const first = dayFirst(k);
+      const size = dayFirst(k + 1) - first;
+      if (size > sheetRows - 1) {
+        const i = order[first]!;
+        throw new Error(
+          `CI-8: o dia ${formatDay(store.day.get(i))} (saldo ${textOf(store.text.balanceType, i)}, moeda ${textOf(store.text.currency, i)}) tem ` +
+            `${formatInteger(size)} linhas e não cabe numa aba da Base (até ${formatInteger(sheetRows - 1)} linhas).`,
+        );
+      }
+      if (first > start && first + size - start > perBaseSheet) {
+        parts.push({ start, end: first });
+        start = first;
+      }
+    }
+    parts.push({ start, end: rows });
+  }
+  /** The Base sheet of a line (its position in the Base order). */
+  const partOf = (pos: number) => {
+    let lo = 0;
+    let hi = parts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (parts[mid]!.start <= pos) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
   const w = new XlsxWriter();
   const T = createTheme(w.styles);
   const inputMoney = w.styles.style({ fill: COLORS.inputFill, font: { bold: true, size: 11, color: COLORS.inputFont }, border: 'box', borderColor: COLORS.inputBorder, numFmt: '#,##0.00', align: { h: 'center', v: 'center' } });
@@ -169,7 +208,10 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     ...LINE_TESTS.map((t) => col(`t:${t}`, L.testCol(t), 9, 'center', 'helper')),
     col('exceptions', C.exceptionsInLine, 10, 'int', 'helper'),
   ];
-  const BASE = new Layout(SHEET.base, baseCols, rows);
+  const BASES = parts.map((part, n) => new Layout(n === 0 ? SHEET.base : `${SHEET.base} (${n + 1})`, baseCols, part.end - part.start));
+  const BASE = BASES[0]!;
+  /** The same formula over every Base sheet, added (one sheet: the formula itself). */
+  const acrossBase = (f: (layout: Layout) => string) => (BASES.length === 1 ? f(BASE) : BASES.map((x) => `(${f(x)})`).join('+'));
   const keyFields = config.documentKey;
   const DOC_TESTS = (['B1', 'B4', 'B5', 'E2', 'P3', 'P4'] as const).filter((t) => on[t]);
   const DOCS = new Layout(
@@ -180,6 +222,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       col('currency', C.currency, 8, 'center'),
       ...keyFields.map((f) => col(`k:${f}`, f === 'date' ? C.date : titleOf(f), 11, f === 'date' ? 'date' : 'center')),
       col('batchRow', C.batchRow, 10, 'int'),
+      ...(BASES.length > 1 ? [col('baseSheet', C.baseSheet, 11, 'center')] : []),
       col('first', C.firstBase, 10, 'int'),
       col('last', C.lastBase, 10, 'int'),
       col('lastOrdinal', C.lastOrdinal, 10, 'int'),
@@ -417,11 +460,11 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     };
     sheet.row([
       { v: S.matrixRows.base, s: T.label },
-      { f: `COUNTA(${BASE.range('file')})`, s: T.int },
+      { f: acrossBase((x) => `COUNTA(${x.range('file')})`), s: T.int },
       dash,
       dash,
-      { f: `SUM(${BASE.range('debit')})`, s: T.money },
-      { f: `SUM(${BASE.range('credit')})`, s: T.money },
+      { f: acrossBase((x) => `SUM(${x.range('debit')})`), s: T.money },
+      { f: acrossBase((x) => `SUM(${x.range('credit')})`), s: T.money },
       status(mBase, ['B', 'E', 'F']),
     ]);
     sheet.row([
@@ -491,8 +534,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       }
       // B4 diagnoses every document of B1.
       if (code === 'B4') return `COUNTIF(${DOCS.range('t:B1')},${YES})`;
-      const layout = LEVEL_LAYOUT[CT2_TEST_INFO[code].level as Exclude<Ct2Level, 'profile'>];
-      return `COUNTIF(${layout.range(`t:${code}`)},${YES})`;
+      const level = CT2_TEST_INFO[code].level as Exclude<Ct2Level, 'profile'>;
+      if (level === 'line') return acrossBase((x) => `COUNTIF(${x.range(`t:${code}`)},${YES})`);
+      return `COUNTIF(${LEVEL_LAYOUT[level].range(`t:${code}`)},${YES})`;
     };
     for (const t of a.tests) {
       if (t.state !== 'on') continue;
@@ -624,14 +668,18 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     header(sheet, DOCS);
     const st = styles(DOCS);
     const B = (id: string) => BASE.letter(id);
+    const multi = BASES.length > 1;
     const comp = str(L.compensates);
     const none = str(L.noCompensation);
     for (let d = 0; d < b.documents; d++) {
       const r = d + 2;
-      const first = b.documentStart[d]! + 2;
-      const last = b.documentStart[d + 1]! + 1;
-      const i = order[first - 2]!;
-      const lastI = order[last - 2]!;
+      // Rows of the document in its Base sheet.
+      const part = partOf(b.documentStart[d]!);
+      const home = BASES[part]!;
+      const first = b.documentStart[d]! - parts[part]!.start + 2;
+      const last = b.documentStart[d + 1]! - parts[part]!.start + 1;
+      const i = order[b.documentStart[d]!]!;
+      const lastI = order[b.documentStart[d + 1]! - 1]!;
       const L_ = (id: string) => DOCS.letter(id);
       const cells: CellInput[] = [];
       const put = (id: string, cell: CellInput) => (cells[DOCS.cols.findIndex((c) => c.id === id)] = cell);
@@ -640,6 +688,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       put('currency', textOf(store.text.currency, i));
       for (const f of keyFields) put(`k:${f}`, f === 'date' ? dateCell(store.day.get(i)) : textOf(store.text[f as 'batch'], i));
       put('batchRow', b.documentBatch[d]! + 2);
+      if (multi) put('baseSheet', home.sheet);
       put('first', first);
       put('last', last);
       put('lastOrdinal', lineOrdinal(textOf(store.text.line, lastI)));
@@ -647,9 +696,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         put('sequences', a.sequences.perDocument[d]!);
         put('shared', a.sequences.shared[d] ? L.yes : L.no);
       }
-      put('lines', { f: `ROWS(${BASE.block('file', first, last)})` });
-      put('debit', { f: `SUM(${BASE.block('debit', first, last)})` });
-      put('credit', { f: `SUM(${BASE.block('credit', first, last)})` });
+      put('lines', { f: `ROWS(${home.block('file', first, last)})` });
+      put('debit', { f: `SUM(${home.block('debit', first, last)})` });
+      put('credit', { f: `SUM(${home.block('credit', first, last)})` });
       put('difference', { f: `ROUND(${L_('debit')}${r}-${L_('credit')}${r},2)` });
       const dif = (row: number) => `${L_('difference')}${row}`;
       if (on.B1) put('t:B1', { f: yesNo(`ABS(${dif(r)})>P_TOL`) });
@@ -666,10 +715,10 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       if (on.E2) put('t:E2', { f: `IF(${L_('lastOrdinal')}${r}="","",${yesNo(`${L_('lastOrdinal')}${r}<>${L_('lines')}${r}`)})` });
       if (on.P3) put('t:P3', { f: yesNo(`OR(${L_('sequences')}${r}>1,${L_('shared')}${r}=${YES})`) });
       if (on.P4) put('t:P4', { f: yesNo(`${L_('lines')}${r}>=P_LIMITE_LINHAS`) });
-      put('linesWithException', { f: `COUNTIF(${BASE.block('exceptions', first, last)},">0")` });
+      put('linesWithException', { f: `COUNTIF(${home.block('exceptions', first, last)},">0")` });
       const firstOf = (id: string, field: Ct2Field) => {
         if (!DOCS.has(id)) return;
-        const ref = `${q(SHEET.base)}!${B(`f:${field}`)}${first}`;
+        const ref = `${q(home.sheet)}!${B(`f:${field}`)}${first}`;
         put(id, { f: `IF(${ref}="","",${ref})` });
       };
       firstOf('routine', 'routine');
@@ -766,10 +815,11 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         const code = CT2_TESTS[a.exceptions.test.get(e)]!;
         const item = a.exceptions.item.get(e);
         const level = CT2_TEST_INFO[code].level as Exclude<Ct2Level, 'profile'>;
-        const origin = LEVEL_LAYOUT[level];
+        const linePart = level === 'line' ? partOf(item) : 0;
+        const origin = level === 'line' ? BASES[linePart]! : LEVEL_LAYOUT[level];
         const position = level === 'line' ? item : level === 'document' ? b.documentStart[item]! : level === 'batch' ? b.documentStart[b.batchStart[item]!]! : b.documentStart[b.batchStart[b.dayStart[item]!]!]!;
         const i = order[position]!;
-        const originRow = item + 2;
+        const originRow = level === 'line' ? item - parts[linePart]!.start + 2 : item + 2;
         const value =
           level === 'line'
             ? store.amount.get(i)
@@ -816,7 +866,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.row([{ v: PR.note, s: T.note }], { height: textHeight(PR.note, 110, 9) });
     sheet.merge('A2:G2');
     sheet.skip(1);
-    const segCrit = (seg: string) => `${BASE.range('segment')},${str(seg)}`;
+    const segCrit = (x: Layout, seg: string) => `${x.range('segment')},${str(seg)}`;
     const groupRows = (block: (typeof profileBlocks)[number], list: Ct2Group[] | (Omit<Ct2Group, 'value'> & { origin: string })[]) => {
       while (sheet.nextRow < block.first - 2) sheet.skip(1);
       sheet.row([{ v: block.title, s: T.h2 }], { height: 22 });
@@ -828,23 +878,27 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         let debit: string;
         let credit: string;
         let shown: string;
+        // Each count over every Base sheet (one sheet: the formula of one sheet).
         if ('origin' in g) {
           const codes = (o: string) => (o === 'manual' ? config.manualFlag.manual : config.manualFlag.automatic);
-          const count = (fn: 'COUNTIFS' | 'SUMIFS', range: string | null, list: string[]) =>
-            list.map((code) => `${fn}(${range ? `${range},` : ''}${segCrit(seg)},${BASE.range('f:manual')},${critEq(code)})`).join('+') || '0';
-          const known = (fn: 'COUNTIFS' | 'SUMIFS', range: string | null) => count(fn, range, [...config.manualFlag.manual, ...config.manualFlag.automatic]);
-          const pick = (fn: 'COUNTIFS' | 'SUMIFS', range: string | null) =>
-            g.origin === 'unidentified' ? `${fn}(${range ? `${range},` : ''}${segCrit(seg)})-(${known(fn, range)})` : count(fn, range, codes(g.origin));
+          const count = (x: Layout, fn: 'COUNTIFS' | 'SUMIFS', range: string | null, list: string[]) =>
+            list.map((code) => `${fn}(${range ? `${range},` : ''}${segCrit(x, seg)},${x.range('f:manual')},${critEq(code)})`).join('+') || '0';
+          const known = (x: Layout, fn: 'COUNTIFS' | 'SUMIFS', range: string | null) => count(x, fn, range, [...config.manualFlag.manual, ...config.manualFlag.automatic]);
+          const pick = (fn: 'COUNTIFS' | 'SUMIFS', column: string | null) =>
+            acrossBase((x) => {
+              const range = column === null ? null : x.range(column);
+              return g.origin === 'unidentified' ? `${fn}(${range ? `${range},` : ''}${segCrit(x, seg)})-(${known(x, fn, range)})` : count(x, fn, range, codes(g.origin));
+            });
           lines = pick('COUNTIFS', null);
-          debit = pick('SUMIFS', BASE.range('debit'));
-          credit = pick('SUMIFS', BASE.range('credit'));
+          debit = pick('SUMIFS', 'debit');
+          credit = pick('SUMIFS', 'credit');
           shown = L.origins[g.origin as (typeof MANUAL_ORIGINS)[number]];
         } else {
           const field = block.id === 'routines' ? 'routine' : 'standardEntry';
-          const crit = `${segCrit(seg)},${BASE.range(`f:${field}`)},${critEq(g.value)}`;
-          lines = `COUNTIFS(${crit})`;
-          debit = `SUMIFS(${BASE.range('debit')},${crit})`;
-          credit = `SUMIFS(${BASE.range('credit')},${crit})`;
+          const crit = (x: Layout) => `${segCrit(x, seg)},${x.range(`f:${field}`)},${critEq(g.value)}`;
+          lines = acrossBase((x) => `COUNTIFS(${crit(x)})`);
+          debit = acrossBase((x) => `SUMIFS(${x.range('debit')},${crit(x)})`);
+          credit = acrossBase((x) => `SUMIFS(${x.range('credit')},${crit(x)})`);
           shown = g.value === '' ? PR.empty : g.value;
         }
         sheet.row([
@@ -886,10 +940,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   }
   progress();
 
-  // ════════ Base ════════
+  // ════════ Base (continued on other sheets where a day starts) ════════
   {
-    const sheet = sheetOf(BASE);
-    header(sheet, BASE);
     const st = styles(BASE);
     const l = (id: string) => BASE.letter(id);
     const fieldCol = (f: Ct2Field) => (present.has(f) ? l(`f:${f}`) : null);
@@ -905,61 +957,67 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     // E1: the line key (section 3), text compared with case as the engine does.
     const keyParts = (['balanceType', 'currency', ...keyFields, 'line', 'companyOrigin', 'branchOrigin'] as Ct2Field[]).filter((f, idx, all) => all.indexOf(f) === idx && present.has(f));
     const exceptionTests = LINE_TESTS.filter(isException);
-    for (let pos = 0; pos < rows; pos++) {
-      const r = pos + 2;
-      const i = order[pos]!;
-      const cells: CellInput[] = [files[store.source.get(i)]!.name, store.sourceRow.get(i), segmentOfRow(i)];
-      for (const f of fields) {
-        if (f === 'date') cells.push(dateCell(store.day.get(i)));
-        else if (f === 'amount' || f === 'amountCurrency1') {
-          const v = (f === 'amount' ? store.amount : store.amountCurrency1).get(i);
-          cells.push(Number.isNaN(v) ? null : reais(v));
-        } else cells.push(textOf(store.text[f as 'batch'], i));
-      }
-      for (const column of store.other.values()) cells.push(column.get(i) as CellInput);
-      const T_ = `${TY}${r}`;
-      const V = `${VL}${r}`;
-      const D = `${DB}${r}`;
-      const Cc = `${CR}${r}`;
-      cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'DEB')}),${V},0)` });
-      cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'CRED')}),${V},0)` });
-      for (const t of LINE_TESTS) {
-        let f: string;
-        switch (t) {
-          case 'I1':
-            f = `IF(IF(${typeIs(T_, 'PD')},AND(${D}<>"",${Cc}<>""),IF(${typeIs(T_, 'DEB')},AND(${D}<>"",${Cc}=""),IF(${typeIs(T_, 'CRED')},AND(${D}="",${Cc}<>""),IF(${typeIs(T_, 'HIST')},AND(${D}="",${Cc}="",${V}=0),FALSE)))),${str(L.no)},${str(L.yes)})`;
-            break;
-          case 'I2':
-            f = yesNo(`AND(NOT(${typeIs(T_, 'HIST')}),${V}<>"",${V}<=0)`);
-            break;
-          case 'I3':
-            f = yesNo(`AND(${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc}))`);
-            break;
-          case 'I4':
-            f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",ROUND(${V}-${M1}${r},2)<>0)`);
-            break;
-          case 'I5':
-            f = yesNo(`TRIM(${HI}${r})=""`);
-            break;
-          case 'E1':
-            f = pos === 0 ? str(L.no) : yesNo(`AND(${keyParts.map((k) => (k === 'date' ? `${DT}${r}=${DT}${r - 1}` : `EXACT(${l(`f:${k}`)}${r},${l(`f:${k}`)}${r - 1})`)).join(',')})`);
-            break;
-          case 'E3':
-            f = yesNo(`NOT(EXACT(${BT}${r},P_SALDO))`);
-            break;
-          case 'E4':
-            f = yesNo(`NOT(EXACT(${CU}${r},P_MOEDA))`);
-            break;
-          default:
-            f = yesNo(`AND(ISNUMBER(${DT}${r}),OR(${DT}${r}<P_DATA_INI,${DT}${r}>P_DATA_FIM))`);
+    for (let n = 0; n < parts.length; n++) {
+      const sheet = sheetOf(BASES[n]!);
+      header(sheet, BASES[n]!);
+      const { start, end } = parts[n]!;
+      for (let pos = start; pos < end; pos++) {
+        const r = pos - start + 2;
+        const i = order[pos]!;
+        const cells: CellInput[] = [files[store.source.get(i)]!.name, store.sourceRow.get(i), segmentOfRow(i)];
+        for (const f of fields) {
+          if (f === 'date') cells.push(dateCell(store.day.get(i)));
+          else if (f === 'amount' || f === 'amountCurrency1') {
+            const v = (f === 'amount' ? store.amount : store.amountCurrency1).get(i);
+            cells.push(Number.isNaN(v) ? null : reais(v));
+          } else cells.push(textOf(store.text[f as 'batch'], i));
         }
-        cells.push({ f });
+        for (const column of store.other.values()) cells.push(column.get(i) as CellInput);
+        const T_ = `${TY}${r}`;
+        const V = `${VL}${r}`;
+        const D = `${DB}${r}`;
+        const Cc = `${CR}${r}`;
+        cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'DEB')}),${V},0)` });
+        cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'CRED')}),${V},0)` });
+        for (const t of LINE_TESTS) {
+          let f: string;
+          switch (t) {
+            case 'I1':
+              f = `IF(IF(${typeIs(T_, 'PD')},AND(${D}<>"",${Cc}<>""),IF(${typeIs(T_, 'DEB')},AND(${D}<>"",${Cc}=""),IF(${typeIs(T_, 'CRED')},AND(${D}="",${Cc}<>""),IF(${typeIs(T_, 'HIST')},AND(${D}="",${Cc}="",${V}=0),FALSE)))),${str(L.no)},${str(L.yes)})`;
+              break;
+            case 'I2':
+              f = yesNo(`AND(NOT(${typeIs(T_, 'HIST')}),${V}<>"",${V}<=0)`);
+              break;
+            case 'I3':
+              f = yesNo(`AND(${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc}))`);
+              break;
+            case 'I4':
+              f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",ROUND(${V}-${M1}${r},2)<>0)`);
+              break;
+            case 'I5':
+              f = yesNo(`TRIM(${HI}${r})=""`);
+              break;
+            case 'E1':
+              // The first row of a sheet starts a day, and the line key starts with the date: never equal to the row before.
+              f = pos === start ? str(L.no) : yesNo(`AND(${keyParts.map((k) => (k === 'date' ? `${DT}${r}=${DT}${r - 1}` : `EXACT(${l(`f:${k}`)}${r},${l(`f:${k}`)}${r - 1})`)).join(',')})`);
+              break;
+            case 'E3':
+              f = yesNo(`NOT(EXACT(${BT}${r},P_SALDO))`);
+              break;
+            case 'E4':
+              f = yesNo(`NOT(EXACT(${CU}${r},P_MOEDA))`);
+              break;
+            default:
+              f = yesNo(`AND(ISNUMBER(${DT}${r}),OR(${DT}${r}<P_DATA_INI,${DT}${r}>P_DATA_FIM))`);
+          }
+          cells.push({ f });
+        }
+        cells.push({ f: exceptionTests.length ? exceptionTests.map((t) => `(${l(`t:${t}`)}${r}=${YES})`).join('+') : '0' });
+        sheet.row(cells, { styles: st });
+        if ((pos & 0xffff) === 0xffff) onProgress(step, TOTAL_STEPS);
       }
-      cells.push({ f: exceptionTests.length ? exceptionTests.map((t) => `(${l(`t:${t}`)}${r}=${YES})`).join('+') : '0' });
-      sheet.row(cells, { styles: st });
-      if ((pos & 0xffff) === 0xffff) onProgress(step, TOTAL_STEPS);
+      sheet.end();
     }
-    sheet.end();
   }
   progress();
 

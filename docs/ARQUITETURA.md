@@ -123,7 +123,7 @@ Usar `Uint32Array` de índices e ordenação estável. Resultados como arrays de
 
 ```ts
 type Command =
-  | { type: 'ingest'; files: File[]; config: AnalyzerConfig }
+  | { type: 'ingest'; files: File[]; sheets?: (string | null)[]; config: AnalyzerConfig }   // aba escolhida por arquivo
   | { type: 'cancel' }
   | { type: 'panel'; period: Period }
   | { type: 'page'; table: TableId; filter?: Filter; sort?: Sort; offset: number; limit: number }

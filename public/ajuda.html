@@ -149,7 +149,7 @@
           <h3>Navegação</h3>
           <p>O trilho escuro à esquerda mostra a ferramenta aberta e a situação da sessão e dá acesso às visões da análise (liberadas ao fim do processamento), à <strong>Configuração</strong>, a esta Ajuda e a <strong>Encerrar sessão</strong>. A barra superior mostra a visão atual, o escopo e os botões <strong>Exportar planilha</strong> e <strong>Nova análise</strong>; abaixo dela, com a análise pronta, ficam os indicadores-chave (linhas, documentos, achados e período). A barra de status, no pé da tela, traz o aviso de privacidade, a versão e o tema <strong>Claro</strong> ou <strong>Escuro</strong>.</p>
           <h3>Arquivos e processamento</h3>
-          <p>Arraste ou escolha os arquivos; a ordem define a ordem das fontes (use a ordem cronológica; as setas da lista mudam a ordem). Clique em <strong>Analisar</strong>. A tela mostra a etapa, o progresso, as linhas por segundo e o tempo; <strong>Cancelar</strong> descarta o que foi lido.</p>
+          <p>Arraste ou escolha os arquivos; a ordem define a ordem das fontes (use a ordem cronológica; as setas da lista mudam a ordem). Arquivo com mais de uma aba ganha o campo <strong>Aba</strong>: em <em>Automática</em> vale a aba cujo nome contém o texto da configuração ("Relatório de auditoria"); escolha outra aba se o relatório estiver com outro nome. Clique em <strong>Analisar</strong>. A tela mostra a etapa, o progresso, as linhas por segundo e o tempo; <strong>Cancelar</strong> descarta o que foi lido.</p>
           <h3>Reconciliação</h3>
           <p>Por arquivo: SHA-256, integridade do arquivo, parâmetros, reconciliação das linhas do relatório e eventos por operação, além das verificações (seção 6). Confira que as verificações bloqueantes estão OK antes de seguir.</p>
           <h3>Painel</h3>
@@ -277,7 +277,7 @@
           <ul>
             <li>Uma ou mais planilhas <code>.xlsx</code> exportadas da consulta da tabela CT2. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
             <li>O cabeçalho é a primeira linha, entre as 30 primeiras da aba, que tem todos os títulos obrigatórios: Data Lcto, Numero Lote, Sub Lote, Numero Doc, Numero Linha, Tipo do Sld, Moeda Lancto, Tipo Lcto, Cta Debito, Cta Credito, Valor e Hist Lanc (ou os nomes de campo CT2_DATA, CT2_LOTE e assim por diante). Espaços nas pontas dos títulos não importam.</li>
-            <li>Se o arquivo tiver várias abas, vale a que tem o cabeçalho; duas abas com o cabeçalho é erro.</li>
+            <li>Se o arquivo tiver várias abas, escolha a aba na lista de arquivos (campo <strong>Aba</strong>). Em <em>Automática</em>, vale a que tem o cabeçalho; se duas abas tiverem o cabeçalho, a tela pede a escolha antes de analisar.</li>
             <li>Códigos (lote, documento, linha, tipo de saldo, moeda) são lidos como texto, com os zeros à esquerda. Valores numéricos ou em texto no formato <code>1.234,56</code>; datas como data do Excel ou <code>dd/mm/aaaa</code>.</li>
           </ul>
         </section>
@@ -323,7 +323,7 @@
             <li><strong>Documentos, Lotes e Dias:</strong> uma linha por bloco, com as linhas inicial e final do bloco e as somas por fórmula (<code>SUM</code>/<code>ROWS</code> do bloco). <strong>Não reordene nem insira linhas na Base:</strong> os blocos dependem da ordem.</li>
             <li><strong>Excecoes:</strong> cada ocorrência de Erro ou Alerta, com "Confirmada na origem?" por fórmula. Acima do limite de linhas do Excel, continua em <em>Excecoes (2)</em>.</li>
             <li><strong>Perfil, Base e Rastreabilidade:</strong> perfil por rotina, lançamento padrão e origem; a extração ordenada com as colunas de teste; SHA-256, leitura de cada arquivo, colunas encontradas e verificações.</li>
-            <li>Até 300.000 linhas por exportação: acima disso o Excel não recalcula a planilha em tempo viável, e a exportação é bloqueada. Divida a extração (por exemplo, por mês ou quinzena) e analise cada parte; a leitura e o quadro de testes valem para qualquer tamanho.</li>
+            <li>Até 600.000 linhas por exportação, o bastante para um ano de uma extração típica (cerca de 450 mil linhas: arquivo de ~330 MB que leva alguns minutos para recalcular ao abrir). Depois de 300.000 linhas, a Base continua nas abas <em>Base (2)</em>, <em>Base (3)</em>…, sempre no início de um dia; a coluna <strong>Aba da Base</strong> de Documentos diz onde está cada documento. Acima de 600.000 linhas a exportação é bloqueada: divida a extração (por exemplo, por semestre) e analise cada parte; a leitura e o quadro de testes valem para qualquer tamanho.</li>
           </ul>
         </section>
 

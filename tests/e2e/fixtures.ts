@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { test as base, expect, type Page } from '@playwright/test';
 import { buildCfgr700 } from '../synthetic/cfgr700';
-import { buildCt2Extraction } from '../synthetic/ct2Extraction';
+import { CT2_COLUMNS, buildCt2Extraction } from '../synthetic/ct2Extraction';
 import { fileA as ct2FileA, fileB as ct2FileB } from '../synthetic/ct2Fixtures';
 import { ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 import { EVENTS } from '../synthetic/engineFixture';
@@ -22,11 +22,15 @@ interface Files {
   september: string;
 }
 
-/** Synthetic CT2 extractions (tests/synthetic/ct2Fixtures.ts): A has unreadable values, B is clean; engine has one case per test (ct2EngineFixture.ts). */
+/**
+ * Synthetic CT2 extractions (tests/synthetic/ct2Fixtures.ts): A has unreadable values, B is clean; engine has one case
+ * per test (ct2EngineFixture.ts); twoSheets is B with a copy of the header on another sheet ("Copia").
+ */
 interface Ct2Files {
   withProblems: string;
   clean: string;
   engine: string;
+  twoSheets: string;
 }
 
 /** A synthetic extraction large enough (~240 thousand report rows) to cancel while it is being read. */
@@ -56,7 +60,9 @@ export const test = base.extend<{ files: Files; ct2Files: Ct2Files; segregationF
     writeFileSync(clean, buildCt2Extraction(ct2FileB()));
     const engine = testInfo.outputPath('ct2-casos.xlsx');
     writeFileSync(engine, buildCt2Extraction({ rows: ENGINE_ROWS }));
-    await use({ withProblems, clean, engine });
+    const twoSheets = testInfo.outputPath('ct2-duas-abas.xlsx');
+    writeFileSync(twoSheets, buildCt2Extraction(ct2FileB({ extraSheets: { Copia: [[], [], [...CT2_COLUMNS]] } })));
+    await use({ withProblems, clean, engine, twoSheets });
   },
   // Cases of the segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13).
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern

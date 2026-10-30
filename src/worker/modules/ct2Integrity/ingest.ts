@@ -231,8 +231,11 @@ async function readFile(
     progress,
     inflateMode: options.inflateMode ?? 'auto',
     width: SHEET_WIDTH,
-    async chooseSheet(sheets, head, workbook) {
+    async chooseSheet(all, head, workbook) {
       date1904 = workbook.date1904;
+      // The sheet chosen on the start screen is the only one looked at; else every sheet.
+      const sheets = input.sheet === undefined ? all : all.filter((s) => s.name === input.sheet);
+      if (sheets.length === 0) throw new IngestError('rows', `A aba "${input.sheet}" não existe em ${name}. Abas do arquivo: ${all.map((s) => s.name).join(', ')}.`);
       const results: { sheet: (typeof sheets)[number]; rows: HeadRow[]; search: ReturnType<typeof findHeaderRow> }[] = [];
       for (const sheet of sheets) {
         const rows = await head(sheet, searchRows);
@@ -240,7 +243,7 @@ async function readFile(
       }
       const candidates = results.filter((x) => x.search.ok || x.search.reason === 'duplicate');
       if (candidates.length > 1) {
-        throw new IngestError('rows', `Mais de uma aba de ${name} tem o cabeçalho da extração CT2: ${candidates.map((x) => x.sheet.name).join(', ')}.`);
+        throw new IngestError('rows', `Mais de uma aba de ${name} tem o cabeçalho da extração CT2: ${candidates.map((x) => x.sheet.name).join(', ')}. Escolha a aba na lista de arquivos.`);
       }
       const chosen = candidates[0];
       if (!chosen) {
@@ -277,7 +280,7 @@ async function readFile(
       for (const { index } of unique) titled[index] = 1;
       unmapped = unique.map((u) => u.title);
       others = unique.map(({ index, title }) => ({ index, column: store.otherColumn(title) }));
-      return sheets.indexOf(chosen.sheet);
+      return all.indexOf(chosen.sheet);
     },
     onRow,
   });

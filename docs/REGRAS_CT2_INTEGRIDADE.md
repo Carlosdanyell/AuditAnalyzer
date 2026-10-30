@@ -32,8 +32,9 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
   vazias e lacunas do atributo `r` contam como **em branco**. Linha com parte da chave vazia, ou sem nenhum campo da
   chave, é detalhe e falha o invariante CI-4 (regra conservadora, decisão de 21/10/2026): nenhuma linha com conteúdo
   sai da conta sem aviso.
-- **Abas:** com várias abas, vale a que tem o cabeçalho nas primeiras linhas; duas abas com o cabeçalho é erro de
-  leitura, assim como coluna mapeada repetida (título ou alias de um campo, obrigatório ou opcional, em duas colunas:
+- **Abas:** com várias abas, vale a aba escolhida na lista de arquivos; na escolha automática (padrão), a que tem o
+  cabeçalho nas primeiras linhas. Duas abas com o cabeçalho na escolha automática: a tela pede a escolha antes de
+  analisar (e a leitura dá erro, se chegar a ela), assim como coluna mapeada repetida (título ou alias de um campo, obrigatório ou opcional, em duas colunas:
   não haveria como escolher qual vale). Coluna obrigatória ausente: erro
   com a lista do que faltou e dos títulos encontrados.
 - **Valores fora das colunas:** valor numa coluna sem título (ou além da coluna 256) não entra na base e falha CI-1.
@@ -351,9 +352,15 @@ código, chave.
 
 ### 7.9 Limites
 
-- **Até 300.000 linhas por exportação** (CI-8; decisão de 29/10/2026). Acima disso a exportação é bloqueada, com a
-  mensagem para dividir a extração (por exemplo, por mês ou quinzena) e analisar cada parte; a tela já avisa antes do
-  clique. A leitura, os testes e o quadro de testes valem para qualquer tamanho.
+- **Até 600.000 linhas por exportação** (CI-8; decisão de 30/10/2026, que substitui o teto de 300.000 de 29/10/2026):
+  um ano de uma extração típica (cerca de 450 mil linhas) com folga. Acima disso a exportação é bloqueada, com a
+  mensagem para dividir a extração (por exemplo, por semestre ou trimestre) e analisar cada parte; a tela já avisa
+  antes do clique. A leitura, os testes e o quadro de testes valem para qualquer tamanho.
+- **Base em abas de dias inteiros:** depois de 300.000 linhas, a Base continua em "Base (2)", "Base (3)"…, sempre no
+  início de um dia (segmento + data). Documentos e lotes estão dentro de um dia, então nenhum bloco fica dividido;
+  Documentos ganha a coluna "Aba da Base"; as fórmulas da matriz, do quadro de testes e do Perfil somam todas as abas;
+  Excecoes aponta a aba e a linha de cada linha com exceção. Um dia maior que uma aba do Excel não pode ser gravado
+  (CI-8, mensagem clara). E1 na primeira linha de uma aba é "Não": a chave da linha começa pela data.
 - Medido na Fase 11 (`docs/MEDICOES.md`): 40 mil linhas, 29 MB e 14 s de recálculo; 300 mil, 218 MB e 140 s; 1 milhão
   não é viável (com ~80 colunas a Base passa de 4 GB sem compressão, o limite de uma parte do ZIP sem ZIP64; só com
   as colunas mapeadas, 465 MB e o LibreOffice esgota 15 GB de memória ao recalcular). Excel: 1.048.576 linhas por aba.
@@ -371,7 +378,7 @@ código, chave.
 | CI-5 | Para cada teste, ocorrências pelas marcas de linha/nível = linhas da Excecoes (Erro/Alerta) | sim |
 | CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
-| CI-8 | Base com até 300.000 linhas (limite da planilha amarrada, seção 7.9) e cabendo numa aba do Excel | sim |
+| CI-8 | Base com até 600.000 linhas (limite da planilha amarrada, seção 7.9), em abas de dias inteiros que cabem numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
 
@@ -460,7 +467,8 @@ Situação em 20/10/2026 (decisões na seção 13):
    em lançamentos de rotina pode trazer algo no fim, mas o módulo não o interpreta e P2 não usa usuário.
 5. **Chave do documento com tipo de saldo e moeda — decidido.** A chave não inclui tipo de saldo e moeda; os dois
    formam o segmento, que separa a análise (seção 3).
-6. **Teto do modo amarrado — decidido.** 300.000 linhas por exportação; acima, bloquear e dividir (seção 7.9).
+6. **Teto do modo amarrado — decidido.** 600.000 linhas por exportação, a Base em abas de dias inteiros a cada
+   300.000 linhas; acima, bloquear e dividir (seção 7.9; decisão de 30/10/2026, que substitui a de 29/10/2026).
    Pendente, sem bloquear: o tamanho típico da extração mensal real (o usuário não sabe agora; o teste local mostra).
 
 ## 13. Decisões registradas
@@ -538,4 +546,13 @@ Situação em 20/10/2026 (decisões na seção 13):
     testes, listas e tabelas seguem a escolha; em "Todos", contagens somadas e valores mostrados por segmento.
   - **Tabela Base:** por padrão as colunas mapeadas e as de teste, com a opção "Mostrar todas as colunas"; a
     planilha continua com todas.
+- 30/10/2026 — depois da versão 2.0.0, respostas do usuário:
+  - **Um ano numa exportação:** a extração real de janeiro a setembro tem 339.167 linhas (cerca de 37,7 mil por mês;
+    um ano, cerca de 450 mil) e passava do teto de 300.000. Decidido: **600.000 linhas por exportação, com a Base
+    continuando em outras abas na virada de um dia**, todas as colunas e todas as fórmulas mantidas. Alternativas
+    rejeitadas: Base só com as colunas dos testes acima de 300 mil linhas e uma planilha por período (sem uma planilha
+    única do ano). Medições em `docs/MEDICOES.md`.
+  - **Aba a analisar:** arquivo com mais de uma aba ganha a escolha da aba na lista de arquivos, com "Automática" como
+    padrão (a regra de cada análise); se mais de uma aba parece ser da análise, a tela pede a escolha em vez de dar
+    erro. Vale para todas as análises.
 

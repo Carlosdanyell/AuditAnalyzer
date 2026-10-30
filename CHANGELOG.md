@@ -4,6 +4,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Um ano numa exportação da Integridade da CT2
+- A planilha amarrada aceita até 600.000 linhas (antes, 300.000): um ano de uma extração típica, com folga. Depois de
+  300.000 linhas a Base continua nas abas "Base (2)", "Base (3)"…, sempre no início de um dia; todas as colunas e
+  todas as fórmulas são mantidas e a matriz, o quadro de testes, as exceções e o perfil somam todas as abas.
+- Documentos ganha a coluna "Aba da Base" quando a Base ocupa mais de uma aba.
+
+### Escolha da aba a analisar
+- Arquivo com mais de uma aba ganha o campo "Aba" na lista de arquivos ("Automática" ou uma aba), nas duas análises.
+- Se mais de uma aba parece ser da análise na escolha automática, a tela pede a escolha em vez de dar erro.
+
 ## [2.0.0] — 2026-10-30
 
 O AuditAnalyzer passa a ser uma plataforma de ferramentas: o log de auditoria (CFGR700) continua igual e ganha a

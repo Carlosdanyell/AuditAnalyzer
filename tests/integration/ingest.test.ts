@@ -13,10 +13,10 @@ import {
   fileB,
 } from '../synthetic/fixtures';
 
-async function ingest(files: [string, SynthOptions | Blob][], opts: Parameters<typeof runIngestion>[3] = {}) {
+async function ingest(files: [string, SynthOptions | Blob, string?][], opts: Parameters<typeof runIngestion>[3] = {}) {
   const events: WorkerEvent[] = [];
   const result = await runIngestion(
-    files.map(([name, spec]) => ({ name, blob: spec instanceof Blob ? spec : synthBlob(spec) })),
+    files.map(([name, spec, sheet]) => ({ name, blob: spec instanceof Blob ? spec : synthBlob(spec), ...(sheet !== undefined && { sheet }) })),
     defaultConfig(),
     (e) => events.push(e),
     opts,
@@ -151,7 +151,7 @@ describe('ingestion of two extractions', () => {
 });
 
 describe('ingestion failures', () => {
-  async function failure(files: [string, SynthOptions | Blob][]): Promise<IngestError> {
+  async function failure(files: [string, SynthOptions | Blob, string?][]): Promise<IngestError> {
     try {
       await ingest(files);
     } catch (e) {
@@ -180,7 +180,20 @@ describe('ingestion failures', () => {
 
   it('rejects a workbook without the report sheet', async () => {
     const e = await failure([['a.xlsx', fileA({ reportSheetName: 'Outra aba' })]]);
-    expect(e.message).toBe('Aba do relatório ("Relatório de auditoria") não encontrada. Abas do arquivo: Parametros, Outra aba.');
+    expect(e.message).toBe('Aba do relatório ("Relatório de auditoria") não encontrada. Abas do arquivo: Parametros, Outra aba. Escolha a aba na lista de arquivos.');
+  });
+
+  it('reads the report sheet chosen in the list of files, whatever its name', async () => {
+    const { result } = await ingest([['a.xlsx', fileA({ reportSheetName: 'Outra aba' }), 'Outra aba']]);
+    const auto = await ingest([['a.xlsx', fileA()]]);
+    expect(result.reconciliation.files[0]!.rows.sheetName).toBe('Outra aba');
+    expect(result.reconciliation.files[0]!.rows.detailRows).toBe(auto.result.reconciliation.files[0]!.rows.detailRows);
+  });
+
+  it('rejects a chosen sheet that is not in the file', async () => {
+    const e = await failure([['a.xlsx', fileA(), 'Nada']]);
+    expect(e.stage).toBe('fileCheck');
+    expect(e.message).toBe('A aba "Nada" não existe em a.xlsx. Abas do arquivo: Parametros, 15-01 - Relatório de auditoria.');
   });
 
   it('rejects a report whose first row is not the header', async () => {
