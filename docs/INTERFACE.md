@@ -67,7 +67,10 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    curtas (entradas ≈ 160 ms, só opacidade e sem cascata), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
    decorativo; números nunca são animados (um valor de auditoria não mostra quantias intermediárias); respeitar
    `prefers-reduced-motion`.
-1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo;
+1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo; arquivo
+   com mais de uma aba ganha o seletor **"Aba de <arquivo>"** ("Automática", o padrão, ou uma aba, lida pela sondagem
+   do início); se mais de uma aba parece ser da análise na escolha automática, a linha avisa "Mais de uma aba parece
+   ser desta análise (…). Escolha a aba a analisar." e **Analisar** espera a escolha;
    Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
    erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e

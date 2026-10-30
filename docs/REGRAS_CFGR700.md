@@ -19,6 +19,9 @@ Arquivo `.xlsx` gerado pelo relatório CFGR700 do Protheus. Estrutura observada:
 Observações:
 - Quase todas as células são `t="s"` (índice na sharedStrings). A coluna Recno vem como número (`<v>` sem `t`).
 - Resolver as abas pelo `workbook.xml` + `workbook.xml.rels` (nome da aba → arquivo). Não assumir `sheet2.xml`.
+- A aba do relatório é a escolhida na lista de arquivos; na escolha automática (padrão), a primeira cujo nome contém
+  o texto da configuração (`workbook.reportSheetContains`). Se mais de uma aba tem o cabeçalho do relatório, a tela
+  pede a escolha antes de analisar (decisão de 30/10/2026). A aba de parâmetros continua achada pelo nome.
 - A tag `<dimension ref="A1:J960516"/>` informa o total de linhas: usar para pré-alocar os typed arrays e para
   calcular o progresso. Se ausente, crescer em blocos.
 - **Linhas podem não existir no XML** (lacunas no atributo `r`). Linhas ausentes contam como linhas em branco.
