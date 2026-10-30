@@ -2,27 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileDrop } from '../components/FileDrop';
 import { ToolHome } from '../components/ToolHome';
-import { Ct2ReconciliationView } from '../components/Ct2ReconciliationView';
-import { ReconciliationView } from '../components/ReconciliationView';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, TableFilter, TableId, WorkerEvent } from '../shared/protocol';
-import { isCt2Reconciliation, isCt2Summary } from '../shared/modules/ct2Integrity';
+import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, WorkerEvent } from '../shared/protocol';
+import { isCt2Summary } from '../shared/modules/ct2Integrity';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { buildBackup } from '../shared/backup';
 import { APP_VERSION_LABEL } from '../shared/version';
-import { JustificationsView } from './views/JustificationsView';
 import { applySettings, settingsFromConfig } from '../shared/settings';
-import { configDiff } from '../shared/configTools';
-import { loadConfig, saveConfig } from './configStore';
+import { canonicalJson, configDiff } from '../shared/configTools';
+import { loadConfig, loadModuleConfig, saveConfig, saveModuleConfig } from './configStore';
+import { platformConfigOf } from '../config/platform';
+import { configViewOf, figuresOf, workspaceOf } from './moduleViews';
+import type { View } from './modules/workspace';
+import { BackupCard, type RestoredBackup } from './views/BackupCard';
 import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
-import { PanelView, type PanelMode } from './views/PanelView';
-import { TablesView, type TableRequest } from './views/TablesView';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
-import { ExportView } from './views/ExportView';
 import { Icon, type IconName } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
@@ -44,7 +42,6 @@ interface Run {
 
 type Phase = 'select' | 'running' | 'done';
 type Screen = 'home' | 'tool' | 'config';
-type View = 'reconciliation' | 'panel' | 'tables' | 'justifications' | 'export';
 
 /** Rows of each sheet read by the probe of the start screen (the header of every module is in the first 30). */
 const PROBE_ROWS = 30;
@@ -66,6 +63,13 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 /** Every view but the reconciliation is a feature of the module; the others are shown locked. */
 const offered = (m: AvailableModule, view: View) => view === 'reconciliation' || m.features[view];
 
+/** Modules whose configuration is saved under its own key: all but the CFGR700, whose rules carry the platform holidays. */
+const OWN_CONFIG_MODULES = MODULES.filter((m): m is AvailableModule => m.status === 'available' && m.config.saved && m.id !== DEFAULT_MODULE_ID);
+/** Modules with a configuration on the Configuração screen, in the order of the start. */
+const CONFIG_MODULES = MODULES.filter((m): m is AvailableModule => m.status === 'available' && m.config.saved);
+/** How a backup reads back the configuration of each of those modules. */
+const BACKUP_READERS = Object.fromEntries(OWN_CONFIG_MODULES.map((m) => [m.id, { label: m.title, read: m.config.read }]));
+
 export function App() {
   const clientRef = useRef<WorkerClient | null>(null);
   // Analysis module (docs/MODULOS.md): chosen on the start screen; the last one used is restored at startup.
@@ -84,14 +88,22 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<View>('reconciliation');
   const [scope, setScope] = useState(0);
-  const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
-  /** Panel mode (docs/REGRAS_CFGR700.md, section 13): kept while the user opens tables and comes back. */
-  const [panelMode, setPanelMode] = useState<PanelMode>('general');
+  /** Changes with each new analysis (the workspace of the module starts its tables over). */
+  const [analysisId, setAnalysisId] = useState(0);
   // Configuration saved on this computer (IndexedDB) and the one used by the analysis on screen.
   const [config, setConfig] = useState<AnalyzerConfig>(defaultConfig);
   const configRef = useRef(config);
   const [configNotice, setConfigNotice] = useState<string | null>(null);
   const [analyzedConfig, setAnalyzedConfig] = useState<AnalyzerConfig | null>(null);
+  // Configurations of the other modules saved on this computer (own keys), and the one of the analysis on screen with
+  // the platform holidays it used.
+  const [moduleConfigs, setModuleConfigs] = useState<Partial<Record<ModuleId, unknown>>>({});
+  const moduleConfigsRef = useRef(moduleConfigs);
+  const [analyzedModuleConfig, setAnalyzedModuleConfig] = useState<{ config: unknown; holidays: readonly string[] } | null>(null);
+  /** The module whose configuration the Configuração screen shows. */
+  const [configModuleId, setConfigModuleId] = useState<ModuleId>(DEFAULT_MODULE_ID);
+  /** Changes when a backup is restored, so the configuration screens start over from what was restored. */
+  const [configVersion, setConfigVersion] = useState(0);
   // Platform start (tool cards), the workspace of the open tool, or the configuration.
   const [screen, setScreen] = useState<Screen>('home');
   const [lastUsed, setLastUsed] = useState<ModuleId | null>(null);
@@ -101,7 +113,6 @@ export function App() {
   const justificationsRef = useRef(justifications);
   const [meta, setMeta] = useState<JustificationMeta>({ lastExportAt: null, lastChangeAt: null });
   const [unknownCount, setUnknownCount] = useState(0);
-  const [justRequest, setJustRequest] = useState<TableRequest>({ table: 'deletionJustifications', filter: {} });
   const [justRefresh, setJustRefresh] = useState(0);
   const [theme, setTheme] = useState<Theme>('light');
 
@@ -175,11 +186,6 @@ export function App() {
     return { fileName, count: items.length };
   }, [meta]);
 
-  const openJustifications = useCallback((table: TableId, filter: TableFilter) => {
-    setJustRequest({ table, filter });
-    setView('justifications');
-  }, []);
-
   useEffect(() => {
     void loadLastModule().then((stored) => {
       // Marks the card of the tool used last; never overrides a tool opened before IndexedDB answered.
@@ -193,8 +199,22 @@ export function App() {
     void loadConfig().then(({ config: loaded, notice: problem }) => {
       configRef.current = loaded;
       setConfig(loaded);
-      setConfigNotice(problem);
+      setConfigNotice((current) => current ?? problem);
     });
+    for (const m of OWN_CONFIG_MODULES) {
+      void loadModuleConfig(m.id, m.config).then(({ config: loaded, notice: problem }) => {
+        moduleConfigsRef.current = { ...moduleConfigsRef.current, [m.id]: loaded };
+        setModuleConfigs(moduleConfigsRef.current);
+        if (problem) setConfigNotice((current) => current ?? `${m.title}: ${problem}`);
+      });
+    }
+  }, []);
+
+  /** Saves the configuration of a module other than the CFGR700 (it applies to the next analysis). */
+  const applyModuleConfig = useCallback(async (id: ModuleId, next: unknown): Promise<boolean> => {
+    moduleConfigsRef.current = { ...moduleConfigsRef.current, [id]: next };
+    setModuleConfigs(moduleConfigsRef.current);
+    return saveModuleConfig(id, next);
   }, []);
 
   /** Saves the configuration; presets and holidays also apply at once to the analysis on screen. */
@@ -215,17 +235,22 @@ export function App() {
   const createBackup = useCallback(() => {
     const now = Date.now();
     const items = [...justificationsRef.current.values()];
-    download(buildBackup(configRef.current, items, stamp.format(now)), `copia-de-seguranca-auditanalyzer-${stamp.format(now).slice(0, 10)}.json`);
+    download(
+      buildBackup(configRef.current, items, stamp.format(now), moduleConfigsRef.current),
+      `copia-de-seguranca-auditanalyzer-${stamp.format(now).slice(0, 10)}.json`,
+    );
     const nextMeta = { ...meta, lastExportAt: now };
     setMeta(nextMeta);
     void saveMeta(nextMeta);
     return items.length;
   }, [meta]);
 
-  /** Replaces the configuration and every justification by those of a backup. */
+  /** Replaces the configurations in a backup and every justification by those of the backup. */
   const restoreBackup = useCallback(
-    async (restored: AnalyzerConfig, items: Justification[]): Promise<boolean> => {
-      const savedConfig = await applyConfig(restored);
+    async ({ config: restored, modules, justifications: items }: RestoredBackup): Promise<boolean> => {
+      let savedConfig = await applyConfig(restored);
+      for (const [id, moduleConfig] of Object.entries(modules)) savedConfig = (await applyModuleConfig(id as ModuleId, moduleConfig)) && savedConfig;
+      setConfigVersion((n) => n + 1);
       const map = new Map(items.map((j) => [justificationKey(j.kind, j.documentKey), j]));
       justificationsRef.current = map;
       setJustifications(map);
@@ -236,13 +261,14 @@ export function App() {
       await sendJustifications(items, true);
       return savedConfig && savedItems;
     },
-    [applyConfig, sendJustifications],
+    [applyConfig, applyModuleConfig, sendJustifications],
   );
 
 
-  const openTable = useCallback((table: TableId, filter: TableFilter) => {
-    setTableRequest({ table, filter });
-    setView('tables');
+  /** The analysis reapplied by a module (new parameters): its checks and summary on screen. */
+  const onAnalyzed = useCallback((next: ModuleReconciliation, nextSummary: ModuleSummary) => {
+    setReconciliation(next);
+    setSummary(nextSummary);
   }, []);
 
   function client(): WorkerClient {
@@ -266,14 +292,14 @@ export function App() {
             if (analyzed.features.justifications) {
               void sendJustifications([...justificationsRef.current.values()], true);
             }
-            // Presets and holidays saved while the files were being read reach the new analysis too.
-            if (analyzed.config.saved) {
+            // Presets and holidays saved while the files were being read reach the new analysis too (CFGR700).
+            if (analyzed.config.saved && analyzed.id === DEFAULT_MODULE_ID) {
               void clientRef.current?.query({ type: 'settings', settings: settingsFromConfig(configRef.current) }).catch(() => undefined);
             }
             setSummary(event.summary);
             setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
             setView('reconciliation');
-            setTableRequest({ table: 'documents', filter: {} });
+            setAnalysisId((n) => n + 1);
             setPhase('done');
             break;
           }
@@ -311,7 +337,8 @@ export function App() {
 
   /** The configuration an analysis runs with: the one saved on this computer, or the defaults of the module. */
   function configOf(m: AvailableModule): unknown {
-    return m.config.saved ? configRef.current : m.config.defaults();
+    if (!m.config.saved) return m.config.defaults();
+    return m.id === DEFAULT_MODULE_ID ? configRef.current : (moduleConfigsRef.current[m.id] ?? m.config.defaults());
   }
 
   function addFiles(added: File[]) {
@@ -368,9 +395,12 @@ export function App() {
     setRun({ fileNames: files.map((f) => f.name), startedAt: started, stageStartedAt: started, progress: null });
     setPhase('running');
     // Only a saved configuration can change after the analysis (and call for reprocessing).
-    setAnalyzedConfig(current.config.saved ? configRef.current : null);
+    const own = current.config.saved && current.id !== DEFAULT_MODULE_ID;
+    const holidays = configRef.current.calendar.holidays;
+    setAnalyzedConfig(current.config.saved && !own ? configRef.current : null);
+    setAnalyzedModuleConfig(own ? { config: configOf(current), holidays } : null);
     analyzedModule.current = moduleId;
-    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current) });
+    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current), platform: platformConfigOf(holidays) });
     void saveLastModule(moduleId);
     setLastUsed(moduleId);
   }
@@ -391,7 +421,13 @@ export function App() {
   }
 
   // Rules changed after the analysis on screen (presets and holidays apply without reprocessing).
-  const needsReprocess = phase === 'done' && analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0;
+  // The other modules use the platform holidays only when reading the files: a change also calls for reprocessing.
+  const needsReprocess =
+    phase === 'done' &&
+    ((analyzedConfig !== null && configDiff(config, analyzedConfig).length > 0) ||
+      (analyzedModuleConfig !== null &&
+        (canonicalJson(moduleConfigs[analyzedModule.current]) !== canonicalJson(analyzedModuleConfig.config) ||
+          canonicalJson(config.calendar.holidays) !== canonicalJson(analyzedModuleConfig.holidays))));
 
   function reprocess() {
     setScreen('tool');
@@ -440,7 +476,32 @@ export function App() {
       return;
     }
     configFrom.current = screen;
+    setConfigModuleId(OWN_CONFIG_MODULES.some((m) => m.id === moduleId) ? moduleId : DEFAULT_MODULE_ID);
     setScreen('config');
+  }
+
+  /** The configuration screen of the module chosen on the Configuração screen. */
+  function renderConfigView() {
+    const m = availableModule(configModuleId);
+    const loaded = phase === 'done' && analyzedModule.current === m.id;
+    const common = {
+      analysisLoaded: loaded,
+      needsReprocess: loaded && needsReprocess,
+      canReprocess: files.length > 0 && phase !== 'running' && moduleId === m.id,
+      onReprocess: reprocess,
+      onClose: toggleConfig,
+    };
+    const View = configViewOf(m);
+    if (View === null) return <ConfigView key={configVersion} config={config} onSave={applyConfig} {...common} />;
+    return (
+      <View
+        key={configVersion}
+        config={moduleConfigs[m.id] ?? m.config.defaults()}
+        onSave={(next) => applyModuleConfig(m.id, next)}
+        holidays={config.calendar.holidays}
+        {...common}
+      />
+    );
   }
 
   function moveFile(index: number, delta: -1 | 1) {
@@ -459,36 +520,30 @@ export function App() {
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
   const inTool = screen === 'tool';
   const title = screen === 'home' ? 'Ferramentas' : screen === 'config' ? 'Configuração' : phase === 'running' ? 'Processamento' : done ? currentView.label : current.start.heading;
-  const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
+  const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) com ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
   const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
 
   // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
-  const logReconciliation = reconciliation && !isCt2Reconciliation(reconciliation) ? reconciliation : null;
   const logSummary = summary && !isCt2Summary(summary) ? summary : null;
-  const ct2Reconciliation = reconciliation && isCt2Reconciliation(reconciliation) ? reconciliation : null;
-  const ct2Summary = summary && isCt2Summary(summary) ? summary : null;
+  const Workspace = workspaceOf(current);
+  const figures = done && reconciliation ? figuresOf(current)(reconciliation, summary, scope) : [];
   const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
   const showScope = inTool && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
   const openSession = done || phase === 'running' || files.length > 0 ? { id: moduleId, label: done ? 'Análise aberta' : phase === 'running' ? 'Processando' : 'Arquivos carregados' } : null;
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <span className={styles.logo} aria-hidden="true">
-            <svg viewBox="0 0 32 32">
-              <path d="M9 23V9h9.5L23 13.5V23z" />
-              <path d="M12 19.5l3-3 2.2 2.2 3-4.2" />
-            </svg>
-          </span>
-          <span className={styles.brandText}>
-            <strong>AuditAnalyzer</strong>
-            <span>Ferramentas de auditoria</span>
-          </span>
+      <aside className={styles.rail}>
+        <div className={styles.brand} title="AuditAnalyzer">
+          <svg className={styles.logo} viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M12 15h24M12 23h15M12 31h9" />
+            <path className={styles.logoMark} d="M26.5 31.5l4.5 4.5 8-10" />
+          </svg>
+          <span className={styles.brandName}>AuditAnalyzer</span>
         </div>
 
-        <div className={styles.nav}>
-          <button type="button" className={cx(styles.navItem, screen === 'home' && styles.navActive)} aria-current={screen === 'home' ? 'page' : undefined} onClick={() => setScreen('home')}>
+        <div className={styles.railGroup}>
+          <button type="button" className={cx(styles.railItem, screen === 'home' && styles.railActive)} aria-current={screen === 'home' ? 'page' : undefined} onClick={() => setScreen('home')}>
             <Icon name="layers" />
             Ferramentas
           </button>
@@ -496,24 +551,23 @@ export function App() {
 
         {(inTool || openSession) && (
           <div className={styles.tool}>
-            <button type="button" className={styles.toolHead} onClick={() => openTool(moduleId)}>
-              <span className={styles.toolName}>{current.shortTitle}</span>
-              {status && (
-                <span className={styles.toolStatus} data-state={phase === 'select' ? 'ready' : phase}>
-                  {status}
-                </span>
-              )}
+            <button type="button" className={styles.toolHead} title={current.title} onClick={() => openTool(moduleId)}>
+              <span className={styles.toolCode} data-state={status ? (phase === 'select' ? 'ready' : phase) : undefined}>
+                {current.shortTitle}
+              </span>
+              {status && <span className={styles.toolStatus}>{status}</span>}
             </button>
             {done && (
-              <nav className={styles.views} aria-label="Visões">
+              <nav className={styles.railGroup} aria-label="Visões">
                 {VIEWS.filter((v) => offered(current, v.id)).map((v) => {
                   const active = inTool && v.id === view;
                   return (
                     <button
                       key={v.id}
                       type="button"
-                      className={cx(styles.navItem, active && styles.navActive)}
+                      className={cx(styles.railItem, active && styles.railActive)}
                       aria-current={active ? 'page' : undefined}
+                      title={v.description}
                       onClick={() => {
                         setScreen('tool');
                         setView(v.id);
@@ -522,7 +576,7 @@ export function App() {
                       <Icon name={v.icon} />
                       {v.label}
                       {v.id === 'reconciliation' && blocking > 0 && (
-                        <span className={styles.navCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
+                        <span className={styles.railCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
                           {blocking}
                         </span>
                       )}
@@ -534,41 +588,19 @@ export function App() {
           </div>
         )}
 
-        <div className={styles.sideFooter}>
-          <button type="button" className={cx(styles.navItem, screen === 'config' && styles.navActive)} aria-pressed={screen === 'config'} onClick={toggleConfig}>
+        <div className={cx(styles.railGroup, styles.railFoot)}>
+          <button type="button" className={cx(styles.railItem, screen === 'config' && styles.railActive)} aria-pressed={screen === 'config'} onClick={toggleConfig}>
             <Icon name="sliders" />
             Configuração
           </button>
-          <a className={styles.navItem} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
+          <a className={styles.railItem} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
             <Icon name="help" />
             Ajuda
           </a>
-          <button type="button" className={cx(styles.navItem, styles.navDanger)} onClick={endSession}>
+          <button type="button" className={cx(styles.railItem, styles.railDanger)} onClick={endSession}>
             <Icon name="power" />
             Encerrar sessão
           </button>
-          <p className={styles.privacy}>
-            <Icon name="shield" size={14} />
-            <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
-          </p>
-          <div className={styles.sideMeta}>
-            <span className={styles.credits}>
-              <span>AuditAnalyzer {APP_VERSION_LABEL}</span>
-              <span>Desenvolvido por Carlos Danyell</span>
-            </span>
-            <button
-              type="button"
-              className={styles.themeToggle}
-              aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                toggleTheme(theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 });
-              }}
-            >
-              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -582,7 +614,7 @@ export function App() {
                 </button>
                 {screen === 'tool' && (
                   <>
-                    <Icon name="chevronRight" size={14} />
+                    <Icon name="chevronRight" size={13} />
                     <span>{current.title}</span>
                     {fileSummary && done && <span className={styles.crumbMeta}>{fileSummary}</span>}
                   </>
@@ -605,19 +637,30 @@ export function App() {
                   </select>
                 </label>
               )}
-              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={newAnalysis}>
-                <Icon name="refresh" size={17} />
+              <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
+                <Icon name="refresh" size={16} />
                 Nova análise
               </button>
               {view !== 'export' && current.features.export && (
                 <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setView('export')}>
-                  <Icon name="download" size={17} />
+                  <Icon name="download" size={16} />
                   Exportar planilha
                 </button>
               )}
             </div>
           )}
         </header>
+
+        {inTool && done && reconciliation && figures.length > 0 && (
+          <dl className={styles.figures} aria-label="Indicadores da análise">
+            {figures.map((f) => (
+              <div key={f.label} className={styles.figure} data-tone={f.tone}>
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
         <main className={styles.main}>
           {configNotice && (
@@ -644,18 +687,25 @@ export function App() {
           )}
 
           {screen === 'config' && (
-            <div className={ui.enter}>
-              <ConfigView
-                config={config}
-                onSave={applyConfig}
-                analysisLoaded={phase === 'done'}
-                needsReprocess={needsReprocess}
-                canReprocess={files.length > 0 && phase !== 'running'}
-                onReprocess={reprocess}
-                onClose={toggleConfig}
-                onCreateBackup={createBackup}
-                onRestoreBackup={restoreBackup}
-              />
+            <div className={cx(styles.config, ui.enter)}>
+              {CONFIG_MODULES.length > 1 && (
+                <div className={styles.configTabs} role="tablist" aria-label="Configuração de cada análise">
+                  {CONFIG_MODULES.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={configModuleId === m.id}
+                      className={cx(styles.configTab, configModuleId === m.id && styles.configTabActive)}
+                      onClick={() => setConfigModuleId(m.id)}
+                    >
+                      {m.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {renderConfigView()}
+              <BackupCard readers={BACKUP_READERS} onCreate={createBackup} onRestore={restoreBackup} />
             </div>
           )}
 
@@ -797,64 +847,57 @@ export function App() {
             </div>
           )}
 
-          {inTool && done && logReconciliation && (
-            <div className={styles.view} key={view}>
-              {view === 'reconciliation' && (
-                <ReconciliationView data={logReconciliation} summary={logSummary} valueField={(analyzedConfig ?? config).fields.value} />
-              )}
-              {view === 'panel' && (
-                <PanelView
-                  client={client()}
-                  scope={scope}
-                  onOpenTable={openTable}
-                  onOpenJustifications={openJustifications}
-                  onSettingsChange={changeSettings}
-                  refreshKey={justRefresh}
-                  onScopeChange={setScope}
-                  table={(analyzedConfig ?? config).table}
-                  balanceType={(analyzedConfig ?? config).balanceType}
-                  mode={panelMode}
-                  onModeChange={setPanelMode}
-                />
-              )}
-              {view === 'tables' && (
-                <TablesView client={client()} scope={scope} request={tableRequest} onRequest={setTableRequest} balanceType={(analyzedConfig ?? config).balanceType} />
-              )}
-              {view === 'justifications' && (
-                <JustificationsView
-                  client={client()}
-                  scope={scope}
-                  request={justRequest}
-                  onRequest={setJustRequest}
-                  justifications={justifications}
-                  meta={meta}
-                  unknownCount={unknownCount}
-                  refreshKey={justRefresh}
-                  onSave={saveItems}
-                  onReplaceAll={replaceAll}
-                  onExport={exportJson}
-                />
-              )}
-              {view === 'export' && logSummary && current.features.export && (
-                <ExportView
-                  client={client()}
-                  summary={logSummary}
-                  scope={scope}
-                  onScopeChange={setScope}
-                  failures={logReconciliation.checks.filter((c) => c.severity === 'error' && !c.passed)}
-                  justificationCount={[...justifications.values()].filter((j) => j.text.trim()).length}
-                  onOpenJustifications={() => setView('justifications')}
-                />
-              )}
-            </div>
-          )}
-
-          {inTool && done && ct2Reconciliation && (
-            <div className={styles.view} key={view}>
-              <Ct2ReconciliationView data={ct2Reconciliation} summary={ct2Summary} preview={current.preview} />
-            </div>
+          {inTool && done && reconciliation && (
+            // The workspace keeps its state (tables, panel mode, segment) across views; it animates each view itself.
+            <Workspace
+              viewClassName={styles.view}
+              client={client()}
+              module={current}
+              view={offered(current, view) ? view : 'reconciliation'}
+              onView={setView}
+              reconciliation={reconciliation}
+              summary={summary}
+              analysisId={analysisId}
+              onAnalyzed={onAnalyzed}
+              cfgr700={{
+                config: analyzedConfig ?? config,
+                scope,
+                onScopeChange: setScope,
+                onSettingsChange: changeSettings,
+                justifications,
+                meta,
+                unknownCount,
+                justificationsVersion: justRefresh,
+                onSaveJustifications: saveItems,
+                onReplaceJustifications: replaceAll,
+                onExportJustifications: exportJson,
+              }}
+            />
           )}
         </main>
+
+        <footer className={styles.statusbar}>
+          <p className={styles.privacy}>
+            <Icon name="shield" size={14} />
+            <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
+          </p>
+          <span className={styles.credits}>
+            <span>AuditAnalyzer {APP_VERSION_LABEL}</span>
+            <span>Desenvolvido por Carlos Danyell</span>
+          </span>
+          <button
+            type="button"
+            className={styles.themeToggle}
+            aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              toggleTheme(theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            }}
+          >
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
+            {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          </button>
+        </footer>
       </div>
     </div>
   );

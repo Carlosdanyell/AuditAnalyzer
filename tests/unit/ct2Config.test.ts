@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config/schema';
-import { CT2_FIELDS, ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
+import { CT2_FIELDS, CT2_TESTS, ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
 
-/** Configuration of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-4). */
+/** Configuration of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-6). */
 describe('CT2 integrity configuration', () => {
   it('has a valid default with the 20 columns of section 2, twelve of them mandatory', () => {
     const c = ct2DefaultConfig();
-    expect(c.schemaVersion).toBe(1);
+    expect(c.schemaVersion).toBe(2);
     expect(Object.keys(c.columns)).toEqual([...CT2_FIELDS]);
     expect(Object.entries(c.columns).filter(([, col]) => col.required).map(([f]) => f)).toEqual([
       'date', 'batch', 'subBatch', 'document', 'line', 'balanceType', 'currency', 'entryType', 'debitAccount', 'creditAccount', 'amount', 'history',
@@ -63,5 +63,59 @@ describe('CT2 integrity configuration', () => {
     const c = ct2DefaultConfig();
     c.entryTypes.debit = ['Debito', '3'];
     expect(readCt2Config(c).ok).toBe(false);
+  });
+
+  it('has the tests of section 6 with the default severities, all enabled', () => {
+    const c = ct2DefaultConfig();
+    expect(Object.keys(c.tests)).toEqual([...CT2_TESTS]);
+    const severity = Object.fromEntries(Object.entries(c.tests).map(([code, t]) => [code, t.severity]));
+    expect(severity).toEqual({
+      B1: 'error', B2: 'error', B3: 'error', B4: 'info', B5: 'warning',
+      I1: 'error', I2: 'error', I3: 'warning', I4: 'warning', I5: 'warning',
+      E1: 'error', E2: 'info', E3: 'warning', E4: 'warning', E5: 'error', E6: 'info',
+      P1: 'info', P2: 'info', P3: 'info', P4: 'info',
+    });
+    expect(Object.values(c.tests).every((t) => t.enabled)).toBe(true);
+    expect(c.parameters).toEqual({ expectedBalanceType: '1', expectedCurrency: '01', localCurrency: '01', toleranceCents: 0, documentLineLimit: 1000 });
+    expect(c.manualFlag).toEqual({ manual: ['1'], automatic: ['2'] });
+  });
+
+  it('keeps the profile and the B4 diagnostic as Info, and B4/B5 only with the tests they depend on', () => {
+    const info = ct2DefaultConfig();
+    (info.tests.B4 as { severity: string }).severity = 'warning';
+    expect(readCt2Config(info).ok).toBe(false);
+    const noB1 = ct2DefaultConfig();
+    noB1.tests.B1.enabled = false;
+    const read = readCt2Config(noB1);
+    expect(!read.ok && read.errors.map((e) => e.path)).toEqual(['tests.B4.enabled']);
+    noB1.tests.B4.enabled = false;
+    expect(!readCt2Config(noB1).ok && (readCt2Config(noB1) as { errors: { path: string }[] }).errors.map((e) => e.path)).toEqual(['tests.B5.enabled']);
+    noB1.tests.B5.enabled = false;
+    expect(readCt2Config(noB1).ok).toBe(true);
+    const e2 = ct2DefaultConfig();
+    e2.tests.E2.severity = 'warning';
+    expect(readCt2Config(e2).ok).toBe(true);
+  });
+
+  it('refuses invalid parameters and a code that is both manual and automatic', () => {
+    for (const change of [
+      (c: ReturnType<typeof ct2DefaultConfig>) => (c.parameters.toleranceCents = -1),
+      (c: ReturnType<typeof ct2DefaultConfig>) => (c.parameters.toleranceCents = 0.5),
+      (c: ReturnType<typeof ct2DefaultConfig>) => (c.parameters.documentLineLimit = 0),
+      (c: ReturnType<typeof ct2DefaultConfig>) => (c.parameters.localCurrency = ' '),
+      (c: ReturnType<typeof ct2DefaultConfig>) => (c.manualFlag.automatic = ['1']),
+    ]) {
+      const c = ct2DefaultConfig();
+      change(c);
+      expect(readCt2Config(c).ok, String(change)).toBe(false);
+    }
+  });
+
+  it('migrates version 1 to version 2 with the default tests and parameters', () => {
+    const { tests, parameters, manualFlag, ...v1 } = ct2DefaultConfig();
+    const read = readCt2Config({ ...v1, schemaVersion: 1 });
+    expect(read).toEqual({ ok: true, config: ct2DefaultConfig(), migratedFrom: 1 });
+    expect([tests, parameters, manualFlag].every(Boolean)).toBe(true);
+    expect(readCt2Config({ ...v1, schemaVersion: 3 }).ok).toBe(false);
   });
 });

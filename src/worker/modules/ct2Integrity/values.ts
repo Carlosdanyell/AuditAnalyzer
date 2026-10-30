@@ -37,6 +37,9 @@ export function lineOrdinal(line: string): number | null {
 
 export type EntryType = keyof Ct2IntegrityConfig['entryTypes'];
 
+/** Entry types in the order of their codes in the store (0 = not recognized). */
+export const ENTRY_TYPE_CODES: readonly EntryType[] = ['debitCredit', 'debit', 'credit', 'historyContinuation'];
+
 /** Entry type of a value of the column (texts of the extraction or CT2_DC codes); null when not recognized. */
 export function entryTypeLookup(config: Ct2IntegrityConfig): (text: string) => EntryType | null {
   const byValue = new Map<string, EntryType>();

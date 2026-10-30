@@ -7,6 +7,7 @@ import type {
   JustificationImportPreview,
   JustificationKind,
   JustificationStatus,
+  AnyTableId,
   TableId,
 } from '../../shared/protocol';
 import { formatCents, formatDateTime, formatInteger } from '../../shared/format';
@@ -28,7 +29,7 @@ const STATUS: { id: JustificationStatus; label: string }[] = [
   { id: 'moved', label: 'Movimentados após a justificativa' },
 ];
 
-const kindOf = (table: TableId): JustificationKind => (table === 'changeJustifications' ? 'change' : 'deletion');
+const kindOf = (table: AnyTableId): JustificationKind => (table === 'changeJustifications' ? 'change' : 'deletion');
 const msFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
 interface JustificationsViewProps {

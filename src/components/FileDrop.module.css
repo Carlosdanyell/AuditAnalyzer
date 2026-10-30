@@ -69,12 +69,8 @@
 .icon {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 8px;
-  border-radius: 16px;
-  background: var(--accent-grad);
-  color: var(--on-accent);
+  margin-bottom: 6px;
+  color: var(--accent);
   transition: transform 200ms var(--ease);
 }
 
@@ -88,7 +84,7 @@
 
 @keyframes bounce {
   to {
-    transform: translateY(-8px) scale(1.05);
+    transform: translateY(-4px);
   }
 }
 
@@ -121,7 +117,7 @@
 
 .formats span {
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: 3px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-subtle);

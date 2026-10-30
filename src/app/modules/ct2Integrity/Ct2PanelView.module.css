@@ -1,0 +1,144 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px 24px;
+  padding: 18px 22px;
+}
+
+.controls > label {
+  min-width: 240px;
+}
+
+.controls > p {
+  margin: 0 0 6px;
+}
+
+.total > * {
+  background: var(--surface-muted);
+  font-weight: 600;
+}
+
+.left {
+  text-align: left !important;
+}
+
+.testName {
+  font-weight: 500 !important;
+  white-space: normal !important;
+}
+
+.testName code {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.more {
+  margin-top: 10px;
+}
+
+.more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary svg {
+  transition: transform 160ms var(--ease);
+}
+
+.more[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.more[open] > summary {
+  margin-bottom: 10px;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg {
+  flex: none;
+  color: var(--text-subtle);
+  transition: transform 160ms var(--ease);
+}
+
+.fold[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.fold > summary > .muted,
+.fold > summary > span:last-child {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.fold[open] > summary {
+  margin-bottom: 16px;
+}
+
+.params {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px 14px;
+}
+
+.problems {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--error);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.errorText {
+  color: var(--error);
+  font-size: 13px;
+}
+
+@media (width < 900px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}

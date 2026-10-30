@@ -16,11 +16,11 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 6 — Configuração | concluída em 26/09/2026 para a CT2 (tela, versões, importação/exportação); generalização para outras tabelas fora do escopo |
 | 7 — Entrega | concluída (testes de ponta a ponta no CI, ajuda, versão, cópia de segurança); nova interface entregue; versão 1.0.0 publicada |
 | 8 — Plataforma de módulos | concluída em 21/10/2026: seletor de análises, registro de módulos, despacho no worker, configuração por módulo e feriados da plataforma, cópia de segurança versão 2; CFGR700 sem mudança de comportamento |
-| 9 — CT2 Integridade: leitura | a fazer (`docs/REGRAS_CT2_INTEGRIDADE.md` seções 2–4) |
-| 10 — CT2 Integridade: motor | a fazer (seções 5, 6 e 8) |
-| 11 — CT2 Integridade: planilha amarrada | a fazer (seção 7) |
-| 12 — CT2 Integridade: painel e tabelas | a fazer (seção 9) |
-| 13 — Entrega da versão 2.0 | a fazer |
+| 9 — CT2 Integridade: leitura | concluída em 21/10/2026 (`docs/REGRAS_CT2_INTEGRIDADE.md` seções 2–4) |
+| 10 — CT2 Integridade: motor | concluída em 29/10/2026 (seções 5, 6 e 8) |
+| 11 — CT2 Integridade: planilha amarrada | concluída em 29/10/2026 (seção 7); até 300.000 linhas por exportação |
+| 12 — CT2 Integridade: painel e tabelas | concluída em 29/10/2026 (seção 9) |
+| 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0`; a Integridade da CT2 segue em prévia até a conferência com extrações reais (`npm run test:local` e o arquivo de ~1 milhão de linhas na máquina do desenvolvedor) |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
@@ -204,6 +204,15 @@ extração real em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`, e a med
 **Pronto quando:** cada caso sintético produz exatamente as exceções esperadas; local confere com o golden
 (desbalanceados e compensação adjacente).
 
+**Implementada (29/10/2026).** Decisões do usuário em `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13 (B4 testa primeiro o
+documento seguinte e só compensação exata; I4 deixa fora "Valor Moeda1" vazio; P3 conta o documento sem o segmento;
+quadro de testes na reconciliação; o período padrão cobre todos os meses lidos e aparece na tela). Configuração versão 2 (testes, severidades, parâmetros, códigos do Lcto Manual?)
+salva em `analyzerConfig:ct2Integrity`, com aba própria na Configuração; cópia de segurança versão 3; feriados da
+plataforma no comando de análise. Motor, marcas, exceções, perfil e invariantes CI-3, CI-5, CI-6, CI-9 e CI-10 com o
+caso sintético da seção 11 (exceções exatas); `tests/local/ct2Golden.test.ts` compara também os desbalanceados e a
+compensação quando o golden tiver `desbalanceados`. Tempo e memória em `docs/MEDICOES.md`. Pendente na máquina do
+desenvolvedor: preencher `desbalanceados` no golden real e rodar `npm run test:local`.
+
 ---
 
 ## Fase 11 — CT2 Integridade: planilha amarrada
@@ -223,6 +232,13 @@ extração real em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`, e a med
 parâmetro muda os status como o motor; no Excel, abre sem reparo e recalcula sem erros (teste local com
 `EXCEL_CHECK=1`); visual conferido em PDF.
 
+**Implementada (29/10/2026).** Planilha da seção 7 em pt e en, liberada na prévia; parte comum das planilhas em
+`src/worker/export/common/` sem mudar um byte da do CFGR700; avaliador com as funções novas. No avaliador e no
+LibreOffice (recalculando de verdade), matriz e quadro conferem com 40 mil e 300 mil linhas. 1 milhão de linhas não
+é viável: decisão do usuário de bloquear acima de 300.000 linhas por exportação e dividir a extração, com todas as
+colunas (seção 13). Decisões também sobre Excecoes acima do limite de linhas (outras abas) e o nome do arquivo com
+mais de um mês. Pendente na máquina do desenvolvedor: abrir no Excel (`EXCEL_CHECK=1`) e medir com a extração real.
+
 ---
 
 ## Fase 12 — CT2 Integridade: painel e tabelas
@@ -236,6 +252,12 @@ parâmetro muda os status como o motor; no Excel, abre sem reparo e recalcula se
 > `src/modules/cfgr700/`, com as visões de cada módulo vindas do registro; definição das tabelas por módulo.
 
 **Pronto quando:** cada número do painel = total da tabela aberta = Resumo da planilha; e2e passando.
+
+**Implementada (29/10/2026).** Decisões do usuário em `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 13: parâmetros da
+execução no painel, reaplicados sem reler os arquivos (em vez de uma etapa antes de processar); seletor de segmento;
+Base com as colunas mapeadas e a opção de todas. Comandos `analyze` e `segmentPanel`; painel, tabelas e áreas de
+trabalho por módulo (o `App.tsx` ficou com a casca; a tela do CFGR700 não mudou). Painel = tabela = Resumo conferido
+em todos os segmentos (`tests/unit/ct2Tables.test.ts`) e no navegador (`tests/e2e/modules.spec.ts`).
 
 ---
 

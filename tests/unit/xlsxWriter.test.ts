@@ -119,4 +119,24 @@ describe('xlsx writer', () => {
     const [a, b] = await Promise.all([make(), make()]);
     expect(new Uint8Array(await a.blob.arrayBuffer())).toEqual(new Uint8Array(await b.blob.arrayBuffer()));
   });
+
+  it('stops with a clear error instead of writing a sheet above the size of a ZIP entry (no ZIP64)', () => {
+    const w = new XlsxWriter({ maxEntryBytes: 200_000 });
+    const s = w.addSheet('Base');
+    expect(() => {
+      for (let i = 0; i < 20_000; i++) s.row([`linha ${i}`, i]);
+      s.end();
+    }).toThrow(/^A aba "Base" passaria de 0 MB sem compressão/);
+  });
+
+  it('gives the same bytes when the output is gathered in parts (large workbooks)', async () => {
+    const write = async (partBytes?: number) => {
+      const w = new XlsxWriter(partBytes === undefined ? {} : { partBytes });
+      const s = w.addSheet('X');
+      for (let i = 0; i < 5000; i++) s.row([`${Math.sin(i).toString(36)}${i}`, i]);
+      s.end();
+      return new Uint8Array(await (await w.finish()).arrayBuffer());
+    };
+    expect(await write(1024)).toEqual(await write());
+  });
 });

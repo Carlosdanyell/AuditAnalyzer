@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Cell, ColumnSpec, OriginFilter, Sort, TableFilter, TableId } from '../../shared/protocol';
+import type { AnyTableFilter, AnyTableId, Cell, ColumnSpec, OriginFilter, Sort } from '../../shared/protocol';
 import { formatCents, formatDateTime, formatDay, formatInteger } from '../../shared/format';
 import { SEGREGATION_PT, balanceText } from '../../shared/segregation';
 import type { WorkerClient } from '../workerClient';
@@ -9,7 +9,7 @@ import { cx } from '../../components/cx';
 import ui from '../../components/ui.module.css';
 import styles from './TablesView.module.css';
 
-export const TABLES: { id: TableId; label: string }[] = [
+export const TABLES: { id: AnyTableId; label: string }[] = [
   { id: 'documents', label: 'Documentos' },
   { id: 'baseRows', label: 'Base de linhas' },
   { id: 'deletions', label: 'Exclusões' },
@@ -22,7 +22,7 @@ export const TABLES: { id: TableId; label: string }[] = [
 const OPERATION_LABEL = { insert: 'Inclusão', update: 'Alteração', delete: 'Exclusão', restore: 'Recuperação' };
 
 /** Filters of the segregated analysis (section 13) shown in the panel chip. */
-function segregationFilterText(filter: TableFilter, balanceType: { expectedFrom: string; expectedTo: string }): string[] {
+function segregationFilterText(filter: AnyTableFilter, balanceType: { expectedFrom: string; expectedTo: string }): string[] {
   const t = (template: string) => balanceText(template, balanceType);
   const parts: string[] = [];
   if (filter.phase) parts.push(`fase ${t(SEGREGATION_PT.phases[filter.phase])}`);
@@ -42,8 +42,8 @@ const ORIGINS: { id: OriginFilter; label: string }[] = [
 ];
 
 export interface TableRequest {
-  table: TableId;
-  filter: TableFilter;
+  table: AnyTableId;
+  filter: AnyTableFilter;
   sort?: Sort;
 }
 
@@ -73,7 +73,11 @@ interface TablesViewProps {
   request: TableRequest;
   onRequest: (request: TableRequest) => void;
   /** Tabs shown above the grid (default: the six analysis tables). */
-  tabs?: { id: TableId; label: string }[];
+  tabs?: { id: AnyTableId; label: string }[];
+  /** The filters of the CFGR700 (origin, panel category and phase); off for the other modules, which bring theirs in `toolbar`. */
+  originFilters?: boolean;
+  /** Text of the empty table (the filters of the module). */
+  emptyHint?: string;
   /** Makes rows clickable; receives the row as { columnId: value }. */
   onRowClick?: (row: Record<string, Cell>) => void;
   /** Value of the "documento" column of the highlighted row. */
@@ -97,6 +101,8 @@ export function TablesView({
   toolbar,
   refreshKey = 0,
   balanceType = { expectedFrom: '9', expectedTo: '1' },
+  originFilters = true,
+  emptyHint = 'Ajuste a busca, a origem ou remova o filtro do painel.',
 }: TablesViewProps) {
   const [columns, setColumns] = useState<ColumnSpec[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -168,7 +174,7 @@ export function TablesView({
   });
 
   const width = columns.reduce((w, c) => w + c.width, 0);
-  const setFilter = (filter: TableFilter) => onRequest({ ...request, filter });
+  const setFilter = (filter: AnyTableFilter) => onRequest({ ...request, filter });
   const toggleSort = (column: string) => {
     const s = request.sort;
     const sort: Sort | undefined =
@@ -209,6 +215,7 @@ export function TablesView({
             aria-label="Buscar"
           />
         </span>
+        {originFilters && (
         <select
           className={ui.input}
           value={origin ?? ''}
@@ -226,7 +233,8 @@ export function TablesView({
             </option>
           ))}
         </select>
-        {(category || period || segregation.length > 0) && (
+        )}
+        {originFilters && (category || period || segregation.length > 0) && (
           <span className={styles.chip}>
             <Icon name="filter" size={13} />
             {category ? `${CATEGORY_LABEL[category]} ` : 'Eventos '}
@@ -327,7 +335,7 @@ export function TablesView({
               <Icon name="search" size={22} />
             </span>
             <strong>Nenhuma linha com esses filtros.</strong>
-            <span className={ui.muted}>Ajuste a busca, a origem ou remova o filtro do painel.</span>
+            <span className={ui.muted}>{emptyHint}</span>
           </div>
         )}
       </div>

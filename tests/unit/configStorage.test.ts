@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig, type AnalyzerConfig } from '../../src/config/schema';
 import { canonicalJson, configDiff, configHash } from '../../src/shared/configTools';
-import { STORAGE_KEYS, planConfigLoad, withPlatformHolidays, type StoredConfigState } from '../../src/shared/configStorage';
+import { STORAGE_KEYS, moduleConfigKey, planConfigLoad, planModuleConfigLoad, withPlatformHolidays, type StoredConfigState } from '../../src/shared/configStorage';
+import { ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
+import { ct2ConfigV1 } from '../synthetic/ct2Fixtures';
 import { applySettings } from '../../src/shared/settings';
 
 /** Configuration per module and platform holidays in IndexedDB (docs/MODULOS.md, docs/ARQUITETURA.md section 6). */
@@ -158,5 +160,31 @@ describe('loading the stored configuration', () => {
 
   it('starts from the default, without writing, on an empty store', () => {
     expect(load({}).plan).toEqual({ config: defaultConfig(), notice: null, puts: [], deletes: [] });
+  });
+});
+
+describe('configuration of the other modules (key analyzerConfig:<id>)', () => {
+  const module = { read: readCt2Config, defaults: ct2DefaultConfig };
+
+  it('uses its own key, never the key of version 1.0.0', () => {
+    expect(moduleConfigKey('ct2Integrity')).toBe('analyzerConfig:ct2Integrity');
+  });
+
+  it('starts from the default, without writing, when nothing is saved', () => {
+    expect(planModuleConfigLoad(undefined, module)).toEqual({ config: ct2DefaultConfig(), notice: null, write: false });
+  });
+
+  it('uses the saved configuration, writing back only a migrated one', () => {
+    const saved = ct2DefaultConfig();
+    saved.parameters.toleranceCents = 5;
+    expect(planModuleConfigLoad(saved, module)).toEqual({ config: saved, notice: null, write: false });
+    expect(planModuleConfigLoad(ct2ConfigV1(), module)).toEqual({ config: ct2DefaultConfig(), notice: null, write: true });
+  });
+
+  it('falls back to the default with a notice, without overwriting, when the saved one cannot be read', () => {
+    const plan = planModuleConfigLoad({ schemaVersion: 9 }, module);
+    expect(plan.config).toEqual(ct2DefaultConfig());
+    expect(plan.write).toBe(false);
+    expect(plan.notice).toMatch(/^A configuração salva neste computador é inválida e foi substituída pelo padrão \(/);
   });
 });

@@ -25,7 +25,7 @@ async function probe(files: File[]): Promise<(SheetSample[] | null)[]> {
   return answer.files;
 }
 
-const configOf = (m: AvailableModule) => (m.config.saved ? defaultConfig() : m.config.defaults());
+const configOf = (m: AvailableModule) => (m === cfgr700Module ? defaultConfig() : m.config.defaults());
 
 describe('probe of the first rows', () => {
   it('gives the first rows of every sheet as text, shared strings resolved', async () => {

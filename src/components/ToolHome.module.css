@@ -1,7 +1,8 @@
+/* Start of the platform: the tools as rows of one list, like a register. */
 .home {
   display: grid;
-  gap: 20px;
-  max-width: 1080px;
+  gap: 14px;
+  max-width: 1180px;
 }
 
 .lead {
@@ -9,53 +10,76 @@
   color: var(--text-muted);
 }
 
-.grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-/* The whole card is clickable through a button stretched over it; the manual link stays above it. */
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 20px;
+.list {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  transition:
-    border-color 120ms ease,
-    transform 160ms var(--ease);
+  overflow: hidden;
 }
 
-.card:hover:not(.soon) {
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
+.list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.card:has(.hit:focus-visible) {
+.columns,
+.row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1.7fr) minmax(0, 1fr) 150px 170px;
+  align-items: start;
+  column-gap: 20px;
+  padding: 0 20px;
+}
+
+.columns {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.columns > :first-child {
+  grid-column: 1 / 3;
+}
+
+/* The whole row opens the tool through a button stretched over it; the manual link stays above it. */
+.row {
+  position: relative;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  transition: background-color 120ms ease;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row:hover:not(.soon) {
+  background: var(--surface-muted);
+}
+
+.row:has(.hit:focus-visible) {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
+/* The tool whose analysis is open: a steel blue rule on the left. */
 .open {
-  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .soon {
-  opacity: 0.65;
+  color: var(--text-subtle);
 }
 
 .hit {
   position: absolute;
   inset: 0;
   border: 0;
-  border-radius: inherit;
   background: none;
   cursor: pointer;
 }
@@ -65,93 +89,117 @@
 }
 
 .hit:disabled {
-  cursor: not-allowed;
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
+  cursor: default;
 }
 
 .code {
+  padding-top: 2px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 6px;
-  padding: 2px 8px;
 }
 
-.badge {
-  font-size: 12px;
-}
-
-.state {
-  margin-left: auto;
-  font-size: 12px;
+.soon .code {
   color: var(--text-subtle);
 }
 
-.open .state {
-  color: var(--accent);
-  font-weight: 600;
+.what {
+  min-width: 0;
 }
 
 .title {
-  font-size: 18px;
+  font-size: 15.5px;
+  font-weight: 600;
 }
 
 .description {
-  margin: 0;
+  margin: 3px 0 0;
   color: var(--text-muted);
-  font-size: 14px;
-}
-
-.input {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-subtle);
   font-size: 13px;
 }
 
-.foot {
-  margin-top: auto;
-  padding-top: 8px;
+.input {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 7px;
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.input svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-subtle);
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 1px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 1px;
 }
 
 .go {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--accent);
-  font-size: 14px;
+}
+
+.row:hover .go svg {
+  transform: translateX(2px);
 }
 
 .go svg {
-  transition: transform 160ms var(--ease);
-}
-
-.card:hover .go svg {
-  transform: translateX(3px);
+  transition: transform 140ms var(--ease);
 }
 
 .help {
   position: relative;
   z-index: 1;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
 }
 
 .help:hover {
   color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
+@media (width < 900px) {
+  .columns {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: 72px minmax(0, 1fr);
+    row-gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .input,
+  .state,
+  .actions {
+    grid-column: 2;
+  }
+
+  .actions {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }

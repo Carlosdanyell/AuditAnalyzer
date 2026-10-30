@@ -133,3 +133,43 @@ valor), strings compartilhadas presas aos pedaços decodificados e ~8 buscas por
 - Pendente: medir no Chromium com a tela da prévia (memória do worker) e repetir no computador do trabalho com as
   extrações reais (`tests/local/ct2Golden.test.ts` mostra o tempo e a memória na saída local).
 
+### Fase 10: leitura + análise (aglutinação, testes, invariantes)
+
+Mesmas extrações sintéticas e mesmo método, agora com a análise na mesma ingestão (configuração padrão, sem feriados).
+
+| Caso | Tempo | Aglutinação e testes | Pico vivo | Mantido (base) | Exceções |
+|---|---|---|---|---|---|
+| 1 arquivo, ~1 milhão de linhas | 47,5 s | 2,0 s | 223 MB | 182 MB (113 MB) | 110.162 |
+| 2 arquivos, ~1,3 milhão de linhas | 58,8 s | 2,8 s | 283 MB | 236 MB (144 MB) | 744.132 |
+
+- A análise acrescenta ~3 s e ~60 MB ao pico vivo (chaves de ordenação ainda vivas, débito e crédito por posição da
+  base, marcas e as tabelas de dispersão do CI-6); continua abaixo da meta de 400 MB do worker.
+- No caso de dois arquivos, quase todas as exceções eram E5: o período padrão era o mês da menor data (agosto), e as
+  linhas de setembro ficavam fora dele. Pela decisão de 29/10/2026, o período padrão cobre todos os meses lidos; as
+  medições acima foram feitas antes dessa mudança, que não altera tempo nem memória.
+
+## Integridade da CT2 — planilha amarrada (Fase 11)
+
+Extrações sintéticas (`tests/synthetic/ct2Large.ts`, ~80 colunas), planilha gerada pela ferramenta e aberta no
+LibreOffice 24.2 sem interface, que recalcula todas as fórmulas (a planilha não traz valores em cache) e exporta o
+Resumo em CSV; depois do recálculo, a matriz de amarração e o quadro de testes têm de estar todos OK/Confere.
+`MEDIR_CT2_PLANILHA=1 MEDIR_CT2_LINHAS=40000,300000 npm run test:local` (`tests/local/ct2WorkpaperMeasure.test.ts`;
+`MEDIR_CT2_SO_MAPEADAS=1` mede a Base só com as colunas mapeadas). Máquina: 4 núcleos, 15 GB.
+
+| Linhas | Base | Geração | Arquivo | Maior aba (sem compressão) | Recálculo no LibreOffice | Matriz e quadro |
+|---|---|---|---|---|---|---|
+| 40 mil | todas as colunas | 6,4 s | 29 MB | 261 MB | 14 s | todos OK |
+| 300 mil | todas as colunas | 46,9 s | 218 MB | 2,0 GB | 140 s | todos OK |
+| 300 mil | só mapeadas | 31,2 s | 139 MB | 1,1 GB | 111 s | todos OK |
+| 1 milhão | todas as colunas | 158 s | 727 MB | 6,7 GB (passa de 4 GB) | 423 s | 7 "Verificar": arquivo corrompido |
+| 1 milhão | só mapeadas | — | 465 MB | 3,7 GB | encerrado por falta de memória | — |
+
+- Com ~80 colunas, a aba Base de 1 milhão de linhas passa de 4 GB sem compressão, o limite de uma parte do ZIP sem
+  ZIP64, que o `fflate` não grava: o tamanho registrado "dá a volta" e o arquivo sai corrompido. Desde então o
+  `XlsxWriter` para com erro claro antes de passar do limite.
+- A saída comprimida é guardada em Blobs de 16 MB durante a geração: o pico de memória da geração caiu de 219 MB
+  (300 mil linhas, saída inteira no heap do worker) para 41 MB.
+- 1 milhão de linhas não é viável no formato atual. Decisão de 29/10/2026 (seção 7.9 das regras): até 300.000 linhas
+  por exportação, com todas as colunas; acima disso, a exportação é bloqueada e a extração deve ser dividida.
+- Pendente: medir no Excel do computador do trabalho (`EXCEL_CHECK=1`) e com a extração real.
+

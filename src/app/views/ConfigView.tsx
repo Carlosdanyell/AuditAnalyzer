@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { SIGNAL_IDS, defaultConfig, type AnalyzerConfig } from '../../config/schema';
-import { readBackup } from '../../shared/backup';
 import { configDiff, configHash, configToJson, readConfig, type ConfigIssue } from '../../shared/configTools';
-import type { Justification } from '../../shared/protocol';
 import { formatInteger } from '../../shared/format';
-import { centsFromReais, formatList, getIn, issuesAt, parseList, reaisFromCents, setIn, type Draft, type Json } from '../configEditor';
+import { getIn, issuesAt, setIn, type Draft, type Json } from '../configEditor';
 import { downloadBlob } from '../download';
-import { Icon, type IconName } from '../../components/Icon';
+import { Icon } from '../../components/Icon';
 import { cx } from '../../components/cx';
 import ui from '../../components/ui.module.css';
+import { BUTTON, Field, IssueList, ListInput, MoneyInput, PRIMARY, Section, shown } from './configParts';
 import styles from './ConfigView.module.css';
-
-const BUTTON = cx(ui.btn, ui.secondary, ui.sm);
-const PRIMARY = cx(ui.btn, ui.primary, ui.sm);
 
 interface Props {
   /** Configuration saved on this computer. */
@@ -25,10 +21,6 @@ interface Props {
   canReprocess: boolean;
   onReprocess: () => void;
   onClose: () => void;
-  /** Downloads one file with the configuration and the justifications; returns how many justifications. */
-  onCreateBackup: () => number;
-  /** Replaces the configuration and every justification; resolves with whether both were saved. */
-  onRestoreBackup: (config: AnalyzerConfig, justifications: Justification[]) => Promise<boolean>;
 }
 
 const toDraft = (c: AnalyzerConfig): Draft => structuredClone(c) as unknown as Draft;
@@ -41,15 +33,13 @@ const SIGNAL_ACTIONS: { value: string; label: string }[] = [
   { value: 'never', label: 'Nunca (informativo)' },
 ];
 
-export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, canReprocess, onReprocess, onClose, onCreateBackup, onRestoreBackup }: Props) {
+export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, canReprocess, onReprocess, onClose }: Props) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(config));
   const [message, setMessage] = useState<{ kind: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [hash, setHash] = useState('');
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [jsonIssues, setJsonIssues] = useState<ConfigIssue[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
-  const backupInput = useRef<HTMLInputElement>(null);
-  const [pendingRestore, setPendingRestore] = useState<{ name: string; createdAt: string; config: AnalyzerConfig; justifications: Justification[] } | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -116,30 +106,6 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
   function exportJson() {
     downloadBlob(new Blob([configToJson(config)], { type: 'application/json' }), `configuracao-auditanalyzer-${today()}.json`);
     setMessage({ kind: 'ok', text: dirty ? 'Exportada a configuração salva (as alterações do rascunho não foram incluídas).' : 'Configuração exportada.' });
-  }
-
-  async function chooseBackup(file: File) {
-    const result = readBackup(await file.text());
-    if (!result.ok) {
-      setPendingRestore(null);
-      setMessage({ kind: 'error', text: `"${file.name}" não pode ser restaurado: ${result.errors.join('; ')}` });
-      return;
-    }
-    setMessage(null);
-    setPendingRestore({ name: file.name, createdAt: result.createdAt, config: result.config, justifications: result.justifications });
-  }
-
-  async function confirmRestore() {
-    if (!pendingRestore) return;
-    const saved = await onRestoreBackup(pendingRestore.config, pendingRestore.justifications);
-    setDraft(toDraft(pendingRestore.config));
-    setJsonText(null);
-    setMessage(
-      saved
-        ? { kind: 'ok', text: `Cópia restaurada: configuração e ${formatInteger(pendingRestore.justifications.length)} justificativa(s).` }
-        : { kind: 'error', text: 'A cópia foi aplicada nesta sessão, mas não foi possível salvar neste computador.' },
-    );
-    setPendingRestore(null);
   }
 
   function applyJson() {
@@ -279,66 +245,6 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
             <button type="button" className={PRIMARY} onClick={onReprocess} disabled={!canReprocess}>
               Reprocessar com esta configuração
             </button>
-          </div>
-        )}
-      </section>
-
-      <section className={cx(ui.card, styles.card)} aria-labelledby="backup-title">
-        <div className={styles.head}>
-          <span className={ui.cardIcon}>
-            <Icon name="database" />
-          </span>
-          <h3 id="backup-title">Cópia de segurança</h3>
-        </div>
-        <p className={styles.muted}>
-          Um arquivo com a configuração e as justificativas guardadas neste computador — para trocar de computador ou recuperar se os dados
-          do navegador forem apagados. Não contém dados do log.
-        </p>
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={BUTTON}
-            onClick={() => {
-              const n = onCreateBackup();
-              setMessage({ kind: 'ok', text: `Cópia de segurança baixada: configuração e ${formatInteger(n)} justificativa(s).` });
-            }}
-          >
-            <Icon name="download" size={15} />
-            Baixar cópia de segurança
-          </button>
-          <button type="button" className={BUTTON} onClick={() => backupInput.current?.click()}>
-            <Icon name="upload" size={15} />
-            Restaurar cópia de segurança
-          </button>
-          <input
-            ref={backupInput}
-            type="file"
-            accept=".json,application/json"
-            className={styles.hidden}
-            aria-label="Arquivo da cópia de segurança"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) void chooseBackup(file);
-            }}
-          />
-        </div>
-        {pendingRestore && (
-          <div className={cx(ui.alert, styles.reprocess)} role="alertdialog" aria-label="Confirmar restauração">
-            <Icon name="alert" size={17} />
-            <span>
-              Cópia "{pendingRestore.name}"{pendingRestore.createdAt ? ` de ${pendingRestore.createdAt}` : ''}: configuração com{' '}
-              {formatInteger(configDiff(pendingRestore.config).length)} diferença(s) do padrão e {formatInteger(pendingRestore.justifications.length)}{' '}
-              justificativa(s). Restaurar substitui a configuração e todas as justificativas salvas neste computador.
-            </span>
-            <div className={styles.actions}>
-              <button type="button" className={PRIMARY} onClick={() => void confirmRestore()}>
-                Restaurar
-              </button>
-              <button type="button" className={BUTTON} onClick={() => setPendingRestore(null)}>
-                Cancelar
-              </button>
-            </div>
           </div>
         )}
       </section>
@@ -504,80 +410,6 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         </div>
       </div>
     </div>
-  );
-}
-
-function shown(v: unknown): string {
-  if (v === undefined) return '—';
-  return typeof v === 'string' ? v : JSON.stringify(v);
-}
-
-function Section({ title, icon, open, children }: { title: string; icon: IconName; open?: boolean; children: ReactNode }) {
-  return (
-    <details className={styles.section} open={open}>
-      <summary>
-        <span className={styles.sectionIcon}>
-          <Icon name={icon} size={16} />
-        </span>
-        <span className={styles.sectionTitle}>{title}</span>
-        <Icon name="chevronDown" size={18} className={styles.chevron} />
-      </summary>
-      <div className={styles.sectionBody}>{children}</div>
-    </details>
-  );
-}
-
-function Field({ label, hint, issues, children }: { label: string; hint?: string | undefined; issues: ConfigIssue[]; children: ReactNode }) {
-  return (
-    <label className={`${styles.field} ${issues.length ? styles.invalid : ''}`}>
-      <span className={styles.label}>{label}</span>
-      {children}
-      {hint && <span className={styles.hint}>{hint}</span>}
-      {issues.map((i) => (
-        <span key={`${i.path}|${i.message}`} className={styles.fieldError}>
-          {i.message}
-        </span>
-      ))}
-    </label>
-  );
-}
-
-function IssueList({ issues }: { issues: ConfigIssue[] }) {
-  return (
-    <ul className={styles.issues} role="alert">
-      {issues.map((i) => (
-        <li key={`${i.path}|${i.message}`}>
-          {i.path && <code>{i.path}</code>} {i.message}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Items one per line; the typed text is kept while editing and read on leaving the field. */
-function ListInput({ value, rows, onChange }: { value: string[]; rows: number; onChange: (items: string[]) => void }) {
-  const [textValue, setTextValue] = useState(formatList(value));
-  const joined = formatList(value);
-  useEffect(() => setTextValue(joined), [joined]);
-  return <textarea className={cx(ui.input, styles.input)} rows={rows} value={textValue} onChange={(e) => setTextValue(e.target.value)} onBlur={() => onChange(parseList(textValue))} />;
-}
-
-function MoneyInput({ cents, onChange }: { cents: number; onChange: (cents: number) => void }) {
-  const [textValue, setTextValue] = useState(reaisFromCents(cents));
-  useEffect(() => setTextValue(reaisFromCents(cents)), [cents]);
-  const parsed = centsFromReais(textValue);
-  return (
-    <input
-      className={cx(ui.input, styles.input)}
-      inputMode="decimal"
-      value={textValue}
-      aria-invalid={parsed === null}
-      onChange={(e) => setTextValue(e.target.value)}
-      onBlur={() => {
-        if (parsed !== null) onChange(parsed);
-        else setTextValue(reaisFromCents(cents));
-      }}
-    />
   );
 }
 

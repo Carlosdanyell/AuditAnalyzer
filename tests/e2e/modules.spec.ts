@@ -5,6 +5,8 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
+import { readFileSync } from 'node:fs';
+import { Workbook } from '../support/xlsxEval';
 import { analyze, chooseModule, expect, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
@@ -50,23 +52,123 @@ test('início da plataforma: um cartão por ferramenta, Integridade da CT2 como 
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
-test('Integridade da CT2: lê, reconcilia e mostra a base; painel, tabelas e exportação bloqueados', async ({ page, ct2Files }) => {
+test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; oferece painel, tabelas e exportação', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
-  await expect(page.getByText(/^Prévia: esta versão lê a extração da CT2/)).toBeVisible();
+  await expect(page.getByText(/^Prévia: leitura, testes, painel, tabelas e planilha/)).toBeVisible();
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.withProblems, ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(/^2 arquivo\(s\)/)).toBeVisible();
   await expect(page.getByText('1 verificação(ões) bloqueante(s) falhou(aram)')).toBeVisible();
   await expect(page.getByText('Base de lançamentos por tipo de saldo e moeda')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
+  await expect(page.getByText(/exceção\(ões\) de Erro ou Alerta$/)).toBeVisible();
+  await expect(page.getByText('Débito e crédito iguais em todos os níveis')).toHaveCount(1);
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toHaveCount(2);
   await expect(page.getByText(/ct2-a\.xlsx: linhas 13, 14, 15/)).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Visões' });
   await expect(nav.getByRole('button', { name: 'Reconciliação' })).toBeVisible();
-  for (const locked of ['Painel', 'Tabelas', 'Justificativas', 'Exportação']) await expect(nav.getByRole('button', { name: locked })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Exportar planilha' })).toHaveCount(0);
+  await expect(nav.getByRole('button', { name: 'Justificativas' })).toHaveCount(0);
+  for (const offered of ['Painel', 'Tabelas', 'Exportação']) await expect(nav.getByRole('button', { name: offered })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Exportar planilha' })).toBeVisible();
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
+});
+
+test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de testes conferem no avaliador', async ({ page, ct2Files }, testInfo) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Exportar planilha' }).click();
+  for (const language of ['pt', 'en'] as const) {
+    await page.getByLabel(language === 'pt' ? 'Português' : 'English').check();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: /^Gerar planilha/ }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(language === 'pt' ? /^CT2_Integridade_2026-09_\d{4}-\d{2}-\d{2}\.xlsx$/ : /^CT2_Integrity_2026-09_\d{4}-\d{2}-\d{2}\.xlsx$/);
+    const path = testInfo.outputPath(`ct2-${language}.xlsx`);
+    await file.saveAs(path);
+    const book = await Workbook.read(new Blob([readFileSync(path)]));
+    const summary = language === 'pt' ? 'Resumo' : 'Summary';
+    const statuses: unknown[] = [];
+    for (let r = 1; r < 200; r++) {
+      const g = book.value(summary, `G${r}`);
+      if (g === 'OK' || g === 'Verificar' || g === 'Check') statuses.push(g);
+      const i = book.value(summary, `I${r}`);
+      if (i === 'Confere' || i === 'Matches' || i === 'Verificar' || i === 'Check') statuses.push(i);
+    }
+    expect(statuses.length).toBeGreaterThan(5);
+    expect(statuses.every((v) => v === 'OK' || v === 'Confere' || v === 'Matches')).toBe(true);
+  }
+});
+
+test('Integridade da CT2: painel por segmento, cada número abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.engine]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
+  await expect(page.getByText('Período da análise: 01/09/2026 a 31/10/2026')).toBeVisible();
+
+  // A number of the board opens the table with exactly those rows.
+  await page.getByRole('button', { name: 'B1: 6 documentos' }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Exceções' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('6 linha(s)')).toBeVisible();
+  await expect(page.getByText('B1 · Documento desbalanceado')).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro do painel' }).click();
+  await expect(page.getByText('26 linha(s)')).toBeVisible();
+
+  // The Base shows the mapped columns and, on request, every column of the extraction.
+  await page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Base' }).click();
+  await expect(page.getByText('1.038 linha(s)')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(0);
+  await page.getByLabel('Mostrar todas as colunas').check();
+  await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
+
+  // One segment: every number of the panel follows it.
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await page.getByLabel('Segmento').selectOption({ label: 'Saldo 1 · Moeda 02' });
+  await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
+  await page.getByLabel('Segmento').selectOption({ label: 'Todos os segmentos' });
+
+  // Parameters reapplied without reading the files again: a tolerance of R$ 10,00 leaves two unbalanced documents.
+  await page.getByText('Parâmetros da execução').click();
+  await page.getByLabel('Tolerância (R$)').fill('10,00');
+  await page.getByRole('button', { name: 'Reaplicar os testes' }).click();
+  await expect(page.getByText('Testes reaplicados com os novos parâmetros.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'B1: 2 documentos' })).toBeVisible();
+});
+
+test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  // The tab of the open tool comes selected.
+  await expect(page.getByRole('tab', { name: CT2 })).toHaveAttribute('aria-selected', 'true');
+  await page.getByLabel('Ligar I5').uncheck();
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
+  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 2, tests: { I5: { enabled: false } } });
+  await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
+  await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  // The other tab keeps the CFGR700 rules, untouched.
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByRole('tab', { name: CFGR700 }).click();
+  await expect(page.getByText('Configuração padrão CT2, sem alterações.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByRole('tab', { name: CT2 }).click();
+  await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
 });
 
 test('arquivo de outra análise: avisa, oferece a troca e mantém a lista', async ({ page, files, ct2Files }) => {

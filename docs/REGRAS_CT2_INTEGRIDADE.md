@@ -188,7 +188,7 @@ linhas.
 
 | Parâmetro | Padrão |
 |---|---|
-| Data inicial / final do período | 1º e último dia do mês da menor data lida (editável) |
+| Data inicial / final do período | todos os meses lidos: 1º dia do mês da menor data e último dia do mês da maior data lida (editável; decisão de 29/10/2026) |
 | Tipo de saldo esperado | `1` |
 | Moeda esperada / moeda local | `01` / `01` |
 | Tolerância de balanceamento (R$) | 0,00 |
@@ -328,11 +328,37 @@ código, chave.
    balanceamento por nível; quantos desbalanceados têm compensação adjacente; quantos documentos atingiram o limite
    de linhas; testes com Erro. Sem juízo de causa: "indícios" e "a confirmar pelo analista".
 
+### 7.8.1 Como foi implementado (Fase 11, `src/worker/modules/ct2Integrity/workpaper.ts`)
+
+- Ordem das abas: Resumo, Criterios, Documentos, Lotes, Dias, Excecoes (e `Excecoes (2)`… acima do limite), Perfil,
+  Base, Rastreabilidade; em inglês, Summary, Criteria, Documents, Batches, Days, Exceptions, Profile, Base, Traceability.
+- **Coluna Segmento** (texto "Saldo 1 · Moeda 01") na Base, em Documentos, Lotes e Dias: o Resumo e o Perfil filtram por
+  ela, porque um critério só com dígitos ("01") é tratado como número pelo COUNTIFS do Excel.
+- Base: Arquivo, Linha na origem, Segmento, as colunas mapeadas (ordem da seção 2) e as demais colunas da extração
+  (ordem de primeira aparição), depois as colunas de fórmula. Textos comparados com `EXACT` (o "=" do Excel ignora
+  maiúsculas; o motor não). Tipos de lançamento comparados por `COUNTIF(P_TIPO_xx, tipo)`.
+- Documentos: valor "Linha do lote na aba Lotes" — B4 compara essa linha com a do documento vizinho (mesmo segmento,
+  data, lote e sub-lote), em vez de repetir os quatro campos. E2 fica vazio quando a última linha não é numérica.
+- Matriz: cada coluna tem um nível de referência (linhas, débito e crédito: Base; documentos: Documentos; lotes:
+  Lotes); o próprio nível de referência é comparado com a linha Ferramenta. Linha "Maior diferença" por coluna.
+- Quadro de testes: ocorrências de B4 = documentos com B1 (todo B1 é diagnosticado); P1 e P2 = grupos do Perfil.
+  "Situação" é OK sem ocorrências, Verificar com ocorrências, Info para testes Info; a conferência é a coluna
+  "Conferência".
+- Perfil: COUNTIFS/SUMIFS sobre a Base por segmento e valor (critério `"=valor"`); cada grupo tem a contagem da
+  ferramenta e "Conferência". Limitação declarada na aba: códigos só com dígitos que diferem nos zeros à esquerda
+  são somados juntos pelo Excel.
+- Abas de resumo (Resumo, Criterios, Perfil, Rastreabilidade) impressas em paisagem, ajustadas à largura.
+
 ### 7.9 Limites
 
-- Excel: 1.048.576 linhas por aba. Base com mais linhas que isso: exportação bloqueada (CI-8), com mensagem.
-- Tempo de recálculo: medir na Fase 11 (`docs/MEDICOES.md`) com 40 mil, 300 mil e 1 milhão de linhas sintéticas.
-  Se 1 milhão não for viável, **parar e discutir** (seção 12) — não trocar fórmula por valor sem decisão.
+- **Até 300.000 linhas por exportação** (CI-8; decisão de 29/10/2026). Acima disso a exportação é bloqueada, com a
+  mensagem para dividir a extração (por exemplo, por mês ou quinzena) e analisar cada parte; a tela já avisa antes do
+  clique. A leitura, os testes e o quadro de testes valem para qualquer tamanho.
+- Medido na Fase 11 (`docs/MEDICOES.md`): 40 mil linhas, 29 MB e 14 s de recálculo; 300 mil, 218 MB e 140 s; 1 milhão
+  não é viável (com ~80 colunas a Base passa de 4 GB sem compressão, o limite de uma parte do ZIP sem ZIP64; só com
+  as colunas mapeadas, 465 MB e o LibreOffice esgota 15 GB de memória ao recalcular). Excel: 1.048.576 linhas por aba.
+- A gravação para com erro claro se uma aba passar de 4 GB sem compressão (nunca um arquivo corrompido).
+- Fórmula nunca trocada por valor para caber: decisão do usuário.
 
 ## 8. Invariantes (verificados a cada execução)
 
@@ -345,24 +371,45 @@ código, chave.
 | CI-5 | Para cada teste, ocorrências pelas marcas de linha/nível = linhas da Excecoes (Erro/Alerta) | sim |
 | CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
-| CI-8 | Base cabe numa aba do Excel | sim |
+| CI-8 | Base com até 300.000 linhas (limite da planilha amarrada, seção 7.9) e cabendo numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
 
 Exportação com invariante bloqueante falhando: mesma regra do CFGR700 (confirmação explícita registrada no Resumo e
 na Rastreabilidade).
 
+**Como são conferidos (Fase 10, `src/worker/modules/ct2Integrity/checks.ts`):** cada invariante reconta por um
+caminho próprio. CI-3 soma as linhas na ordem de leitura (sem a ordem da base) e compara com a base ordenada, os
+documentos, os lotes, os dias, os segmentos e os totais da leitura. CI-5 conta, para cada teste de Erro ou Alerta, as
+marcas do nível e as linhas da lista de exceções. CI-6 conta as chaves distintas (segmento + chave) com uma tabela de
+dispersão, sem a ordem da base, e compara com os blocos e com as contagens da leitura. CI-9 lista as colunas
+opcionais ausentes de todos os arquivos (teste desligado) e de parte deles (essas linhas ficam fora do teste ou com o
+campo vazio). CI-10 conta as linhas com data válida fora do período.
+
+**Detalhes da aplicação dos testes (Fase 10):** valor ilegível (CI-4) conta 0 nas somas e fica fora de I2 e da parte
+de valor de I1 e I4; data inválida fica fora de E5 e o dia sem data válida, de E6; Seq CTK vazio não é sequência
+(P3); grupo de rotina ou de lançamento padrão vazio é um grupo próprio (P1); B4 só diagnostica documentos com B1, e
+B5 só existe com B4 ligado (a configuração recusa B4 sem B1 e B5 sem B4). O teste ligado cuja coluna opcional falta em
+todos os arquivos aparece como "sem a coluna" no quadro de testes.
+
 ## 9. Tela do módulo
 
 Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, exportação, configuração) com:
 
-- **Parâmetros** antes de processar (seção 6.5), com o período pré-preenchido depois da leitura do cabeçalho e das
-  datas mínima e máxima.
+- **Parâmetros** da execução (seção 6.5) num quadro do painel: os testes rodam com os padrões e são reaplicados em
+  segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
+- **Seletor de segmento:** "Todos os segmentos" ou um segmento, para o painel e as tabelas.
 - **Painel:** indicadores; matriz de amarração com OK/Verificar; quadro de testes (cada número abre a tabela filtrada:
   Excecoes pelo código, ou Documentos/Lotes/Dias pelo status); documentos desbalanceados com a compensação
   adjacente; 10 maiores documentos com o limite de linhas; perfil por rotina.
-- **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste), virtualizadas e paginadas no worker.
-- **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx`.
+- **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste; as demais colunas da extração sob
+  "Mostrar todas as colunas"), virtualizadas e paginadas no worker.
+- **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx` (com mais de um mês,
+  `<AAAA-MM>_a_<AAAA-MM>`).
+- **Implementado na Fase 12:** os links do quadro levam a Exceções pelo código (testes de Erro e Alerta) ou à tabela do
+  nível pelo teste (Info: B4, E2, P3 e P4 em Documentos; E6 em Dias); P1 e P2 ficam no perfil do painel. A ocorrência
+  de B4 é o número de documentos com B1 (todos são diagnosticados). Com um segmento escolhido, o resultado de B4 é
+  recontado no segmento; os demais resultados aparecem só em "Todos os segmentos".
 
 ## 10. Limitações a declarar (Critérios e painel)
 
@@ -389,10 +436,14 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   parâmetro (ex.: `P_TOL`) no avaliador muda os status como o motor muda; determinismo byte a byte.
 - **Locais (fora do git):** as extrações reais em `local/ct2/` e `local/ct2/golden-ct2-integrity.json`
   (`tests/local/ct2Golden.test.ts`, formato no cabeçalho do teste): linhas, documentos e, por segmento, linhas,
-  documentos, débito e crédito (Fase 9); desbalanceados e a compensação esperada entram na Fase 10. Medição de tempo
+  documentos, débito e crédito (Fase 9); desbalanceados, diferença e documento que compensa (B1 e B4, Fase 10). Medição de tempo
   e memória com extrações sintéticas grandes: `MEDIR_CT2=1 npm run test:local` (`tests/local/ct2Measure.test.ts`;
   os arquivos são gerados uma vez na pasta temporária do sistema).
 - **Ponta a ponta:** escolher o módulo, carregar o sintético, conferir painel e exportação, sem requisição externa.
+- **Motor (Fase 10, versionado):** `tests/synthetic/ct2EngineFixture.ts` tem um caso por regra e a lista exata de
+  exceções esperadas, os resultados de B4 e dos testes Info; `tests/unit/ct2Analysis.test.ts` confere também a
+  tolerância, testes desligados, severidade trocada, duplicidade entre arquivos, colunas opcionais ausentes e
+  invariantes que falham numa análise adulterada.
 
 ## 12. Pendências (decidir com o usuário antes de implementar o item)
 
@@ -409,7 +460,8 @@ Situação em 20/10/2026 (decisões na seção 13):
    em lançamentos de rotina pode trazer algo no fim, mas o módulo não o interpreta e P2 não usa usuário.
 5. **Chave do documento com tipo de saldo e moeda — decidido.** A chave não inclui tipo de saldo e moeda; os dois
    formam o segmento, que separa a análise (seção 3).
-6. **Teto do modo amarrado — pendente.** Resultado da medição da seção 7.9 (Fase 11).
+6. **Teto do modo amarrado — decidido.** 300.000 linhas por exportação; acima, bloquear e dividir (seção 7.9).
+   Pendente, sem bloquear: o tamanho típico da extração mensal real (o usuário não sabe agora; o teste local mostra).
 
 ## 13. Decisões registradas
 
@@ -448,3 +500,42 @@ Situação em 20/10/2026 (decisões na seção 13):
     Excel com fração é CI-4; texto de valor só no formato pt-BR; vários arquivos unidos pelo título das colunas, com
     alerta; o aviso de arquivo trocado mantém a lista de arquivos; arquivos reais da CT2 em `local/ct2/`; arquivos
     de medição na pasta temporária do sistema.
+- 29/10/2026 — Fase 10 (motor), respostas do usuário:
+  - **B4, dois vizinhos:** testa primeiro o documento **seguinte** do mesmo lote e segmento (na ordem da Base) e
+    depois o anterior; aponta o primeiro que compensa. A compensação é **exata**: a soma das duas diferenças é 0,00,
+    sem a tolerância do B1.
+  - **I4 com "Valor Moeda1" vazio:** a linha fica **fora do teste** (sem valor para comparar), como a ilegível.
+  - **P3 e segmentos:** o documento é contado pela **chave do documento sem o segmento**: a mesma contabilização em
+    duas moedas não aparece como Seq CTK repetido.
+  - **Tela ao fim da Fase 10:** o módulo continua como prévia e a reconciliação ganha um **quadro de testes** com as
+    ocorrências de cada teste e os invariantes novos.
+  - **Extração com mais de um mês:** não é problema; o período padrão cobre **todos os meses lidos** (do 1º dia do
+    mês da menor data ao último dia do mês da maior), e a tela **sinaliza o período analisado** com a quantidade de
+    meses (reconciliação e quadro de testes). Antes, o padrão era só o mês da menor data, o que fazia as linhas dos
+    meses seguintes caírem em E5. E5 e CI-10 passam a apontar só datas fora de um período informado (tela de
+    parâmetros, Fase 12).
+- 29/10/2026 — Fase 11 (planilha), respostas do usuário:
+  - **Excecoes acima do limite do Excel:** continua em outras abas (`Excecoes`, `Excecoes (2)`, …) e o Resumo soma
+    as abas, mantendo a amarração completa. Caso fora da curva: o Protheus não deixa salvar lançamento sem histórico.
+  - **Liberação:** a exportação fica disponível no site já na Fase 11 (idioma pt/en e confirmação de invariante
+    bloqueante); o módulo continua como prévia até a Fase 12.
+  - **Nome do arquivo com mais de um mês:** primeiro e último mês, `CT2_Integridade_<AAAA-MM>_a_<AAAA-MM>_<data>.xlsx`;
+    com um mês, `CT2_Integridade_<AAAA-MM>_<data>.xlsx`.
+  - **Fórmulas alinhadas ao motor (ajustes técnicos à seção 7.4, aprovados com o plano):** I4 só testa com "Valor
+    Moeda1" preenchido; I3 só com as contas preenchidas; `P_TIPO_PD`, `P_TIPO_DEB`, `P_TIPO_CRED` e `P_TIPO_HIST` são
+    listas com os valores do tipo na configuração (texto e código), comparadas por `COUNTIF`.
+  - **Teto da planilha amarrada (seção 7.9):** com 1 milhão de linhas a planilha não é viável (medições em
+    `docs/MEDICOES.md`). Decidido: **bloquear acima de 300.000 linhas por exportação e dividir a extração**; a Base
+    continua com **todas as colunas** da extração. Alternativas rejeitadas: Base como valores acima do limite (perderia
+    o recálculo dos testes de linha), ZIP64 com 1 milhão de linhas (arquivo de ~500 MB que não recalcula em tempo
+    viável) e Base só com as colunas mapeadas. O tamanho típico da extração mensal real ainda não é conhecido.
+- 29/10/2026 — Fase 12 (painel e tabelas), respostas do usuário:
+  - **Parâmetros da execução depois, com reaplicação:** os testes rodam com os padrões da configuração (período de
+    todos os meses lidos); um quadro de parâmetros no painel permite alterar e **reaplicar os testes** em segundos, sem
+    reler os arquivos. Painel, tabelas e planilha seguem os parâmetros em vigor. (Substitui "parâmetros antes de
+    processar" da seção 9.)
+  - **Seletor de segmento** no topo do painel: "Todos os segmentos" (padrão) ou um segmento; indicadores, quadro de
+    testes, listas e tabelas seguem a escolha; em "Todos", contagens somadas e valores mostrados por segmento.
+  - **Tabela Base:** por padrão as colunas mapeadas e as de teste, com a opção "Mostrar todas as colunas"; a
+    planilha continua com todas.
+

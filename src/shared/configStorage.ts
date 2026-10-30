@@ -113,3 +113,26 @@ export function planConfigSave(config: AnalyzerConfig): [string, unknown][] {
     [STORAGE_KEYS.platform, platformConfigOf(config.calendar.holidays)],
   ];
 }
+
+/** Key of the configuration of a module other than the default one (docs/ARQUITETURA.md, section 6). */
+export const moduleConfigKey = (id: string) => `analyzerConfig:${id}`;
+
+/**
+ * The configuration of another module at startup: the saved one (migrated, then written back), or the default when
+ * nothing valid is saved. One that cannot be read (e.g. written by a newer version) is not overwritten.
+ */
+export function planModuleConfigLoad<C>(
+  stored: unknown,
+  module: { read: (input: unknown) => { ok: true; config: C; migratedFrom?: number } | { ok: false; errors: ConfigIssue[] }; defaults: () => C },
+): { config: C; notice: string | null; write: boolean } {
+  if (!present(stored)) return { config: module.defaults(), notice: null, write: false };
+  const read = module.read(stored);
+  if (!read.ok) {
+    return {
+      config: module.defaults(),
+      notice: `A configuração salva neste computador é inválida e foi substituída pelo padrão (${detailOf(read.errors)}).`,
+      write: false,
+    };
+  }
+  return { config: read.config, notice: null, write: read.migratedFrom !== undefined };
+}

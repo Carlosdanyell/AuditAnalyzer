@@ -22,16 +22,16 @@ import { ProgressReporter } from '../../ingest/progress';
 import { readSheet, type CellText, type HeadRow } from '../../ingest/readSheet';
 import { CellKind, type ParsedRow } from '../../ingest/sheetStream';
 import type { PackedColumn } from '../../store/packedColumn';
-import { checkOrder, firstDifference, keyLevels, sortBase, sortKeys } from './order';
+import { analyzeCt2, type Ct2Analysis } from './analysis';
+import { checkOrder, firstDifference, keyLevels, sortBase, sortKeys, type KeyPart } from './order';
 import { Ct2Store, RowFlag, TEXT_FIELDS, type Ct2StoreRow, type RowProblem, type TextField } from './store';
-import { codeFromCell, entryTypeLookup, otherValue, sidesOf, type EntryType } from './values';
+import { rowSides } from './aggregate';
+import { ENTRY_TYPE_CODES, codeFromCell, entryTypeLookup, otherValue } from './values';
 
 /** Columns read per row; values beyond them are counted as outside the columns (CI-1). */
 const SHEET_WIDTH = 256;
 /** Rows listed as examples of unreadable values, per file. */
 const EXAMPLES = 5;
-/** Entry types in the order of their codes in the store (0 = not recognized). */
-export const ENTRY_TYPE_CODES: readonly EntryType[] = ['debitCredit', 'debit', 'credit', 'historyContinuation'];
 
 const PROBLEMS = Object.keys(RowFlag) as RowProblem[];
 /** Text fields that are not codes: kept as read, without spaces at the ends. */
@@ -52,6 +52,8 @@ export interface Ct2Ingested {
   store: Ct2Store;
   /** Row indexes in the order of the Base. */
   order: Uint32Array;
+  /** Parts of the sort key of each row (order.ts), for the analysis; the session does not keep them. */
+  keys: KeyPart[];
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -382,13 +384,9 @@ function summarize(store: Ct2Store, keys: ReturnType<typeof sortKeys>, order: Ui
     if (first < levels.document) segment.documents++;
     if (first < levels.batch) batches++;
     if (first < levels.day) days++;
-    const amount = store.amount.get(i);
-    if (!Number.isNaN(amount)) {
-      const type = store.entryType.get(i);
-      const sides = sidesOf(type === 0 ? null : ENTRY_TYPE_CODES[type - 1]!, amount);
-      segment.debitCents += sides.debit;
-      segment.creditCents += sides.credit;
-    }
+    const sides = rowSides(store, i);
+    segment.debitCents += sides.debit;
+    segment.creditCents += sides.credit;
     const day = store.day.get(i);
     if (day !== INVALID_TIME) {
       if (firstDay === null || day < firstDay) firstDay = day;
@@ -451,13 +449,17 @@ function valuesCheck(files: Ct2FileReconciliation[]): CheckResult {
   return { id: 'ct2-values', label: 'Valores legíveis', severity: 'error', passed: rows === 0, message };
 }
 
-/** Reads the files into one Base, sorts it and checks the reading (CI-1, CI-2, CI-4). */
+/**
+ * Reads the files into one Base, sorts it and checks the reading (CI-1, CI-2, CI-4). With `analysis`, also analyzes
+ * the Base (section 6) and adds the invariants of the analysis to the checks.
+ */
 export async function ingestCt2(
   inputs: IngestInput[],
   config: Ct2IntegrityConfig,
   post: (event: WorkerEvent) => void,
   options: IngestOptions = {},
-): Promise<Ct2Ingested> {
+  analysis?: { holidays: ReadonlySet<number> },
+): Promise<Ct2Ingested & { analysis?: Ct2Analysis }> {
   if (inputs.length === 0) throw new IngestError('fileCheck', 'Nenhum arquivo selecionado.');
   if (inputs.length > 255) throw new IngestError('fileCheck', 'No máximo 255 arquivos por análise.');
   const now = options.now ?? (() => performance.now());
@@ -481,20 +483,33 @@ export async function ingestCt2(
   const keys = sortKeys(store, config);
   const order = sortBase(keys, store.rows);
   progress.update(store.rows);
-
-  progress.begin('checks', undefined, 3, 'steps', 'Conferindo os invariantes da leitura');
   const ordered = checkOrder(keys, order, config);
   const summary = summarize(store, keys, order, config);
-  const checks = [readingCheck(files), orderCheckResult(ordered.problem), valuesCheck(files)];
-  progress.update(3);
-  progress.closeStage();
-
   const reconciliation: Ct2Reconciliation = {
     module: 'ct2Integrity',
     files,
     consolidated: { detailRows: store.rows, alerts },
-    checks,
-    totalMs: Math.round(now() - started),
+    checks: [readingCheck(files), orderCheckResult(ordered.problem), valuesCheck(files)],
+    totalMs: 0,
   };
-  return { reconciliation, summary, store, order };
+  const base: Ct2Ingested = { reconciliation, summary, store, order, keys };
+
+  let analyzed: Ct2Analysis | undefined;
+  if (analysis) {
+    progress.begin('documents', undefined, store.rows, 'rows', 'Aglutinando por documento, lote e dia e aplicando os testes');
+    analyzed = analyzeCt2(base, config, analysis.holidays);
+    progress.update(store.rows);
+    summary.analysis = {
+      parameters: analyzed.parameters,
+      tests: analyzed.tests,
+      exceptions: analyzed.exceptions.count,
+    };
+  }
+
+  progress.begin('checks', undefined, 1, 'steps', 'Conferindo os invariantes');
+  if (analyzed) reconciliation.checks.push(...analyzed.checks);
+  progress.update(1);
+  progress.closeStage();
+  reconciliation.totalMs = Math.round(now() - started);
+  return { ...base, ...(analyzed && { analysis: analyzed }) };
 }

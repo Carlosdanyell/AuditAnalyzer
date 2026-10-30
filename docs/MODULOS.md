@@ -2,13 +2,14 @@
 
 A partir da versão 2, o AuditAnalyzer é uma **plataforma de análises**: um único aplicativo estático, com as mesmas
 restrições do `CLAUDE.md` (nada sai da máquina, memória controlada, determinismo, integridade verificável), que
-hospeda **módulos de análise** independentes. Cada módulo recebe um tipo de extração do Protheus, aplica regras
-próprias e gera o seu papel de trabalho em Excel.
+hospeda **módulos de análise** independentes. Cada módulo recebe o seu tipo de extração (os de hoje, do Protheus),
+aplica regras próprias e gera o seu papel de trabalho em Excel. A plataforma é feita para receber outras ferramentas
+contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca nem a marca.
 
 | Módulo | Entrada | Regras | Situação |
 |---|---|---|---|
-| `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | versão 1.0.0, em uso |
-| `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | especificado (Fases 8–13) |
+| `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | em uso desde a 1.0.0 |
+| `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | prévia na 2.0.0: leitura, testes, planilha amarrada, painel e tabelas (Fases 9–12); falta a conferência com extrações reais |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
 escopo; outra área = ferramenta própria"). Novas análises entram como módulos desta plataforma, não como ferramentas
@@ -136,18 +137,42 @@ interface ModuleSession {                               // objeto novo a cada in
 - Feriados da plataforma: chave `platformConfig`, copiados sem reordenar para `calendar.holidays` da configuração do
   CFGR700, que continua no mesmo esquema (versão 2): o SHA-256 e as diferenças da Rastreabilidade não mudam.
 - Cópia de segurança: o campo continua `version` (uma versão anterior leria `schemaVersion` como "Versão undefined"),
-  agora `2`, com `platform` (feriados); a versão 1 continua sendo lida. As configurações de outros módulos entram na
-  cópia quando existirem (Fase 10), com nova versão.
+  `2` com `platform` (feriados) e, a partir da Fase 10, `3` com `modules` (configuração de cada outro módulo, por id,
+  validada e migrada pelas regras do módulo; um id desconhecido é ignorado). As versões 1 e 2 continuam sendo lidas,
+  sem os outros módulos (a configuração deles fica como está).
+- **Fase 10:** a configuração de cada módulo além do CFGR700 fica na chave própria `analyzerConfig:<id>` (sem chave
+  antiga para migrar; `planModuleConfigLoad` em `src/shared/configStorage.ts`): ausente = padrão, sem gravar; versão
+  anterior = migrada e regravada; ilegível = padrão com aviso, sem sobrescrever. O comando `ingest` leva `platform`
+  (feriados) e `WorkerModule.configure(config, platform)` recebe os dois; o CFGR700 continua com os feriados dentro da
+  própria configuração. A tela Configuração tem uma aba por análise com regras salvas e a cópia de segurança abaixo
+  (`BackupCard`); a tela de cada módulo além do CFGR700 é achada pelo descritor (`src/app/moduleViews.tsx`), nunca
+  pelo id. Mudar a configuração ou os feriados depois da análise oferece reprocessar.
 - Imports estáticos nos dois registros: a CSP não muda e nada é buscado depois do carregamento.
+- **Fase 12:** comandos `analyze` (reaplica a análise com os parâmetros informados, validados pelo módulo; responde
+  `analyzed` com o resumo e as verificações novas) e `segmentPanel` (painel recortado por segmento); `page` aceita as
+  tabelas e filtros de cada módulo (`AnyTableId`, `AnyTableFilter`). Na tela, cada módulo tem a sua área de trabalho
+  depois da análise (`src/app/modules/<id>/`, contrato em `src/app/modules/workspace.ts`), achada pelo descritor em
+  `workspaceOf` (`src/app/moduleViews.tsx`); o `App.tsx` ficou com a casca (arquivos, processamento, barra lateral,
+  configuração). As visões oferecidas seguem `features` do descritor.
+- **Fase 11:** a parte comum das planilhas fica em `src/worker/export/common/` (aba Rastreabilidade, SHA-256 e diferenças
+  da configuração, verificações bloqueantes com confirmação, CI-7 de datas); a mesclagem sobreposta continua barrada
+  pelo próprio `XlsxWriter`. A visão Exportação mostra o conteúdo de cada módulo (`ExportContent`).
 
 ## 4. Tela
 
-- **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: código curto, título,
-  descrição, arquivo esperado, link para a ajuda, "Prévia"/"Em breve"); o cartão abre o espaço de trabalho do módulo.
-  A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e a análise aberta são marcadas
-  no cartão. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
+- **Início da plataforma (Ferramentas):** uma linha por módulo numa lista com colunas (`src/components/ToolHome.tsx`:
+  código curto, título, descrição, arquivo esperado, situação "Prévia"/"Em breve", link para a ajuda); a linha abre o
+  espaço de trabalho do módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
+  a análise aberta são marcadas na linha. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
 - No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
-  oferece). A trilha no topo mostra "Ferramentas › módulo · arquivos"; a barra lateral mostra só as visões oferecidas.
+  oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
+  oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
+  `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
+- **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para
+  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição e arquivo esperado para a linha
+  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até seis
+  indicadores-chave (`KeyFigures`). Cores, fontes, logo e componentes são os da plataforma: a ferramenta não traz
+  marca própria.
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo

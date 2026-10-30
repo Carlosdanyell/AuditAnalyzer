@@ -129,7 +129,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 4px 4px 4px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--surface-muted);
   border: 1px solid var(--border);
 }
@@ -188,12 +188,7 @@
 
 .kpiIcon {
   display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--series) 15%, transparent);
-  color: var(--text);
+  color: var(--series);
 }
 
 .kpiIcon svg {
@@ -229,7 +224,7 @@
   margin-top: 4px;
   font-family: var(--font-display);
   font-size: 34px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
@@ -253,7 +248,7 @@
   gap: 2px;
   height: 6px;
   margin-top: 8px;
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
@@ -351,7 +346,7 @@ thead .totalCol {
 }
 
 .strong {
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .groupStart {
@@ -388,7 +383,7 @@ thead .totalCol {
   gap: 11px;
   align-items: flex-start;
   padding: 9px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   border: 1px solid transparent;
   line-height: 1.45;
   transition: background-color 150ms;
@@ -411,34 +406,28 @@ thead .totalCol {
   flex: none;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
 }
 
 .action .signalIcon {
-  background: var(--warn);
-  color: var(--surface);
+  color: var(--warn);
 }
 
 .info .signalIcon {
-  background: var(--accent-soft);
   color: var(--accent);
 }
 
 .clear .signalIcon {
-  background: var(--ok-soft);
   color: var(--ok);
 }
 
 .signalBadge {
   margin-right: 6px;
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 3px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-weight: 600;
   vertical-align: 1px;
 }
 
@@ -470,12 +459,8 @@ thead .totalCol {
 .hintIcon {
   flex: none;
   display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--accent-grad);
-  color: var(--on-accent);
+  padding-top: 2px;
+  color: var(--accent);
 }
 
 .hintBody {
@@ -557,7 +542,7 @@ thead .totalCol {
 .ringValue {
   position: relative;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -580,7 +565,7 @@ thead .totalCol {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
   margin: 0;
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
   background: var(--border);
   border: 1px solid var(--border);
@@ -605,7 +590,7 @@ thead .totalCol {
 .coverageStats dd {
   margin: 0;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -765,7 +750,7 @@ thead .totalCol {
   gap: 3px;
   min-width: 150px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
@@ -914,7 +899,7 @@ thead .totalCol {
   justify-content: space-between;
   gap: 12px;
   padding: 9px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--border));
   background: var(--surface);
   font-size: 13.5px;
@@ -927,7 +912,7 @@ thead .totalCol {
 
 .phaseCategory th {
   padding-top: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
   background: var(--surface-muted);
 }
@@ -940,11 +925,11 @@ thead .totalCol {
 
 .phasePosted {
   color: var(--warn);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .phaseTotal > * {
-  font-weight: 700;
+  font-weight: 600;
   background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
@@ -971,7 +956,7 @@ thead .totalCol {
 .sameUser dd {
   margin: 4px 0 0;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .limitations p {

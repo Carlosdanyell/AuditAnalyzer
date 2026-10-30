@@ -7,7 +7,7 @@ import type { ModuleId } from '../shared/modules';
 import type { SheetSample, Stage } from '../shared/protocol';
 
 /** Result of reading a configuration of the module (import, IndexedDB, backup). */
-export type ModuleConfigRead<C> = { ok: true; config: C } | { ok: false; errors: { path: string; message: string }[] };
+export type ModuleConfigRead<C> = { ok: true; config: C; migratedFrom?: number } | { ok: false; errors: { path: string; message: string }[] };
 
 interface ModuleTexts {
   id: ModuleId;
@@ -35,7 +35,7 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
    * screens, saying what it does so far. Null when complete.
    */
   preview: string | null;
-  /** Short name for the sidebar and the heading ("CFGR700"). */
+  /** Code of the tool in the rail and on the start list ("CFGR700"): 2 to 8 capitals, digits or hyphens (100 px rail). */
   shortTitle: string;
   /** Subtitle of the brand in the sidebar. */
   brandSubtitle: string;

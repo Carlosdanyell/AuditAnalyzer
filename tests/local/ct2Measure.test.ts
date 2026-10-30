@@ -1,5 +1,5 @@
 /**
- * Time and memory of the CT2 reading with large synthetic extractions (docs/MEDICOES.md). Opt-in: runs only with
+ * Time and memory of the CT2 reading and analysis with large synthetic extractions (docs/MEDICOES.md). Opt-in: runs only with
  * MEDIR_CT2=1 (`npm run test:local`); the files are generated once in the system temporary folder, never in local/.
  * Memory (heap + external ArrayBuffers, above what was in use before the run): the peak sampled during the run,
  * which includes garbage not yet collected; the live peak, sampled after a full collection about every second (the
@@ -16,6 +16,7 @@ import { setFlagsFromString } from 'node:v8';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
+import type { WorkerEvent } from '../../src/shared/protocol';
 import type { InflateMode } from '../../src/worker/ingest/inflate';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { writeLargeCt2, type LargeCt2Expected, type LargeCt2Options } from '../synthetic/ct2Large';
@@ -66,8 +67,15 @@ async function measure(label: string, files: { name: string; path: string; expec
   const timer = setInterval(sample, 20);
   const inputs = await Promise.all(files.map(async (f) => ({ name: f.name, blob: await openAsBlob(f.path) })));
   const started = performance.now();
-  const result = await ingestCt2(inputs, ct2DefaultConfig(), sample, { inflateMode });
+  // Time of the stages that run once (sort, analysis, invariants), from the progress events.
+  const once: { stage: string; at: number }[] = [];
+  const post = (e: WorkerEvent) => {
+    sample();
+    if (e.type === 'progress' && e.fileIndex === undefined && once.at(-1)?.stage !== e.stage) once.push({ stage: e.stage, at: performance.now() });
+  };
+  const result = await ingestCt2(inputs, ct2DefaultConfig(), post, { inflateMode }, { holidays: new Set() });
   const ms = performance.now() - started;
+  const onceText = once.map((x, i) => `${x.stage} ${(((once[i + 1]?.at ?? started + ms) - x.at) / 1000).toFixed(1)} s`).join(', ');
   sample();
   clearInterval(timer);
   gc();
@@ -78,9 +86,10 @@ async function measure(label: string, files: { name: string; path: string; expec
     `[medição] ${label}, ${inflateMode === 'native' ? 'descompressão nativa' : 'fflate'}: ${(ms / 1000).toFixed(1)} s (inclui as coletas da medição); ` +
       `pico ${mb(peak)} com lixo, ${mb(livePeak)} vivo; ` +
       `mantido ${mb(kept)} (base ${mb(result.store.bytes())}), ` +
-      `RSS máximo ${mb(process.resourceUsage().maxRSS * 1024)}; ${stages}`,
+      `RSS máximo ${mb(process.resourceUsage().maxRSS * 1024)}; ${stages} | ${onceText}; ` +
+      `${result.summary.analysis!.exceptions} exceções`,
   );
-  expect(result.reconciliation.checks.every((c) => c.passed)).toBe(true);
+  expect(result.reconciliation.checks.filter((c) => c.severity === 'error').every((c) => c.passed)).toBe(true);
   expect(result.summary.lines).toBe(files.reduce((n, f) => n + f.expected.detailRows, 0));
   expect(result.summary.documents).toBe(files.reduce((n, f) => n + f.expected.documents, 0));
   return result;

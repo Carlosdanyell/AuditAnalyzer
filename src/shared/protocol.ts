@@ -5,6 +5,7 @@
  *
  * Payload types marked "phase N" are placeholders and get their real shape in that phase.
  */
+import type { PlatformConfig } from '../config/platform';
 import type { ModuleId } from './modules';
 import type {
   Justification,
@@ -17,7 +18,7 @@ import type {
   TableFilter,
   TableId,
 } from './modules/cfgr700';
-import type { Ct2Reconciliation, Ct2Summary } from './modules/ct2Integrity';
+import type { Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -60,6 +61,10 @@ export type {
   ScopeSummary,
   Summary,
 } from './modules/cfgr700';
+
+/** Tables of every module and their filters (each module reads the fields of its own). */
+export type AnyTableId = TableId | Ct2TableId;
+export type AnyTableFilter = TableFilter & Ct2TableFilter;
 
 /** Reconciliation and summary of the module of the session (the CFGR700 ones carry no mark). */
 export type ModuleReconciliation = Reconciliation | Ct2Reconciliation;
@@ -131,8 +136,11 @@ export interface SheetSample {
 
 export type Command =
   /** `module` absent = DEFAULT_MODULE_ID; the other commands follow the module of the session. */
-  /** `config`: the configuration of the module, validated by the worker. */
-  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown }
+  /**
+   * `config`: the configuration of the module, validated by the worker. `platform`: the configuration shared by the
+   * modules (holidays); absent = no holidays.
+   */
+  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown; platform?: PlatformConfig }
   | { type: 'cancel' }
   /** First `rows` rows of every sheet of each file, to warn about a file of another analysis. Never answers an error. */
   | { type: 'probe'; requestId: number; files: File[]; rows: number }
@@ -143,8 +151,8 @@ export type Command =
       type: 'page';
       requestId: number;
       scope: number;
-      table: TableId;
-      filter?: TableFilter;
+      table: AnyTableId;
+      filter?: AnyTableFilter;
       sort?: Sort;
       offset: number;
       limit: number;
@@ -152,7 +160,11 @@ export type Command =
   /** replace = the list is the complete set; otherwise the items are upserted. */
   | { type: 'setJustifications'; requestId: number; items: Justification[]; replace: boolean }
   | { type: 'importJustifications'; requestId: number; file: File }
-  | { type: 'export'; requestId: number; options: ExportOptions };
+  | { type: 'export'; requestId: number; options: ExportOptions }
+  /** Panel of a module cut by segment (CT2: balance type + currency; null = every segment). */
+  | { type: 'segmentPanel'; requestId: number; segment: number | null }
+  /** Reapplies the analysis with the parameters informed (validated by the module), without reading the files again. */
+  | { type: 'analyze'; requestId: number; parameters: unknown };
 
 export type WorkerEvent =
   | {
@@ -173,8 +185,11 @@ export type WorkerEvent =
   /** unknown = justifications whose document (of that kind) is not in the current log (kept, not discarded). */
   | { type: 'justificationsSet'; requestId: number; count: number; unknown: number }
   | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
-  | { type: 'page'; requestId: number; table: TableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
+  | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
+  | { type: 'segmentPanel'; requestId: number; data: Ct2PanelData }
   | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
+  /** The analysis reapplied: the new summary and checks (also inside the reconciliation). */
+  | { type: 'analyzed'; requestId: number; summary: ModuleSummary; checks: CheckResult[]; reconciliation: ModuleReconciliation }
   /** One entry per file probed: its sheets, or null when it could not be read. */
   | { type: 'probe'; requestId: number; files: (SheetSample[] | null)[] }
   /** Failing blocking checks: the export needs the user's explicit confirmation. */

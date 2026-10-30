@@ -109,15 +109,21 @@ describe('CT2 reading: one file', () => {
       days: 4,
       firstDay: day,
       lastDay: day,
+      // The analysis itself is tested in ct2Analysis.test.ts.
+      analysis: expect.objectContaining({ exceptions: expect.any(Number) }),
     });
   });
 
-  it('answers panel, tables and export as not offered yet', async () => {
+  it('answers the panel as not offered yet and exports the workpaper, blocked until a failed check is confirmed', async () => {
     const { handle, events } = await ingest([file('a.xlsx', fileA())]);
     events.length = 0;
     await handle({ type: 'panel', requestId: 1, scope: 0, period: null, cutoffDay: null });
-    await handle({ type: 'export', requestId: 2, options: { scope: 0, language: 'pt', confirmFailures: true, generatedAt: 'x' } });
-    expect(events.map((e) => (e.type === 'error' ? e.message : e.type))).toEqual(['Recurso não disponível nesta análise.', 'Recurso não disponível nesta análise.']);
+    await handle({ type: 'export', requestId: 2, options: { scope: 0, language: 'pt', confirmFailures: false, generatedAt: '29/10/2026 10:30:00' } });
+    await handle({ type: 'export', requestId: 3, options: { scope: 0, language: 'pt', confirmFailures: true, generatedAt: '29/10/2026 10:30:00' } });
+    const answers = events.filter((e) => e.type !== 'progress');
+    expect(answers.map((e) => (e.type === 'error' ? e.message : e.type))).toEqual(['Recurso não disponível nesta análise.', 'exportBlocked', 'exported']);
+    const exported = answers[2]!;
+    expect(exported.type === 'exported' && exported.fileName).toBe('CT2_Integridade_2026-09_2026-10-29.xlsx');
   });
 });
 
@@ -171,7 +177,8 @@ describe('CT2 reading: several files and layouts', () => {
       'a.xlsx: colunas opcionais ausentes: Rotina (CT2_ROTINA).',
       'a.xlsx: 1 linha tem "Valor Moeda1" ilegível.',
     ]);
-    expect(r!.checks.every((c) => c.passed)).toBe(true);
+    expect(r!.checks.filter((c) => c.severity === 'error').every((c) => c.passed)).toBe(true);
+    expect(check(r, 'ct2-optional')).toMatchObject({ passed: false, message: 'Colunas opcionais ausentes: Rotina (P1 sem a rotina).' });
   });
 
   it('joins the n-th occurrence of a repeated other column across files, apart from a literal title', async () => {

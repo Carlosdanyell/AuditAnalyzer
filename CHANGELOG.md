@@ -4,6 +4,61 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.0.0] — 2026-10-30
+
+O AuditAnalyzer passa a ser uma plataforma de ferramentas: o log de auditoria (CFGR700) continua igual e ganha a
+companhia da **Integridade da CT2**, em prévia até a conferência com extrações reais. Nova interface (console),
+nova logo e cópias de segurança da 1.0.0 restauradas sem perda.
+
+### Nova interface: console corporativo
+- Trilho azul-marinho estreito com ícone e rótulo em cada item, marca vermelha na visão ativa e contagem das
+  verificações bloqueantes; topo com a trilha e as ações; faixa de indicadores-chave da análise (linhas, documentos,
+  achados e período; no CFGR700, pelo escopo escolhido); barra de status com o aviso de privacidade, a versão, a
+  autoria e o tema.
+- Início das ferramentas como uma lista com colunas (código, descrição, arquivo esperado, situação), no lugar dos
+  cartões.
+- Cores azul-marinho, azul-aço e vermelho só para marcas; superfícies planas com cantos pequenos, sem sombras nem
+  ícones em ladrilho; contraste do texto secundário reforçado.
+- Nova logo, o "tique de auditoria" (linhas do razão e o tique vermelho de item conferido), no trilho e no favicon;
+  ela vale para a plataforma inteira, que deve receber outras ferramentas (por exemplo, conciliações).
+- Fontes Sora, Geist e Geist Mono servidas pelo próprio app (licença SIL OFL, nada baixado de fora); números com
+  algarismos tabulares.
+
+### Integridade da CT2: painel e tabelas (Fase 12, docs/REGRAS_CT2_INTEGRIDADE.md, seção 9)
+- Painel com seletor de segmento (tipo de saldo e moeda), indicadores, quadro de testes em que cada número abre a
+  tabela com exatamente aquelas linhas, documentos desbalanceados com a compensação, os 10 maiores documentos, perfil
+  e matriz de amarração.
+- Parâmetros da execução no painel: alterar e reaplicar os testes em segundos, sem reler os arquivos; o painel, as
+  tabelas e a planilha seguem os parâmetros em vigor.
+- Tabelas Documentos, Lotes, Dias, Exceções e Base (colunas mapeadas e de teste, com a opção de todas as colunas),
+  com busca, ordenação e segmento.
+- Por dentro: cada análise tem a sua área de trabalho (o `App.tsx` ficou com a casca); a tela do CFGR700 não mudou.
+
+### Integridade da CT2: planilha amarrada por fórmulas (Fase 11, docs/REGRAS_CT2_INTEGRIDADE.md, seção 7)
+- Exportação disponível na prévia, em português e inglês: Resumo (indicadores por tipo de saldo e moeda, matriz de
+  amarração, quadro de testes, documentos desbalanceados, conclusão automática), Criterios (parâmetros editáveis como
+  nomes definidos), Documentos, Lotes e Dias somados por bloco, Excecoes confirmadas na origem, Perfil, Base com as
+  colunas de teste e Rastreabilidade.
+- Mudar um parâmetro na planilha (tolerância, período, tipo de saldo, moeda, limite de linhas) recalcula testes e
+  status como a ferramenta.
+- Exceções acima do limite de linhas do Excel continuam em outra aba. Até 300.000 linhas por exportação (acima disso
+  o recálculo não é viável): a tela avisa e pede para dividir a extração.
+- Nome do arquivo com o primeiro e o último mês quando a extração tem mais de um mês.
+
+### Integridade da CT2: motor e quadro de testes, em prévia (Fase 10, docs/REGRAS_CT2_INTEGRIDADE.md)
+- Aglutinação por documento, lote e dia dentro de cada tipo de saldo e moeda, em centavos, e os testes de
+  balanceamento (B1–B5, com a compensação pelo documento vizinho), de consistência da linha (I1–I5), de estrutura
+  (E1–E6) e de perfil (P1–P4).
+- Quadro de testes na reconciliação: ocorrências de cada teste e resultado de B4, P1–P4; testes sem ocorrência
+  recolhidos.
+- Novas verificações: débito e crédito iguais em todos os níveis (CI-3), exceções conferidas com as marcas (CI-5) e
+  contagens de documentos, lotes e dias (CI-6), bloqueantes; colunas opcionais (CI-9) e período (CI-10), alertas.
+- Configuração da CT2 editável e salva neste computador: cada teste ligado ou desligado com a severidade, parâmetros
+  padrão e códigos do Lcto Manual?; aba por análise na tela Configuração.
+- Cópia de segurança versão 3, com a configuração da CT2; as versões anteriores continuam sendo restauradas.
+- Extrações com mais de um mês: o período da análise cobre todos os meses lidos e aparece na tela, com a quantidade
+  de meses.
+
 ### Interface: plataforma de ferramentas, menos ruído
 - Início com um cartão por ferramenta; a ferramenta abre o próprio espaço de trabalho. A análise continua aberta ao
   voltar às Ferramentas e termina ao abrir outra ferramenta (substitui "Trocar análise").

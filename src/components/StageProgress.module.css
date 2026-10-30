@@ -16,7 +16,7 @@
 
 .head h2 {
   font-size: 19px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .sub {
@@ -70,11 +70,11 @@
 .percent {
   font-family: var(--font-display);
   font-size: 40px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  background: var(--accent-grad);
+  background: var(--accent);
   background-clip: text;
   color: transparent;
 }
@@ -82,7 +82,7 @@
 .track {
   position: relative;
   height: 10px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--surface-sunken);
   overflow: hidden;
 }
@@ -92,7 +92,7 @@
   inset: 0;
   transform-origin: left;
   border-radius: inherit;
-  background: var(--accent-grad);
+  background: var(--accent);
   transition: transform 300ms var(--ease);
 }
 
@@ -231,7 +231,7 @@
 
 .scope {
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--surface-sunken);
   color: var(--text-subtle);
   font-size: 11px;
@@ -256,7 +256,7 @@
 .bar {
   position: relative;
   height: 6px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--accent-soft);
   overflow: hidden;
 }

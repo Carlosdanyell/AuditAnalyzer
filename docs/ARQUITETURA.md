@@ -238,6 +238,7 @@ Fase 8 (plataforma de módulos): o banco continua na versão 2; no store `config
 | `analyzerConfig:cfgr700` | configuração do módulo CFGR700 (com os feriados da plataforma em `calendar.holidays`) |
 | `analyzerConfig` | a mesma configuração, gravada junto em todo salvamento: chave da versão 1.0.0, mantida como espelho para que uma aba aberta com a versão anterior use as regras atuais |
 | `platformConfig` | `{ schemaVersion: 1, holidays }`: feriados da plataforma, usados por todos os módulos |
+| `analyzerConfig:ct2Integrity` | configuração do módulo Integridade da CT2 (Fase 10; esquema próprio, versão 2) |
 | `lastModule` | última análise usada (`src/app/moduleStore.ts`) |
 | `uiTheme`, `panelSettings` (antiga, migrada e apagada), metadados das justificativas | como antes |
 
@@ -249,8 +250,9 @@ chave do módulo ilegível (ex.: gravada por uma versão mais nova) não é sobr
 gravação de volta falhar, por exemplo com o disco cheio, as regras lidas continuam valendo, com aviso). Os
 feriados da plataforma são copiados sem reordenar para `calendar.holidays`, de modo que o worker recebe o mesmo objeto
 de antes: o SHA-256 e as diferenças da Rastreabilidade não mudam.
-Cópia de segurança (`src/shared/backup.ts`): versão 2 = versão 1 + `platform` (feriados); na leitura, os feriados de
-`platform` são copiados para a configuração. A versão 1 continua sendo lida (feriados vindos da configuração);
+Cópia de segurança (`src/shared/backup.ts`): versão 2 = versão 1 + `platform` (feriados); versão 3 = versão 2 +
+`modules` (configurações dos outros módulos, Fase 10); na leitura, os feriados de `platform` são copiados para a
+configuração. A versão 1 continua sendo lida (feriados vindos da configuração);
 `tests/synthetic/backups/backup-v1.json` é uma cópia gerada pela 1.0.0 que precisa ser restaurada sem perda.
 
 ## 7. Segurança e privacidade
@@ -311,7 +313,7 @@ Implementado na Fase 8:
 - Tela: `src/modules/registry.ts` com um descritor por módulo (`src/modules/<id>/module.ts`, sem React): textos do
   seletor e da tela inicial, arquivos aceitos, âncora da ajuda, recursos (`justifications`) e configuração. O
   `ct2Integrity` é um cartão "Em breve". O seletor da tela inicial deu lugar, depois da Fase 9, ao início da
-  plataforma com cartões (`src/components/ToolHome.tsx`; `docs/INTERFACE.md`, item 0).
+  plataforma com uma linha por ferramenta (`src/components/ToolHome.tsx`; `docs/INTERFACE.md`, item 0).
 - Worker: `src/worker/modules/registry.ts` (`WORKER_MODULES`, consulta só por chave própria) e o adaptador
   `src/worker/modules/cfgr700/index.ts`, que valida a configuração (`configure`) e devolve, a cada ingestão, uma
   sessão nova sobre `runIngestion` + `Session` (que não mudaram). Atalhos/feriados (`settings`) e justificativas são
@@ -328,3 +330,39 @@ Implementado na Fase 9:
   (`features`; as demais aparecem bloqueadas), `config.saved` (configuração salva ou padrão do módulo) e `detect()`.
 - Tela de reconciliação por módulo: `Ct2ReconciliationView` reaproveita as partes comuns (`ReconciliationParts`) da do
   CFGR700, cujo HTML não mudou (referência congelada em `tests/synthetic/expected/screens`).
+
+Implementado na Fase 10 (motor da CT2, funções puras em `src/worker/modules/ct2Integrity/`):
+- `aggregate.ts`: documentos, lotes, dias e segmentos como blocos contíguos da base (cada nível aponta o primeiro item
+  do nível de baixo), com débito e crédito em centavos por posição da base e por bloco.
+- `analysis.ts` + `marks.ts`: os testes da configuração como marcas (um bit por teste em `Uint32Array` por linha,
+  documento, lote e dia), B4 com o documento que compensa, a lista de exceções (teste e item, em blocos fixos), o
+  quadro de testes e as vistas de um item (`documentRef`, `exceptionRow`) para as tabelas e a planilha.
+- `profile.ts` (P1, P2, os 10 maiores documentos), `tuples.ts` (chaves distintas por tabela de dispersão: CI-6 e o
+  documento sem segmento do P3) e `checks.ts` (CI-3, CI-5, CI-6, CI-9, CI-10).
+- A análise roda na mesma ingestão, na etapa `documents` ("Aglutinação e testes"); a sessão guarda a base e a análise
+  e solta as chaves de ordenação. O resumo (`Ct2Summary.analysis`) leva os parâmetros, o quadro de testes e o total de
+  exceções; os invariantes da análise entram na lista de verificações.
+
+Implementado na Fase 11 (planilha da CT2):
+- `src/worker/export/common/`: o que toda planilha usa — `traceability.ts` (`TraceSheet`: células mescladas, títulos,
+  pares rótulo/valor, diferenças da configuração e verificações da aba Rastreabilidade) e `guards.ts` (verificações
+  bloqueantes que exigem confirmação e nenhuma data anterior a 1901). A planilha do CFGR700 passou a usá-los sem mudar
+  um byte (SHA-256 das exportações pt e en comparado antes e depois).
+- `src/worker/modules/ct2Integrity/workpaper.ts` (+ `workpaperLabels.ts`): a planilha amarrada da seção 7 de
+  `docs/REGRAS_CT2_INTEGRIDADE.md`, escrita em fluxo pelo mesmo `XlsxWriter`, que ganhou a opção de impressão
+  `fitToWidth` (paisagem, uma página de largura). A sessão do módulo oferece `export`.
+- Tela: `ExportView` recebe o conteúdo do módulo (`ExportContent`); o do CFGR700 é o mesmo de antes
+  (`cfgr700ExportContent`), o da CT2 está em `src/app/views/ct2Export.tsx`.
+- Avaliador de testes (`tests/support/xlsxEval.ts`): `ROWS`, `COUNTA`, `WEEKDAY` (tipo 2), `COUNTIF`, `SUMIF`, `EXACT`, e
+  critério numérico de igualdade que também casa com o texto numérico, como o Excel.
+
+Implementado na Fase 12 (painel e tabelas da CT2):
+- Worker: `analyze` reaplica a análise sobre a mesma base (a sessão guarda as chaves de ordenação para isso: 11 colunas
+  de 4 bytes por linha, ~57 MB com 1,3 milhão de linhas, já contadas no "mantido" das medições da Fase 10);
+  `panel.ts` (painel por segmento), `segments.ts` (segmento de cada bloco e posição), `tables.ts` (tabelas paginadas,
+  índices em typed arrays, cache por tabela, filtro e ordenação). Cada número do quadro abre uma tabela com o mesmo
+  total, igual ao Resumo da planilha (`tests/unit/ct2Tables.test.ts`).
+- Tela: `src/app/modules/workspace.ts` (contrato), `src/app/modules/cfgr700/Cfgr700Workspace.tsx` (as visões do CFGR700,
+  tiradas do `App.tsx` sem mudar o que aparece) e `src/app/modules/ct2Integrity/` (`Ct2Workspace`, `Ct2PanelView`);
+  `TablesView` recebe as abas e os filtros de cada módulo (`originFilters`, `toolbar`).
+

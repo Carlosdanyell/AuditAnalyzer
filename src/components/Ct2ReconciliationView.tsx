@@ -1,6 +1,6 @@
-import type { Ct2FileReconciliation, Ct2Reconciliation, Ct2Summary, Ct2Unreadable } from '../shared/modules/ct2Integrity';
+import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
-import { formatDay } from '../shared/dates';
+import { dateParts, formatDay } from '../shared/dates';
 import { formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
 import { Alerts, Checks, RunStatus, ZipIntegrity, type StatusTile } from './ReconciliationParts';
@@ -31,9 +31,18 @@ function columnName(column: number): string {
 
 const days = (first: number | null, last: number | null) => (first === null || last === null ? '—' : `${formatDay(first)} a ${formatDay(last)}`);
 
+/** The period of the analysis with the number of months it covers ("01/08/2026 a 30/09/2026 (2 meses)"). */
+function periodText(start: number | null, end: number | null): string {
+  if (start === null || end === null) return 'sem datas válidas';
+  const [y1, m1] = dateParts(start);
+  const [y2, m2] = dateParts(end);
+  const months = (y2 - y1) * 12 + m2 - m1 + 1;
+  return `${days(start, end)} (${months} ${months === 1 ? 'mês' : 'meses'})`;
+}
+
 /**
- * Reconciliation of the reading of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3 and 8): verdict,
- * checks CI-1, CI-2 and CI-4, totals of the Base by segment and the reading of each file.
+ * Reconciliation of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8): verdict, invariants,
+ * the board of tests, totals of the Base by segment and the reading of each file.
  */
 export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Reconciliation; summary: Ct2Summary | null; preview: string | null }) {
   const tiles: StatusTile[] = [
@@ -41,6 +50,9 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
     { icon: 'database', label: 'Linhas de detalhe', value: n(data.consolidated.detailRows) },
     { icon: 'layers', label: 'Documentos', value: summary ? n(summary.documents) : '—' },
     { icon: 'calendar', label: 'Datas dos lançamentos', value: summary ? days(summary.firstDay, summary.lastDay) : '—' },
+    ...(summary?.analysis
+      ? [{ icon: 'calendar' as const, label: 'Período da análise', value: periodText(summary.analysis.parameters.periodStart, summary.analysis.parameters.periodEnd) }]
+      : []),
     { icon: 'clock', label: 'Processamento', value: formatElapsed(data.totalMs) },
   ];
   return (
@@ -58,6 +70,7 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
         failText="A leitura tem problemas que impedem usar a base como está. Confira os detalhes abaixo."
       />
       <Checks checks={data.checks} totalMs={data.totalMs} />
+      {summary?.analysis && <TestBoard analysis={summary.analysis} />}
       {summary && <BaseSummary summary={summary} />}
 
       {data.files.length > 1 && (
@@ -79,6 +92,90 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
       {data.files.map((file) => (
         <FileCard key={file.fileIndex} file={file} />
       ))}
+    </div>
+  );
+}
+
+const LEVELS = {
+  line: ['linha', 'linhas'],
+  document: ['documento', 'documentos'],
+  batch: ['lote', 'lotes'],
+  day: ['dia', 'dias'],
+  profile: ['grupo', 'grupos'],
+} as const;
+const SEVERITY = { error: { label: 'Erro', tone: ui.error }, warning: { label: 'Alerta', tone: ui.warn }, info: { label: 'Info', tone: ui.neutral } } as const;
+
+/**
+ * Board of tests (section 6): occurrences of each test, by its level. Tests with occurrences open; the others folded
+ * in one line, with those turned off or without their column.
+ */
+function TestBoard({ analysis }: { analysis: NonNullable<Ct2Summary['analysis']> }) {
+  const p = analysis.parameters;
+  const found = analysis.tests.filter((t) => t.state === 'on' && t.occurrences > 0);
+  const quiet = analysis.tests.filter((t) => !(t.state === 'on' && t.occurrences > 0));
+  const period = periodText(p.periodStart, p.periodEnd);
+  return (
+    <section className={ui.card}>
+      <div className={ui.cardHead}>
+        <h2 className={ui.cardTitle}>
+          <span className={ui.cardIcon}>
+            <Icon name="flag" />
+          </span>
+          Quadro de testes
+        </h2>
+        <span className={ui.muted}>{n(analysis.exceptions)} exceção(ões) de Erro ou Alerta</span>
+      </div>
+      <p className={ui.muted}>
+        Período {period} · tipo de saldo {p.expectedBalanceType} · moeda {p.expectedCurrency} (local {p.localCurrency}) · tolerância{' '}
+        {formatCents(p.toleranceCents)} · limite de {n(p.documentLineLimit)} linhas por documento
+      </p>
+      {found.length > 0 && <TestTable tests={found} />}
+      {quiet.length > 0 && (
+        <details className={styles.more}>
+          <summary>
+            <Icon name="chevronRight" size={16} />
+            {found.length === 0 ? `Nenhuma ocorrência nos ${quiet.length} testes` : `${quiet.length} teste(s) sem ocorrência ou desligado(s)`}
+          </summary>
+          <TestTable tests={quiet} />
+        </details>
+      )}
+    </section>
+  );
+}
+
+function TestTable({ tests }: { tests: Ct2TestResult[] }) {
+  return (
+    <div className={styles.scroll}>
+      <table className={cx(styles.table, styles.wide)}>
+        <thead>
+          <tr>
+            <th>Teste</th>
+            <th>Severidade</th>
+            <th>Ocorrências</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tests.map((t) => {
+            const info = CT2_TEST_INFO[t.code];
+            const severity = SEVERITY[t.severity];
+            return (
+              <tr key={t.code}>
+                <th scope="row">
+                  <span className={styles.mono}>{t.code}</span> {info.label}
+                </th>
+                <td>
+                  <span className={cx(ui.pill, severity.tone)}>{severity.label}</span>
+                </td>
+                <td>
+                  {t.state === 'off' ? 'desligado' : t.state === 'noColumn' ? 'sem a coluna' : `${n(t.occurrences)} ${LEVELS[info.level][t.occurrences === 1 ? 0 : 1]}`}
+                </td>
+                <td>{t.detail ?? ''}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -129,7 +226,7 @@ function BaseSummary({ summary }: { summary: Ct2Summary }) {
       </div>
       <p className={ui.muted}>
         Partida dobrada soma nos dois lados; continuação de histórico e tipo não reconhecido, em nenhum. Valores ilegíveis ficam
-        fora das somas. Os testes de balanceamento chegam com a análise.
+        fora das somas.
       </p>
     </section>
   );

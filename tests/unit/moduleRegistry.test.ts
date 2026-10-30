@@ -40,15 +40,15 @@ describe('module registry', () => {
     expect(read.ok && read.config.balanceToleranceCents).toBe(5);
   });
 
-  it('offers the CT2 integrity module as a preview: reading and reconciliation, with its default rules', () => {
+  it('offers the CT2 integrity module as a preview: reading, tests and the workpaper, with rules saved on this computer', () => {
     expect(getModule('ct2Integrity')).toBe(ct2IntegrityModule);
     const m = ct2IntegrityModule;
     expect(m).toMatchObject({ status: 'available', title: 'Integridade da CT2', helpAnchor: 'ct2' });
     expect(m.preview).toMatch(/^Prévia: /);
-    expect(m.features).toEqual({ panel: false, tables: false, justifications: false, export: false });
-    expect(m.config.saved).toBe(false);
+    expect(m.features).toEqual({ panel: true, tables: true, justifications: false, export: true });
+    expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(ct2DefaultConfig());
-    expect(m.progress.stages.map((s) => s.id)).toEqual(['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'checks']);
+    expect(m.progress.stages.map((s) => s.id)).toEqual(['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks']);
     expect(m.progress.perFile).toBe(3);
   });
 
@@ -57,6 +57,12 @@ describe('module registry', () => {
     expect(resolveInitialModule('ct2Integrity')).toBe('ct2Integrity');
     for (const stored of [undefined, null, 'xyz', 'constructor', 42, {}]) {
       expect(resolveInitialModule(stored)).toBe('cfgr700');
+    }
+  });
+
+  it('gives every available tool a code that fits the rail: 2 to 8 capitals, digits or hyphens', () => {
+    for (const m of MODULES) {
+      if (m.status === 'available') expect(m.shortTitle, m.id).toMatch(/^[A-Z0-9-]{2,8}$/);
     }
   });
 
