@@ -11,10 +11,16 @@ import type { Reconciliation, Summary } from './cfgr700';
 export const CT2_STAGES = ['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks'] as const satisfies readonly Stage[];
 
 /**
- * Lines of the Base per export of the workpaper (CI-8; decision of 29/10/2026, docs/MEDICOES.md): up to 300 thousand
- * the workpaper recalculates in a few minutes; with 1 million the Base passes 4 GB and does not recalculate.
+ * Lines of the Base per export of the workpaper (CI-8; decision of 30/10/2026, docs/MEDICOES.md): one year of a typical
+ * extraction, about 450 thousand lines, with margin. With 1 million the workpaper does not recalculate.
  */
-export const CT2_MAX_EXPORT_ROWS = 300_000;
+export const CT2_MAX_EXPORT_ROWS = 600_000;
+
+/**
+ * Rows of each Base sheet: above it the Base continues on "Base (2)", "Base (3)"…, always where a day starts, so each
+ * sheet stays the size measured with 300 thousand lines (2 GB uncompressed, far from the 4 GB of a ZIP entry).
+ */
+export const CT2_BASE_SHEET_ROWS = 300_000;
 
 /** Level a test looks at (section 6); the profile (P1-P4) is a summary of the Base. */
 export type Ct2Level = 'line' | 'document' | 'batch' | 'day' | 'profile';

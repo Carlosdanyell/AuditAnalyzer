@@ -1,7 +1,7 @@
 /** What the export screen says about the CT2 integrity workpaper (docs/REGRAS_CT2_INTEGRIDADE.md, section 7). */
 import { Icon } from '../../components/Icon';
 import { formatInteger } from '../../shared/format';
-import { CT2_MAX_EXPORT_ROWS, type Ct2Summary } from '../../shared/modules/ct2Integrity';
+import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, type Ct2Summary } from '../../shared/modules/ct2Integrity';
 import type { ExportContent } from './ExportView';
 
 export const CT2_EXPORT: ExportContent = {
@@ -20,7 +20,8 @@ export const CT2_EXPORT: ExportContent = {
         <Icon name="sheet" size={16} />
         <span>
           <strong>Tamanho:</strong> a Base leva todas as colunas da extração, até {formatInteger(CT2_MAX_EXPORT_ROWS)} linhas por
-          exportação. Com 300 mil linhas, o arquivo tem ~220 MB e leva alguns minutos para recalcular ao abrir.
+          exportação, em abas de até {formatInteger(CT2_BASE_SHEET_ROWS)} linhas que nunca dividem um dia. Um ano típico, com 450 mil
+          linhas, dá um arquivo de ~330 MB que leva alguns minutos para recalcular ao abrir.
         </span>
       </li>
     </>
@@ -41,7 +42,7 @@ export function ct2TooLarge(summary: Ct2Summary | null): string | null {
   if (!summary || summary.lines <= CT2_MAX_EXPORT_ROWS) return null;
   return (
     `A base tem ${formatInteger(summary.lines)} linhas e a planilha amarrada por fórmulas aceita até ${formatInteger(CT2_MAX_EXPORT_ROWS)} ` +
-    'linhas por exportação (acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por mês ou quinzena, e analise cada parte. O quadro de testes vale para a extração inteira.'
+    'linhas por exportação (acima disso o Excel não recalcula em tempo viável). Divida a extração, por exemplo por semestre ou trimestre, e analise cada parte. O quadro de testes vale para a extração inteira.'
   );
 }
 

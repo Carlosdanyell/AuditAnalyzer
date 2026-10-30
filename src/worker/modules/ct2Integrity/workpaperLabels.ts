@@ -74,6 +74,7 @@ const pt = {
     days: 'Dias',
     exceptionsInLine: 'Exceções na linha',
     batchRow: 'Linha do lote na aba Lotes',
+    baseSheet: 'Aba da Base',
     firstBase: 'Linha inicial na Base',
     lastBase: 'Linha final na Base',
     firstDocument: 'Linha inicial em Documentos',
@@ -260,6 +261,7 @@ const en: Ct2WorkpaperLabels = {
     days: 'Days',
     exceptionsInLine: 'Exceptions in the line',
     batchRow: 'Row of the batch in Batches',
+    baseSheet: 'Base sheet',
     firstBase: 'First row in Base',
     lastBase: 'Last row in Base',
     firstDocument: 'First row in Documents',
@@ -430,7 +432,7 @@ export function criteriaParagraphs(language: Language, table: string): [string, 
   return language === 'pt'
     ? [
         ['Objetivo', `Aglutinar os lançamentos da tabela ${table} por documento, lote e dia, testar o balanceamento em cada nível e aspectos gerais de integridade, com a planilha toda amarrada por fórmulas.`],
-        ['Base', 'A aba Base traz a extração ordenada por segmento (tipo de saldo e moeda), chave do documento e linha, com o arquivo e a linha de origem. Cada documento ocupa um bloco contíguo de linhas; Documentos, Lotes e Dias somam esses blocos (SUM/ROWS) e o Resumo amarra tudo.'],
+        ['Base', 'A aba Base traz a extração ordenada por segmento (tipo de saldo e moeda), chave do documento e linha, com o arquivo e a linha de origem. Cada documento ocupa um bloco contíguo de linhas; Documentos, Lotes e Dias somam esses blocos (SUM/ROWS) e o Resumo amarra tudo. Uma Base grande continua em "Base (2)", "Base (3)"…, sempre no início de um dia: nenhum documento, lote ou dia fica dividido entre abas, e a coluna "Aba da Base" de Documentos diz onde está cada documento.'],
         ['Colunas por fórmula', 'Cabeçalho cinza: Débito, Crédito, colunas de teste ("Sim"/"Não"), Exceções na linha (Base); Linhas, Débito, Crédito, Diferença e testes (Documentos, Lotes, Dias); Confirmada na origem? (Excecoes); Resumo e Perfil inteiros.'],
         ['Valores calculados pela ferramenta', 'Linhas inicial e final de cada bloco, linha do lote, ordinal da última linha, Seq CTK distintos e em outro documento, a linha Ferramenta da matriz, a coluna Ferramenta do quadro de testes, as listas do Resumo e do Perfil e a conclusão automática.'],
         ['Limitações', 'Só as linhas presentes na extração (lançamentos excluídos antes não aparecem; ver o módulo CFGR700). Reordenar ou inserir linhas na Base quebra os blocos e a matriz mostra "Verificar". B4 e P4 são indícios, não provam a causa de um desbalanceamento. E2 vale só para a numeração 001–999. O módulo não identifica o usuário do lançamento.'],
@@ -438,7 +440,7 @@ export function criteriaParagraphs(language: Language, table: string): [string, 
       ]
     : [
         ['Objective', `Aggregate the entries of table ${table} by document, batch and day, test the balancing at each level and general integrity aspects, with the workbook tied out by formulas.`],
-        ['Base', 'The Base sheet holds the extraction sorted by segment (balance type and currency), document key and line, with the source file and row. Each document is one contiguous block of rows; Documents, Batches and Days add these blocks (SUM/ROWS) and the Summary ties everything out.'],
+        ['Base', 'The Base sheet holds the extraction sorted by segment (balance type and currency), document key and line, with the source file and row. Each document is one contiguous block of rows; Documents, Batches and Days add these blocks (SUM/ROWS) and the Summary ties everything out. A large Base continues on "Base (2)", "Base (3)"…, always where a day starts: no document, batch or day is split across sheets, and the "Base sheet" column of Documents says where each document is.'],
         ['Columns by formula', 'Grey header: Debit, Credit, test columns ("Yes"/"No"), Exceptions in the line (Base); Lines, Debit, Credit, Difference and tests (Documents, Batches, Days); Confirmed at the source? (Exceptions); the whole Summary and Profile.'],
         ['Values computed by the tool', 'First and last rows of each block, batch row, ordinal of the last line, distinct Seq CTK and in another document, the Tool row of the matrix, the Tool column of the board of tests, the lists of the Summary and the Profile and the automatic conclusion.'],
         ['Limitations', 'Only the lines present in the extraction (entries deleted before do not appear; see the CFGR700 module). Sorting or inserting rows in the Base breaks the blocks and the matrix shows "Check". B4 and P4 are indications and do not prove the cause of an imbalance. E2 holds only for the numbering 001–999. The module does not identify the user of the entry.'],
