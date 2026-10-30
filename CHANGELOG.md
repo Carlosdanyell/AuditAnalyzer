@@ -4,6 +4,18 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Nova interface: console corporativo
+- Trilho azul-marinho estreito com ícone e rótulo em cada item, marca vermelha na visão ativa e contagem das
+  verificações bloqueantes; topo com a trilha e as ações; faixa de indicadores-chave da análise (linhas, documentos,
+  achados e período; no CFGR700, pelo escopo escolhido); barra de status com o aviso de privacidade, a versão, a
+  autoria e o tema.
+- Início das ferramentas como uma lista com colunas (código, descrição, arquivo esperado, situação), no lugar dos
+  cartões.
+- Cores azul-marinho, azul-aço e vermelho só para marcas; superfícies planas com cantos pequenos, sem sombras nem
+  ícones em ladrilho; contraste do texto secundário reforçado.
+- Fontes Sora, Geist e Geist Mono servidas pelo próprio app (licença SIL OFL, nada baixado de fora); números com
+  algarismos tabulares.
+
 ### Integridade da CT2: painel e tabelas (Fase 12, docs/REGRAS_CT2_INTEGRIDADE.md, seção 9)
 - Painel com seletor de segmento (tipo de saldo e moeda), indicadores, quadro de testes em que cada número abre a
   tabela com exatamente aquelas linhas, documentos desbalanceados com a compensação, os 10 maiores documentos, perfil

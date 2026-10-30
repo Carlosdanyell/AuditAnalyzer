@@ -33,28 +33,35 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 - Nenhum dado do log em `localStorage`, `sessionStorage`, Cache Storage ou service worker. IndexedDB só para
   configuração e justificativas (as preferências de tema claro/escuro e da última análise usada ficam no mesmo store
   `config`, chaves `uiTheme` e `lastModule`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
-- Textos em português; fonte `Aptos, "Segoe UI", system-ui, sans-serif`; sem baixar fontes.
+- Textos em português; fontes do próprio app (`src/assets/fonts`, SIL OFL): Sora nos títulos, Geist no texto e
+  Geist Mono nos números e códigos, com `Aptos, "Segoe UI", system-ui` de reserva; nada é baixado de fora.
 - Aviso permanente: "Os arquivos são processados neste computador e não são enviados para nenhum servidor."
 
 ## Telas e comportamentos obrigatórios
 
-0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — um cartão por ferramenta (código curto,
-   título, descrição, arquivo esperado, link "Manual desta análise"); o cartão inteiro é um botão com o título da
-   ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). A última usada (`lastModule`,
+0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — uma linha por ferramenta numa lista com
+   colunas (código curto, título e descrição, arquivo esperado, situação, "Abrir" e o link "Manual desta análise"); a
+   linha inteira é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). A última usada (`lastModule`,
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
    "Voltar à análise". Ferramenta "Em breve" não abre; em prévia (Integridade da CT2) tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
    ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
    aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
    nunca impede de analisar. **"Nova análise"** (topo) mantém a ferramenta e os arquivos.
-   **Estrutura:** barra lateral com Ferramentas, a ferramenta aberta (status) e só as visões que ela oferece, depois
-   Configuração, Ajuda, Encerrar sessão, o aviso de privacidade, versão, autoria e o botão de tema (ícone). Topo com a
-   trilha ("Ferramentas › ferramenta · arquivos") e o título da tela numa linha; a única ação primária é
-   "Exportar planilha".
+   **Estrutura (console):** trilho azul-marinho estreito à esquerda, com ícone e rótulo curto em cada item:
+   Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece, e no pé Configuração, Ajuda e
+   Encerrar sessão; a visão na tela tem fundo claro e uma marca vermelha na borda (o vermelho só marca: visão ativa,
+   verificações bloqueantes e achados). Topo com a trilha ("Ferramentas › ferramenta | arquivos") acima do título da
+   tela e as ações à direita; a única ação primária é "Exportar planilha". Com a análise pronta, uma faixa de
+   **indicadores-chave** logo abaixo do topo (`figuresOf` em `src/app/moduleViews.tsx`; CFGR700: linhas, documentos,
+   partidas excluídas, alterações efetivas, desbalanceados e período, pelo escopo escolhido; CT2: linhas, documentos,
+   lotes, desbalanceados (B1 ligado), exceções e período). Barra de status no pé: aviso de privacidade, versão,
+   autoria e o botão de tema.
    **Densidade e movimento:** o que pede atenção fica aberto (falhas, alertas, sinalizações que exigem ação); o que
    está OK fica recolhido numa linha ("N verificação(ões) OK", "N sinalização(ões) sem ocorrência"); quadros de
-   consulta do painel ficam recolhidos, com o status no título. Animações só de `transform`/`opacity`, curtas
-   (entradas ≈ 220 ms), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
+   consulta do painel ficam recolhidos, com o status no título. Superfícies planas, com borda fina e cantos de 4–6 px;
+   sem sombras, sem ícone em "ladrilho" colorido, sem rótulos em caixa alta. Animações só de `transform`/`opacity`,
+   curtas (entradas ≈ 160 ms, só opacidade e sem cascata), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
    decorativo; números nunca são animados (um valor de auditoria não mostra quantias intermediárias); respeitar
    `prefers-reduced-motion`.
 1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo;
@@ -108,14 +115,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 3, com a configuração de cada análise) e restaurar com confirmação
    (`readBackup`, que também lê as cópias da versão 1.0.0; `restoreBackup` do App), substituindo tudo. Os feriados
    valem para todas as análises.
-9. **Tema** — claro (padrão) e escuro, trocados na barra lateral (`src/app/themeStore.ts`: `<html data-theme>`,
+9. **Tema** — claro (padrão) e escuro, trocados na barra de status (`src/app/themeStore.ts`: `<html data-theme>`,
    preferência no IndexedDB). Cores só por tokens de `src/app/global.css`; os dois temas devem continuar legíveis.
    Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
-   `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** no rodapé
-   (`APP_VERSION_LABEL`) e, abaixo dela, a linha de autoria "Desenvolvido por Carlos Danyell" (classe
-   `.author`, no mesmo estilo da versão).
+   `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** na barra de status
+   (`APP_VERSION_LABEL`) e, ao lado dela, a linha de autoria "Desenvolvido por Carlos Danyell", no mesmo estilo.
 
 ## Como validar
 
@@ -126,7 +132,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
   "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
-  escuro"/"Usar tema claro", os cartões das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
+  escuro"/"Usar tema claro", as linhas das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
   opções (radio) "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens

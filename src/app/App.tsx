@@ -14,7 +14,7 @@ import { applySettings, settingsFromConfig } from '../shared/settings';
 import { canonicalJson, configDiff } from '../shared/configTools';
 import { loadConfig, loadModuleConfig, saveConfig, saveModuleConfig } from './configStore';
 import { platformConfigOf } from '../config/platform';
-import { configViewOf, workspaceOf } from './moduleViews';
+import { configViewOf, figuresOf, workspaceOf } from './moduleViews';
 import type { View } from './modules/workspace';
 import { BackupCard, type RestoredBackup } from './views/BackupCard';
 import { ConfigView } from './views/ConfigView';
@@ -520,34 +520,32 @@ export function App() {
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
   const inTool = screen === 'tool';
   const title = screen === 'home' ? 'Ferramentas' : screen === 'config' ? 'Configuração' : phase === 'running' ? 'Processamento' : done ? currentView.label : current.start.heading;
-  const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) · ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
+  const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) com ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
   const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
 
   // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
   const logSummary = summary && !isCt2Summary(summary) ? summary : null;
   const Workspace = workspaceOf(current);
+  const figures = done && reconciliation ? figuresOf(current)(reconciliation, summary, scope) : [];
   const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
   const showScope = inTool && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
   const openSession = done || phase === 'running' || files.length > 0 ? { id: moduleId, label: done ? 'Análise aberta' : phase === 'running' ? 'Processando' : 'Arquivos carregados' } : null;
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
+      <aside className={styles.rail}>
+        <div className={styles.brand} title="AuditAnalyzer">
           <span className={styles.logo} aria-hidden="true">
             <svg viewBox="0 0 32 32">
               <path d="M9 23V9h9.5L23 13.5V23z" />
-              <path d="M12 19.5l3-3 2.2 2.2 3-4.2" />
+              <path className={styles.logoMark} d="M12 19.5l3-3 2.2 2.2 3-4.2" />
             </svg>
           </span>
-          <span className={styles.brandText}>
-            <strong>AuditAnalyzer</strong>
-            <span>Ferramentas de auditoria</span>
-          </span>
+          <span className={styles.brandName}>AuditAnalyzer</span>
         </div>
 
-        <div className={styles.nav}>
-          <button type="button" className={cx(styles.navItem, screen === 'home' && styles.navActive)} aria-current={screen === 'home' ? 'page' : undefined} onClick={() => setScreen('home')}>
+        <div className={styles.railGroup}>
+          <button type="button" className={cx(styles.railItem, screen === 'home' && styles.railActive)} aria-current={screen === 'home' ? 'page' : undefined} onClick={() => setScreen('home')}>
             <Icon name="layers" />
             Ferramentas
           </button>
@@ -555,24 +553,23 @@ export function App() {
 
         {(inTool || openSession) && (
           <div className={styles.tool}>
-            <button type="button" className={styles.toolHead} onClick={() => openTool(moduleId)}>
-              <span className={styles.toolName}>{current.shortTitle}</span>
-              {status && (
-                <span className={styles.toolStatus} data-state={phase === 'select' ? 'ready' : phase}>
-                  {status}
-                </span>
-              )}
+            <button type="button" className={styles.toolHead} title={current.title} onClick={() => openTool(moduleId)}>
+              <span className={styles.toolCode} data-state={status ? (phase === 'select' ? 'ready' : phase) : undefined}>
+                {current.shortTitle}
+              </span>
+              {status && <span className={styles.toolStatus}>{status}</span>}
             </button>
             {done && (
-              <nav className={styles.views} aria-label="Visões">
+              <nav className={styles.railGroup} aria-label="Visões">
                 {VIEWS.filter((v) => offered(current, v.id)).map((v) => {
                   const active = inTool && v.id === view;
                   return (
                     <button
                       key={v.id}
                       type="button"
-                      className={cx(styles.navItem, active && styles.navActive)}
+                      className={cx(styles.railItem, active && styles.railActive)}
                       aria-current={active ? 'page' : undefined}
+                      title={v.description}
                       onClick={() => {
                         setScreen('tool');
                         setView(v.id);
@@ -581,7 +578,7 @@ export function App() {
                       <Icon name={v.icon} />
                       {v.label}
                       {v.id === 'reconciliation' && blocking > 0 && (
-                        <span className={styles.navCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
+                        <span className={styles.railCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
                           {blocking}
                         </span>
                       )}
@@ -593,41 +590,19 @@ export function App() {
           </div>
         )}
 
-        <div className={styles.sideFooter}>
-          <button type="button" className={cx(styles.navItem, screen === 'config' && styles.navActive)} aria-pressed={screen === 'config'} onClick={toggleConfig}>
+        <div className={cx(styles.railGroup, styles.railFoot)}>
+          <button type="button" className={cx(styles.railItem, screen === 'config' && styles.railActive)} aria-pressed={screen === 'config'} onClick={toggleConfig}>
             <Icon name="sliders" />
             Configuração
           </button>
-          <a className={styles.navItem} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
+          <a className={styles.railItem} href={`${import.meta.env.BASE_URL}ajuda.html`} target="_blank" rel="noopener">
             <Icon name="help" />
             Ajuda
           </a>
-          <button type="button" className={cx(styles.navItem, styles.navDanger)} onClick={endSession}>
+          <button type="button" className={cx(styles.railItem, styles.railDanger)} onClick={endSession}>
             <Icon name="power" />
             Encerrar sessão
           </button>
-          <p className={styles.privacy}>
-            <Icon name="shield" size={14} />
-            <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
-          </p>
-          <div className={styles.sideMeta}>
-            <span className={styles.credits}>
-              <span>AuditAnalyzer {APP_VERSION_LABEL}</span>
-              <span>Desenvolvido por Carlos Danyell</span>
-            </span>
-            <button
-              type="button"
-              className={styles.themeToggle}
-              aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                toggleTheme(theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 });
-              }}
-            >
-              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -641,7 +616,7 @@ export function App() {
                 </button>
                 {screen === 'tool' && (
                   <>
-                    <Icon name="chevronRight" size={14} />
+                    <Icon name="chevronRight" size={13} />
                     <span>{current.title}</span>
                     {fileSummary && done && <span className={styles.crumbMeta}>{fileSummary}</span>}
                   </>
@@ -664,19 +639,30 @@ export function App() {
                   </select>
                 </label>
               )}
-              <button type="button" className={cx(ui.btn, ui.ghost)} onClick={newAnalysis}>
-                <Icon name="refresh" size={17} />
+              <button type="button" className={cx(ui.btn, ui.secondary)} onClick={newAnalysis}>
+                <Icon name="refresh" size={16} />
                 Nova análise
               </button>
               {view !== 'export' && current.features.export && (
                 <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setView('export')}>
-                  <Icon name="download" size={17} />
+                  <Icon name="download" size={16} />
                   Exportar planilha
                 </button>
               )}
             </div>
           )}
         </header>
+
+        {inTool && done && reconciliation && figures.length > 0 && (
+          <dl className={styles.figures} aria-label="Indicadores da análise">
+            {figures.map((f) => (
+              <div key={f.label} className={styles.figure} data-tone={f.tone}>
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
         <main className={styles.main}>
           {configNotice && (
@@ -891,6 +877,29 @@ export function App() {
             />
           )}
         </main>
+
+        <footer className={styles.statusbar}>
+          <p className={styles.privacy}>
+            <Icon name="shield" size={14} />
+            <span>Os arquivos são processados neste computador e não são enviados para nenhum servidor.</span>
+          </p>
+          <span className={styles.credits}>
+            <span>AuditAnalyzer {APP_VERSION_LABEL}</span>
+            <span>Desenvolvido por Carlos Danyell</span>
+          </span>
+          <button
+            type="button"
+            className={styles.themeToggle}
+            aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              toggleTheme(theme === 'dark' ? 'light' : 'dark', { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            }}
+          >
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
+            {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          </button>
+        </footer>
       </div>
     </div>
   );

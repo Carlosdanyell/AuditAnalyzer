@@ -1,94 +1,135 @@
 /*
+ * Fonts served by the app itself (src/assets/fonts; SIL Open Font License, texts in public/licencas): Sora for
+ * headings, Geist for the interface, Geist Mono for figures and codes. Nothing is fetched from outside.
+ */
+@font-face {
+  font-family: 'Sora';
+  src: url('../assets/fonts/sora-latin-variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../assets/fonts/geist-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('../assets/fonts/geist-mono-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * Design tokens. Light is the default theme; dark applies with <html data-theme="dark"> (the choice is saved in
- * IndexedDB by themeStore.ts). Series colors follow the categories of the panel in both themes.
+ * IndexedDB by themeStore.ts). Navy carries the structure (the rail), steel blue the actions and links, and red is
+ * kept for a few marks only: the active view and the blocking checks. Series colors follow the panel categories.
  */
 :root {
-  --font: Aptos, 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Aptos Display', Aptos, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+  --font: 'Geist', Aptos, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Sora', 'Geist', Aptos, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', Consolas, 'Cascadia Mono', ui-monospace, monospace;
 
-  --bg: #f3f5f9;
+  --bg: #eef1f5;
   --surface: #ffffff;
-  --surface-muted: #f7f9fc;
-  --surface-sunken: #eef2f7;
-  --surface-glass: rgb(248 250 253 / 84%);
-  --border: #e2e7ef;
-  --border-strong: #c9d2de;
-  --text: #0e1726;
-  --text-muted: #526073;
-  --text-subtle: #687588;
-  --accent: #2552d0;
-  --accent-hover: #1d44b3;
-  --accent-soft: #eaf0fd;
-  --accent-soft-strong: #d7e2fb;
-  --accent-grad: var(--accent);
+  --surface-muted: #f6f8fa;
+  --surface-sunken: #e8ecf1;
+  --surface-glass: rgb(246 248 250 / 92%);
+  --border: #dde3ea;
+  --border-strong: #c3ccd7;
+  --text: #0f1b2a;
+  --text-muted: #4b5868;
+  --text-subtle: #5f6b7d;
+  --accent: #1e6495;
+  --accent-hover: #17507a;
+  --accent-soft: #e6eff6;
+  --accent-soft-strong: #cfe0ee;
   --on-accent: #ffffff;
-  --ring: rgb(37 82 208 / 32%);
-  --ok: #157a3f;
-  --ok-soft: #e6f5ec;
-  --warn: #945700;
-  --warn-soft: #fdf3e0;
-  --error: #c0292f;
-  --error-soft: #fcebec;
+  --ring: rgb(30 100 149 / 35%);
+  --signal: #d93a3f;
+  --ok: #1d7a46;
+  --ok-soft: #e4f3ea;
+  --warn: #8a5a00;
+  --warn-soft: #fbf1dc;
+  --error: #c42f34;
+  --error-soft: #fbe9ea;
 
-  --nav-bg: #f8fafc;
-  --nav-hover: rgb(15 23 42 / 5%);
-  --nav-active: var(--accent-soft);
+  /* The rail: navy in both themes. */
+  --rail-bg: #0f2742;
+  --rail-text: #b9c6d6;
+  --rail-text-strong: #ffffff;
+  --rail-hover: rgb(255 255 255 / 7%);
+  --rail-active: rgb(255 255 255 / 11%);
+  --rail-line: rgb(255 255 255 / 10%);
 
-  --series-posted: #2a78d6;
-  --series-deleted: #eb6834;
-  --series-changed: #1baf7a;
-  --series-unbalanced: #eda100;
+  /* A selected option among a few (segmented controls, tabs): navy on light, steel blue on dark. */
+  --selected-bg: #0f2742;
+  --selected-text: #ffffff;
 
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
-  --shadow: 0 1px 2px rgb(15 23 42 / 4%);
-  --shadow-lg: 0 24px 60px -16px rgb(15 23 42 / 30%);
+  --series-posted: #1e6495;
+  --series-deleted: #d4572a;
+  --series-changed: #1b9a6c;
+  --series-unbalanced: #d29400;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 6px;
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-lg: 0 20px 48px -18px rgb(15 27 42 / 32%);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --sidebar-w: 256px;
-  --topbar-h: 76px;
+  --sidebar-w: 100px;
+  --topbar-h: 64px;
 
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: #080d19;
-  --surface: #0f1729;
-  --surface-muted: #0c1323;
-  --surface-sunken: #0a101e;
-  --surface-glass: rgb(9 15 29 / 82%);
-  --border: #1d2840;
-  --border-strong: #2d3a57;
-  --text: #e8edf7;
-  --text-muted: #a5b1c7;
-  --text-subtle: #8a97ae;
-  --accent: #7ea4ff;
-  --accent-hover: #9cb9ff;
-  --accent-soft: rgb(126 164 255 / 12%);
-  --accent-soft-strong: rgb(126 164 255 / 22%);
-  --accent-grad: var(--accent);
-  --on-accent: #07102a;
-  --ring: rgb(126 164 255 / 40%);
-  --ok: #52d08f;
-  --ok-soft: rgb(82 208 143 / 12%);
-  --warn: #f2b84f;
-  --warn-soft: rgb(242 184 79 / 12%);
-  --error: #ff8189;
-  --error-soft: rgb(255 129 137 / 12%);
+  --bg: #0a111c;
+  --surface: #101a28;
+  --surface-muted: #0d1622;
+  --surface-sunken: #0b131e;
+  --surface-glass: rgb(10 17 28 / 92%);
+  --border: #1f2b3b;
+  --border-strong: #2e3d51;
+  --text: #e5ebf3;
+  --text-muted: #a3b0c2;
+  --text-subtle: #8593a7;
+  --accent: #5fa2d6;
+  --accent-hover: #7fb6e0;
+  --accent-soft: rgb(95 162 214 / 13%);
+  --accent-soft-strong: rgb(95 162 214 / 24%);
+  --on-accent: #06121f;
+  --ring: rgb(95 162 214 / 42%);
+  --signal: #e5484d;
+  --ok: #55c98b;
+  --ok-soft: rgb(85 201 139 / 12%);
+  --warn: #e8b24e;
+  --warn-soft: rgb(232 178 78 / 12%);
+  --error: #ff8288;
+  --error-soft: rgb(255 130 136 / 12%);
 
-  --nav-bg: #0b1222;
-  --nav-hover: rgb(255 255 255 / 5%);
+  --rail-bg: #060d18;
+  --rail-text: #93a2b6;
+  --rail-hover: rgb(255 255 255 / 6%);
+  --rail-active: rgb(255 255 255 / 9%);
+  --rail-line: rgb(255 255 255 / 8%);
 
-  --series-posted: #3987e5;
-  --series-deleted: #d95926;
-  --series-changed: #199e70;
-  --series-unbalanced: #c98500;
+  --selected-bg: rgb(95 162 214 / 22%);
+  --selected-text: #e5ebf3;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
-  --shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
-  --shadow-lg: 0 30px 70px -20px rgb(0 0 0 / 70%);
+  --series-posted: #4e93cc;
+  --series-deleted: #d1683c;
+  --series-changed: #2aa77b;
+  --series-unbalanced: #c99419;
+
+  --shadow-lg: 0 24px 60px -20px rgb(0 0 0 / 70%);
 
   color-scheme: dark;
 }
@@ -109,8 +150,9 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
+  font-feature-settings: 'tnum' 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -120,9 +162,17 @@ h2,
 h3,
 h4 {
   font-family: var(--font-display);
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   margin: 0;
+}
+
+code,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 
 button,

@@ -55,7 +55,8 @@ Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições a
   fórmulas sem valor em cache e `fullCalcOnLoad`. ExcelJS apenas se o gerador próprio ainda não existir,
   e nunca para arquivos com mais de ~50 mil linhas.
 - Testes: Vitest (unidade e integração); Playwright opcional para fluxo ponta a ponta
-- Estilo: CSS Modules ou Tailwind; fonte `Aptos, "Segoe UI", system-ui, sans-serif` (sem baixar fontes)
+- Estilo: CSS Modules; fontes servidas pelo próprio app em `src/assets/fonts` (licença SIL OFL em `public/licencas`): Sora (títulos),
+  Geist (interface) e Geist Mono (números e códigos), com Aptos/Segoe UI de reserva; nada é baixado de fora
 
 ## Estrutura de pastas
 

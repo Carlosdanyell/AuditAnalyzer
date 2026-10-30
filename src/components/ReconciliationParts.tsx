@@ -39,15 +39,12 @@ export function RunStatus({ checks, tiles, okText, failText }: { checks: CheckRe
           <h2 className={styles.statusTitle}>{title}</h2>
           <p className={ui.sub}>{text}</p>
         </div>
-        <div className={styles.statusCount}>
-          <Ring value={checks.length ? passed / checks.length : 1} tone={tone} />
-          <span>
-            <strong>
-              {passed}/{checks.length}
-            </strong>
-            verificações OK
-          </span>
-        </div>
+        <p className={styles.statusCount}>
+          <strong>
+            {passed}/{checks.length}
+          </strong>
+          verificações OK
+        </p>
       </div>
       <dl className={styles.tiles}>
         {tiles.map((t) => (
@@ -61,17 +58,6 @@ export function RunStatus({ checks, tiles, okText, failText }: { checks: CheckRe
         ))}
       </dl>
     </section>
-  );
-}
-
-function Ring({ value, tone }: { value: number; tone: string }) {
-  const r = 16;
-  const length = 2 * Math.PI * r;
-  return (
-    <svg className={cx(styles.ring, styles[`ring_${tone}`])} viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r={r} />
-      {value > 0 && <circle cx="20" cy="20" r={r} strokeDasharray={`${length * value} ${length}`} />}
-    </svg>
   );
 }
 

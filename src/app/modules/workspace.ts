@@ -29,6 +29,17 @@ export interface Cfgr700Services {
   onExportJustifications: () => { fileName: string; count: number } | null;
 }
 
+/** One figure of the strip under the header of the console: the size of the analysis and what calls for attention. */
+export interface KeyFigure {
+  label: string;
+  value: string;
+  /** error = a finding to examine; warn = items listed for review. */
+  tone?: 'error' | 'warn';
+}
+
+/** The key figures of the analysis on screen, for the scope chosen (CFGR700) or for the whole analysis. */
+export type KeyFigures = (reconciliation: ModuleReconciliation, summary: ModuleSummary | null, scope: number) => KeyFigure[];
+
 export interface WorkspaceProps {
   client: WorkerClient;
   module: AvailableModule;

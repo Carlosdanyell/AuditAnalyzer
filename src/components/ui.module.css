@@ -1,4 +1,7 @@
-/* Shared building blocks of the interface: buttons, cards, fields, pills, alerts, tables and motion. */
+/*
+ * Shared building blocks of the interface: buttons, panels, fields, tags, alerts, tables and motion. Flat surfaces
+ * with hairline borders and small radii; steel blue for actions, navy for the selected option, red only for marks.
+ */
 
 /* ── Buttons ── */
 
@@ -7,31 +10,25 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 7px 16px;
+  min-height: 34px;
+  padding: 6px 14px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
   text-decoration: none;
   transition:
-    background-color 160ms var(--ease),
-    border-color 160ms var(--ease),
-    color 160ms var(--ease),
-    box-shadow 160ms var(--ease),
-    transform 120ms var(--ease);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.985);
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease);
 }
 
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .btn svg {
@@ -51,12 +48,11 @@
   background: var(--surface);
   border-color: var(--border-strong);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
 }
 
 .secondary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
-  background: var(--surface-muted);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .ghost {
@@ -76,24 +72,21 @@
 }
 
 .sm {
-  min-height: 30px;
-  padding: 5px 12px;
-  font-size: 13px;
-  border-radius: 8px;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12.5px;
 }
 
 .lg {
-  min-height: 44px;
-  padding: 10px 22px;
-  font-size: 15px;
-  border-radius: 12px;
+  min-height: 40px;
+  padding: 8px 20px;
+  font-size: 14px;
 }
 
 .iconBtn {
-  min-height: 32px;
-  width: 32px;
+  min-height: 30px;
+  width: 30px;
   padding: 0;
-  border-radius: 8px;
 }
 
 .link {
@@ -110,24 +103,23 @@
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--accent) 30%, transparent);
   text-underline-offset: 3px;
-  transition: text-decoration-color 150ms;
+  transition: text-decoration-color 140ms;
 }
 
 .link:hover {
   text-decoration-color: currentColor;
 }
 
-/* ── Cards ── */
+/* ── Panels ── */
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 22px 24px;
+  gap: 14px;
+  padding: 18px 20px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius);
   min-width: 0;
 }
 
@@ -143,26 +135,23 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 17px;
-  font-weight: 650;
+  gap: 8px;
+  font-size: 15.5px;
+  font-weight: 600;
 }
 
+/* The icon of a panel title: a plain glyph in the muted ink, no tile behind it. */
 .cardIcon {
   flex: none;
-  display: grid;
+  display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--text-subtle);
 }
 
 .sub {
   margin: 2px 0 0;
   color: var(--text-muted);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 .muted {
@@ -183,44 +172,44 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-muted);
 }
 
 .input {
-  min-height: 36px;
-  padding: 7px 11px;
+  min-height: 34px;
+  padding: 6px 10px;
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 400;
   transition:
-    border-color 150ms var(--ease),
-    box-shadow 150ms var(--ease);
+    border-color 140ms var(--ease),
+    box-shadow 140ms var(--ease);
 }
 
 .input:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
 }
 
 .input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--ring);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 select.input {
   appearance: none;
-  padding-right: 34px;
+  padding-right: 32px;
   background-image:
     linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
   background-position:
-    calc(100% - 17px) 55%,
-    calc(100% - 12px) 55%;
+    calc(100% - 16px) 55%,
+    calc(100% - 11px) 55%;
   background-size:
     5px 5px,
     5px 5px;
@@ -237,16 +226,16 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
-/* ── Pills and status ── */
+/* ── Tags and status ── */
 
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 10px;
-  border-radius: 999px;
+  padding: 1px 7px;
+  border-radius: 3px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.6;
   white-space: nowrap;
 }
@@ -276,18 +265,19 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   color: var(--text-muted);
 }
 
-/* ── Alerts ── */
+/* ── Alerts: a tinted band with a rule on the left in the color of its kind ── */
 
 .alert {
   display: flex;
   gap: 10px;
   align-items: flex-start;
   margin: 0;
-  padding: 11px 14px;
-  border-radius: var(--radius);
+  padding: 10px 14px;
+  border-left: 3px solid currentColor;
+  border-radius: var(--radius-sm);
   font-size: 13.5px;
   line-height: 1.5;
-  animation: fade-in 260ms var(--ease);
+  animation: fade-in 200ms var(--ease);
 }
 
 .alert > svg {
@@ -297,6 +287,7 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 
 .alert.info {
   color: var(--text);
+  border-left-color: var(--accent);
 }
 
 .alert.info > svg {
@@ -321,48 +312,49 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   word-break: break-all;
 }
 
-/* ── Segmented control ── */
+/* ── Segmented control: joined options, the selected one filled ── */
 
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 4px;
-  border-radius: 12px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
 }
 
 .segment {
   border: none;
-  border-radius: 9px;
+  border-radius: 0;
   padding: 6px 14px;
   background: none;
   color: var(--text-muted);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition:
-    background-color 160ms var(--ease),
-    color 160ms var(--ease),
-    box-shadow 160ms var(--ease);
+    background-color 140ms var(--ease),
+    color 140ms var(--ease);
+}
+
+.segment + .segment {
+  box-shadow: inset 1px 0 0 var(--border);
 }
 
 .segment:hover {
   color: var(--text);
+  background: var(--surface-muted);
 }
 
 .segmentActive {
   composes: segment;
-  background: var(--surface);
-  color: var(--accent);
-  box-shadow:
-    var(--shadow-sm),
-    0 0 0 1px var(--border);
+  background: var(--selected-bg);
+  color: var(--selected-text);
 }
 
 .segmentActive:hover {
-  color: var(--accent);
+  background: var(--selected-bg);
+  color: var(--selected-text);
 }
 
 /* ── Static tables ── */
@@ -377,13 +369,13 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
 .table th,
 .table td {
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--border);
   text-align: right;
   white-space: nowrap;
@@ -391,19 +383,20 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 
 .table thead th {
   position: relative;
-  padding-top: 6px;
-  padding-bottom: 8px;
-  font-size: 11.5px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  color: var(--text-subtle);
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
   text-align: center;
   white-space: normal;
+  border-top: 1px solid var(--border);
   border-bottom-color: var(--border-strong);
 }
 
 .table tbody tr {
-  transition: background-color 120ms;
+  transition: background-color 100ms;
 }
 
 .table tbody tr:hover {
@@ -420,18 +413,18 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 }
 
 .numLink {
-  padding: 2px 8px;
-  margin: -2px -8px;
+  padding: 1px 6px;
+  margin: -1px -6px;
   border: none;
-  border-radius: 6px;
+  border-radius: 3px;
   background: none;
   color: var(--accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
   transition:
-    background-color 140ms var(--ease),
-    color 140ms var(--ease);
+    background-color 120ms var(--ease),
+    color 120ms var(--ease);
 }
 
 .numLink:hover {
@@ -447,37 +440,13 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 
 /* ── Motion ── */
 
-/* Entrances: opacity and a short move only (no layout work), quick enough not to delay reading. */
+/* A screen opened by the user fades in; the parts of a screen arrive together (no cascade). */
 .enter {
-  animation: rise 220ms var(--ease) both;
+  animation: fade-in 160ms var(--ease) both;
 }
 
 .stagger > * {
-  animation: rise 220ms var(--ease) both;
-}
-
-.stagger > :nth-child(2) {
-  animation-delay: 30ms;
-}
-
-.stagger > :nth-child(3) {
-  animation-delay: 60ms;
-}
-
-.stagger > :nth-child(n + 4) {
-  animation-delay: 90ms;
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  animation: fade-in 160ms var(--ease) both;
 }
 
 @keyframes fade-in {
@@ -520,7 +489,6 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
 
 @media (width < 600px) {
   .card {
-    padding: 16px;
-    border-radius: var(--radius);
+    padding: 14px;
   }
 }

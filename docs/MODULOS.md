@@ -159,12 +159,14 @@ interface ModuleSession {                               // objeto novo a cada in
 
 ## 4. Tela
 
-- **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: código curto, título,
-  descrição, arquivo esperado, link para a ajuda, "Prévia"/"Em breve"); o cartão abre o espaço de trabalho do módulo.
-  A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e a análise aberta são marcadas
-  no cartão. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
+- **Início da plataforma (Ferramentas):** uma linha por módulo numa lista com colunas (`src/components/ToolHome.tsx`:
+  código curto, título, descrição, arquivo esperado, situação "Prévia"/"Em breve", link para a ajuda); a linha abre o
+  espaço de trabalho do módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
+  a análise aberta são marcadas na linha. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
 - No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
-  oferece). A trilha no topo mostra "Ferramentas › módulo · arquivos"; a barra lateral mostra só as visões oferecidas.
+  oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
+  oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
+  `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo

@@ -10,7 +10,7 @@
 
 .card h2 {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .card h3 {
@@ -71,7 +71,7 @@
 
 .hash {
   padding: 3px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface-sunken);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -110,7 +110,7 @@
   border-spacing: 0;
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -233,12 +233,7 @@
 .sectionIcon {
   flex: none;
   display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--text-subtle);
 }
 
 .sectionTitle {
@@ -316,7 +311,7 @@ textarea.input {
 .signal {
   margin: 0;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 10px 16px 16px;
   background: var(--surface-muted);
 }
@@ -362,7 +357,7 @@ textarea.input {
   height: 34px;
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 9px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   cursor: pointer;
   transition:
@@ -385,7 +380,7 @@ textarea.input {
 
 .nestedItem {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 10px 14px;
   background: var(--surface-muted);
 }
