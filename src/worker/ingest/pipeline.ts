@@ -40,6 +40,8 @@ export { IngestError } from './errors';
 export interface IngestInput {
   name: string;
   blob: Blob;
+  /** Sheet chosen on the start screen; absent = the module chooses (docs/INTERFACE.md, item 1). */
+  sheet?: string;
 }
 
 export interface IngestOptions {
@@ -104,12 +106,16 @@ async function ingestFile(
   const rels = parseRelationships(await readText('xl/_rels/workbook.xml.rels'));
   const relTarget = new Map(rels.map((r) => [r.id, resolvePartPath(r.target)]));
 
+  // The sheet chosen on the start screen, else the first whose name has the configured text.
   const wanted = normalizeLabel(config.workbook.reportSheetContains);
-  const reportSheet = sheets.find((s) => normalizeLabel(s.name).includes(wanted));
+  const reportSheet = input.sheet !== undefined ? sheets.find((s) => s.name === input.sheet) : sheets.find((s) => normalizeLabel(s.name).includes(wanted));
   if (!reportSheet) {
+    const names = sheets.map((s) => s.name).join(', ');
     throw new IngestError(
       'fileCheck',
-      `Aba do relatório ("${config.workbook.reportSheetContains}") não encontrada. Abas do arquivo: ${sheets.map((s) => s.name).join(', ')}.`,
+      input.sheet !== undefined
+        ? `A aba "${input.sheet}" não existe em ${name}. Abas do arquivo: ${names}.`
+        : `Aba do relatório ("${config.workbook.reportSheetContains}") não encontrada. Abas do arquivo: ${names}. Escolha a aba na lista de arquivos.`,
     );
   }
   const paramsSheet = sheets.find((s) => normalizeLabel(s.name) === normalizeLabel(config.workbook.parametersSheet));

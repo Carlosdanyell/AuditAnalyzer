@@ -68,7 +68,10 @@ export function createCommandHandler(
         }
         try {
           const result = await ingest(
-            command.files.map((file) => ({ name: file.name, blob: file })),
+            command.files.map((file, i) => {
+              const sheet = command.sheets?.[i];
+              return { name: file.name, blob: file, ...(typeof sheet === 'string' && { sheet }) };
+            }),
             post,
             options,
           );

@@ -14,10 +14,10 @@ import { fileA as cfgr700FileA } from '../synthetic/fixtures';
 /** Reading of the CT2 extraction through the worker (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-4 and 8). */
 const file = (name: string, o: Ct2ExtractionOptions) => new File([buildCt2Extraction(o) as Uint8Array<ArrayBuffer>], name);
 
-async function ingest(files: File[], config: unknown = ct2DefaultConfig(), inflateMode: 'auto' | 'fallback' = 'auto') {
+async function ingest(files: File[], config: unknown = ct2DefaultConfig(), inflateMode: 'auto' | 'fallback' = 'auto', sheets?: (string | null)[]) {
   const events: WorkerEvent[] = [];
   const handle = createCommandHandler((e) => events.push(e), { now: () => 0, inflateMode });
-  await handle({ type: 'ingest', module: 'ct2Integrity', files, config });
+  await handle({ type: 'ingest', module: 'ct2Integrity', files, config, ...(sheets && { sheets }) });
   const error = events.find((e) => e.type === 'error');
   const recon = events.find((e) => e.type === 'reconciliation');
   const ready = events.find((e) => e.type === 'ready');
@@ -154,7 +154,26 @@ describe('CT2 reading: several files and layouts', () => {
     expect(r!.files[0]!.sheetName).toBe('SCACKST0.XML');
     expect(r!.files[0]!.sheetNames).toEqual(['Resumo', 'SCACKST0.XML']);
     const two = await ingest([file('a.xlsx', fileA({ extraSheets: { Copia: [[], [], [...CT2_COLUMNS]] } }))]);
-    expect(two.error).toMatchObject({ stage: 'rows', message: 'Mais de uma aba de a.xlsx tem o cabeçalho da extração CT2: Copia, SCACKST0.XML.' });
+    expect(two.error).toMatchObject({ stage: 'rows', message: 'Mais de uma aba de a.xlsx tem o cabeçalho da extração CT2: Copia, SCACKST0.XML. Escolha a aba na lista de arquivos.' });
+  });
+
+  it('reads the sheet chosen in the list of files, even when another sheet has the header too', async () => {
+    const twoHeaders = () => file('a.xlsx', fileA({ extraSheets: { Copia: [[], [], [...CT2_COLUMNS]] } }));
+    const chosen = await ingest([twoHeaders()], ct2DefaultConfig(), 'auto', ['SCACKST0.XML']);
+    expect(chosen.error).toBeUndefined();
+    expect(chosen.reconciliation!.files[0]!.sheetName).toBe('SCACKST0.XML');
+    expect(chosen.reconciliation!.files[0]!.rows.detailRows).toBe(10);
+    // A null choice is the automatic one.
+    const auto = await ingest([file('a.xlsx', fileA())], ct2DefaultConfig(), 'auto', [null]);
+    expect(auto.reconciliation!.files[0]!.sheetName).toBe('SCACKST0.XML');
+  });
+
+  it('reads only the chosen sheet: without the header there, or absent from the file, it says so', async () => {
+    const withSummary = () => file('a.xlsx', fileA({ extraSheets: { Resumo: [['Totais'], ['Linhas', 10]] } }));
+    const noHeader = await ingest([withSummary()], ct2DefaultConfig(), 'auto', ['Resumo']);
+    expect(noHeader.error).toMatchObject({ stage: 'rows', message: 'Cabeçalho da extração CT2 não encontrado nas primeiras 30 linhas da aba "Resumo" de a.xlsx.' });
+    const absent = await ingest([withSummary()], ct2DefaultConfig(), 'auto', ['Nada']);
+    expect(absent.error).toMatchObject({ stage: 'rows', message: 'A aba "Nada" não existe em a.xlsx. Abas do arquivo: Resumo, SCACKST0.XML.' });
   });
 
   it('reads the 1904 date system, keeps a repeated unmapped title apart and flags a numeric code that is not whole', async () => {

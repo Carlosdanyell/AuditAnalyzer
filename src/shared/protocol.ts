@@ -140,7 +140,8 @@ export type Command =
    * `config`: the configuration of the module, validated by the worker. `platform`: the configuration shared by the
    * modules (holidays); absent = no holidays.
    */
-  | { type: 'ingest'; module?: ModuleId; files: File[]; config: unknown; platform?: PlatformConfig }
+  /** `sheets`: the sheet chosen for each file, in the order of `files`; null or absent = the module chooses. */
+  | { type: 'ingest'; module?: ModuleId; files: File[]; sheets?: (string | null)[]; config: unknown; platform?: PlatformConfig }
   | { type: 'cancel' }
   /** First `rows` rows of every sheet of each file, to warn about a file of another analysis. Never answers an error. */
   | { type: 'probe'; requestId: number; files: File[]; rows: number }

@@ -79,6 +79,8 @@ export function App() {
   const [files, setFiles] = useState<File[]>([]);
   /** First rows of each file listed, by fileKey (undefined while probing, null when unreadable). */
   const [samples, setSamples] = useState<ReadonlyMap<string, SheetSample[] | null>>(new Map());
+  /** Sheet chosen for a file with several sheets, by fileKey; absent = the analysis chooses (docs/INTERFACE.md, item 1). */
+  const [sheetChoice, setSheetChoice] = useState<ReadonlyMap<string, string>>(new Map());
   const [phase, setPhase] = useState<Phase>('select');
   const [run, setRun] = useState<Run | null>(null);
   const [now, setNow] = useState(0);
@@ -400,7 +402,8 @@ export function App() {
     setAnalyzedConfig(current.config.saved && !own ? configRef.current : null);
     setAnalyzedModuleConfig(own ? { config: configOf(current), holidays } : null);
     analyzedModule.current = moduleId;
-    client().send({ type: 'ingest', module: moduleId, files, config: configOf(current), platform: platformConfigOf(holidays) });
+    const sheets = files.map((f) => sheetChoice.get(fileKey(f)) ?? null);
+    client().send({ type: 'ingest', module: moduleId, files, sheets, config: configOf(current), platform: platformConfigOf(holidays) });
     void saveLastModule(moduleId);
     setLastUsed(moduleId);
   }
@@ -439,6 +442,7 @@ export function App() {
     setFiles([]);
     // The first rows of the files probed are data of the files too.
     setSamples(new Map());
+    setSheetChoice(new Map());
     setRun(null);
     setReconciliation(null);
     setSummary(null);
@@ -515,6 +519,21 @@ export function App() {
   }
 
   const current = availableModule(moduleId);
+  /** Sheets of a file read by the probe (several = a sheet can be chosen). */
+  const sheetsOf = (f: File): SheetSample[] => samples.get(fileKey(f)) ?? [];
+  /** Sheets that look like the extraction of this analysis, when the choice is left automatic and there are several. */
+  const ambiguousSheets = (f: File): string[] => {
+    if (sheetChoice.has(fileKey(f))) return [];
+    const matching = sheetsOf(f).filter((s) => current.detect([s], configOf(current)) === 'match');
+    return matching.length > 1 ? matching.map((s) => s.name) : [];
+  };
+  const chooseSheet = (f: File, sheet: string) =>
+    setSheetChoice((choices) => {
+      const next = new Map(choices);
+      if (sheet === '') next.delete(fileKey(f));
+      else next.set(fileKey(f), sheet);
+      return next;
+    });
   const done = phase === 'done' && reconciliation !== null;
   const currentView = VIEWS.find((v) => v.id === view)!;
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
@@ -730,50 +749,78 @@ export function App() {
 
                 {files.length > 0 && (
                   <ol className={styles.fileList}>
-                    {files.map((file, index) => (
-                      <li key={fileKey(file)}>
-                        <span className={styles.fileIndex}>{index + 1}</span>
-                        <span className={styles.fileMeta}>
-                          <span className={styles.fileName}>{file.name}</span>
-                          <span className={styles.fileSize}>{formatBytes(file.size)}</span>
-                        </span>
-                        <span className={styles.fileActions}>
-                          {files.length > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                className={cx(ui.btn, ui.ghost, ui.iconBtn)}
-                                onClick={() => moveFile(index, -1)}
-                                disabled={index === 0}
-                                aria-label={`Mover ${file.name} para cima`}
-                                title="Mover para cima"
+                    {files.map((file, index) => {
+                      const sheets = sheetsOf(file);
+                      const ambiguous = ambiguousSheets(file);
+                      return (
+                        <li key={fileKey(file)}>
+                          <span className={styles.fileIndex}>{index + 1}</span>
+                          <span className={styles.fileMeta}>
+                            <span className={styles.fileName}>{file.name}</span>
+                            <span className={styles.fileSize}>{formatBytes(file.size)}</span>
+                          </span>
+                          {sheets.length > 1 && (
+                            <label className={styles.fileSheet}>
+                              <span aria-hidden="true">Aba</span>
+                              <select
+                                className={ui.input}
+                                aria-label={`Aba de ${file.name}`}
+                                value={sheetChoice.get(fileKey(file)) ?? ''}
+                                onChange={(e) => chooseSheet(file, e.target.value)}
                               >
-                                <Icon name="arrowUp" size={16} />
-                              </button>
-                              <button
-                                type="button"
-                                className={cx(ui.btn, ui.ghost, ui.iconBtn)}
-                                onClick={() => moveFile(index, 1)}
-                                disabled={index === files.length - 1}
-                                aria-label={`Mover ${file.name} para baixo`}
-                                title="Mover para baixo"
-                              >
-                                <Icon name="arrowDown" size={16} />
-                              </button>
-                            </>
+                                <option value="">Automática</option>
+                                {sheets.map((sheet) => (
+                                  <option key={sheet.name} value={sheet.name}>
+                                    {sheet.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           )}
-                          <button
-                            type="button"
-                            className={cx(ui.btn, ui.ghost, ui.iconBtn, styles.remove)}
-                            onClick={() => setFiles((current) => current.filter((f) => f !== file))}
-                            aria-label={`Remover ${file.name}`}
-                            title="Remover"
-                          >
-                            <Icon name="trash" size={16} />
-                          </button>
-                        </span>
-                      </li>
-                    ))}
+                          <span className={styles.fileActions}>
+                            {files.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  className={cx(ui.btn, ui.ghost, ui.iconBtn)}
+                                  onClick={() => moveFile(index, -1)}
+                                  disabled={index === 0}
+                                  aria-label={`Mover ${file.name} para cima`}
+                                  title="Mover para cima"
+                                >
+                                  <Icon name="arrowUp" size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className={cx(ui.btn, ui.ghost, ui.iconBtn)}
+                                  onClick={() => moveFile(index, 1)}
+                                  disabled={index === files.length - 1}
+                                  aria-label={`Mover ${file.name} para baixo`}
+                                  title="Mover para baixo"
+                                >
+                                  <Icon name="arrowDown" size={16} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              className={cx(ui.btn, ui.ghost, ui.iconBtn, styles.remove)}
+                              onClick={() => setFiles((current) => current.filter((f) => f !== file))}
+                              aria-label={`Remover ${file.name}`}
+                              title="Remover"
+                            >
+                              <Icon name="trash" size={16} />
+                            </button>
+                          </span>
+                          {ambiguous.length > 0 && (
+                            <p className={styles.fileHint} role="status">
+                              <Icon name="alert" size={14} />
+                              Mais de uma aba parece ser desta análise ({ambiguous.join(', ')}). Escolha a aba a analisar.
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ol>
                 )}
 
@@ -792,7 +839,7 @@ export function App() {
 
                 <div className={styles.uploadFooter}>
                   <span className={ui.muted}>{fileSummary ?? 'Nenhum arquivo selecionado'}</span>
-                  <button type="button" className={cx(ui.btn, ui.primary, ui.lg)} disabled={files.length === 0} onClick={analyze}>
+                  <button type="button" className={cx(ui.btn, ui.primary, ui.lg)} disabled={files.length === 0 || files.some((f) => ambiguousSheets(f).length > 0)} onClick={analyze}>
                     Analisar
                     <Icon name="arrowRight" size={18} />
                   </button>

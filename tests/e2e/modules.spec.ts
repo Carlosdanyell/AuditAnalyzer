@@ -171,6 +171,21 @@ test('configuração da CT2: aba própria, chave própria no computador e reproc
   await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
 });
 
+test('arquivo com mais de uma aba: escolha da aba na lista; com duas abas da análise, pede a escolha antes de analisar', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.twoSheets]);
+  const select = page.getByLabel('Aba de ct2-duas-abas.xlsx');
+  await expect(select).toHaveValue('');
+  await expect(page.getByText('Mais de uma aba parece ser desta análise (Copia, SCACKST0.XML). Escolha a aba a analisar.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Analisar' })).toBeDisabled();
+  await select.selectOption('SCACKST0.XML');
+  await expect(page.getByText(/Mais de uma aba parece ser/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toBeVisible();
+});
+
 test('arquivo de outra análise: avisa, oferece a troca e mantém a lista', async ({ page, files, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
