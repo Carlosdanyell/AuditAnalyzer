@@ -4,7 +4,7 @@
  * (SUM/ROWS of a block, never SUMIFS per aggregation row). Formulas of a Base row read only that row, the previous one
  * (E1) and the defined names of the Criterios tab. Streamed by the XLSX writer; the same input gives the same bytes.
  */
-import { CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
 import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
@@ -15,7 +15,7 @@ import type { Language } from '../../export/labels';
 import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from '../../export/theme';
 import { XlsxWriter, colName, dateCell, type CellInput, type SheetWriter } from '../../export/xlsxWriter';
 import { BIT } from './marks';
-import type { Ct2Analysis } from './analysis';
+import { LINE_TESTS as ALL_LINE_TESTS, type Ct2Analysis } from './analysis';
 import type { Ct2Ingested } from './ingest';
 import { MANUAL_ORIGINS, textOf, type Ct2Group } from './profile';
 import { CT2_LABELS, CT2_RULES, criteriaParagraphs, type Ct2WorkpaperLabels } from './workpaperLabels';
@@ -196,7 +196,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const SHEET = L.sheets;
   const fields = CT2_FIELDS.filter((f) => present.has(f));
   const others = [...store.other.keys()];
-  const LINE_TESTS = (['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as const).filter((t) => on[t]);
+  const LINE_TESTS = ALL_LINE_TESTS.filter((t) => on[t]);
   const baseCols: Col[] = [
     col('file', C.file, 18, 'text'),
     col('sourceRow', C.sourceRow, 9, 'int'),
@@ -354,6 +354,12 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     w.defineName(name, `${CRIT}!$${l}$${TYPE_ROW}:$${l}$${TYPE_ROW + typeLists[i]!.length - 1}`);
   });
   w.defineName('P_FERIADOS', `${CRIT}!$E$${TYPE_ROW}:$E$${TYPE_ROW + Math.max(1, holidays.length) - 1}`);
+  // "Lcto Manual?" codes (I4b/I4c), next to the entry types; an empty list keeps one empty cell, which never matches.
+  const codeLists = [config.manualFlag.manual, config.manualFlag.automatic];
+  ['P_COD_MANUAL', 'P_COD_AUTO'].forEach((name, i) => {
+    const l = colName(5 + i);
+    w.defineName(name, `${CRIT}!$${l}$${TYPE_ROW}:$${l}$${TYPE_ROW + Math.max(1, codeLists[i]!.length) - 1}`);
+  });
   const typeIs = (t: string, list: 'PD' | 'DEB' | 'CRED' | 'HIST') => `COUNTIF(P_TIPO_${list},${t})>0`;
 
   // ── Period and texts shared by the sheets ──
@@ -607,7 +613,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   // ════════ Criterios ════════
   {
     const CR = L.criteria;
-    const width = [34, 18, 18, 18, 14, 60];
+    // The rule texts span D:H (92 characters), as when the last column was a single one of 60.
+    const width = [34, 18, 18, 18, 14, 18, 18, 24];
     const sheet = w.addSheet(SHEET.criteria, { columns: width.map((x) => ({ width: x })), showGridLines: false, fitToWidth: true });
     sheet.row([{ v: CR.title, s: T.title }], { height: 30 });
     sheet.skip(1);
@@ -625,11 +632,12 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.skip(1);
     sheet.row([{ v: CR.types, s: T.h2 }], { height: 22 }); // row 13
     sheet.row(CR.typeCols.map((v) => ({ v, s: T.headSummary })), { height: 20 }); // row 14
-    const listRows = Math.max(...typeLists.map((x) => x.length), holidays.length, 1);
+    const listRows = Math.max(...typeLists.map((x) => x.length), holidays.length, ...codeLists.map((x) => x.length), 1);
     for (let i = 0; i < listRows; i++) {
       sheet.row([
         ...typeLists.map((list) => (list[i] !== undefined ? { v: list[i]!, s: T.center } : null)),
         holidays[i] !== undefined ? dateCell(holidays[i]!, T.date) : null,
+        ...codeLists.map((list) => (list[i] !== undefined ? { v: list[i]!, s: T.center } : null)),
       ]);
     }
     sheet.skip(1);
@@ -647,16 +655,18 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
           { v: rule, s: T.text },
           { v: null, s: T.text },
           { v: null, s: T.text },
+          { v: null, s: T.text },
+          { v: null, s: T.text },
         ],
         { height: textHeight(rule, 92, 10) },
       );
-      sheet.merge(`D${r}:F${r}`);
+      sheet.merge(`D${r}:H${r}`);
     }
     for (const [title, body] of criteriaParagraphs(language, config.table)) {
       sheet.skip(1);
       sheet.row([{ v: title, s: T.h2 }], { height: 20 });
       sheet.row([{ v: body, s: T.paragraph }], { height: textHeight(body, 160, 10) });
-      sheet.merge(`A${sheet.nextRow - 1}:F${sheet.nextRow - 1}`);
+      sheet.merge(`A${sheet.nextRow - 1}:H${sheet.nextRow - 1}`);
     }
     sheet.end();
   }
@@ -954,6 +964,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     const BT = fieldCol('balanceType')!;
     const CU = fieldCol('currency')!;
     const DT = fieldCol('date')!;
+    const MN = fieldCol('manual');
+    // I3a/I3b: the entity pairs with a column mapped; a side without its column is empty.
+    const entityPairs = CT2_ENTITY_PAIRS.filter((pair) => pair.some((f) => present.has(f)));
     // E1: the line key (section 3), text compared with case as the engine does.
     const keyParts = (['balanceType', 'currency', ...keyFields, 'line', 'companyOrigin', 'branchOrigin'] as Ct2Field[]).filter((f, idx, all) => all.indexOf(f) === idx && present.has(f));
     const exceptionTests = LINE_TESTS.filter(isException);
@@ -988,12 +1001,29 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
             case 'I2':
               f = yesNo(`AND(NOT(${typeIs(T_, 'HIST')}),${V}<>"",${V}<=0)`);
               break;
-            case 'I3':
-              f = yesNo(`AND(${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc}))`);
+            case 'I3a':
+            case 'I3b': {
+              const same = `${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc})`;
+              const side = (f: Ct2Field) => (present.has(f) ? `${l(`f:${f}`)}${r}` : '""');
+              const parts = entityPairs.map(([dr, cr]) => `NOT(EXACT(${side(dr)},${side(cr)}))`);
+              const differs = parts.length === 1 ? parts[0]! : `OR(${parts.join(',')})`;
+              // Without any entity column nothing differs: I3a never, I3b on every same-account line.
+              if (t === 'I3a') f = parts.length ? yesNo(`AND(${same},${differs})`) : str(L.no);
+              else f = yesNo(parts.length ? `AND(${same},NOT(${differs}))` : `AND(${same})`);
               break;
-            case 'I4':
-              f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",ROUND(${V}-${M1}${r},2)<>0)`);
+            }
+            case 'I4a':
+              f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",${M1}${r}<>0,ROUND(${V}-${M1}${r},2)<>0)`);
               break;
+            case 'I4b':
+            case 'I4c': {
+              const zero = `EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",NOT(${typeIs(T_, 'HIST')}),${V}<>0,${M1}${r}=0`;
+              // Without "Lcto Manual?" every line is not manual: I4b never, I4c carries them (decision of 10/11/2026).
+              if (MN === null) f = t === 'I4b' ? str(L.no) : yesNo(`AND(${zero})`);
+              else if (t === 'I4b') f = yesNo(`AND(${zero},${MN}${r}<>"",COUNTIF(P_COD_MANUAL,${MN}${r})>0)`);
+              else f = yesNo(`AND(${zero},OR(${MN}${r}="",COUNTIF(P_COD_MANUAL,${MN}${r})=0))`);
+              break;
+            }
             case 'I5':
               f = yesNo(`TRIM(${HI}${r})=""`);
               break;

@@ -25,8 +25,15 @@ export const CT2_BASE_SHEET_ROWS = 300_000;
 /** Level a test looks at (section 6); the profile (P1-P4) is a summary of the Base. */
 export type Ct2Level = 'line' | 'document' | 'batch' | 'day' | 'profile';
 
+/** How a test is presented: `review: 'approval'` = shown under "Conferir com documento de aprovação" (Phase 14). */
+export interface Ct2TestInfo {
+  level: Ct2Level;
+  label: string;
+  review?: 'approval';
+}
+
 /** Texts of the tests of section 6: what an occurrence means. */
-export const CT2_TEST_INFO: Record<Ct2TestCode, { level: Ct2Level; label: string }> = {
+export const CT2_TEST_INFO: Record<Ct2TestCode, Ct2TestInfo> = {
   B1: { level: 'document', label: 'Documento desbalanceado' },
   B2: { level: 'batch', label: 'Lote desbalanceado' },
   B3: { level: 'day', label: 'Dia desbalanceado' },
@@ -34,8 +41,12 @@ export const CT2_TEST_INFO: Record<Ct2TestCode, { level: Ct2Level; label: string
   B5: { level: 'document', label: 'Documento desbalanceado sem compensação adjacente' },
   I1: { level: 'line', label: 'Tipo de lançamento incoerente com as contas' },
   I2: { level: 'line', label: 'Valor zero ou negativo' },
-  I3: { level: 'line', label: 'Mesma conta no débito e no crédito' },
-  I4: { level: 'line', label: 'Valor diferente do valor na moeda 1' },
+  I3a: { level: 'line', label: 'Mesma conta com entidades diferentes (reclassificação)' },
+  I3b: { level: 'line', label: 'Mesma conta e mesmas entidades no débito e no crédito' },
+  // An automatic entry changed by hand must have an approval document: Info, but listed to be checked against it.
+  I4a: { level: 'line', label: 'Valor alterado após a geração (difere do Valor Moeda1)', review: 'approval' },
+  I4b: { level: 'line', label: 'Valor Moeda1 não preenchido em linha manual' },
+  I4c: { level: 'line', label: 'Valor Moeda1 não preenchido em linha não manual' },
   I5: { level: 'line', label: 'Histórico vazio' },
   E1: { level: 'line', label: 'Linha duplicada' },
   E2: { level: 'document', label: 'Lacuna na numeração das linhas' },
@@ -129,7 +140,7 @@ export interface Ct2FileReconciliation {
     outsideCells: number;
   };
   unreadable: Ct2Unreadable & { rows: number; examples: number[] };
-  /** "Valor Moeda1" present but unreadable (alert; the I4 test does not use these lines). */
+  /** "Valor Moeda1" present but unreadable (alert; the tests I4a-I4c do not use these lines). */
   amountCurrency1Unreadable: number;
   alerts: Alert[];
   timings: { stage: Stage; ms: number }[];

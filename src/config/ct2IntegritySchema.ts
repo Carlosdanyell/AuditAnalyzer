@@ -6,9 +6,10 @@ import ct2IntegrityDefaults from './defaults/ct2-integrity.json' with { type: 'j
 /**
  * Configuration of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-6): how the extraction is
  * read, which tests run with which severity, and the defaults of the execution parameters. Versioned by
- * `schemaVersion` (version 1, of Phase 9, had only the reading; it is migrated with the default tests).
+ * `schemaVersion` (version 1, of Phase 9, had only the reading; version 2 had the 20 columns of Phases 9-13 and the
+ * tests I3 and I4 whole; both are migrated by `readCt2Config`).
  */
-export const CT2_CONFIG_VERSION = 2;
+export const CT2_CONFIG_VERSION = 3;
 const text = z.string().trim().min(1);
 
 /** Logical fields of section 2, in the order of the specification. */
@@ -33,6 +34,13 @@ export const CT2_FIELDS = [
   'origin',
   'companyOrigin',
   'branchOrigin',
+  // Version 3 (Phase 14): the entities of each side, compared by I3a and I3b.
+  'costCenterDebit',
+  'costCenterCredit',
+  'itemDebit',
+  'itemCredit',
+  'valueClassDebit',
+  'valueClassCredit',
 ] as const;
 export type Ct2Field = (typeof CT2_FIELDS)[number];
 
@@ -42,11 +50,19 @@ export const CT2_MANDATORY: readonly Ct2Field[] = CT2_FIELDS.slice(0, 12);
 /** Code fields kept as text, with leading zeros, and their widths. */
 export const CODE_FIELDS = ['batch', 'subBatch', 'document', 'line', 'balanceType', 'currency'] as const;
 
-/** Fields that can never be part of the document key: the segment, the line and its origin, values and history. */
-const NOT_IN_DOCUMENT_KEY: readonly Ct2Field[] = ['balanceType', 'currency', 'line', 'companyOrigin', 'branchOrigin', 'amount', 'amountCurrency1', 'history'];
+/** Entities of a line (cost center, accounting item, value class): debit and credit side of each (section 3.2 of Phase 14). */
+export const CT2_ENTITY_PAIRS = [
+  ['costCenterDebit', 'costCenterCredit'],
+  ['itemDebit', 'itemCredit'],
+  ['valueClassDebit', 'valueClassCredit'],
+] as const satisfies readonly (readonly [Ct2Field, Ct2Field])[];
+const ENTITY_FIELDS: readonly Ct2Field[] = CT2_ENTITY_PAIRS.flat();
+
+/** Fields that can never be part of the document key: the segment, the line and its origin, values, history and entities. */
+const NOT_IN_DOCUMENT_KEY: readonly Ct2Field[] = ['balanceType', 'currency', 'line', 'companyOrigin', 'branchOrigin', 'amount', 'amountCurrency1', 'history', ...ENTITY_FIELDS];
 
 /** Tests of section 6, in the order of the specification. */
-export const CT2_TESTS = ['B1', 'B2', 'B3', 'B4', 'B5', 'I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'P1', 'P2', 'P3', 'P4'] as const;
+export const CT2_TESTS = ['B1', 'B2', 'B3', 'B4', 'B5', 'I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'P1', 'P2', 'P3', 'P4'] as const;
 export type Ct2TestCode = (typeof CT2_TESTS)[number];
 /** The B4 diagnostic and the profile: never exceptions, so their severity stays Info (B5 is the alert of B4). */
 export const CT2_INFO_ONLY: readonly Ct2TestCode[] = ['B4', 'P1', 'P2', 'P3', 'P4'];
@@ -179,15 +195,39 @@ export type Ct2ConfigRead = { ok: true; config: Ct2IntegrityConfig; migratedFrom
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Validates a configuration (import, IndexedDB, worker), migrating version 1; errors in Portuguese by field. */
+/** Version 2 → 3: the tests that replace I3 and I4, each taking its "enabled"; the severities are the defaults. */
+const SPLIT_TESTS = { I3: ['I3a', 'I3b'], I4: ['I4a', 'I4b', 'I4c'] } as const;
+
+function migrateTestsV2(tests: unknown): unknown {
+  // Not the tests of version 2 (or already with a new code): left as they are, for the schema to report.
+  if (!isObject(tests) || Object.values(SPLIT_TESTS).flat().some((code) => code in tests)) return tests;
+  const out: Record<string, unknown> = {};
+  for (const [code, test] of Object.entries(tests)) {
+    const split = SPLIT_TESTS[code as keyof typeof SPLIT_TESTS];
+    if (!split) out[code] = test;
+    else for (const c of split) out[c] = { enabled: isObject(test) ? test.enabled : undefined, severity: ct2IntegrityDefaults.tests[c].severity };
+  }
+  return out;
+}
+
+/** Versions 1 and 2 → 3: the entity columns, with their defaults. */
+function withEntityColumns(columns: unknown): unknown {
+  if (!isObject(columns)) return columns;
+  return { ...columns, ...Object.fromEntries(ENTITY_FIELDS.map((f) => [f, ct2IntegrityDefaults.columns[f as keyof typeof ct2IntegrityDefaults.columns]])) };
+}
+
+/** Validates a configuration (import, IndexedDB, worker, backup), migrating versions 1 and 2; errors in Portuguese by field. */
 export function readCt2Config(input: unknown): Ct2ConfigRead {
   let value = input;
   let migratedFrom: number | undefined;
   if (isObject(input) && input.schemaVersion === 1) {
-    // Version 1 → 2: the tests, the parameters and the "Lcto Manual?" codes, with their defaults.
+    // Version 1 → 3: the entity columns, the tests, the parameters and the "Lcto Manual?" codes, with their defaults.
     const { tests, parameters, manualFlag } = ct2IntegrityDefaults;
-    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, tests, parameters, manualFlag };
+    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests, parameters, manualFlag };
     migratedFrom = 1;
+  } else if (isObject(input) && input.schemaVersion === 2) {
+    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests: migrateTestsV2(input.tests) };
+    migratedFrom = 2;
   }
   const parsed = ct2IntegrityConfigSchema.safeParse(structuredClone(value));
   if (parsed.success) return { ok: true, config: parsed.data, ...(migratedFrom !== undefined && { migratedFrom }) };

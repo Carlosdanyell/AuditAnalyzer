@@ -52,10 +52,11 @@ describe('CT2 reading: one file', () => {
     const f = r!.files[0]!;
     expect(f.sheetName).toBe('SCACKST0.XML');
     expect(f.header.row).toBe(3);
-    expect(f.header.mapped).toHaveLength(20);
+    // Phase 14: 26 mapped fields (the six entities joined) and 54 other columns.
+    expect(f.header.mapped).toHaveLength(26);
     expect(f.header.mapped[10]).toEqual({ field: 'amount', title: 'Valor', column: 11 });
     expect(f.header.missingOptional).toEqual([]);
-    expect(f.header.unmapped).toHaveLength(60);
+    expect(f.header.unmapped).toHaveLength(54);
     expect(f.rows).toEqual({
       dimensionRows: 16,
       totalRows: 16,
@@ -226,11 +227,12 @@ describe('CT2 reading: several files and layouts', () => {
     expect(sstIndex).toBeGreaterThanOrEqual(0);
     const blank =
       `<c r="IW4" s="1"/><c r="IX4" t="s"><v>${sstIndex}</v></c><c r="IY4" t="inlineStr"><is><t>&#32;</t></is></c>` +
-      '<c r="IZ4" t="str"><f>""</f><v></v></c><c r="V4"><v></v></c>';
+      '<c r="IZ4" t="str"><f>""</f><v></v></c><c r="AB4"><v></v></c>';
     const ok = await ingestCt2([{ name: 'a.xlsx', blob: withCells(base, 4, blank) }], ct2DefaultConfig(), () => {});
     expect(ok.reconciliation.files[0]!.rows.outsideCells).toBe(0);
     expect(check(ok.reconciliation, 'ct2-reading')).toMatchObject({ passed: true });
-    expect(ok.store.other.get('C Custo Deb')!.get(0)).toBeNull();
+    // Column AB is "Valor Moeda2", an unmapped column (the entities before it are mapped since Phase 14).
+    expect(ok.store.other.get('Valor Moeda2')!.get(0)).toBeNull();
     const values = '<c r="JA4" t="inlineStr"><is><t>x</t></is></c><c r="JB4" t="str"><v><![CDATA[Y]]></v></c>';
     const lost = await ingestCt2([{ name: 'a.xlsx', blob: withCells(base, 4, values) }], ct2DefaultConfig(), () => {});
     expect(lost.reconciliation.files[0]!.rows.outsideCells).toBe(2);

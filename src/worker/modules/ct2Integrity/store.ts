@@ -25,6 +25,12 @@ export const TEXT_FIELDS = [
   'origin',
   'companyOrigin',
   'branchOrigin',
+  'costCenterDebit',
+  'costCenterCredit',
+  'itemDebit',
+  'itemCredit',
+  'valueClassDebit',
+  'valueClassCredit',
 ] as const;
 export type TextField = (typeof TEXT_FIELDS)[number];
 

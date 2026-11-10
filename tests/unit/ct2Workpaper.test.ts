@@ -6,7 +6,7 @@ import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { BASE_SHEET_ROWS, MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
 import { CT2_LABELS } from '../../src/worker/modules/ct2Integrity/workpaperLabels';
 import type { Language } from '../../src/worker/export/labels';
-import { ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
+import { CT2_COLUMNS, ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
 import { ENGINE_HOLIDAYS, ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 import { Workbook, type Value } from '../support/xlsxEval';
 
@@ -65,13 +65,26 @@ function rowOf(book: Workbook, sheet: string, text: string, from = 1): { r: numb
 }
 
 const yes = (L: { yes: string; no: string }, marked: boolean) => (marked ? L.yes : L.no);
+const LINE_CODES: Ct2TestCode[] = ['I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E3', 'E4', 'E5'];
+
+/** Every line test of the Base equal to the engine marks, the matrix OK and the board "Confere". */
+function expectTiedOut(r: Awaited<ReturnType<typeof build>>) {
+  const { book, analysis, L } = r;
+  for (const code of LINE_CODES) {
+    if (analysis.tests.find((t) => t.code === code)!.state !== 'on') continue;
+    const values = column(book, 'Base', `${code} Exceção?`);
+    values.forEach((v, pos) => expect(v, `${code} linha ${pos + 2}`).toBe(yes(L, hasMark(analysis.marks.line, pos, code))));
+  }
+  for (const level of ['Base', 'Documentos', 'Lotes', 'Dias', 'Ferramenta (motor)']) expect(rowOf(book, 'Resumo', level, 10).cells('G'), level).toBe('OK');
+  for (const t of analysis.tests.filter((x) => x.state === 'on')) expect(rowOf(book, 'Resumo', t.code, 10).cells('I'), t.code).toBe('Confere');
+}
 
 describe('CT2 workpaper: sheets and tie-out', async () => {
   const { ingested, analysis, out, book, L } = await build();
 
   it('has the sheets of section 7.3, the defined names of the parameters and a dated file name', () => {
     expect([...book.sheets.keys()]).toEqual(['Resumo', 'Criterios', 'Documentos', 'Lotes', 'Dias', 'Excecoes', 'Perfil', 'Base', 'Rastreabilidade']);
-    for (const n of ['P_DATA_INI', 'P_DATA_FIM', 'P_SALDO', 'P_MOEDA', 'P_MOEDA_LOCAL', 'P_TOL', 'P_LIMITE_LINHAS', 'P_TIPO_PD', 'P_TIPO_DEB', 'P_TIPO_CRED', 'P_TIPO_HIST', 'P_FERIADOS']) {
+    for (const n of ['P_DATA_INI', 'P_DATA_FIM', 'P_SALDO', 'P_MOEDA', 'P_MOEDA_LOCAL', 'P_TOL', 'P_LIMITE_LINHAS', 'P_TIPO_PD', 'P_TIPO_DEB', 'P_TIPO_CRED', 'P_TIPO_HIST', 'P_FERIADOS', 'P_COD_MANUAL', 'P_COD_AUTO']) {
       expect(book.names.has(n), n).toBe(true);
     }
     expect(out.fileName).toBe('CT2_Integridade_2026-09_a_2026-10_2026-10-29.xlsx');
@@ -119,10 +132,12 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
   });
 
   it('marks each line of the Base as the engine did, test by test', () => {
-    for (const code of ['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as Ct2TestCode[]) {
+    for (const code of LINE_CODES) {
       const values = column(book, 'Base', `${code} Exceção?`);
       values.forEach((v, pos) => expect(v, `${code} linha ${pos + 2}`).toBe(yes(L, hasMark(analysis.marks.line, pos, code))));
     }
+    // The entities are mapped fields of the Base.
+    for (const title of ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred']) expect(column(book, 'Base', title)).toHaveLength(analysis.marks.line.length);
     const exceptions = column(book, 'Base', 'Exceções na linha');
     const docs = column(book, 'Documentos', 'Linhas com exceção');
     expect(docs).toEqual(Array.from(analysis.documentExceptionLines));
@@ -144,6 +159,48 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
     expect(docs).toEqual(['000010', '000011', '000020', '000060', '000061', '000062']);
     const d10 = Array.from({ length: analysis.blocks.documents }, (_, d) => d).find((d) => documentRef(analysis, ingested, d).document === '000010')!;
     expect(book.value('Resumo', `A${head.r + 1}`)).toBe(d10 + 2);
+  });
+});
+
+describe('CT2 workpaper: the subtypes of I3 and I4 (Phase 14)', () => {
+  it('lists the manual and automatic codes of "Lcto Manual?" as defined names in Criterios', async () => {
+    const config = ct2DefaultConfig();
+    config.manualFlag = { manual: ['1', 'M'], automatic: ['2'] };
+    const { book } = await build({ config });
+    const cells = (name: string) => {
+      const [, a, b] = /!\$([A-Z]+\$\d+):\$([A-Z]+\$\d+)$/.exec(book.names.get(name)!)!;
+      const [ca, ra] = a!.split('$');
+      const rb = Number(b!.split('$')[1]);
+      return Array.from({ length: rb - Number(ra) + 1 }, (_, k) => book.value('Criterios', `${ca}${Number(ra) + k}`));
+    };
+    expect(cells('P_COD_MANUAL')).toEqual(['1', 'M']);
+    expect(cells('P_COD_AUTO')).toEqual(['2']);
+  });
+
+  it('ties out without any entity column: every same-account line is I3b', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const columns = CT2_COLUMNS.filter((t) => !entities.includes(t.trim()));
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns }] });
+    expectTiedOut(r);
+    expect(column(r.book, 'Base', 'I3b Exceção?').filter((v) => v === 'Sim')).toHaveLength(4);
+  });
+
+  it('ties out with only one side of an entity and without "Lcto Manual?" (I4b never, I4c the rest)', async () => {
+    const oneSide = CT2_COLUMNS.filter((t) => !['C Custo Crd', 'Lcto Manual?'].includes(t.trim()));
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns: oneSide }] });
+    expectTiedOut(r);
+    expect(column(r.book, 'Base', 'I4b Exceção?').every((v) => v === 'Não')).toBe(true);
+    expect(column(r.book, 'Base', 'I4c Exceção?').filter((v) => v === 'Sim')).toHaveLength(3);
+  });
+
+  it('ties out with the codes of "Lcto Manual?" of two files, one without the entities', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const other = [
+      ct2Line({ document: '000097', creditAccount: '11101001', amountCurrency1: 0, manual: '2' }),
+      ct2Line({ document: '000098', amountCurrency1: 0, manual: '1' }),
+    ];
+    const r = await build({ files: [{ rows: ENGINE_ROWS }, { rows: other, columns: CT2_COLUMNS.filter((t) => !entities.includes(t.trim())) }] });
+    expectTiedOut(r);
   });
 });
 

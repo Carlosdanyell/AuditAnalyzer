@@ -121,11 +121,12 @@ test('Integridade da CT2: painel por segmento, cada número abre a tabela com es
   await expect(page.getByText('6 linha(s)')).toBeVisible();
   await expect(page.getByText('B1 · Documento desbalanceado')).toBeVisible();
   await page.getByRole('button', { name: 'Remover filtro do painel' }).click();
-  await expect(page.getByText('26 linha(s)')).toBeVisible();
+  // Phase 14: 28 exceptions (two I3b and two I4c instead of one I3 and one I4).
+  await expect(page.getByText('28 linha(s)')).toBeVisible();
 
   // The Base shows the mapped columns and, on request, every column of the extraction.
   await page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Base' }).click();
-  await expect(page.getByText('1.038 linha(s)')).toBeVisible();
+  await expect(page.getByText('1.044 linha(s)')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(0);
   await page.getByLabel('Mostrar todas as colunas').check();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
@@ -157,7 +158,7 @@ test('configuração da CT2: aba própria, chave própria no computador e reproc
   await page.getByLabel('Ligar I5').uncheck();
   await page.getByRole('button', { name: 'Salvar configuração' }).click();
   await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
-  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 2, tests: { I5: { enabled: false } } });
+  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 3, tests: { I5: { enabled: false } } });
   await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
   await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
   await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });

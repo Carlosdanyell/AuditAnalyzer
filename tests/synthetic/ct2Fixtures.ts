@@ -2,7 +2,7 @@
  * Synthetic CT2 extractions for the reading tests (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-4 and 11), with the
  * expected numbers worked out by hand next to each case. No real data.
  */
-import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
+import { CT2_FIELDS, ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { CT2_COLUMNS, ct2Line, type Ct2ExtractionOptions, type Ct2Row } from './ct2Extraction';
 
 const NO_KEY = { date: null, batch: null, subBatch: null, document: null, line: null, balanceType: null, currency: null, entryType: null } as const;
@@ -36,7 +36,9 @@ export const FILE_B_COLUMNS = [
   'Filial',
   ...CT2_COLUMNS.slice(0, 20).reverse().map((t) => (t.trim() === 'Valor' ? 'CT2_VALOR' : t)),
   'Campo Exclusivo B',
-  ...CT2_COLUMNS.slice(21),
+  // The entities of Phase 14 (after the first 20 fields), then the other columns without "Filial".
+  ...CT2_COLUMNS.slice(20, CT2_FIELDS.length),
+  ...CT2_COLUMNS.slice(CT2_FIELDS.length + 1),
 ];
 
 /** File B, clean: document 10 with three balanced lines (double entry 200, debit 70, credit 70). */
@@ -51,11 +53,32 @@ export const fileB = (o: Partial<Ct2ExtractionOptions> = {}): Ct2ExtractionOptio
   ...o,
 });
 
+/** Fields added by version 3 (Phase 14): the entities of each side. */
+const V3_COLUMNS = ['costCenterDebit', 'costCenterCredit', 'itemDebit', 'itemCredit', 'valueClassDebit', 'valueClassCredit'];
+
+/** The default columns as versions 1 and 2 wrote them (the 20 fields of Phase 9, without the entities). */
+function columnsBeforeV3(): Record<string, unknown> {
+  const columns: Record<string, unknown> = { ...ct2DefaultConfig().columns };
+  for (const f of V3_COLUMNS) delete columns[f];
+  return columns;
+}
+
 /** The default configuration as version 1 wrote it (Phase 9: the reading only, without tests and parameters). */
 export function ct2ConfigV1(): Record<string, unknown> {
-  const c: Record<string, unknown> = { ...ct2DefaultConfig(), schemaVersion: 1 };
+  const c: Record<string, unknown> = { ...ct2DefaultConfig(), schemaVersion: 1, columns: columnsBeforeV3() };
   delete c.tests;
   delete c.parameters;
   delete c.manualFlag;
   return c;
+}
+
+/** The default configuration as version 2 wrote it (Phases 10-13): the 20 columns and the tests I3 and I4 whole. */
+export function ct2ConfigV2(): Record<string, unknown> {
+  const ordered: Record<string, unknown> = {};
+  for (const [code, t] of Object.entries(ct2DefaultConfig().tests)) {
+    if (code === 'I3a') ordered.I3 = { enabled: true, severity: 'warning' };
+    else if (code === 'I4a') ordered.I4 = { enabled: true, severity: 'warning' };
+    if (!/^I[34][abc]$/.test(code)) ordered[code] = { ...t };
+  }
+  return { ...ct2DefaultConfig(), schemaVersion: 2, columns: columnsBeforeV3(), tests: ordered };
 }

@@ -3,7 +3,7 @@
  * the configuration as marks by line, document, batch and day, the list of exceptions (Erro and Alerta), the profile
  * and the invariants CI-3, CI-5, CI-6, CI-9 and CI-10. Pure: the same Base and configuration give the same result.
  */
-import { CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, lastDayOfMonth } from '../../../shared/dates';
 import { CT2_TEST_INFO, type Ct2Level, type Ct2RunParameters, type Ct2TestResult } from '../../../shared/modules/ct2Integrity';
 import type { CheckResult } from '../../../shared/protocol';
@@ -44,11 +44,16 @@ export interface Ct2Analysis {
 
 /** Optional columns the tests depend on (section 2, CI-9). */
 export const TEST_COLUMNS: Partial<Record<Ct2TestCode, readonly Ct2Field[]>> = {
-  I4: ['amountCurrency1'],
+  I4a: ['amountCurrency1'],
+  I4b: ['amountCurrency1'],
+  I4c: ['amountCurrency1'],
   P1: ['routine', 'standardEntry'],
   P2: ['manual'],
   P3: ['ctkSequence'],
 };
+
+/** Tests of a line, in the order of CT2_TESTS. */
+export const LINE_TESTS = CT2_TESTS.filter((c) => CT2_TEST_INFO[c].level === 'line');
 
 /**
  * Parameters of the run (section 6.5): the defaults of the configuration and, as period, every month read (first day
@@ -90,8 +95,9 @@ export function analyzeCt2(
   const line = new Uint32Array(rows);
   const p = parameters;
   const { periodStart, periodEnd } = parameters;
-  const lineTests = { I1: on.I1, I2: on.I2, I3: on.I3, I4: on.I4, I5: on.I5, E1: on.E1, E3: on.E3, E4: on.E4, E5: on.E5 && periodStart !== null };
+  const lineTests = { ...on, E5: on.E5 && periodStart !== null };
   const t = store.text;
+  const manualCodes = new Set(config.manualFlag.manual);
   for (let pos = 0; pos < rows; pos++) {
     const i = order[pos]!;
     let m = 0;
@@ -107,10 +113,24 @@ export function analyzeCt2(
       if (bad) m |= BIT.I1;
     }
     if (lineTests.I2 && type !== 4 && !Number.isNaN(amount) && amount <= 0) m |= BIT.I2;
-    if (lineTests.I3 && type === 1 && debitAccount !== '' && debitAccount === creditAccount) m |= BIT.I3;
-    if (lineTests.I4) {
+    // I3a/I3b: the same account on a double entry; an entity column absent is empty on both sides.
+    if ((lineTests.I3a || lineTests.I3b) && type === 1 && debitAccount !== '' && debitAccount === creditAccount) {
+      const differs = CT2_ENTITY_PAIRS.some(([dr, cr]) => textOf(t[dr], i) !== textOf(t[cr], i));
+      if (differs && lineTests.I3a) m |= BIT.I3a;
+      if (!differs && lineTests.I3b) m |= BIT.I3b;
+    }
+    // I4a-I4c: lines in the local currency with a readable "Valor Moeda1" (empty or unreadable stay out).
+    if (lineTests.I4a || lineTests.I4b || lineTests.I4c) {
       const m1 = store.amountCurrency1.get(i);
-      if (!Number.isNaN(m1) && !Number.isNaN(amount) && amount !== m1 && textOf(t.currency, i) === p.localCurrency) m |= BIT.I4;
+      if (!Number.isNaN(m1) && !Number.isNaN(amount) && textOf(t.currency, i) === p.localCurrency) {
+        if (lineTests.I4a && m1 !== 0 && amount !== m1) m |= BIT.I4a;
+        if (m1 === 0 && amount !== 0 && type !== 4) {
+          // Without the "Lcto Manual?" column every line is not manual (decision of 10/11/2026), so it falls in I4c.
+          const manual = manualCodes.has(textOf(t.manual, i));
+          if (manual && lineTests.I4b) m |= BIT.I4b;
+          if (!manual && lineTests.I4c) m |= BIT.I4c;
+        }
+      }
     }
     if (lineTests.I5 && textOf(t.history, i) === '') m |= BIT.I5;
     if (lineTests.E1 && pos > 0 && firstDifference(keys, order[pos - 1]!, i) === keys.length) m |= BIT.E1;
@@ -128,7 +148,7 @@ export function analyzeCt2(
   const document = new Uint32Array(documents);
   const compensation = new Int32Array(documents).fill(-2);
   const documentExceptionLines = new Uint32Array(documents);
-  const lineExceptionBits = (['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as const).reduce((bits, c) => (isException(c) ? bits | BIT[c] : bits), 0);
+  const lineExceptionBits = LINE_TESTS.reduce((bits, c) => (isException(c) ? bits | BIT[c] : bits), 0);
   const diff = (d: number) => blocks.documentDebit[d]! - blocks.documentCredit[d]!;
   for (let d = 0; d < documents; d++) {
     const from = blocks.documentStart[d]!;

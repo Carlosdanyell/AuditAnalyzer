@@ -19,8 +19,10 @@ describe('header of the CT2 extraction', () => {
     expect(found.match.columns.amount).toBe(10);
     expect(found.match.columns.branchOrigin).toBe(19);
     expect(found.match.missingOptional).toEqual([]);
-    expect(found.match.unmapped.map((u) => u.title).slice(0, 2)).toEqual(['Filial', 'C Custo Deb']);
-    expect(found.match.unmapped).toHaveLength(60);
+    // Phase 14: the entities (C Custo Deb … Cl Vlr Cred) are mapped, so 54 other columns remain.
+    expect(found.match.columns.valueClassCredit).toBe(25);
+    expect(found.match.unmapped.map((u) => u.title).slice(0, 2)).toEqual(['Filial', 'Valor Moeda2']);
+    expect(found.match.unmapped).toHaveLength(54);
   });
 
   it('accepts aliases and mixed titles, and lists the optional columns missing', () => {
@@ -28,7 +30,9 @@ describe('header of the CT2 extraction', () => {
     const found = findHeaderRow(titleRows(header), config);
     expect(found.ok && found.match.columns.date).toBe(0);
     expect(found.ok && found.match.columns.ctkSequence).toBe(12);
-    expect(found.ok && found.match.missingOptional).toEqual(['amountCurrency1', 'routine', 'standardEntry', 'manual', 'origin', 'companyOrigin', 'branchOrigin']);
+    expect(found.ok && found.match.missingOptional).toEqual(['amountCurrency1', 'routine', 'standardEntry', 'manual', 'origin', 'companyOrigin', 'branchOrigin',
+      'costCenterDebit', 'costCenterCredit', 'itemDebit', 'itemCredit', 'valueClassDebit', 'valueClassCredit',
+    ]);
   });
 
   it('does not take similar titles for the expected ones (case and accents count)', () => {

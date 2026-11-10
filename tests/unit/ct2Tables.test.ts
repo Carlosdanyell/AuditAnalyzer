@@ -31,7 +31,8 @@ describe('CT2 tables', async () => {
       analysis.blocks.batches,
       analysis.blocks.days,
       analysis.exceptions.count,
-      1038,
+      // Phase 14: six lines more in the engine fixture (documents 51-56).
+      1044,
     ]);
     const page = tables.page('ct2Documents', {}, undefined, 0, 2);
     expect(page.columns.slice(0, 5).map((c) => c.header)).toEqual(['Segmento', 'Data', 'Lote', 'Sub-lote', 'Documento']);
@@ -48,9 +49,10 @@ describe('CT2 tables', async () => {
       return `${r[col('code')]} ${where}`;
     });
     // Erro first, then Alerta (the order of the Excecoes tab).
-    const errors = ENGINE_EXCEPTIONS.filter((e) => config.tests[e.slice(0, 2) as 'B1'].severity === 'error');
+    const codeOf = (e: string) => e.split(' ')[0] as 'B1';
+    const errors = ENGINE_EXCEPTIONS.filter((e) => config.tests[codeOf(e)].severity === 'error');
     expect(texts.length).toBe(ENGINE_EXCEPTIONS.length);
-    expect(texts.slice(0, errors.length).every((t) => config.tests[t.slice(0, 2) as 'B1'].severity === 'error')).toBe(true);
+    expect(texts.slice(0, errors.length).every((t) => config.tests[codeOf(t)].severity === 'error')).toBe(true);
   });
 
   it('opens each number of the board with exactly that many rows, in every segment, as the Resumo of the workpaper', async () => {
@@ -78,7 +80,7 @@ describe('CT2 tables', async () => {
   });
 
   it('searches without accents or case and sorts by a column, keeping the Base order on ties', () => {
-    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1038 - 1);
+    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1044 - 1);
     const sorted = tables.page('ct2Documents', {}, { column: 'lines', direction: 'desc' }, 0, 3);
     const lines = sorted.columns.findIndex((c) => c.id === 'lines');
     expect(sorted.rows.map((r) => r[lines])).toEqual([1000, 2, 2]);

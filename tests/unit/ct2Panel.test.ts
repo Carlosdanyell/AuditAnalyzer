@@ -24,20 +24,22 @@ describe('CT2 panel', async () => {
     expect(all.segments.map((s) => s.label)).toEqual(['Saldo 1 · Moeda 01', 'Saldo 1 · Moeda 02', 'Saldo 2 · Moeda 01']);
     expect(all.parameters).toEqual(analysis.parameters);
     expect(all.indicators.map((r) => [r.balanceType, r.currency, r.documents, r.lines])).toEqual([
-      ['1', '01', 27, 1035],
+      // Phase 14: documents 51-56 of the engine fixture, one line each.
+      ['1', '01', 33, 1041],
       ['1', '02', 2, 2],
       ['2', '01', 1, 1],
     ]);
-    expect(all.totals).toEqual({ days: 8, batches: all.indicators.reduce((n, r) => n + r.batches, 0), documents: 30, lines: 1038, unbalancedDocuments: 6 });
-    expect(all.exceptions).toEqual({ error: 19, warning: 7 });
+    expect(all.totals).toEqual({ days: 8, batches: all.indicators.reduce((n, r) => n + r.batches, 0), documents: 36, lines: 1044, unbalancedDocuments: 6 });
+    // Phase 14: I3 and I4 (two Alertas) became two I3b and two I4c (four Alertas); I4a is Info.
+    expect(all.exceptions).toEqual({ error: 19, warning: 9 });
   });
 
   it('ties out the levels (matrix) and gives the board of the engine, each test with its table', () => {
     expect(all.matrix.map((m) => [m.level, m.lines, m.ok])).toEqual([
-      ['base', 1038, true],
-      ['documents', 1038, true],
-      ['batches', 1038, true],
-      ['days', 1038, true],
+      ['base', 1044, true],
+      ['documents', 1044, true],
+      ['batches', 1044, true],
+      ['days', 1044, true],
     ]);
     for (const t of analysis.tests) expect(all.board.find((b) => b.code === t.code)!.occurrences, t.code).toBe(t.occurrences);
     const link = (code: string) => all.board.find((b) => b.code === code)!.link;
