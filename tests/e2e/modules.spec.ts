@@ -121,12 +121,13 @@ test('Integridade da CT2: painel por segmento, cada número abre a tabela com es
   await expect(page.getByText('6 linha(s)')).toBeVisible();
   await expect(page.getByText('B1 · Documento desbalanceado')).toBeVisible();
   await page.getByRole('button', { name: 'Remover filtro do painel' }).click();
-  // Phase 14: 28 exceptions (two I3b and two I4c instead of one I3 and one I4).
-  await expect(page.getByText('28 linha(s)')).toBeVisible();
+  // Phase 14: every finding, 28 exceptions, 2 to check against an approval document and 17 informative (without the
+  // holiday of the unit tests, E6 has only the Saturday).
+  await expect(page.getByText('47 linha(s)')).toBeVisible();
 
   // The Base shows the mapped columns and, on request, every column of the extraction.
   await page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Base' }).click();
-  await expect(page.getByText('1.044 linha(s)')).toBeVisible();
+  await expect(page.getByText('1.050 linha(s)')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(0);
   await page.getByLabel('Mostrar todas as colunas').check();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);

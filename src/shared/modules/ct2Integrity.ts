@@ -3,7 +3,7 @@
  * the invariants (section 8), the totals of the Base and the board of tests (section 6). They carry
  * `module: 'ct2Integrity'`; the CFGR700 payloads carry no mark, so their content does not change.
  */
-import type { Ct2Severity, Ct2TestCode } from '../../config/ct2IntegritySchema';
+import type { Ct2Field, Ct2Severity, Ct2TestCode } from '../../config/ct2IntegritySchema';
 import type { Alert, CheckResult, EntryIntegrity, Stage } from '../protocol';
 import type { Reconciliation, Summary } from './cfgr700';
 
@@ -59,6 +59,34 @@ export const CT2_TEST_INFO: Record<Ct2TestCode, Ct2TestInfo> = {
   P3: { level: 'document', label: 'Seq CTK repetido entre documentos ou mais de um no documento' },
   P4: { level: 'document', label: 'Documento no limite de linhas' },
 };
+
+/**
+ * Origin of a document block (document inside its balance type + currency; Phase 14, section 3.4), from the codes of
+ * "Lcto Manual?" of its lines: lines without a recognized code are ignored when another line has one.
+ */
+export type Ct2Origin = 'automatic' | 'manual' | 'mixed' | 'unidentified';
+export const CT2_ORIGINS: readonly Ct2Origin[] = ['automatic', 'manual', 'mixed', 'unidentified'];
+export const CT2_ORIGIN_LABEL: Record<Ct2Origin, string> = { automatic: 'Automático', manual: 'Manual', mixed: 'Misto', unidentified: 'Não identificado' };
+
+/** Origin of one line: its code of "Lcto Manual?" (configuration, `manualFlag`). */
+export type Ct2LineOrigin = 'manual' | 'automatic' | 'unidentified';
+export const CT2_LINE_ORIGIN_LABEL: Record<Ct2LineOrigin, string> = { manual: 'manual', automatic: 'automática', unidentified: 'não identificada' };
+
+/**
+ * Group of a finding (decision 1 of 10/11/2026): exception = Erro or Alerta; approval = an Info test presented as
+ * `review: 'approval'` (I4a); info = the other Info tests with a level. A test whose severity was raised is an exception.
+ */
+export type Ct2FindingGroup = 'exception' | 'approval' | 'info';
+export const CT2_FINDING_GROUPS: readonly Ct2FindingGroup[] = ['exception', 'approval', 'info'];
+export const CT2_FINDING_GROUP_LABEL: Record<Ct2FindingGroup, string> = { exception: 'Exceção', approval: 'Conferir com aprovação', info: 'Informativo' };
+
+/** Group of the findings of a test with this severity; null for the profile (P1, P2), which has no items. */
+export function findingGroup(code: Ct2TestCode, severity: Ct2Severity): Ct2FindingGroup | null {
+  const info = CT2_TEST_INFO[code];
+  if (info.level === 'profile') return null;
+  if (severity !== 'info') return 'exception';
+  return info.review === 'approval' ? 'approval' : 'info';
+}
 
 /** Parameters of one execution (section 6.5): the defaults of the configuration and the period of the dates read. */
 export interface Ct2RunParameters {
@@ -177,7 +205,23 @@ export interface Ct2Summary {
   firstDay: number | null;
   lastDay: number | null;
   /** The analysis (section 6); absent while only the reading ran. */
-  analysis?: { parameters: Ct2RunParameters; tests: Ct2TestResult[]; exceptions: number };
+  analysis?: Ct2SummaryAnalysis;
+}
+
+export interface Ct2SummaryAnalysis {
+  parameters: Ct2RunParameters;
+  tests: Ct2TestResult[];
+  /** Occurrences of Erro and Alerta. */
+  exceptions: number;
+  /** Lines whose entry type is not history continuation; entries + historyLines = lines (decision 2 of 10/11/2026). */
+  entries: number;
+  historyLines: number;
+  /** Document blocks by origin. */
+  origins: Record<Ct2Origin, number>;
+  /** Batch blocks with at least one Manual or Misto document. */
+  interventionBatches: number;
+  /** To check against an approval document: occurrences of the approval tests (I4a) and the Misto documents. */
+  approval: { occurrences: number; mixedDocuments: number };
 }
 
 export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation): r is Ct2Reconciliation {
@@ -193,15 +237,48 @@ export function isCt2Summary(s: Summary | Ct2Summary): s is Ct2Summary {
 /** Tables of the CT2 module, paged by the worker. */
 export type Ct2TableId = 'ct2Documents' | 'ct2Batches' | 'ct2Days' | 'ct2Exceptions' | 'ct2Base';
 
-/** Filter of a CT2 table: within a segment, the rows of a test (code in Exceções, mark elsewhere) and a search. */
-export interface Ct2TableFilter {
-  search?: string;
+/**
+ * Common filter of the Painel, Achados and Tabelas (Phase 14, section 4.1). A line passes when its block is in the
+ * segment, day and batch, its document's origin is one of `origins` and its own routine is `routine`; a document, batch
+ * or day passes when at least one of its lines passes.
+ */
+export interface Ct2Filter {
   /** Index of the segment (Ct2PanelData.segments); absent = every segment. */
   segment?: number;
+  /** Origin of the document, any of them; absent (or empty) = every origin. */
+  origins?: Ct2Origin[];
+  /** Exact text of the Rotina column ('' = empty). */
+  routine?: string;
+  batch?: { batch: string; subBatch: string };
+  /** Day number. */
+  day?: number;
+}
+
+/**
+ * Filter of a CT2 table: the common filter (each table ignores what does not apply to it: origins and routine on Lotes
+ * and Dias, batch on Dias), the rows of a test (code in Exceções, mark elsewhere) and a search.
+ */
+export interface Ct2TableFilter extends Ct2Filter {
+  search?: string;
   test?: Ct2TestCode;
+  /** Exceções: the findings of a group. */
+  group?: Ct2FindingGroup;
+  /** Lotes: only the batches with a Manual or Misto document. */
+  intervention?: boolean;
+  /** Base: the lines of this document block's key, in every segment. */
+  document?: number;
   /** Base: every column of the extraction (otherwise the mapped ones and the tests). */
   allColumns?: boolean;
 }
+
+/** Common filter applied by a table (Phase 14, section 4.1). */
+export const CT2_FILTER_APPLIES: Record<Ct2TableId, Record<'segment' | 'origins' | 'routine' | 'batch' | 'day', boolean>> = {
+  ct2Documents: { segment: true, origins: true, routine: true, batch: true, day: true },
+  ct2Batches: { segment: true, origins: false, routine: false, batch: true, day: true },
+  ct2Days: { segment: true, origins: false, routine: false, batch: false, day: true },
+  ct2Exceptions: { segment: true, origins: true, routine: true, batch: true, day: true },
+  ct2Base: { segment: true, origins: true, routine: true, batch: true, day: true },
+};
 
 export interface Ct2SegmentInfo {
   index: number;
@@ -254,18 +331,124 @@ export interface Ct2ProfileGroup {
   creditCents: number;
 }
 
+/** First occurrences of a test on the board (Achados). */
+export interface Ct2FindingSample {
+  /** Where: date, batch, document and line, by the level of the test. */
+  label: string;
+  reason: string;
+  /** Document block to open in the side panel; null for a batch or a day. */
+  document: number | null;
+}
+
 export interface Ct2PanelData {
   segment: number | null;
+  /** The common filter the numbers follow. */
+  filter: Ct2Filter;
   segments: Ct2SegmentInfo[];
   parameters: Ct2RunParameters;
   indicators: Ct2Indicator[];
   totals: { days: number; batches: number; documents: number; lines: number; unbalancedDocuments: number | null };
   exceptions: { error: number; warning: number };
   matrix: Ct2MatrixRow[];
-  /** The tests in force with their occurrences in the segment and the table that lists them. */
-  board: (Ct2TestResult & { link: Ct2TableId | null })[];
+  /**
+   * The tests in force with their occurrences under the filter (the rows of Exceções opened with the test and the same
+   * filter), the table that lists them, their group (null for the profile) and the first occurrences (up to 5).
+   */
+  board: (Ct2TestResult & { link: Ct2TableId | null; group: Ct2FindingGroup | null; sample: Ct2FindingSample[] })[];
   unbalanced: { total: number; rows: (Ct2DocumentRow & { differenceCents: number; compensation: string | null })[] };
   largest: { limit: number; atLimit: number; rows: (Ct2DocumentRow & { lines: number; atLimit: boolean })[] };
   profile: { routines: Ct2ProfileGroup[]; standardEntries: Ct2ProfileGroup[]; manual: (Omit<Ct2ProfileGroup, 'value'> & { origin: 'manual' | 'automatic' | 'unidentified' })[] };
 }
 
+
+// ── Overview and side panel of a document (Phase 14, sections 3.6, 4.3 and 4.6) ──
+
+export interface Ct2Overview {
+  segments: Ct2SegmentInfo[];
+  /** Counts may add segments up; values never do. */
+  counts: {
+    lines: number;
+    entries: number;
+    historyLines: number;
+    documents: number;
+    batches: number;
+    days: number;
+    /** Documents of each origin and their passing lines. */
+    origins: Record<Ct2Origin, { documents: number; lines: number }>;
+    interventionBatches: number;
+    /** Documents with B1; null when B1 is off. */
+    unbalancedDocuments: number | null;
+    exceptions: { error: number; warning: number };
+    approval: { occurrences: number; mixedDocuments: number };
+  };
+  /** By segment, never added: debit/credit of the passing lines and the debit of the manual and automatic LINES. */
+  values: { segment: number; debitCents: number; creditCents: number; manualDebitCents: number; automaticDebitCents: number }[];
+  /** Sorted by lines, descending, then by text. A document counts in each routine it has a line of. */
+  routines: { routine: string; lines: Record<Ct2Origin, number>; documents: Record<Ct2Origin, number>; debit: { segment: number; cents: Record<Ct2Origin, number> }[] }[];
+  /** One entry per date with passing lines, ascending; businessDay by the E6 rule (platform holidays). */
+  days: { day: number; businessDay: boolean; lines: number; documents: number; debit: { segment: number; cents: number }[] }[];
+  /** Batches with manual intervention, in Base order; `rows` capped (the screen says how many of `total` it shows). */
+  interventions: { total: number; rows: Ct2InterventionRow[] };
+}
+
+export interface Ct2InterventionRow {
+  /** Batch block (row of the Lotes table). */
+  index: number;
+  segment: number;
+  day: number;
+  batch: string;
+  subBatch: string;
+  manualDocuments: number;
+  mixedDocuments: number;
+  lines: number;
+  debitCents: number;
+  /** Document block, for the side panel. */
+  firstDocument: number;
+  /** History of the first line of the first document. */
+  history: string;
+}
+
+export interface Ct2DocumentDetail {
+  day: number;
+  batch: string;
+  subBatch: string;
+  document: string;
+  /** Distinct routines of its lines, by text. */
+  routines: string[];
+  /** The key in each segment it appears in. */
+  blocks: {
+    index: number;
+    segment: number;
+    origin: Ct2Origin;
+    lines: number;
+    debitCents: number;
+    creditCents: number;
+    /** B1; null when B1 is off. */
+    unbalanced: boolean | null;
+    /** B4: compensating neighbour or "Sem compensação"; null when not diagnosed. */
+    compensation: string | null;
+  }[];
+  /** Entity columns mapped in the extraction (only these are shown). */
+  entities: Ct2Field[];
+  /** Capped; `totalLines` says the real count. */
+  lines: Ct2DocumentLine[];
+  totalLines: number;
+}
+
+export interface Ct2DocumentLine {
+  /** Position in the Base. */
+  position: number;
+  segment: number;
+  line: string;
+  entryType: string;
+  debitAccount: string;
+  creditAccount: string;
+  entities: Partial<Record<Ct2Field, string>>;
+  amountCents: number | null;
+  amountCurrency1Cents: number | null;
+  origin: Ct2LineOrigin;
+  manualCode: string;
+  routine: string;
+  history: string;
+  findings: { code: Ct2TestCode; group: Ct2FindingGroup; reason: string }[];
+}

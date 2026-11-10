@@ -4,11 +4,21 @@
  * counts (or by the code, in Exceções), so it has exactly that number of rows. Rows are indexes in typed arrays; the
  * results are cached per (table, filter, sort).
  */
-import { CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME } from '../../../shared/dates';
-import { CT2_TEST_INFO, type Ct2Level, type Ct2TableFilter, type Ct2TableId } from '../../../shared/modules/ct2Integrity';
+import {
+  CT2_FINDING_GROUP_LABEL,
+  CT2_ORIGIN_LABEL,
+  CT2_TEST_INFO,
+  type Ct2Filter,
+  type Ct2Level,
+  type Ct2TableFilter,
+  type Ct2TableId,
+} from '../../../shared/modules/ct2Integrity';
 import type { Cell, ColumnSpec, Sort } from '../../../shared/protocol';
-import { compensationText, type Ct2Analysis } from './analysis';
+import { compensationText, documentOriginOf, type Ct2Analysis } from './analysis';
+import { applicableFilter, filterIndex, filterKey, itemPasses, sameKeyDocuments, selectCt2, type Ct2FilterIndex, type Ct2Selection } from './filter';
+import { findingAt, findingReason, itemPosition } from './findings';
 import type { Ct2Ingested } from './ingest';
 import { BIT, marksOf } from './marks';
 import { textOf } from './profile';
@@ -19,9 +29,12 @@ interface TableDef {
   rows: number;
   columns(filter: Ct2TableFilter): ColumnSpec[];
   cell(k: number, column: string): Cell;
-  segment(k: number): number;
+  /** Rows that pass the common filter (the part of it the table applies). */
+  passes(k: number, selection: Ct2Selection): boolean;
   /** Rows of a test: its mark (or its code, in Exceções). */
   has(k: number, code: Ct2TestCode): boolean;
+  /** The filters of this table only (group in Exceções, intervention in Lotes). */
+  only?(k: number, filter: Ct2TableFilter): boolean;
   /** Columns searched (text). */
   searched: string[];
 }
@@ -40,6 +53,15 @@ const TEST_HEADER: Partial<Record<Ct2TestCode, string>> = {
   P4: 'P4 Atingiu limite de linhas?',
 };
 const testHeader = (code: Ct2TestCode) => TEST_HEADER[code] ?? `${code} Exceção?`;
+/** Headers of the entity columns in Exceções (Phase 14, section 4.5). */
+const ENTITY_HEADER: Record<(typeof CT2_ENTITY_PAIRS)[number][number], string> = {
+  costCenterDebit: 'CC D',
+  costCenterCredit: 'CC C',
+  itemDebit: 'Item D',
+  itemCredit: 'Item C',
+  valueClassDebit: 'Classe D',
+  valueClassCredit: 'Classe C',
+};
 
 const col = (id: string, header: string, type: ColumnSpec['type'], width: number): ColumnSpec => ({ id, header, type, width });
 const normalize = (s: string) =>
@@ -55,23 +77,23 @@ const MAIN_FIELDS: readonly Ct2Field[] = CT2_FIELDS;
 export class Ct2Tables {
   private readonly defs: Record<Ct2TableId, TableDef>;
   private readonly cache = new Map<string, Uint32Array>();
+  private readonly selections = new Map<string, Ct2Selection>();
   private readonly map: Ct2SegmentMap;
+  private readonly index: Ct2FilterIndex;
   private readonly on: (code: Ct2TestCode) => boolean;
-  /** Exceptions in the order of the workpaper: Erro, then Alerta. */
-  private readonly exceptionOrder: Uint32Array;
+  private readonly present: Set<Ct2Field>;
 
   constructor(
     private readonly base: Ct2Ingested,
     private readonly a: Ct2Analysis,
+    map?: Ct2SegmentMap,
+    index?: Ct2FilterIndex,
   ) {
-    this.map = segmentMap(base, a.blocks);
+    this.map = map ?? segmentMap(base, a.blocks);
+    this.index = index ?? filterIndex(base, this.map);
     const states = new Map(a.tests.map((t) => [t.code, t]));
     this.on = (code) => states.get(code)!.state === 'on';
-    const order: number[] = [];
-    for (const severity of ['error', 'warning'] as const) {
-      for (let k = 0; k < a.exceptions.count; k++) if (states.get(CT2_TESTS[a.exceptions.test.get(k)]!)!.severity === severity) order.push(k);
-    }
-    this.exceptionOrder = Uint32Array.from(order);
+    this.present = new Set(base.reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));
     this.defs = {
       ct2Documents: this.documents(),
       ct2Batches: this.batches(),
@@ -91,8 +113,26 @@ export class Ct2Tables {
     return { columns, rows: out, total: rows.length };
   }
 
+  /** The selection of a common filter, kept for the last few filters. */
+  private selection(filter: Ct2Filter): Ct2Selection {
+    const key = filterKey(filter);
+    let s = this.selections.get(key);
+    if (!s) {
+      s = selectCt2(this.index, this.a, this.base, filter);
+      this.selections.set(key, s);
+      if (this.selections.size > 4) this.selections.delete(this.selections.keys().next().value!);
+    }
+    return s;
+  }
+
   private rows(table: Ct2TableId, def: TableDef, filter: Ct2TableFilter, sort: Sort | undefined): Uint32Array {
-    const key = JSON.stringify([table, filter.segment ?? null, filter.test ?? null, filter.search?.trim() || null, sort ?? null]);
+    const common = applicableFilter(table, filter);
+    const own = {
+      group: table === 'ct2Exceptions' ? (filter.group ?? null) : null,
+      intervention: table === 'ct2Batches' ? filter.intervention === true : false,
+      document: table === 'ct2Base' ? (filter.document ?? null) : null,
+    };
+    const key = JSON.stringify([table, filterKey(common), own, filter.test ?? null, filter.search?.trim() || null, sort ?? null]);
     const cached = this.cache.get(key);
     if (cached) {
       this.cache.delete(key);
@@ -101,12 +141,19 @@ export class Ct2Tables {
     }
     const kept: number[] = [];
     const needle = filter.search?.trim() ? normalize(filter.search.trim()) : null;
-    for (let k = 0; k < def.rows; k++) {
-      if (filter.segment !== undefined && def.segment(k) !== filter.segment) continue;
-      if (filter.test && !def.has(k, filter.test)) continue;
-      if (needle && !def.searched.some((c) => normalize(String(def.cell(k, c) ?? '')).includes(needle))) continue;
+    const selection = Object.keys(common).length > 0 ? this.selection(common) : null;
+    const keep = (k: number) => {
+      if (selection && !def.passes(k, selection)) return;
+      if (filter.test && !def.has(k, filter.test)) return;
+      if (def.only && !def.only(k, filter)) return;
+      if (needle && !def.searched.some((c) => normalize(String(def.cell(k, c) ?? '')).includes(needle))) return;
       kept.push(k);
-    }
+    };
+    if (own.document !== null) {
+      // Base of one document: its key in every segment, in the order of the Base.
+      const b = this.a.blocks;
+      for (const d of sameKeyDocuments(this.base, this.a, own.document)) for (let p = b.documentStart[d]!; p < b.documentStart[d + 1]!; p++) keep(p);
+    } else for (let k = 0; k < def.rows; k++) keep(k);
     let rows = Uint32Array.from(kept);
     if (sort) {
       const values = Array.from(rows, (k) => def.cell(k, sort.column));
@@ -158,6 +205,7 @@ export class Ct2Tables {
       col('debit', 'Débito', 'money', 120),
       col('credit', 'Crédito', 'money', 120),
       col('difference', 'Diferença', 'money', 110),
+      col('origin', 'Origem do documento', 'text', 130),
       ...this.testColumns('document', ['P3', 'P4']),
       col('linesWithException', 'Linhas com exceção', 'int', 90),
       col('routine', 'Rotina (1ª linha)', 'text', 100),
@@ -167,7 +215,7 @@ export class Ct2Tables {
     return {
       rows: b.documents,
       columns: () => columns,
-      segment: (d) => map.ofDocument[d]!,
+      passes: (d, s) => s.document[d] === 1,
       has: (d, code) => (a.marks.document[d]! & BIT[code]) !== 0,
       searched: ['document', 'batch', 'routine', 'history'],
       cell: (d, c) => {
@@ -189,6 +237,8 @@ export class Ct2Tables {
             return b.documentCredit[d]!;
           case 'difference':
             return b.documentDebit[d]! - b.documentCredit[d]!;
+          case 'origin':
+            return CT2_ORIGIN_LABEL[documentOriginOf(a, d)];
           case 't:B4':
             return compensationText(a, base, d) ?? '';
           case 't:E2':
@@ -215,6 +265,8 @@ export class Ct2Tables {
       col('batch', 'Lote', 'text', 80),
       col('subBatch', 'Sub-lote', 'text', 70),
       col('documents', 'Documentos', 'int', 90),
+      col('manualDocuments', 'Documentos manuais', 'int', 90),
+      col('mixedDocuments', 'Documentos mistos', 'int', 90),
       col('lines', 'Linhas', 'int', 70),
       col('debit', 'Débito', 'money', 120),
       col('credit', 'Crédito', 'money', 120),
@@ -226,8 +278,10 @@ export class Ct2Tables {
     return {
       rows: b.batches,
       columns: () => columns,
-      segment: (k) => map.ofBatch[k]!,
+      passes: (k, s) => s.batch[k] === 1,
       has: (k, code) => (a.marks.batch[k]! & BIT[code]) !== 0,
+      // A batch with manual intervention: at least one Manual or Misto document (section 3.4).
+      only: (k, filter) => !filter.intervention || a.batchManualDocuments[k]! + a.batchMixedDocuments[k]! > 0,
       searched: ['batch'],
       cell: (k, c) => {
         const i = first(k);
@@ -241,6 +295,10 @@ export class Ct2Tables {
             return this.text(c, i);
           case 'documents':
             return b.batchStart[k + 1]! - b.batchStart[k]!;
+          case 'manualDocuments':
+            return a.batchManualDocuments[k]!;
+          case 'mixedDocuments':
+            return a.batchMixedDocuments[k]!;
           case 'lines':
             return b.documentStart[b.batchStart[k + 1]!]! - b.documentStart[b.batchStart[k]!]!;
           case 'debit':
@@ -275,7 +333,7 @@ export class Ct2Tables {
     return {
       rows: b.days,
       columns: () => columns,
-      segment: (k) => map.ofDay[k]!,
+      passes: (k, s) => s.day[k] === 1,
       has: (k, code) => (a.marks.day[k]! & BIT[code]) !== 0,
       searched: [],
       cell: (k, c) => {
@@ -305,9 +363,15 @@ export class Ct2Tables {
     };
   }
 
+  /**
+   * The findings (decision 1 of 10/11/2026): Exceção (Erro, then Alerta, the order of the Excecoes tab), Conferir com
+   * aprovação and Informativo, with the context of the line (Phase 14, section 4.5); empty for a batch, a day or a document.
+   */
   private exceptions(): TableDef {
-    const { a, base, map } = this;
+    const { a, base, map, present } = this;
     const b = a.blocks;
+    const entities = CT2_ENTITY_PAIRS.flat().filter((f) => present.has(f));
+    const optional = (field: Ct2Field, spec: ColumnSpec) => (present.has(field) ? [spec] : []);
     const columns = [
       col('code', 'Código', 'text', 60),
       col('test', 'Teste', 'text', 260),
@@ -321,25 +385,36 @@ export class Ct2Tables {
       col('line', 'Linha', 'text', 60),
       col('file', 'Arquivo', 'text', 140),
       col('sourceRow', 'Linha na origem', 'int', 90),
+      col('debitAccount', 'Conta D', 'text', 100),
+      col('creditAccount', 'Conta C', 'text', 100),
+      ...entities.map((f) => col(f, ENTITY_HEADER[f], 'text', 90)),
       col('value', 'Valor', 'money', 120),
+      ...optional('amountCurrency1', col('amountCurrency1', 'Valor Moeda1', 'money', 120)),
+      col('history', 'Histórico', 'text', 260),
+      ...optional('routine', col('routine', 'Rotina', 'text', 100)),
+      ...optional('manual', col('manual', 'Lcto Manual?', 'text', 90)),
+      col('reason', 'Motivo', 'text', 320),
+      col('group', 'Grupo', 'text', 150),
     ];
     const severity = new Map(a.tests.map((t) => [t.code, t.severity]));
     const item = (n: number) => {
-      const e = this.exceptionOrder[n]!;
-      const code = CT2_TESTS[a.exceptions.test.get(e)]!;
-      const k = a.exceptions.item.get(e);
-      const level = CT2_TEST_INFO[code].level as Exclude<Ct2Level, 'profile'>;
-      const position = level === 'line' ? k : level === 'document' ? b.documentStart[k]! : level === 'batch' ? b.documentStart[b.batchStart[k]!]! : b.documentStart[b.batchStart[b.dayStart[k]!]!]!;
-      return { code, k, level, position, i: base.order[position]! };
+      const f = findingAt(a, n);
+      const position = itemPosition(b, f.level, f.item);
+      return { ...f, k: f.item, position, i: base.order[position]! };
     };
+    const lineText = (field: Ct2Field, level: Ct2Level, i: number) => (level === 'line' ? this.text(field, i) : null);
     return {
-      rows: this.exceptionOrder.length,
+      rows: a.findings.count,
       columns: () => columns,
-      segment: (n) => map.ofPosition[item(n).position]!,
-      has: (n, code) => item(n).code === code,
-      searched: ['code', 'test', 'batch', 'document'],
+      passes: (n, s) => {
+        const f = findingAt(a, n);
+        return itemPasses(s, f.level, f.item);
+      },
+      has: (n, code) => CT2_TESTS[a.findings.test.get(n)] === code,
+      only: (n, filter) => !filter.group || findingAt(a, n).group === filter.group,
+      searched: ['code', 'test', 'batch', 'document', 'history', 'routine'],
       cell: (n, c) => {
-        const { code, k, level, position, i } = item(n);
+        const { code, k, level, position, i, group } = item(n);
         switch (c) {
           case 'code':
             return code;
@@ -349,6 +424,8 @@ export class Ct2Tables {
             return LEVELS[level];
           case 'severity':
             return SEVERITY[severity.get(code)!];
+          case 'group':
+            return CT2_FINDING_GROUP_LABEL[group];
           case 'segment':
             return map.segments[map.ofPosition[position]!]!.label;
           case 'date':
@@ -364,20 +441,31 @@ export class Ct2Tables {
             return level === 'line' ? base.reconciliation.files[base.store.source.get(i)]!.name : null;
           case 'sourceRow':
             return level === 'line' ? base.store.sourceRow.get(i) : null;
+          case 'debitAccount':
+          case 'creditAccount':
+          case 'history':
+          case 'routine':
+          case 'manual':
+            return lineText(c, level, i);
+          case 'amountCurrency1': {
+            const v = level === 'line' ? base.store.amountCurrency1.get(i) : NaN;
+            return Number.isNaN(v) ? null : v;
+          }
+          case 'reason':
+            return findingReason(base, a, code, k);
           case 'value': {
             const v = level === 'line' ? base.store.amount.get(i) : level === 'document' ? b.documentDebit[k]! - b.documentCredit[k]! : level === 'batch' ? b.batchDebit[k]! - b.batchCredit[k]! : b.dayDebit[k]! - b.dayCredit[k]!;
             return Number.isNaN(v) ? null : v;
           }
           default:
-            return null;
+            return (entities as string[]).includes(c) ? lineText(c as Ct2Field, level, i) : null;
         }
       },
     };
   }
 
   private lines(): TableDef {
-    const { a, base, map } = this;
-    const present = new Set(base.reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));
+    const { a, base, map, present } = this;
     const titleOf = (field: Ct2Field) => {
       for (const f of base.reconciliation.files) {
         const m = f.header.mapped.find((x) => x.field === field);
@@ -403,7 +491,7 @@ export class Ct2Tables {
     return {
       rows: base.order.length,
       columns: (filter) => (filter.allColumns ? all : main),
-      segment: (p) => map.ofPosition[p]!,
+      passes: (p, s) => s.line[p] === 1,
       has: (p, code) => (lineMarks[p]! & BIT[code]) !== 0,
       searched: ['f:document', 'f:batch', 'f:debitAccount', 'f:creditAccount', 'f:history', 'f:routine'].filter((c) => c === 'f:document' || present.has(c.slice(2) as Ct2Field)),
       cell: (p, c) => {

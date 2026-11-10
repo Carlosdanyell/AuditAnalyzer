@@ -24,6 +24,11 @@ describe('key figures of the CT2 integrity', () => {
       parameters: { periodStart: null, periodEnd: null, expectedBalanceType: '1', expectedCurrency: '01', localCurrency: '01', toleranceCents: 0, documentLineLimit: 999 },
       tests,
       exceptions: 19,
+      entries: 1030,
+      historyLines: 8,
+      origins: { automatic: 10, manual: 18, mixed: 1, unidentified: 1 },
+      interventionBatches: 3,
+      approval: { occurrences: 2, mixedDocuments: 1 },
     },
   });
 

@@ -51,7 +51,7 @@ export function Ct2PanelView({ client, segment, onSegmentChange, onOpenTable, on
   useEffect(() => {
     let current = true;
     client
-      .query({ type: 'segmentPanel', segment })
+      .query({ type: 'segmentPanel', filter: segment === null ? {} : { segment } })
       .then((answer) => current && (setData(answer.data), setError(null)))
       .catch((e: Error) => current && setError(e.message));
     return () => {

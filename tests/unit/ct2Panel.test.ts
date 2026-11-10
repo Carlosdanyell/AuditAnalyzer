@@ -17,29 +17,29 @@ async function engine() {
 
 describe('CT2 panel', async () => {
   const { base, analysis } = await engine();
-  const all = ct2Panel(base, analysis, null);
+  const all = ct2Panel(base, analysis, {});
 
   it('lists the segments for the selector and shows every segment by default', () => {
     expect(all.segment).toBeNull();
     expect(all.segments.map((s) => s.label)).toEqual(['Saldo 1 · Moeda 01', 'Saldo 1 · Moeda 02', 'Saldo 2 · Moeda 01']);
     expect(all.parameters).toEqual(analysis.parameters);
     expect(all.indicators.map((r) => [r.balanceType, r.currency, r.documents, r.lines])).toEqual([
-      // Phase 14: documents 51-56 of the engine fixture, one line each.
-      ['1', '01', 33, 1041],
+      // Phase 14: documents 51-56 of the engine fixture, one line each, and 70-73 (origins), six lines.
+      ['1', '01', 37, 1047],
       ['1', '02', 2, 2],
       ['2', '01', 1, 1],
     ]);
-    expect(all.totals).toEqual({ days: 8, batches: all.indicators.reduce((n, r) => n + r.batches, 0), documents: 36, lines: 1044, unbalancedDocuments: 6 });
+    expect(all.totals).toEqual({ days: 9, batches: all.indicators.reduce((n, r) => n + r.batches, 0), documents: 40, lines: 1050, unbalancedDocuments: 6 });
     // Phase 14: I3 and I4 (two Alertas) became two I3b and two I4c (four Alertas); I4a is Info.
     expect(all.exceptions).toEqual({ error: 19, warning: 9 });
   });
 
   it('ties out the levels (matrix) and gives the board of the engine, each test with its table', () => {
     expect(all.matrix.map((m) => [m.level, m.lines, m.ok])).toEqual([
-      ['base', 1044, true],
-      ['documents', 1044, true],
-      ['batches', 1044, true],
-      ['days', 1044, true],
+      ['base', 1050, true],
+      ['documents', 1050, true],
+      ['batches', 1050, true],
+      ['days', 1050, true],
     ]);
     for (const t of analysis.tests) expect(all.board.find((b) => b.code === t.code)!.occurrences, t.code).toBe(t.occurrences);
     const link = (code: string) => all.board.find((b) => b.code === code)!.link;
@@ -63,7 +63,7 @@ describe('CT2 panel', async () => {
   });
 
   it('cuts every number by the segment chosen', () => {
-    const s = ct2Panel(base, analysis, 1);
+    const s = ct2Panel(base, analysis, { segment: 1 });
     expect(s.segment).toBe(1);
     expect(s.indicators.map((r) => r.currency)).toEqual(['02']);
     expect(s.totals).toMatchObject({ documents: 2, lines: 2 });
@@ -72,6 +72,6 @@ describe('CT2 panel', async () => {
     expect(s.unbalanced.total).toBe(0);
     expect(s.profile.routines.map((g) => g.currency)).toEqual(['02']);
     expect(s.matrix.every((m) => m.ok && m.lines === 2)).toBe(true);
-    expect(() => ct2Panel(base, analysis, 9)).toThrow(/Segmento 9/);
+    expect(() => ct2Panel(base, analysis, { segment: 9 })).toThrow(/Segmento 9/);
   });
 });

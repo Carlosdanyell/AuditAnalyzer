@@ -84,18 +84,51 @@ describe('CT2: reapplying the tests with other parameters', () => {
 
   it('answers the panel by segment and the pages of the tables, following the parameters in force', async () => {
     const { handle, events, parameters } = await session();
-    await handle({ type: 'segmentPanel', requestId: 8, segment: null });
+    await handle({ type: 'segmentPanel', requestId: 8, filter: {} });
     await handle({ type: 'page', requestId: 9, scope: 0, table: 'ct2Documents', filter: { test: 'B1' }, offset: 0, limit: 50 });
     await handle({ type: 'analyze', requestId: 10, parameters: { ...parameters, toleranceCents: 1000 } });
-    await handle({ type: 'segmentPanel', requestId: 11, segment: 0 });
+    await handle({ type: 'segmentPanel', requestId: 11, filter: { segment: 0 } });
     await handle({ type: 'page', requestId: 12, scope: 0, table: 'ct2Documents', filter: { test: 'B1' }, offset: 0, limit: 50 });
     const panels = events.filter((e) => e.type === 'segmentPanel');
     const pages = events.filter((e) => e.type === 'page');
     const b1 = (e: (typeof panels)[number]) => (e.type === 'segmentPanel' ? e.data.board.find((t) => t.code === 'B1')!.occurrences : -1);
     expect(panels.map(b1)).toEqual([6, 2]);
     expect(pages.map((e) => (e.type === 'page' ? e.total : -1))).toEqual([6, 2]);
-    await handle({ type: 'segmentPanel', requestId: 13, segment: 7 });
+    await handle({ type: 'segmentPanel', requestId: 13, filter: { segment: 7 } });
     expect(events.at(-1)).toMatchObject({ type: 'error', requestId: 13 });
   });
-});
 
+  it('answers the overview and the side panel of a document (Phase 14), and the summary carries the composition', async () => {
+    const events: WorkerEvent[] = [];
+    const handle = createCommandHandler((e) => events.push(e), { now: () => 0 });
+    const file = new File([buildCt2Extraction({ rows: ENGINE_ROWS }) as Uint8Array<ArrayBuffer>], 'sintetico.xlsx');
+    await handle({ type: 'ingest', module: 'ct2Integrity', files: [file], config: ct2DefaultConfig(), platform: { schemaVersion: 1, holidays: ENGINE_HOLIDAYS } });
+    const ready = events.find((e) => e.type === 'ready');
+    const summary = ready?.type === 'ready' && isCt2Summary(ready.summary) ? ready.summary : null;
+    expect(summary!.analysis).toMatchObject({ entries: 1048, historyLines: 2, origins: { mixed: 1 }, approval: { occurrences: 2, mixedDocuments: 1 } });
+    events.length = 0;
+    await handle({ type: 'overview', requestId: 20, filter: { origins: ['mixed'] } });
+    await handle({ type: 'document', requestId: 21, index: 0 });
+    await handle({ type: 'overview', requestId: 22, filter: { segment: 9 } });
+    await handle({ type: 'document', requestId: 23, index: -1 });
+    const [overview, document, badSegment, badDocument] = events;
+    expect(overview).toMatchObject({ type: 'overview', requestId: 20, data: { counts: { lines: 2, documents: 1 } } });
+    expect(document).toMatchObject({ type: 'document', requestId: 21, data: { day: parseDate('07/09/2026'), document: '000046' } });
+    expect(badSegment).toMatchObject({ type: 'error', requestId: 22 });
+    expect(badDocument).toMatchObject({ type: 'error', requestId: 23 });
+  });
+
+  it('does not offer the overview nor the document in the CFGR700', async () => {
+    const events: WorkerEvent[] = [];
+    const handle = createCommandHandler((e) => events.push(e), { now: () => 0 });
+    await handle({ type: 'overview', requestId: 30, filter: {} });
+    await handle({ type: 'ingest', files: [new File([buildCfgr700(cfgr700FileA()) as Uint8Array<ArrayBuffer>], 'a.xlsx')], config: defaultConfig() });
+    events.length = 0;
+    await handle({ type: 'overview', requestId: 31, filter: {} });
+    await handle({ type: 'document', requestId: 32, index: 0 });
+    expect(events).toEqual([
+      { type: 'error', stage: 'panel', message: 'Recurso não disponível nesta análise.', requestId: 31 },
+      { type: 'error', stage: 'page', message: 'Recurso não disponível nesta análise.', requestId: 32 },
+    ]);
+  });
+});

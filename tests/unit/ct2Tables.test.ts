@@ -30,9 +30,10 @@ describe('CT2 tables', async () => {
       analysis.blocks.documents,
       analysis.blocks.batches,
       analysis.blocks.days,
-      analysis.exceptions.count,
-      // Phase 14: six lines more in the engine fixture (documents 51-56).
-      1044,
+      // Phase 14: Exceções lists every finding (the three groups).
+      analysis.findings.count,
+      // Phase 14: six lines more in the engine fixture (documents 51-56) and six of the origins (70-73).
+      1050,
     ]);
     const page = tables.page('ct2Documents', {}, undefined, 0, 2);
     expect(page.columns.slice(0, 5).map((c) => c.header)).toEqual(['Segmento', 'Data', 'Lote', 'Sub-lote', 'Documento']);
@@ -41,7 +42,7 @@ describe('CT2 tables', async () => {
   });
 
   it('lists the exceptions in the order of the workpaper, with their key', () => {
-    const page = tables.page('ct2Exceptions', {}, undefined, 0, 200);
+    const page = tables.page('ct2Exceptions', { group: 'exception' }, undefined, 0, 200);
     const col = (id: string) => page.columns.findIndex((c) => c.id === id);
     const texts = page.rows.map((r) => {
       const level = r[col('level')];
@@ -62,7 +63,7 @@ describe('CT2 tables', async () => {
     );
     const book = await Workbook.read(out.blob);
     for (const segment of [null, 0, 1, 2]) {
-      const panel = ct2Panel(base, analysis, segment);
+      const panel = ct2Panel(base, analysis, segment === null ? {} : { segment });
       for (const t of panel.board) {
         if (!t.link) continue;
         const filter = { test: t.code, ...(segment !== null && { segment }) };
@@ -80,7 +81,7 @@ describe('CT2 tables', async () => {
   });
 
   it('searches without accents or case and sorts by a column, keeping the Base order on ties', () => {
-    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1044 - 1);
+    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1050 - 1);
     const sorted = tables.page('ct2Documents', {}, { column: 'lines', direction: 'desc' }, 0, 3);
     const lines = sorted.columns.findIndex((c) => c.id === 'lines');
     expect(sorted.rows.map((r) => r[lines])).toEqual([1000, 2, 2]);

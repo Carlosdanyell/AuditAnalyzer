@@ -66,9 +66,9 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
   it('aggregates documents, batches, days and segments as blocks of the Base, in cents', () => {
     const b = analysis.blocks;
     expect(b.segments).toBe(3);
-    // 1/01: 33 documents (27 + the six of Phase 14, 51-56); 1/02: 43 and 50; 2/01: 42.
-    expect(b.documents).toBe(36);
-    expect(b.days).toBe(8);
+    // 1/01: 37 documents (27 + the six of Phase 14, 51-56, and the four of the origins, 70-73); 1/02: 43 and 50; 2/01: 42.
+    expect(b.documents).toBe(40);
+    expect(b.days).toBe(9);
     const d10 = Array.from({ length: b.documents }, (_, d) => d).find((d) => documentRef(analysis, base, d).document === '000010')!;
     expect(b.documentStart[d10 + 1]! - b.documentStart[d10]!).toBe(1000);
     expect(b.documentDebit[d10]).toBe(99_900 + 5_000);
@@ -127,10 +127,11 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
     expect(counts).toEqual({
       B1: 6, B2: 2, B3: 2, B4: 6, B5: 1,
       // Phase 14: I3 (1) became I3b, joined by document 53; I4 (1) became I4a; I3a, I4b and I4c are new cases.
-      I1: 6, I2: 2, I3a: 2, I3b: 2, I4a: 1, I4b: 1, I4c: 2, I5: 1,
+      // Document 70 (origins): one more I4a and one more I4b.
+      I1: 6, I2: 2, I3a: 2, I3b: 2, I4a: 2, I4b: 2, I4c: 2, I5: 1,
       E1: 1, E2: 2, E3: 1, E4: 2, E5: 0, E6: 2,
-      // P1: groups of segment + routine (1/01 CTBA102 and CTBA500, 1/02 and 2/01 CTBA102) and of standard entry (4).
-      P1: 8, P2: 5, P3: 3, P4: 1,
+      // P1: groups of segment + routine (1/01 CTBA102, CTBA500 and CTBANFE, 1/02 and 2/01 CTBA102) and of standard entry (4).
+      P1: 9, P2: 5, P3: 3, P4: 1,
     });
     expect(analysis.tests.every((t) => t.state === 'on')).toBe(true);
     expect(analysis.exceptions.count).toBe(ENGINE_EXCEPTIONS.length);
@@ -140,19 +141,21 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
   it('profiles the Base by routine, standard entry and origin, never adding segments (P1, P2)', () => {
     const p = analysis.profile;
     const routine = p.routines.map((g) => `${g.balanceType}/${g.currency} ${g.value} ${g.lines}`);
-    // Phase 14: six lines more in 1/01 (documents 51-56), routine CTBA102 and no standard entry.
-    expect(routine).toEqual(['1/01 CTBA102 1040', '1/01 CTBA500 1', '1/02 CTBA102 2', '2/01 CTBA102 1']);
+    // Phase 14: six lines more in 1/01 (documents 51-56), routine CTBA102 and no standard entry; documents 70-73 (two
+    // lines CTBA102, four CTBANFE).
+    expect(routine).toEqual(['1/01 CTBA102 1042', '1/01 CTBA500 1', '1/01 CTBANFE 4', '1/02 CTBA102 2', '2/01 CTBA102 1']);
     expect(p.standardEntries.map((g) => `${g.balanceType}/${g.currency} ${g.value || '(vazio)'} ${g.lines}`)).toEqual([
-      '1/01 (vazio) 1039',
+      '1/01 (vazio) 1045',
       '1/01 610 2',
       '1/02 (vazio) 2',
       '2/01 (vazio) 1',
     ]);
     expect(p.manual.map((g) => `${g.balanceType}/${g.currency} ${g.origin} ${g.lines}`)).toEqual([
-      // Phase 14: documents 51-54 manual, 55 automatic, 56 not identified.
-      '1/01 manual 1037',
-      '1/01 automatic 2',
-      '1/01 unidentified 2',
+      // Phase 14: documents 51-54 manual, 55 automatic, 56 not identified; 70-73: one manual line, three automatic and two
+      // with the unrecognized code.
+      '1/01 manual 1038',
+      '1/01 automatic 5',
+      '1/01 unidentified 4',
       '1/02 manual 2',
       '2/01 manual 1',
     ]);
@@ -278,7 +281,8 @@ describe('CT2 analysis: configuration and parameters', () => {
     const columns = CT2_COLUMNS.filter((t) => t.trim() !== 'Lcto Manual?');
     const { analysis } = await run([{ rows: ENGINE_ROWS, columns }]);
     expect(test(analysis, 'I4b').occurrences).toBe(0);
-    expect(test(analysis, 'I4c').occurrences).toBe(3);
+    // 55, 56 and the manual lines 54 and 70-002.
+    expect(test(analysis, 'I4c').occurrences).toBe(4);
   });
 
   it('runs on an extraction without any valid date: no period, E5 and E6 have nothing to test', async () => {

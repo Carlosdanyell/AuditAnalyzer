@@ -18,6 +18,8 @@ const doc = (date: string, batch: string, document: string) => ({ date, batch, d
 const D10 = doc('15/09/2026', '000002', '000010');
 const BATCH4 = doc('16/09/2026', '000004', '');
 const BATCH6 = doc('16/09/2026', '000006', '');
+const BATCH10 = doc('18/09/2026', '000010', '');
+const BATCH11 = doc('18/09/2026', '000011', '');
 /** Entities filled and equal on both sides. */
 const SAME_ENTITIES: Fields = { costCenterDebit: 'CC01', costCenterCredit: 'CC01', itemDebit: 'IT01', itemCredit: 'IT01', valueClassDebit: 'CV01', valueClassCredit: 'CV01' };
 const at = (base: typeof BATCH4, document: string, line: string, f: Fields = {}): Fields => ({ ...base, document, line, ...f });
@@ -82,7 +84,30 @@ export const ENGINE_ROWS: Ct2LineRow[] = [
   pd(10, { ...doc('01/10/2026', '000007', '000044'), line: '001' }),
   pd(10, { ...doc('19/09/2026', '000008', '000045'), line: '001', manual: '2' }),
   pd(10, { ...doc('07/09/2026', '000009', '000046'), line: '001', manual: null }),
+  // Phase 14, origin of the document (section 3.4). 18/09, batch 000010, with manual intervention: document 70 Misto,
+  // an automatic line (routine CTBANFE) whose "Valor" was reduced from 10 to 8 and a manual line (CTBA102) of 2; 71
+  // Automático, its line with an unrecognized code ignored; 72 Não identificado (only an unrecognized code).
+  ct2Line(at(BATCH10, '000070', '001', { amount: 8, amountCurrency1: 10, manual: '2', routine: 'CTBANFE' })), // I4a
+  ct2Line(at(BATCH10, '000070', '002', { amount: 2, amountCurrency1: 0 })), // I4b
+  pd(10, at(BATCH10, '000071', '001', { manual: '2', routine: 'CTBANFE' })),
+  pd(10, at(BATCH10, '000071', '002', { manual: 'X', routine: 'CTBANFE' })),
+  pd(10, at(BATCH10, '000072', '001', { manual: 'X' })),
+  // 18/09, batch 000011, without manual intervention: document 73 Automático.
+  pd(10, at(BATCH11, '000073', '001', { manual: '2', routine: 'CTBANFE' })),
 ];
+
+/**
+ * Origin of each document (by number; documents 42, 43 and 50 in other segments: 50 is in two, both Manual), with the
+ * default codes ("1" manual, "2" automatic). Every other document is Manual (the default line is manual).
+ */
+export const ENGINE_ORIGINS = {
+  automatic: ['000045', '000055', '000071', '000073'],
+  mixed: ['000070'],
+  unidentified: ['000046', '000056', '000072'],
+};
+
+/** Batches (date and number) without manual intervention: their documents are all Automático or Não identificado. */
+export const ENGINE_NO_INTERVENTION = ['07/09/2026 000009', '18/09/2026 000011', '19/09/2026 000008'];
 
 /**
  * Exceptions (Erro and Alerta) with the default configuration, in the order of the list: by test, then in the order
@@ -138,8 +163,8 @@ export const ENGINE_INFO = {
   E2: ['000040', '000041'],
   /** Lines (document-line) of the Info tests of Phase 14. */
   I3a: ['000051-001', '000052-001'],
-  I4a: ['000038-001'],
-  I4b: ['000054-001'],
+  I4a: ['000038-001', '000070-001'],
+  I4b: ['000054-001', '000070-002'],
   E6: ['07/09/2026', '19/09/2026'],
   P3: ['000047', '000048', '000049'],
   P4: ['000010'],

@@ -190,7 +190,8 @@ describe('CT2 workpaper: the subtypes of I3 and I4 (Phase 14)', () => {
     const r = await build({ files: [{ rows: ENGINE_ROWS, columns: oneSide }] });
     expectTiedOut(r);
     expect(column(r.book, 'Base', 'I4b Exceção?').every((v) => v === 'Não')).toBe(true);
-    expect(column(r.book, 'Base', 'I4c Exceção?').filter((v) => v === 'Sim')).toHaveLength(3);
+    // Phase 14: four with the manual line of document 70 (engine fixture).
+    expect(column(r.book, 'Base', 'I4c Exceção?').filter((v) => v === 'Sim')).toHaveLength(4);
   });
 
   it('ties out with the codes of "Lcto Manual?" of two files, one without the entities', async () => {

@@ -2,7 +2,7 @@
  * What the worker needs from an analysis module (docs/MODULOS.md, section 3). The handler keeps one session at a
  * time and calls it for every query; it never compares module ids.
  */
-import type { Ct2PanelData } from '../../shared/modules/ct2Integrity';
+import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData } from '../../shared/modules/ct2Integrity';
 import type {
   AnyTableFilter,
   AnyTableId,
@@ -39,8 +39,12 @@ export interface ModuleSession {
     options: ExportOptions,
     onProgress: (done: number, total: number) => void,
   ): Promise<{ blob: Blob; fileName: string } | { blocked: CheckResult[] }>;
-  /** Panel cut by segment (CT2). */
-  segmentPanel?(segment: number | null): Ct2PanelData;
+  /** Panel under the common filter (CT2). */
+  segmentPanel?(filter: Ct2Filter): Ct2PanelData;
+  /** Composition of the extraction under the common filter (CT2). */
+  overview?(filter: Ct2Filter): Ct2Overview;
+  /** The lines of a document block's key in every segment (CT2). */
+  document?(index: number): Ct2DocumentDetail;
   /** Reapplies the analysis with the parameters informed (throws ParametersError when invalid). */
   analyze?(parameters: unknown): { summary: ModuleSummary; checks: CheckResult[]; reconciliation: ModuleReconciliation };
   /** Presets and holidays changed during the session. */
