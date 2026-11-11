@@ -18,7 +18,7 @@ import {
 import type { Cell, ColumnSpec, Sort } from '../../../shared/protocol';
 import { compensationText, documentOriginOf, type Ct2Analysis } from './analysis';
 import { applicableFilter, filterIndex, filterKey, itemPasses, sameKeyDocuments, selectCt2, type Ct2FilterIndex, type Ct2Selection } from './filter';
-import { findingAt, findingReason, itemPosition } from './findings';
+import { documentAt, findingAt, findingReason, itemPosition } from './findings';
 import type { Ct2Ingested } from './ingest';
 import { BIT, marksOf } from './marks';
 import { textOf } from './profile';
@@ -37,6 +37,8 @@ interface TableDef {
   only?(k: number, filter: Ct2TableFilter): boolean;
   /** Columns searched (text). */
   searched: string[];
+  /** Document block of a row, for the side panel of the screen (null for a batch or a day). */
+  document?(k: number): number | null;
 }
 
 const LEVELS = { line: 'Linha', document: 'Documento', batch: 'Lote', day: 'Dia', profile: 'Perfil' } as const;
@@ -103,14 +105,24 @@ export class Ct2Tables {
     };
   }
 
-  page(table: Ct2TableId, filter: Ct2TableFilter = {}, sort: Sort | undefined, offset: number, limit: number): { columns: ColumnSpec[]; rows: Cell[][]; total: number } {
+  page(
+    table: Ct2TableId,
+    filter: Ct2TableFilter = {},
+    sort: Sort | undefined,
+    offset: number,
+    limit: number,
+  ): { columns: ColumnSpec[]; rows: Cell[][]; total: number; documents?: (number | null)[] } {
     const def = this.defs[table];
     if (!def) throw new Error(`Tabela ${table} não existe nesta análise.`);
     const columns = def.columns(filter);
     const rows = this.rows(table, def, filter, sort);
     const out: Cell[][] = [];
-    for (let n = offset; n < Math.min(rows.length, offset + limit); n++) out.push(columns.map((c) => def.cell(rows[n]!, c.id)));
-    return { columns, rows: out, total: rows.length };
+    const documents: (number | null)[] = [];
+    for (let n = offset; n < Math.min(rows.length, offset + limit); n++) {
+      out.push(columns.map((c) => def.cell(rows[n]!, c.id)));
+      if (def.document) documents.push(def.document(rows[n]!));
+    }
+    return { columns, rows: out, total: rows.length, ...(def.document && { documents }) };
   }
 
   /** The selection of a common filter, kept for the last few filters. */
@@ -217,6 +229,7 @@ export class Ct2Tables {
       columns: () => columns,
       passes: (d, s) => s.document[d] === 1,
       has: (d, code) => (a.marks.document[d]! & BIT[code]) !== 0,
+      document: (d) => d,
       searched: ['document', 'batch', 'routine', 'history'],
       cell: (d, c) => {
         const i = first(d);
@@ -412,6 +425,10 @@ export class Ct2Tables {
       },
       has: (n, code) => CT2_TESTS[a.findings.test.get(n)] === code,
       only: (n, filter) => !filter.group || findingAt(a, n).group === filter.group,
+      document: (n) => {
+        const f = findingAt(a, n);
+        return f.level === 'document' ? f.item : f.level === 'line' ? documentAt(b, f.item) : null;
+      },
       searched: ['code', 'test', 'batch', 'document', 'history', 'routine'],
       cell: (n, c) => {
         const { code, k, level, position, i, group } = item(n);
@@ -493,6 +510,7 @@ export class Ct2Tables {
       columns: (filter) => (filter.allColumns ? all : main),
       passes: (p, s) => s.line[p] === 1,
       has: (p, code) => (lineMarks[p]! & BIT[code]) !== 0,
+      document: (p) => documentAt(a.blocks, p),
       searched: ['f:document', 'f:batch', 'f:debitAccount', 'f:creditAccount', 'f:history', 'f:routine'].filter((c) => c === 'f:document' || present.has(c.slice(2) as Ct2Field)),
       cell: (p, c) => {
         const i = base.order[p]!;

@@ -32,13 +32,14 @@ describe('key figures of the CT2 integrity', () => {
     },
   });
 
-  it('shows lines, documents, batches, unbalanced documents, exceptions and the period', () => {
+  it('shows entries, documents, batches, unbalanced documents, exceptions, items to check and the period (Phase 14)', () => {
     expect(asMap(ct2Figures(reconciliation, summary([test('B1', 6)]), 0))).toEqual({
-      Linhas: '1.038',
+      Lançamentos: '1.030',
       Documentos: '30',
       Lotes: '4',
       Desbalanceados: '6 (error)',
       Exceções: '19 (warn)',
+      'Para conferência': '3 (warn)',
       Período: '01/09/2026 a 31/10/2026',
     });
   });
@@ -46,6 +47,15 @@ describe('key figures of the CT2 integrity', () => {
   it('leaves the unbalanced documents out when B1 did not run, and marks nothing when there is none', () => {
     expect(asMap(ct2Figures(reconciliation, summary([test('B1', 0, 'off')]), 0))).not.toHaveProperty('Desbalanceados');
     expect(asMap(ct2Figures(reconciliation, summary([test('B1', 0)]), 0)).Desbalanceados).toBe('0');
+    const quiet = summary([]);
+    quiet.analysis!.approval = { occurrences: 0, mixedDocuments: 0 };
+    expect(asMap(ct2Figures(reconciliation, quiet, 0))['Para conferência']).toBe('0');
+  });
+
+  it('counts the lines read before the analysis ran (no entries yet)', () => {
+    const { analysis: _a, ...read } = summary([]);
+    void _a;
+    expect(asMap(ct2Figures(reconciliation, read, 0))).toMatchObject({ Linhas: '1.038', Documentos: '30' });
   });
 
   it('shows the lines read when the summary has not come yet', () => {

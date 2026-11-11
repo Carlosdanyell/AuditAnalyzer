@@ -190,7 +190,8 @@ export type WorkerEvent =
   /** unknown = justifications whose document (of that kind) is not in the current log (kept, not discarded). */
   | { type: 'justificationsSet'; requestId: number; count: number; unknown: number }
   | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
-  | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
+  /** `documents`: CT2, the document block of each row (null for a batch or a day), to open its side panel. */
+  | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number; documents?: (number | null)[] }
   | { type: 'segmentPanel'; requestId: number; data: Ct2PanelData }
   | { type: 'overview'; requestId: number; data: Ct2Overview }
   | { type: 'document'; requestId: number; data: Ct2DocumentDetail }

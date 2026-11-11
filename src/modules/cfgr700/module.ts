@@ -44,7 +44,7 @@ export const cfgr700Module: AvailableModule<AnalyzerConfig> = {
   // The worker enforces the same limit (src/worker/ingest/pipeline.ts).
   accepts: { extensions: ['.xlsx'], maxFiles: 255 },
   helpAnchor: 'cfgr700',
-  features: { panel: true, tables: true, justifications: true, export: true },
+  features: { panel: true, findings: false, tables: true, justifications: true, export: true },
   config: { defaults: defaultConfig, read: readConfig, saved: true },
   // The report sheet starts with the configured column titles in row 1 (src/worker/ingest/pipeline.ts).
   detect(sheets, config) {

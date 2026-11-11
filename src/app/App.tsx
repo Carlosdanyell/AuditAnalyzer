@@ -15,13 +15,14 @@ import { canonicalJson, configDiff } from '../shared/configTools';
 import { loadConfig, loadModuleConfig, saveConfig, saveModuleConfig } from './configStore';
 import { platformConfigOf } from '../config/platform';
 import { configViewOf, figuresOf, workspaceOf } from './moduleViews';
+import { VIEWS, offered, railViews } from './rail';
 import type { View } from './modules/workspace';
 import { BackupCard, type RestoredBackup } from './views/BackupCard';
 import { ConfigView } from './views/ConfigView';
 import { formatBytes } from '../shared/format';
 import { createAnalyzerWorker, WorkerClient } from './workerClient';
 import { downloadBlob } from './download';
-import { Icon, type IconName } from '../components/Icon';
+import { Icon } from '../components/Icon';
 import { cx } from '../components/cx';
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStore';
 import { MODULES, availableModule, resolveInitialModule, suggestModule } from '../modules/registry';
@@ -46,13 +47,6 @@ type Screen = 'home' | 'tool' | 'config';
 /** Rows of each sheet read by the probe of the start screen (the header of every module is in the first 30). */
 const PROBE_ROWS = 30;
 
-const VIEWS: { id: View; label: string; icon: IconName; description: string }[] = [
-  { id: 'reconciliation', label: 'Reconciliação', icon: 'reconciliation', description: 'Integridade dos arquivos, reconciliação de linhas e verificações' },
-  { id: 'panel', label: 'Painel', icon: 'panel', description: 'Categorias por origem, competência, sinalizações e cobertura' },
-  { id: 'tables', label: 'Tabelas', icon: 'table', description: 'Documentos, linhas e eventos, com busca, filtros e ordenação' },
-  { id: 'justifications', label: 'Justificativas', icon: 'justify', description: 'O motivo de cada documento excluído ou alterado' },
-  { id: 'export', label: 'Exportação', icon: 'download', description: 'Papel de trabalho em Excel, gerado neste computador' },
-];
 
 const stamp = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'medium' });
 
@@ -60,8 +54,6 @@ const download = (text: string, fileName: string) => downloadBlob(new Blob([text
 
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
-/** Every view but the reconciliation is a feature of the module; the others are shown locked. */
-const offered = (m: AvailableModule, view: View) => view === 'reconciliation' || m.features[view];
 
 /** Modules whose configuration is saved under its own key: all but the CFGR700, whose rules carry the platform holidays. */
 const OWN_CONFIG_MODULES = MODULES.filter((m): m is AvailableModule => m.status === 'available' && m.config.saved && m.id !== DEFAULT_MODULE_ID);
@@ -578,7 +570,7 @@ export function App() {
             </button>
             {done && (
               <nav className={styles.railGroup} aria-label="Visões">
-                {VIEWS.filter((v) => offered(current, v.id)).map((v) => {
+                {railViews(current).map((v) => {
                   const active = inTool && v.id === view;
                   return (
                     <button

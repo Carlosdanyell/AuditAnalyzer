@@ -34,6 +34,8 @@ export interface ModuleSession {
     columns: ColumnSpec[];
     rows: Cell[][];
     total: number;
+    /** CT2: the document block of each row, for the side panel (null for a batch, a day or a finding of one). */
+    documents?: (number | null)[];
   };
   export?(
     options: ExportOptions,

@@ -44,7 +44,7 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   // The worker enforces the same limit (src/worker/modules/ct2Integrity/ingest.ts).
   accepts: { extensions: ['.xlsx'], maxFiles: 255 },
   helpAnchor: 'ct2',
-  features: { panel: true, tables: true, justifications: false, export: true },
+  features: { panel: true, findings: true, tables: true, justifications: false, export: true },
   config: { defaults: ct2DefaultConfig, read: readCt2Config, saved: true },
   // A sheet whose first rows hold every mandatory title (the reading rule of section 2).
   detect(sheets, config) {

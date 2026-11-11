@@ -39,6 +39,20 @@ function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
   );
 }
 
+/** The number at the end of an accessible name ("CTBANFE: 1.234 linhas" → "1.234"). */
+const numberIn = (name: string | null) => /: ([\d.]+)/.exec(name ?? '')![1]!;
+
+/** Analyzes the CT2 extraction with one case per test (ct2EngineFixture.ts); resolves with the rail of the views. */
+async function analyzeEngine(page: Page, files: { engine: string }) {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await page.locator('input[type=file]').first().setInputFiles([files.engine]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  return nav;
+}
+
 test('início da plataforma: uma linha por ferramenta, as duas disponíveis', async ({ page }) => {
   await page.goto('');
   await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
@@ -70,7 +84,9 @@ test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; ofe
   const nav = page.getByRole('navigation', { name: 'Visões' });
   await expect(nav.getByRole('button', { name: 'Reconciliação' })).toBeVisible();
   await expect(nav.getByRole('button', { name: 'Justificativas' })).toHaveCount(0);
-  for (const offered of ['Painel', 'Tabelas', 'Exportação']) await expect(nav.getByRole('button', { name: offered })).toBeVisible();
+  for (const offered of ['Painel', 'Achados', 'Tabelas', 'Exportação']) await expect(nav.getByRole('button', { name: offered })).toBeVisible();
+  // Phase 14: the tie-out matrix closes the reconciliation.
+  await expect(page.getByRole('heading', { name: 'Matriz de amarração' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Exportar planilha' })).toBeVisible();
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
 });
@@ -104,16 +120,11 @@ test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de te
   }
 });
 
-test('Integridade da CT2: painel por segmento, cada número abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
-  await page.goto('');
-  await chooseModule(page, CT2);
-  await page.locator('input[type=file]').first().setInputFiles([ct2Files.engine]);
-  await page.getByRole('button', { name: 'Analisar' }).click();
-  const nav = page.getByRole('navigation', { name: 'Visões' });
-  await expect(nav).toBeVisible({ timeout: 60_000 });
-  await nav.getByRole('button', { name: 'Painel' }).click();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
-  await expect(page.getByText('Período da análise: 01/09/2026 a 31/10/2026')).toBeVisible();
+test('Integridade da CT2: achados por segmento, cada número abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
+  const nav = await analyzeEngine(page, ct2Files);
+  // Phase 14: the board of tests (with the parameters) is under Achados.
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  await expect(page.getByRole('heading', { name: /^Exceções — Erro e Alerta/ })).toBeVisible();
 
   // A number of the board opens the table with exactly those rows.
   await page.getByRole('button', { name: 'B1: 6 documentos' }).click();
@@ -132,12 +143,13 @@ test('Integridade da CT2: painel por segmento, cada número abre a tabela com es
   await page.getByLabel('Mostrar todas as colunas').check();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
 
-  // One segment: every number of the panel follows it.
-  await nav.getByRole('button', { name: 'Painel' }).click();
-  await page.getByLabel('Segmento').selectOption({ label: 'Saldo 1 · Moeda 02' });
+  // One segment (the common filter): every number of the Achados follows it.
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  await page.getByRole('combobox', { name: 'Segmento', exact: true }).selectOption({ label: 'Saldo 1 · Moeda 02' });
   await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
-  await page.getByLabel('Segmento').selectOption({ label: 'Todos os segmentos' });
+  await page.getByRole('button', { name: 'Remover filtro Segmento' }).click();
+  await expect(page.getByRole('button', { name: 'B1: 6 documentos' })).toBeVisible();
 
   // Parameters reapplied without reading the files again: a tolerance of R$ 10,00 leaves two unbalanced documents.
   await page.getByText('Parâmetros da execução').click();
@@ -145,6 +157,124 @@ test('Integridade da CT2: painel por segmento, cada número abre a tabela com es
   await page.getByRole('button', { name: 'Reaplicar os testes' }).click();
   await expect(page.getByText('Testes reaplicados com os novos parâmetros.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'B1: 2 documentos' })).toBeVisible();
+});
+
+test('Integridade da CT2: painel da composição; clique numa rotina filtra, o chip aparece e as tabelas seguem o filtro', async ({ page, ct2Files }) => {
+  const nav = await analyzeEngine(page, ct2Files);
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await expect(page.getByRole('heading', { name: 'Por rotina' })).toBeVisible();
+  // Without a segment chosen, values are not added across segments: Débito waits for one.
+  await expect(page.getByRole('group', { name: 'Medida por rotina' }).getByRole('button', { name: 'Débito' })).toBeDisabled();
+
+  const bar = page.getByRole('button', { name: /^CTBANFE: [\d.]+ linhas?$/ });
+  const lines = numberIn(await bar.getAttribute('aria-label'));
+  await bar.click();
+  const chip = page.getByRole('region', { name: 'Filtros' }).locator('span', { has: page.getByRole('button', { name: 'Remover filtro Rotina' }) });
+  await expect(chip).toContainText('CTBANFE');
+  const tables = page.getByRole('navigation', { name: 'Tabelas' });
+  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await tables.getByRole('button', { name: 'Base' }).click();
+  await expect(page.getByText(`${lines} linha(s)`, { exact: true })).toBeVisible();
+  // The routine does not apply to the Lotes table: the chip is dimmed with the hint.
+  await tables.getByRole('button', { name: 'Lotes' }).click();
+  await expect(page.getByText('não se aplica a esta tabela')).toBeVisible();
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  await expect(page.getByRole('button', { name: 'Remover filtro Rotina' })).toHaveCount(0);
+
+  // Each number of the Painel equals the total of the table it opens.
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  const documents = page.getByRole('button', { name: /^Documentos: [\d.]+$/ });
+  const documentCount = numberIn(await documents.getAttribute('aria-label'));
+  await documents.click();
+  await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText(`${documentCount} linha(s)`, { exact: true })).toBeVisible();
+
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  const interventions = page.getByRole('button', { name: /^Lotes com intervenção manual: [\d.]+$/ });
+  const interventionCount = numberIn(await interventions.getAttribute('aria-label'));
+  expect(Number(interventionCount)).toBeGreaterThan(0);
+  await interventions.click();
+  await expect(tables.getByRole('button', { name: 'Lotes' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('Lotes com intervenção manual', { exact: true })).toBeVisible();
+  await expect(page.getByText(`${interventionCount} linha(s)`, { exact: true })).toBeVisible();
+
+  // An origin number applies the origin filter; the Documentos table follows it.
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  const manual = page.getByRole('button', { name: /^Manual: [\d.]+ documento\(s\)$/ });
+  const manualCount = numberIn(await manual.getAttribute('aria-label'));
+  await manual.click();
+  await expect(page.getByRole('button', { name: 'Remover filtro Origem' })).toBeVisible();
+  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await tables.getByRole('button', { name: 'Documentos' }).click();
+  await expect(page.getByText(`${manualCount} linha(s)`, { exact: true })).toBeVisible();
+
+  // A day column applies the day filter.
+  await nav.getByRole('button', { name: 'Painel' }).click();
+  await page.getByRole('button', { name: /^\d{2}\/\d{2}\/\d{4}: [\d.]+ linhas?/ }).first().click();
+  await expect(page.getByRole('button', { name: 'Remover filtro Dia' })).toBeVisible();
+});
+
+test('Integridade da CT2: achados com os grupos do quadro; cada ocorrência abre o painel lateral do documento', async ({ page, ct2Files }) => {
+  const nav = await analyzeEngine(page, ct2Files);
+  const strip = page.getByLabel('Indicadores da análise');
+  const figure = async (label: string) => (await strip.locator('div').filter({ has: page.getByText(label, { exact: true }) }).locator('dd').textContent())!;
+  const exceptions = await figure('Exceções');
+  const review = Number(await figure('Para conferência'));
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  await expect(page.getByRole('heading', { name: `Exceções — Erro e Alerta · ${exceptions} ocorrências` })).toBeVisible();
+  const approval = page.getByRole('heading', { name: /^Conferir com documento de aprovação · / });
+  const [, occurrences, mixed] = /· (\d+) ocorrências? e (\d+) documentos? mistos?/.exec((await approval.textContent())!)!;
+  expect(Number(occurrences) + Number(mixed)).toBe(review);
+  await expect(page.getByText(/^Informativos · \d+ ocorrências? em \d+ testes?$/)).toBeVisible();
+  await expect(page.getByText(/^\d+ teste\(s\) sem ocorrência/)).toBeVisible();
+
+  // I4a and the mixed documents open their tables with as many rows.
+  await page.getByRole('button', { name: `I4a: ${occurrences} linha${occurrences === '1' ? '' : 's'}`, exact: true }).click();
+  await expect(page.getByText(`${occurrences} linha(s)`, { exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  await page.getByRole('button', { name: `Documentos mistos: ${mixed}` }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText(`${mixed} linha(s)`, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro Origem' }).click();
+
+  // The side panel: Esc and the close button give the focus back to the opener.
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  const occurrence = page.getByRole('article', { name: /^B1 / }).getByRole('listitem').first().getByRole('button');
+  await occurrence.click();
+  const dialog = page.getByRole('dialog', { name: /^Documento \d+ · lote / });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Por tipo de saldo e moeda')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(occurrence).toBeFocused();
+  await occurrence.click();
+  await expect(dialog).toBeVisible();
+  // The focus stays inside the dialog.
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
+  expect(await dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
+  await dialog.getByRole('button', { name: 'Fechar o documento' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(occurrence).toBeFocused();
+
+  // "Ver na Base": the lines of the document, as many as the panel says.
+  await occurrence.click();
+  const total = await dialog.locator('dt', { hasText: 'Linhas' }).locator('xpath=following-sibling::dd').textContent();
+  await dialog.getByRole('button', { name: 'Ver na Base' }).click();
+  await expect(page.getByText('Linhas de um documento')).toBeVisible();
+  await expect(page.getByText(`${total} linha(s)`, { exact: true })).toBeVisible();
+
+  // A row of the tables opens its document, by keyboard too.
+  const tables = page.getByRole('navigation', { name: 'Tabelas' });
+  await tables.getByRole('button', { name: 'Exceções' }).click();
+  await page.getByRole('combobox', { name: 'Grupo' }).selectOption({ label: 'Conferir com aprovação' });
+  await expect(page.getByText(`${occurrences} linha(s)`, { exact: true })).toBeVisible();
+  const row = page.locator('[role=row][tabindex="0"]').first();
+  await row.focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/^I4a · Conferir com aprovação/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(row).toBeFocused();
 });
 
 test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {

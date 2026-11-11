@@ -1,0 +1,59 @@
+/* Parameters of the execution, folded (Achados of the CT2). */
+.fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg {
+  flex: none;
+  color: var(--text-subtle);
+  transition: transform 160ms var(--ease);
+}
+
+.fold[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.fold > summary > .muted,
+.fold > summary > span:last-child {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.fold[open] > summary {
+  margin-bottom: 16px;
+}
+
+.params {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px 14px;
+}
+
+.problems {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--error);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.errorText {
+  color: var(--error);
+  font-size: 13px;
+}

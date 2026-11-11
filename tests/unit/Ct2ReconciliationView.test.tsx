@@ -34,6 +34,19 @@ describe('CT2 reconciliation screen', () => {
     expect(html).toMatch(/Valor<\/th><td[^>]*>K<\/td>/);
   });
 
+  it('closes with the tie-out matrix of the levels, moved from the panel (Phase 14, section 4.2)', async () => {
+    const { reconciliation, summary } = await ingestCt2([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }], ct2DefaultConfig(), () => {}, { now: () => 0 });
+    const matrix = [
+      { level: 'base' as const, lines: 8, documents: null, batches: null, debitCents: 151456, creditCents: 151456, ok: true },
+      { level: 'documents' as const, lines: 8, documents: 6, batches: null, debitCents: 151456, creditCents: 151456, ok: false },
+    ];
+    const html = renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={null} matrix={matrix} />);
+    expect(html).toContain('Matriz de amarração');
+    expect(html).toMatch(/<th scope="row">Documentos<\/th><td>8<\/td><td>6<\/td><td>—<\/td>/);
+    expect(html).toContain('Verificar');
+    expect(renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={null} />)).not.toContain('Matriz de amarração');
+  });
+
   it('shows the consolidated alerts when there are several files', async () => {
     const html = await render([
       { name: 'a.xlsx', blob: ct2Blob(fileA()) },

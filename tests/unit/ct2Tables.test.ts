@@ -41,6 +41,20 @@ describe('CT2 tables', async () => {
     expect(page.rows[0]![1]).toBe(parseDate('07/09/2026'));
   });
 
+  it('gives the document block of each row of Documentos, Exceções and Base, for the side panel (Phase 14, section 4.5)', () => {
+    const docs = tables.page('ct2Documents', {}, undefined, 3, 5);
+    expect(docs.documents).toEqual([3, 4, 5, 6, 7]);
+    const b = analysis.blocks;
+    const lines = tables.page('ct2Base', {}, undefined, 0, base.order.length);
+    expect(lines.documents).toHaveLength(base.order.length);
+    for (let d = 0; d < b.documents; d++) for (let p = b.documentStart[d]!; p < b.documentStart[d + 1]!; p++) expect(lines.documents![p]).toBe(d);
+    // A finding of a line or a document points to its document; of a batch or a day, to none.
+    const findings = tables.page('ct2Exceptions', {}, undefined, 0, 2000);
+    const level = findings.columns.findIndex((c) => c.id === 'level');
+    findings.rows.forEach((r, n) => expect(findings.documents![n] === null).toBe(r[level] === 'Lote' || r[level] === 'Dia'));
+    expect(tables.page('ct2Batches', {}, undefined, 0, 5).documents).toBeUndefined();
+  });
+
   it('lists the exceptions in the order of the workpaper, with their key', () => {
     const page = tables.page('ct2Exceptions', { group: 'exception' }, undefined, 0, 200);
     const col = (id: string) => page.columns.findIndex((c) => c.id === id);
