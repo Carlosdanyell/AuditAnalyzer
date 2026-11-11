@@ -18,7 +18,7 @@ import type {
   TableFilter,
   TableId,
 } from './modules/cfgr700';
-import type { Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
+import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -162,8 +162,12 @@ export type Command =
   | { type: 'setJustifications'; requestId: number; items: Justification[]; replace: boolean }
   | { type: 'importJustifications'; requestId: number; file: File }
   | { type: 'export'; requestId: number; options: ExportOptions }
-  /** Panel of a module cut by segment (CT2: balance type + currency; null = every segment). */
-  | { type: 'segmentPanel'; requestId: number; segment: number | null }
+  /** Panel of a module under the common filter (CT2: segment = balance type + currency, origin, routine, batch, day). */
+  | { type: 'segmentPanel'; requestId: number; filter: Ct2Filter }
+  /** Composition of the extraction under the common filter (CT2, Painel). */
+  | { type: 'overview'; requestId: number; filter: Ct2Filter }
+  /** Every line of a document block's key, in each segment (CT2, side panel). */
+  | { type: 'document'; requestId: number; index: number }
   /** Reapplies the analysis with the parameters informed (validated by the module), without reading the files again. */
   | { type: 'analyze'; requestId: number; parameters: unknown };
 
@@ -186,8 +190,11 @@ export type WorkerEvent =
   /** unknown = justifications whose document (of that kind) is not in the current log (kept, not discarded). */
   | { type: 'justificationsSet'; requestId: number; count: number; unknown: number }
   | { type: 'justificationImport'; requestId: number; preview: JustificationImportPreview }
-  | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number }
+  /** `documents`: CT2, the document block of each row (null for a batch or a day), to open its side panel. */
+  | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number; documents?: (number | null)[] }
   | { type: 'segmentPanel'; requestId: number; data: Ct2PanelData }
+  | { type: 'overview'; requestId: number; data: Ct2Overview }
+  | { type: 'document'; requestId: number; data: Ct2DocumentDetail }
   | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
   /** The analysis reapplied: the new summary and checks (also inside the reconciliation). */
   | { type: 'analyzed'; requestId: number; summary: ModuleSummary; checks: CheckResult[]; reconciliation: ModuleReconciliation }

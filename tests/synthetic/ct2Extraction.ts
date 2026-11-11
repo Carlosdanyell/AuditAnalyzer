@@ -19,15 +19,12 @@ export type Ct2Row = Ct2LineRow | { gap: number } | { empty: true };
 
 const config = ct2DefaultConfig();
 
-/** Titles of the other columns of a CT2 extraction (generic field names of the table, no data). */
+/**
+ * Titles of the other columns of a CT2 extraction (generic field names of the table, no data). The entities (C Custo
+ * Deb … Cl Vlr Cred) are mapped fields since Phase 14, so they come with CT2_FIELDS.
+ */
 const OTHER_TITLES = [
   'Filial',
-  'C Custo Deb',
-  'C Custo Crd',
-  'Item Debito',
-  'Item Credito',
-  'Cl Vlr Deb',
-  'Cl Vlr Crd',
   'Valor Moeda2',
   'Valor Moeda3',
   'Valor Moeda4',
@@ -76,6 +73,12 @@ export function ct2Line(fields: Partial<Record<Ct2Field, Ct2Value>> = {}, extra:
       origin: '',
       companyOrigin: '01',
       branchOrigin: '01',
+      costCenterDebit: '',
+      costCenterCredit: '',
+      itemDebit: '',
+      itemCredit: '',
+      valueClassDebit: '',
+      valueClassCredit: '',
       ...fields,
     },
     extra: { Filial: '01', ...extra },

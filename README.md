@@ -10,7 +10,7 @@ Cada ferramenta lê o seu tipo de extração, reconcilia linha a linha, responde
 e gera um papel de trabalho em Excel pronto para revisão.
 
 [![Publicar no GitHub Pages](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml/badge.svg)](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-2.1.0-0f2742)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-2.2.0-0f2742)
 ![Processamento local](https://img.shields.io/badge/dados-100%25%20locais-1d7a46)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-1e6495?logo=typescript&logoColor=white)
 ![React 18](https://img.shields.io/badge/React-18-1e6495?logo=react&logoColor=white)
@@ -61,7 +61,10 @@ leitura em fluxo, a rastreabilidade e as verificações comuns.
 | A extração está completa e legível? | Reconciliação de linhas por arquivo, valores e chaves legíveis, colunas encontradas |
 | Débito = crédito em cada documento, lote e dia, por tipo de saldo e moeda? | Testes B1–B3; B4/B5 indicam a compensação pelo documento vizinho |
 | Há linhas incoerentes, duplicadas, fora do período ou em dia não útil? | Testes I1–I5 e E1–E6, com a lista de exceções |
-| Como se distribuem os lançamentos por rotina, lançamento padrão e origem? | Perfil (P1–P4) e os 10 maiores documentos |
+| Um lançamento automático foi alterado depois de gerado? Há lançamento sem efeito contábil? | I4a (valor diferente do "Valor Moeda1", para conferir com o documento de aprovação) e I3b (mesma conta e mesmas entidades) |
+| Quais documentos são manuais, automáticos ou mistos, e quais lotes tiveram intervenção manual? | Origem do documento, no **Painel** e na planilha |
+| Como se distribuem os lançamentos por rotina, por dia, lançamento padrão e origem? | **Painel** de composição, Perfil (P1–P4) e os 10 maiores documentos |
+| O que precisa ser verificado, e por quê? | **Achados**: cada ocorrência com o motivo e o documento aberto ao lado |
 | A planilha prova os números sozinha? | Papel de trabalho **amarrado por fórmulas**: mudar a tolerância ou o período nos Critérios recalcula testes e status |
 
 ## Como funciona
@@ -102,7 +105,8 @@ responsiva com arquivos de cerca de 1 milhão de linhas.
 **Painel e tabelas**
 - Cada número abre a tabela com exatamente aquelas linhas
 - CFGR700: períodos, data de corte, modo **Geral** ou **Segregado**, sinalizações, justificativas
-- CT2: segmento (tipo de saldo e moeda), parâmetros reaplicados em segundos, quadro de testes
+- CT2: Painel de composição (origem, rotina, dia), Achados com o motivo de cada ocorrência, filtros comuns
+  (segmento, origem, rotina, lote, dia), painel lateral do documento e parâmetros reaplicados em segundos
 
 **Papel de trabalho em Excel**
 - Resumo vivo por fórmulas, critérios editáveis, exceções, dados e rastreabilidade
@@ -120,7 +124,7 @@ responsiva com arquivos de cerca de 1 milhão de linhas.
 2. Em **Ferramentas**, abra a análise; carregue uma ou mais extrações (`.xlsx`), em ordem cronológica, e clique em
    **Analisar**.
 3. Confira a **Reconciliação** e navegue pelo **Painel** e pelas **Tabelas**; no CFGR700, registre as
-   **Justificativas**.
+   **Justificativas**; na Integridade da CT2, veja os **Achados**.
 4. Clique em **Exportar planilha** e escolha o idioma (e, no CFGR700, o escopo).
 
 O passo a passo de cada ferramenta está no [manual do usuário](public/ajuda.html), também disponível no botão

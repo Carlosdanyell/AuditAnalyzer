@@ -4,9 +4,9 @@
  * (SUM/ROWS of a block, never SUMIFS per aggregation row). Formulas of a Base row read only that row, the previous one
  * (E1) and the defined names of the Criterios tab. Streamed by the XLSX writer; the same input gives the same bytes.
  */
-import { CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
-import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_TEST_INFO, type Ct2Level } from '../../../shared/modules/ct2Integrity';
+import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_ORIGINS, CT2_TEST_INFO, findingGroup, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
 import { formatInteger } from '../../../shared/format';
 import type { CheckResult } from '../../../shared/protocol';
@@ -15,10 +15,11 @@ import type { Language } from '../../export/labels';
 import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from '../../export/theme';
 import { XlsxWriter, colName, dateCell, type CellInput, type SheetWriter } from '../../export/xlsxWriter';
 import { BIT } from './marks';
-import type { Ct2Analysis } from './analysis';
+import { LINE_TESTS as ALL_LINE_TESTS, type Ct2Analysis } from './analysis';
 import type { Ct2Ingested } from './ingest';
 import { MANUAL_ORIGINS, textOf, type Ct2Group } from './profile';
-import { CT2_LABELS, CT2_RULES, criteriaParagraphs, type Ct2WorkpaperLabels } from './workpaperLabels';
+import { documentAt, findingAt } from './findings';
+import { CT2_LABELS, CT2_RULES, criteriaParagraphs, type Ct2WorkpaperLabels, type ReasonPart } from './workpaperLabels';
 import { lineOrdinal } from './values';
 
 export interface Ct2WorkpaperInput {
@@ -177,6 +178,11 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   // What runs (section 6): a test turned off, or without its column, has no column and leaves the board.
   const on = Object.fromEntries(a.tests.map((t) => [t.code, t.state === 'on'])) as Record<Ct2TestCode, boolean>;
   const isException = (code: Ct2TestCode) => on[code] && config.tests[code].severity !== 'info';
+  // Listed in Excecoes: the exception and approval groups (decision 1 of 10/11/2026); the other Info tests stay out.
+  const isListed = (code: Ct2TestCode) => {
+    const group = findingGroup(code, config.tests[code].severity);
+    return on[code] && (group === 'exception' || group === 'approval');
+  };
   const present = new Set(reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));
   const titleOf = (field: Ct2Field) => {
     for (const f of reconciliation.files) {
@@ -196,7 +202,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const SHEET = L.sheets;
   const fields = CT2_FIELDS.filter((f) => present.has(f));
   const others = [...store.other.keys()];
-  const LINE_TESTS = (['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as const).filter((t) => on[t]);
+  const LINE_TESTS = ALL_LINE_TESTS.filter((t) => on[t]);
   const baseCols: Col[] = [
     col('file', C.file, 18, 'text'),
     col('sourceRow', C.sourceRow, 9, 'int'),
@@ -233,6 +239,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       col('difference', C.difference, 13, 'money', 'helper'),
       ...DOC_TESTS.map((t) => col(`t:${t}`, L.testCol(t), t === 'B4' ? 22 : 11, t === 'B4' ? 'text' : 'center', 'helper')),
       col('linesWithException', C.linesWithException, 10, 'int', 'helper'),
+      // Origin of the document (Phase 14, section 3.4) from the "Lcto Manual?" codes of its block of the Base.
+      ...(present.has('manual') ? [col('manualLines', C.manualLines, 10, 'int', 'helper'), col('automaticLines', C.automaticLines, 10, 'int', 'helper')] : []),
+      col('origin', C.documentOrigin, 15, 'center', 'helper'),
       ...(present.has('routine') ? [col('routine', C.firstRoutine, 12, 'text', 'helper')] : []),
       ...(present.has('standardEntry') ? [col('standardEntry', C.firstStandardEntry, 10, 'text', 'helper')] : []),
       ...(present.has('ctkSequence') ? [col('ctkSequence', C.firstSequence, 12, 'text', 'helper')] : []),
@@ -258,6 +267,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       col('difference', C.difference, 13, 'money', 'helper'),
       ...(on.B2 ? [col('t:B2', L.testCol('B2'), 11, 'center', 'helper')] : []),
       ...(on.B1 ? [col('unbalanced', C.unbalancedDocuments, 12, 'int', 'helper')] : []),
+      col('manualDocuments', C.manualDocuments, 11, 'int', 'helper'),
+      col('mixedDocuments', C.mixedDocuments, 11, 'int', 'helper'),
+      col('intervention', C.intervention, 12, 'center', 'helper'),
     ],
     b.batches,
   );
@@ -283,21 +295,20 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   );
   const LEVEL_LAYOUT: Record<Exclude<Ct2Level, 'profile'>, Layout> = { line: BASE, document: DOCS, batch: BATCHES, day: DAYS };
 
-  // Exceptions: Erro first, then Alerta; inside, the order of the tests and of the level. Split over sheets.
-  const exceptionOrder: number[] = [];
-  for (const severity of ['error', 'warning'] as const) {
-    for (let k = 0; k < a.exceptions.count; k++) {
-      const code = CT2_TESTS[a.exceptions.test.get(k)]!;
-      if (config.tests[code].severity === severity) exceptionOrder.push(k);
-    }
-  }
+  // Exceptions: the exception group (Erro, then Alerta) and the approval group, a prefix of the findings of the engine
+  // (inside a group, the order of the tests and of the level). Split over sheets.
+  const listed = a.findings.groupCounts.exception + a.findings.groupCounts.approval;
   const perSheet = sheetRows - 1;
-  const exceptionSheets = Math.max(1, Math.ceil(exceptionOrder.length / perSheet));
+  const exceptionSheets = Math.max(1, Math.ceil(listed / perSheet));
+  // Context of a line (Phase 14, section 4.5): read from its Base row by INDEX; empty for a document, batch or day.
+  const entityFields = CT2_ENTITY_PAIRS.flat().filter((f) => present.has(f));
+  const contextFields: Ct2Field[] = ['debitAccount', 'creditAccount', ...entityFields];
   const excCols: Col[] = [
     col('code', C.code, 7, 'center'),
     col('test', C.test, 34, 'text'),
     col('level', C.level, 10, 'center'),
     col('severity', C.severity, 9, 'center'),
+    col('group', C.group, 14, 'center'),
     col('sheet', C.originSheet, 11, 'center'),
     col('row', C.originRow, 10, 'int'),
     col('balanceType', C.balanceType, 8, 'center'),
@@ -309,13 +320,15 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     col('line', C.line, 7, 'center'),
     col('file', C.file, 16, 'text'),
     col('sourceRow', C.sourceRow, 9, 'int'),
-    col('value', C.value, 14, 'money'),
+    ...contextFields.map((f) => col(`c:${f}`, C[f as 'debitAccount'], 12, 'text', 'helper')),
+    col('value', C.value, 14, 'money', 'helper'),
+    ...(['amountCurrency1', 'history', 'routine', 'manual'] as const).filter((f) => present.has(f)).map((f) => col(`c:${f}`, C[f], f === 'history' ? 30 : f === 'amountCurrency1' ? 14 : 10, f === 'amountCurrency1' ? 'money' : f === 'manual' ? 'center' : 'text', 'helper')),
+    col('reason', C.reason, 48, 'text', 'helper'),
     col('confirmed', C.confirmed, 11, 'center', 'helper'),
   ];
   const EXC = Array.from(
     { length: exceptionSheets },
-    (_, s) =>
-      new Layout(s === 0 ? SHEET.exceptions : `${SHEET.exceptions} (${s + 1})`, excCols, Math.min(perSheet, exceptionOrder.length - s * perSheet)),
+    (_, s) => new Layout(s === 0 ? SHEET.exceptions : `${SHEET.exceptions} (${s + 1})`, excCols, Math.min(perSheet, listed - s * perSheet)),
   );
 
   // Profile blocks (rows known now, so the Resumo can count the groups).
@@ -354,6 +367,12 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     w.defineName(name, `${CRIT}!$${l}$${TYPE_ROW}:$${l}$${TYPE_ROW + typeLists[i]!.length - 1}`);
   });
   w.defineName('P_FERIADOS', `${CRIT}!$E$${TYPE_ROW}:$E$${TYPE_ROW + Math.max(1, holidays.length) - 1}`);
+  // "Lcto Manual?" codes (I4b/I4c), next to the entry types; an empty list keeps one empty cell, which never matches.
+  const codeLists = [config.manualFlag.manual, config.manualFlag.automatic];
+  ['P_COD_MANUAL', 'P_COD_AUTO'].forEach((name, i) => {
+    const l = colName(5 + i);
+    w.defineName(name, `${CRIT}!$${l}$${TYPE_ROW}:$${l}$${TYPE_ROW + Math.max(1, codeLists[i]!.length) - 1}`);
+  });
   const typeIs = (t: string, list: 'PD' | 'DEB' | 'CRED' | 'HIST') => `COUNTIF(P_TIPO_${list},${t})>0`;
 
   // ── Period and texts shared by the sheets ──
@@ -376,6 +395,21 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       autoFilter: `A1:${layout.lastRef}`,
       zoom: 90,
     });
+
+  // Composition of the engine (Phase 14): lines by the origin of the document, and the debit of the manual and of the
+  // automatic lines by segment (the origin of each line, not of its document).
+  const tool = {
+    originLines: Object.fromEntries(CT2_ORIGINS.map((o) => [o, 0])) as Record<(typeof CT2_ORIGINS)[number], number>,
+    manualDebit: new Float64Array(b.segments),
+    automaticDebit: new Float64Array(b.segments),
+  };
+  for (let d = 0; d < b.documents; d++) tool.originLines[CT2_ORIGINS[a.documentOrigin[d]!]!] += b.documentStart[d + 1]! - b.documentStart[d]!;
+  for (let s = 0; s < b.segments; s++) {
+    for (let pos = dayFirst(b.segmentStart[s]!); pos < dayFirst(b.segmentStart[s + 1]!); pos++) {
+      if (a.lineOrigin[pos] === 0) tool.manualDebit[s]! += b.debit[pos]!;
+      else if (a.lineOrigin[pos] === 1) tool.automaticDebit[s]! += b.debit[pos]!;
+    }
+  }
 
   // ════════ Resumo ════════
   {
@@ -438,6 +472,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.skip(1);
     sheet.row([{ v: S.errors, s: T.kvLabel }, { f: excCount(str(L.severities.error)), s: T.int }]);
     sheet.row([{ v: S.warnings, s: T.kvLabel }, { f: excCount(str(L.severities.warning)), s: T.int }]);
+    sheet.row([{ v: L.groups.approval, s: T.kvLabel }, { f: EXC.map((e) => `COUNTIF(${e.range('group')},${str(L.groups.approval)})`).join('+'), s: T.int }]);
 
     // 2. Tie-out matrix: each level recalculated from the Base; the Tool row holds the engine values.
     section(S.matrix);
@@ -542,8 +577,10 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       if (t.state !== 'on') continue;
       const r = sheet.nextRow;
       const exception = isException(t.code);
-      const inList = exception ? EXC.map((e) => `COUNTIF(${e.range('code')},$A${r})`).join('+') : null;
-      const confirmed = exception ? EXC.map((e) => `COUNTIFS(${e.range('code')},$A${r},${e.range('confirmed')},${YES})`).join('+') : null;
+      // The approval group (I4a) is in Excecoes too: in the list and confirmed as the exceptions; its status stays Info.
+      const inExc = isListed(t.code);
+      const inList = inExc ? EXC.map((e) => `COUNTIF(${e.range('code')},$A${r})`).join('+') : null;
+      const confirmed = inExc ? EXC.map((e) => `COUNTIFS(${e.range('code')},$A${r},${e.range('confirmed')},${YES})`).join('+') : null;
       sheet.row([
         { v: t.code, s: T.center },
         { v: L.tests[t.code], s: T.text },
@@ -553,7 +590,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         inList ? { f: inList, s: T.int } : { v: L.dash, s: T.center },
         { v: t.occurrences, s: T.int },
         confirmed ? { f: confirmed, s: T.int } : { v: L.dash, s: T.center },
-        { f: exception ? `IF(AND(E${r}=G${r},F${r}=G${r},H${r}=G${r}),${str(L.matches)},${str(L.check)})` : `IF(E${r}=G${r},${str(L.matches)},${str(L.check)})`, s: T.center },
+        { f: inExc ? `IF(AND(E${r}=G${r},F${r}=G${r},H${r}=G${r}),${str(L.matches)},${str(L.check)})` : `IF(E${r}=G${r},${str(L.matches)},${str(L.check)})`, s: T.center },
         { f: exception ? `IF(E${r}=0,${str(L.ok)},${str(L.check)})` : str(L.info), s: T.center },
       ]);
     }
@@ -565,7 +602,73 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.row([{ v: S.boardNote, s: T.note }], { height: textHeight(S.boardNote, 150, 9) });
     sheet.merge(`A${sheet.nextRow - 1}:J${sheet.nextRow - 1}`);
 
-    // 4. Unbalanced documents (rows of Documentos listed by the engine; every cell read by INDEX, empty kept empty).
+    // 4. Composition by origin (Phase 14, section 5): documents and lines by the origin of the document (Documentos),
+    // the batches with manual intervention (Lotes), the lines with an amount (Base) and the debit of the manual and
+    // automatic lines by segment (Base), next to the values of the engine. Amounts stay by segment.
+    section(S.composition);
+    headRow(S.compositionCols);
+    const ties = (r: number, pairs: [string, string][], money = false) => ({
+      f: `IF(AND(${pairs.map(([x, y]) => (money ? `ROUND(${x}${r}-${y}${r},2)=0` : `${x}${r}=${y}${r}`)).join(',')}),${str(L.matches)},${str(L.check)})`,
+      s: T.center,
+    });
+    const compositionFirst = sheet.nextRow;
+    for (const o of CT2_ORIGINS) {
+      const r = sheet.nextRow;
+      const crit = `${DOCS.range('origin')},${str(L.documentOrigins[o])}`;
+      sheet.row([
+        { v: L.documentOrigins[o], s: T.label },
+        { f: `COUNTIFS(${crit})`, s: T.int },
+        { f: `SUMIFS(${DOCS.range('lines')},${crit})`, s: T.int },
+        { v: a.composition.origins[o], s: T.int },
+        { v: tool.originLines[o], s: T.int },
+        ties(r, [['B', 'D'], ['C', 'E']]),
+      ]);
+    }
+    const compositionLast = sheet.nextRow - 1;
+    {
+      const r = sheet.nextRow;
+      const sum = (l: string) => ({ f: `SUM(${l}${compositionFirst}:${l}${compositionLast})`, s: T.totalInt });
+      sheet.row([{ v: S.compositionTotal, s: T.totalLabel }, sum('B'), sum('C'), { v: b.documents, s: T.totalInt }, { v: rows, s: T.totalInt }, ties(r, [['B', 'D'], ['C', 'E']])], { height: 18 });
+    }
+    const historyCount = (x: Layout) => `SUMPRODUCT(COUNTIF(${x.range(`f:entryType`)},P_TIPO_HIST))`;
+    const single = (label: string, f: string, engine: number) => {
+      const r = sheet.nextRow;
+      sheet.row([{ v: label, s: T.label }, { f, s: T.int }, dash, { v: engine, s: T.int }, dash, ties(r, [['B', 'D']])]);
+    };
+    single(S.interventionBatches, `COUNTIF(${BATCHES.range('intervention')},${YES})`, a.composition.interventionBatches);
+    single(S.entries, acrossBase((x) => `COUNTA(${x.range('file')})-${historyCount(x)}`), a.composition.entries);
+    single(S.historyLines, acrossBase(historyCount), a.composition.historyLines);
+    sheet.skip(1);
+    sheet.row([{ v: S.debitBySegment, s: T.h2 }], { height: 20 });
+    headRow(S.debitCols);
+    const lineDebit = (r: number, codes: readonly string[]) =>
+      present.has('manual') && codes.length
+        ? acrossBase((x) => codes.map((code) => `SUMIFS(${x.range('debit')},${x.range('segment')},$A${r},${x.range('f:manual')},${critEq(code)})`).join('+'))
+        : '0';
+    const debitFirst = sheet.nextRow;
+    segments.forEach((seg, k) => {
+      const r = sheet.nextRow;
+      sheet.row([
+        { v: seg, s: T.label },
+        { f: lineDebit(r, config.manualFlag.manual), s: T.money },
+        { f: lineDebit(r, config.manualFlag.automatic), s: T.money },
+        { v: reais(tool.manualDebit[k]!), s: T.money },
+        { v: reais(tool.automaticDebit[k]!), s: T.money },
+        ties(r, [['B', 'D'], ['C', 'E']], true),
+      ]);
+    });
+    const debitLast = sheet.nextRow - 1;
+    sheet.row([{ v: S.compositionNote, s: T.note }], { height: textHeight(S.compositionNote, 150, 9) });
+    sheet.merge(`A${sheet.nextRow - 1}:J${sheet.nextRow - 1}`);
+    for (const [from, to] of [
+      [compositionFirst, compositionLast + 4],
+      [debitFirst, debitLast],
+    ] as const) {
+      sheet.conditional({ sqref: `F${from}:F${to}`, formula: `F${from}=${str(L.check)}`, style: { fill: COLORS.badFill, font: { bold: true, color: COLORS.badFont } } });
+      sheet.conditional({ sqref: `F${from}:F${to}`, formula: `F${from}=${str(L.matches)}`, style: { font: { bold: true, color: COLORS.okFont } } });
+    }
+
+    // 5. Unbalanced documents (rows of Documentos listed by the engine; every cell read by INDEX, empty kept empty).
     section(S.unbalanced);
     const unbalancedDocs: number[] = [];
     if (on.B1) for (let d = 0; d < b.documents; d++) if (a.marks.document[d]! & BIT.B1) unbalancedDocs.push(d);
@@ -595,7 +698,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       if (unbalancedDocs.length > SUMMARY_UNBALANCED) sheet.row([{ v: S.unbalancedMore(SUMMARY_UNBALANCED, unbalancedDocs.length), s: T.note }]);
     }
 
-    // 5. Automatic conclusion (text of the engine; indications, never the cause).
+    // 6. Automatic conclusion (text of the engine; indications, never the cause).
     section(S.conclusion);
     const text = conclusion(language, a, on, config);
     sheet.row([{ v: text, s: T.paragraph }], { height: textHeight(text, 150, 10) });
@@ -607,7 +710,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   // ════════ Criterios ════════
   {
     const CR = L.criteria;
-    const width = [34, 18, 18, 18, 14, 60];
+    // The rule texts span D:H (92 characters), as when the last column was a single one of 60.
+    const width = [34, 18, 18, 18, 14, 18, 18, 24];
     const sheet = w.addSheet(SHEET.criteria, { columns: width.map((x) => ({ width: x })), showGridLines: false, fitToWidth: true });
     sheet.row([{ v: CR.title, s: T.title }], { height: 30 });
     sheet.skip(1);
@@ -625,11 +729,12 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.skip(1);
     sheet.row([{ v: CR.types, s: T.h2 }], { height: 22 }); // row 13
     sheet.row(CR.typeCols.map((v) => ({ v, s: T.headSummary })), { height: 20 }); // row 14
-    const listRows = Math.max(...typeLists.map((x) => x.length), holidays.length, 1);
+    const listRows = Math.max(...typeLists.map((x) => x.length), holidays.length, ...codeLists.map((x) => x.length), 1);
     for (let i = 0; i < listRows; i++) {
       sheet.row([
         ...typeLists.map((list) => (list[i] !== undefined ? { v: list[i]!, s: T.center } : null)),
         holidays[i] !== undefined ? dateCell(holidays[i]!, T.date) : null,
+        ...codeLists.map((list) => (list[i] !== undefined ? { v: list[i]!, s: T.center } : null)),
       ]);
     }
     sheet.skip(1);
@@ -647,16 +752,18 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
           { v: rule, s: T.text },
           { v: null, s: T.text },
           { v: null, s: T.text },
+          { v: null, s: T.text },
+          { v: null, s: T.text },
         ],
         { height: textHeight(rule, 92, 10) },
       );
-      sheet.merge(`D${r}:F${r}`);
+      sheet.merge(`D${r}:H${r}`);
     }
     for (const [title, body] of criteriaParagraphs(language, config.table)) {
       sheet.skip(1);
       sheet.row([{ v: title, s: T.h2 }], { height: 20 });
       sheet.row([{ v: body, s: T.paragraph }], { height: textHeight(body, 160, 10) });
-      sheet.merge(`A${sheet.nextRow - 1}:F${sheet.nextRow - 1}`);
+      sheet.merge(`A${sheet.nextRow - 1}:H${sheet.nextRow - 1}`);
     }
     sheet.end();
   }
@@ -716,6 +823,17 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       if (on.P3) put('t:P3', { f: yesNo(`OR(${L_('sequences')}${r}>1,${L_('shared')}${r}=${YES})`) });
       if (on.P4) put('t:P4', { f: yesNo(`${L_('lines')}${r}>=P_LIMITE_LINHAS`) });
       put('linesWithException', { f: `COUNTIF(${home.block('exceptions', first, last)},">0")` });
+      // Lines of the block with a manual and with an automatic code; lines without a recognized code do not count, so
+      // they never change the origin of a document that has one (decision 3 of 10/11/2026).
+      if (DOCS.has('manualLines')) {
+        const codes = (name: string, list: readonly string[]) => (list.length ? `SUMPRODUCT(COUNTIF(${home.block('f:manual', first, last)},${name}))` : '0');
+        put('manualLines', { f: codes('P_COD_MANUAL', config.manualFlag.manual) });
+        put('automaticLines', { f: codes('P_COD_AUTO', config.manualFlag.automatic) });
+        const m = `${L_('manualLines')}${r}>0`;
+        const au = `${L_('automaticLines')}${r}>0`;
+        const O = L.documentOrigins;
+        put('origin', { f: `IF(${m},IF(${au},${str(O.mixed)},${str(O.manual)}),IF(${au},${str(O.automatic)},${str(O.unidentified)}))` });
+      } else put('origin', L.documentOrigins.unidentified);
       const firstOf = (id: string, field: Ct2Field) => {
         if (!DOCS.has(id)) return;
         const ref = `${q(home.sheet)}!${B(`f:${field}`)}${first}`;
@@ -759,6 +877,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
           { f: `ROUND(${l('debit')}${r}-${l('credit')}${r},2)` },
           ...(on.B2 ? [{ f: yesNo(`ABS(${l('difference')}${r})>P_TOL`) }] : []),
           ...(on.B1 ? [{ f: `COUNTIF(${DOCS.block('t:B1', x, y)},${YES})` }] : []),
+          { f: `COUNTIF(${DOCS.block('origin', x, y)},${str(L.documentOrigins.manual)})` },
+          { f: `COUNTIF(${DOCS.block('origin', x, y)},${str(L.documentOrigins.mixed)})` },
+          { f: yesNo(`${l('manualDocuments')}${r}+${l('mixedDocuments')}${r}>0`) },
         ],
         { styles: st },
       );
@@ -805,53 +926,149 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
 
   // ════════ Excecoes (continued on other sheets above the row limit) ════════
   {
+    const R = L.reason;
+    /** A text formula from its pieces: literals quoted, fragments as they are, joined by "&". */
+    const text = (pieces: ReasonPart[]) => pieces.map((x) => (typeof x === 'string' ? str(x) : x.f)).join('&');
+    const F = (f: string): ReasonPart => ({ f });
+    const shown = (x: string) => F(`IF(${x}="",${str(R.empty)},${x})`);
+    const amount = (x: string) => F(`IF(${x}="",${str(R.unreadable)},FIXED(${x},2))`);
+    const fixed = (x: string, d: number) => F(`FIXED(${x},${d})`);
+    // dd/mm/aaaa composed of DAY/MONTH/YEAR: TEXT() takes format codes of the language of Excel.
+    const dateText = (x: string) => `RIGHT("0"&DAY(${x}),2)&"/"&RIGHT("0"&MONTH(${x}),2)&"/"&YEAR(${x})`;
+    const MN = present.has('manual');
     let k = 0;
     for (const layout of EXC) {
       const sheet = sheetOf(layout);
       header(sheet, layout);
       const st = styles(layout);
       for (let n = 0; n < layout.rows; n++, k++) {
-        const e = exceptionOrder[k]!;
-        const code = CT2_TESTS[a.exceptions.test.get(e)]!;
-        const item = a.exceptions.item.get(e);
-        const level = CT2_TEST_INFO[code].level as Exclude<Ct2Level, 'profile'>;
+        const { code, item, level, group } = findingAt(a, k);
         const linePart = level === 'line' ? partOf(item) : 0;
         const origin = level === 'line' ? BASES[linePart]! : LEVEL_LAYOUT[level];
         const position = level === 'line' ? item : level === 'document' ? b.documentStart[item]! : level === 'batch' ? b.documentStart[b.batchStart[item]!]! : b.documentStart[b.batchStart[b.dayStart[item]!]!]!;
         const i = order[position]!;
         const originRow = level === 'line' ? item - parts[linePart]!.start + 2 : item + 2;
-        const value =
-          level === 'line'
-            ? store.amount.get(i)
-            : level === 'document'
-              ? b.documentDebit[item]! - b.documentCredit[item]!
-              : level === 'batch'
-                ? b.batchDebit[item]! - b.batchCredit[item]!
-                : b.dayDebit[item]! - b.dayCredit[item]!;
         const r = sheet.nextRow;
-        const testCell = `INDEX(${origin.column(`t:${code}`)},${layout.letter('row')}${r})`;
-        sheet.row(
-          [
-            code,
-            L.tests[code],
-            L.levels[level],
-            L.severities[config.tests[code].severity],
-            origin.sheet,
-            originRow,
-            textOf(store.text.balanceType, i),
-            textOf(store.text.currency, i),
-            dateCell(store.day.get(i)),
-            level === 'day' ? null : textOf(store.text.batch, i),
-            level === 'day' ? null : textOf(store.text.subBatch, i),
-            level === 'line' || level === 'document' ? textOf(store.text.document, i) : null,
-            level === 'line' ? textOf(store.text.line, i) : null,
-            level === 'line' ? files[store.source.get(i)]!.name : null,
-            level === 'line' ? store.sourceRow.get(i) : null,
-            Number.isNaN(value) ? null : reais(value),
-            { f: yesNo(`${testCell}=${YES}`) },
-          ],
-          { styles: st },
-        );
+        const at = `${layout.letter('row')}${r}`;
+        /** The cell of a column of the source row (INDEX by the row number written in this row). */
+        const src = (id: string) => `INDEX(${origin.column(id)},${at})`;
+        const guarded = (id: string) => ({ f: `IF(${src(id)}="","",${src(id)})` });
+        const here = (id: string) => `${layout.letter(id)}${r}`;
+        const cells: CellInput[] = [];
+        const put = (id: string, cell: CellInput) => (cells[layout.cols.findIndex((c) => c.id === id)] = cell);
+        put('code', code);
+        put('test', L.tests[code]);
+        put('level', L.levels[level]);
+        put('severity', L.severities[config.tests[code].severity]);
+        put('group', L.groups[group as 'exception' | 'approval']);
+        put('sheet', origin.sheet);
+        put('row', originRow);
+        put('balanceType', textOf(store.text.balanceType, i));
+        put('currency', textOf(store.text.currency, i));
+        put('date', dateCell(store.day.get(i)));
+        put('batch', level === 'day' ? null : textOf(store.text.batch, i));
+        put('subBatch', level === 'day' ? null : textOf(store.text.subBatch, i));
+        put('document', level === 'line' || level === 'document' ? textOf(store.text.document, i) : null);
+        put('line', level === 'line' ? textOf(store.text.line, i) : null);
+        put('file', level === 'line' ? files[store.source.get(i)]!.name : null);
+        put('sourceRow', level === 'line' ? store.sourceRow.get(i) : null);
+        // Context of a line from its Base row; "Valor" is the amount of a line, the difference of the other levels.
+        for (const c of layout.cols) if (c.id.startsWith('c:')) put(c.id, level === 'line' ? guarded(`f:${c.id.slice(2)}`) : null);
+        put('value', guarded(level === 'line' ? 'f:amount' : 'difference'));
+        // Motivo: the reason of the engine (findingReason) as a text formula over the source row.
+        const V = here('value');
+        const differenceText = () => fixed(src('difference'), 2);
+        let reason: ReasonPart[];
+        switch (code) {
+          case 'B1':
+          case 'B2':
+          case 'B3':
+            reason = R.sides(fixed(src('debit'), 2), fixed(src('credit'), 2), differenceText());
+            break;
+          case 'B4': {
+            const b4 = src('t:B4');
+            reason = R.offset(differenceText(), F(`LOWER(LEFT(${b4},1))&MID(${b4},2,1000)`));
+            break;
+          }
+          case 'B5':
+            reason = R.noOffset(differenceText());
+            break;
+          case 'I1': {
+            const type = src('f:entryType');
+            reason = R.type(shown(type), shown(here('c:debitAccount')), shown(here('c:creditAccount')), F(`IF(AND(${typeIs(type, 'HIST')},${V}<>"",${V}<>0),${str(R.typeValue)}&FIXED(${V},2),"")`));
+            break;
+          }
+          case 'I2':
+            reason = R.amount(amount(V));
+            break;
+          case 'I3a': {
+            const side = (f: Ct2Field) => (present.has(f) ? here(`c:${f}`) : '""');
+            reason = [
+              ...R.account(F(here('c:debitAccount'))),
+              ...CT2_ENTITY_PAIRS.flatMap(([dr, cr], e) =>
+                present.has(dr) || present.has(cr) ? [F(`IF(EXACT(${side(dr)},${side(cr)}),"",${text(['; ', `${R.entities[e]!} `, shown(side(dr)), ' → ', shown(side(cr))])})`)] : [],
+              ),
+            ];
+            break;
+          }
+          case 'I3b':
+            reason = R.sameEntities(F(here('c:debitAccount')));
+            break;
+          case 'I4a': {
+            // The manual lines of its document: the column of Documentos (the same count the origin uses).
+            const manual = MN ? `${q(DOCS.sheet)}!$${DOCS.letter('manualLines')}$${documentAt(b, item) + 2}` : '0';
+            reason = R.changed(amount(here('c:amountCurrency1')), amount(V), fixed(manual, 0));
+            break;
+          }
+          case 'I4b':
+          case 'I4c': {
+            const O = R.lineOrigins;
+            const m = MN ? here('c:manual') : '';
+            reason = R.notFilled(
+              MN ? F(`IF(${m}="",${str(O.unidentified)},IF(COUNTIF(P_COD_MANUAL,${m})>0,${str(O.manual)},IF(COUNTIF(P_COD_AUTO,${m})>0,${str(O.automatic)},${str(O.unidentified)})))`) : O.unidentified,
+            );
+            break;
+          }
+          case 'I5':
+            reason = [R.emptyHistory];
+            break;
+          case 'E1':
+            reason = R.repeats(shown(src('f:line')));
+            break;
+          case 'E2':
+            reason = R.gap(fixed(src('lines'), 0), F(src('lastOrdinal')));
+            break;
+          case 'E3':
+            reason = R.balanceType(shown(src('f:balanceType')), F('P_SALDO'));
+            break;
+          case 'E4':
+            reason = R.currency(shown(src('f:currency')), F('P_MOEDA'));
+            break;
+          case 'E5':
+            reason = R.period(F(dateText(src('f:date'))), F(`IF(P_DATA_INI="","",${dateText('P_DATA_INI')})`), F(`IF(P_DATA_FIM="","",${dateText('P_DATA_FIM')})`));
+            break;
+          case 'E6': {
+            const w = `WEEKDAY(${src('date')},2)`;
+            const D = R.weekdays;
+            reason = R.nonBusiness(F(`IF(${w}=6,${str(D.saturday)},IF(${w}=7,${str(D.sunday)},${str(D.holiday)}))`));
+            break;
+          }
+          case 'P3': {
+            const many = `${src('sequences')}>1`;
+            const shared = `${src('shared')}=${YES}`;
+            reason = [F(`IF(${many},FIXED(${src('sequences')},0)&${str(R.sequencesInDocument)},"")&IF(AND(${many},${shared}),"; ","")&IF(${shared},${str(R.sequenceShared)},"")`)];
+            break;
+          }
+          case 'P4':
+            reason = R.limit(fixed(src('lines'), 0), fixed('P_LIMITE_LINHAS', 0));
+            break;
+          default:
+            reason = [L.tests[code]];
+        }
+        put('reason', { f: text(reason) });
+        // B4 diagnoses every document of B1: its column holds the result of the diagnosis, not "Sim".
+        put('confirmed', { f: yesNo(code === 'B4' ? `${src('t:B4')}<>""` : `${src(`t:${code}`)}=${YES}`) });
+        sheet.row(cells, { styles: st });
       }
       sheet.end();
     }
@@ -954,6 +1171,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     const BT = fieldCol('balanceType')!;
     const CU = fieldCol('currency')!;
     const DT = fieldCol('date')!;
+    const MN = fieldCol('manual');
+    // I3a/I3b: the entity pairs with a column mapped; a side without its column is empty.
+    const entityPairs = CT2_ENTITY_PAIRS.filter((pair) => pair.some((f) => present.has(f)));
     // E1: the line key (section 3), text compared with case as the engine does.
     const keyParts = (['balanceType', 'currency', ...keyFields, 'line', 'companyOrigin', 'branchOrigin'] as Ct2Field[]).filter((f, idx, all) => all.indexOf(f) === idx && present.has(f));
     const exceptionTests = LINE_TESTS.filter(isException);
@@ -988,12 +1208,29 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
             case 'I2':
               f = yesNo(`AND(NOT(${typeIs(T_, 'HIST')}),${V}<>"",${V}<=0)`);
               break;
-            case 'I3':
-              f = yesNo(`AND(${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc}))`);
+            case 'I3a':
+            case 'I3b': {
+              const same = `${typeIs(T_, 'PD')},${D}<>"",EXACT(${D},${Cc})`;
+              const side = (f: Ct2Field) => (present.has(f) ? `${l(`f:${f}`)}${r}` : '""');
+              const parts = entityPairs.map(([dr, cr]) => `NOT(EXACT(${side(dr)},${side(cr)}))`);
+              const differs = parts.length === 1 ? parts[0]! : `OR(${parts.join(',')})`;
+              // Without any entity column nothing differs: I3a never, I3b on every same-account line.
+              if (t === 'I3a') f = parts.length ? yesNo(`AND(${same},${differs})`) : str(L.no);
+              else f = yesNo(parts.length ? `AND(${same},NOT(${differs}))` : `AND(${same})`);
               break;
-            case 'I4':
-              f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",ROUND(${V}-${M1}${r},2)<>0)`);
+            }
+            case 'I4a':
+              f = yesNo(`AND(EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",${M1}${r}<>0,ROUND(${V}-${M1}${r},2)<>0)`);
               break;
+            case 'I4b':
+            case 'I4c': {
+              const zero = `EXACT(${CU}${r},P_MOEDA_LOCAL),${M1}${r}<>"",${V}<>"",NOT(${typeIs(T_, 'HIST')}),${V}<>0,${M1}${r}=0`;
+              // Without "Lcto Manual?" every line is not manual: I4b never, I4c carries them (decision of 10/11/2026).
+              if (MN === null) f = t === 'I4b' ? str(L.no) : yesNo(`AND(${zero})`);
+              else if (t === 'I4b') f = yesNo(`AND(${zero},${MN}${r}<>"",COUNTIF(P_COD_MANUAL,${MN}${r})>0)`);
+              else f = yesNo(`AND(${zero},OR(${MN}${r}="",COUNTIF(P_COD_MANUAL,${MN}${r})=0))`);
+              break;
+            }
             case 'I5':
               f = yesNo(`TRIM(${HI}${r})=""`);
               break;

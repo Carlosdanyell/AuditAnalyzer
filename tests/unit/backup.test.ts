@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
-import { ct2ConfigV1 } from '../synthetic/ct2Fixtures';
+import { ct2ConfigV1, ct2ConfigV2 } from '../synthetic/ct2Fixtures';
 import { defaultConfig } from '../../src/config/schema';
 import { buildBackup, readBackup } from '../../src/shared/backup';
 import { configHash } from '../../src/shared/configTools';
@@ -112,6 +112,22 @@ describe('backup version 3: the configuration of the other modules (docs/MODULOS
     const data = JSON.parse(buildBackup(defaultConfig(), [], 't', { ct2Integrity: ct2ConfigV1(), futuro: { x: 1 } }));
     const read = readBackup(JSON.stringify(data), readers);
     expect(read.ok && read.modules).toEqual({ ct2Integrity: ct2DefaultConfig() });
+  });
+
+  it('restores a backup holding the version 2 CT2 configuration with the version 3 migration (Phase 14)', () => {
+    const v2 = ct2ConfigV2();
+    const tests = v2.tests as Record<string, { enabled: boolean; severity: string }>;
+    tests.I3 = { enabled: true, severity: 'error' };
+    tests.I4 = { enabled: false, severity: 'warning' };
+    const read = readBackup(buildBackup(defaultConfig(), [], 't', { ct2Integrity: v2 }), readers);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const ct2 = read.modules.ct2Integrity as ReturnType<typeof ct2DefaultConfig>;
+    expect(readCt2Config(ct2)).toEqual({ ok: true, config: ct2 });
+    expect(ct2.schemaVersion).toBe(3);
+    expect([ct2.tests.I3a, ct2.tests.I3b]).toEqual([{ enabled: true, severity: 'info' }, { enabled: true, severity: 'warning' }]);
+    expect([ct2.tests.I4a, ct2.tests.I4b, ct2.tests.I4c].map((t) => t.enabled)).toEqual([false, false, false]);
+    expect(ct2.columns.valueClassCredit).toEqual({ title: 'Cl Vlr Cred', aliases: ['CT2_CLVLCR'], required: false });
   });
 
   it('reports an invalid configuration of a module by its name', () => {

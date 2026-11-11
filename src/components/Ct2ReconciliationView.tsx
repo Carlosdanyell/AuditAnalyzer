@@ -1,4 +1,4 @@
-import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
+import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2MatrixRow, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
 import { dateParts, formatDay } from '../shared/dates';
 import { formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
@@ -42,9 +42,10 @@ function periodText(start: number | null, end: number | null): string {
 
 /**
  * Reconciliation of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8): verdict, invariants,
- * the board of tests, totals of the Base by segment and the reading of each file.
+ * the board of tests, totals of the Base by segment, the tie-out matrix of the levels (Phase 14, section 4.2) and the
+ * reading of each file.
  */
-export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Reconciliation; summary: Ct2Summary | null; preview: string | null }) {
+export function Ct2ReconciliationView({ data, summary, preview, matrix = null }: { data: Ct2Reconciliation; summary: Ct2Summary | null; preview: string | null; matrix?: Ct2MatrixRow[] | null }) {
   const tiles: StatusTile[] = [
     { icon: 'sheet', label: 'Arquivos', value: n(data.files.length) },
     { icon: 'database', label: 'Linhas de detalhe', value: n(data.consolidated.detailRows) },
@@ -72,6 +73,7 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
       <Checks checks={data.checks} totalMs={data.totalMs} />
       {summary?.analysis && <TestBoard analysis={summary.analysis} />}
       {summary && <BaseSummary summary={summary} />}
+      {matrix && <Matrix rows={matrix} />}
 
       {data.files.length > 1 && (
         <section className={ui.card}>
@@ -93,6 +95,53 @@ export function Ct2ReconciliationView({ data, summary, preview }: { data: Ct2Rec
         <FileCard key={file.fileIndex} file={file} />
       ))}
     </div>
+  );
+}
+
+const MATRIX = { base: 'Base', documents: 'Documentos', batches: 'Lotes', days: 'Dias' } as const;
+
+/** Tie-out of the levels (section 8): each level recounted from its own blocks, against the Base. */
+function Matrix({ rows }: { rows: Ct2MatrixRow[] }) {
+  return (
+    <section className={ui.card}>
+      <h2 className={ui.cardTitle}>
+        <span className={ui.cardIcon}>
+          <Icon name="reconciliation" />
+        </span>
+        Matriz de amarração
+      </h2>
+      <div className={ui.scroll}>
+        <table className={ui.table}>
+          <thead>
+            <tr>
+              <th>Nível</th>
+              <th>Linhas</th>
+              <th>Documentos</th>
+              <th>Lotes</th>
+              <th>Débito</th>
+              <th>Crédito</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.level}>
+                <th scope="row">{MATRIX[m.level]}</th>
+                <td>{n(m.lines)}</td>
+                <td>{m.documents === null ? '—' : n(m.documents)}</td>
+                <td>{m.batches === null ? '—' : n(m.batches)}</td>
+                <td>{formatCents(m.debitCents)}</td>
+                <td>{formatCents(m.creditCents)}</td>
+                <td>
+                  <span className={cx(ui.pill, m.ok ? ui.ok : ui.error)}>{m.ok ? 'OK' : 'Verificar'}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className={ui.muted}>Cada nível recontado pelos próprios blocos; a planilha refaz a mesma amarração por fórmulas.</p>
+    </section>
   );
 }
 

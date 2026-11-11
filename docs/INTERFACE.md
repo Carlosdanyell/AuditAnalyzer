@@ -52,13 +52,16 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    ladrilho, acima do nome; no favicon (`public/favicon.svg`), sobre o ladrilho azul-marinho. Vale para a plataforma
    inteira; uma ferramenta nova não traz marca própria.
    **Estrutura (console):** trilho azul-marinho estreito à esquerda, com ícone e rótulo curto em cada item:
-   Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece, e no pé Configuração, Ajuda e
+   Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece (Reconciliação, Painel, Achados,
+   Tabelas, Justificativas, Exportação; "Achados" é visão da plataforma, oferecida pelos módulos com o recurso
+   `findings`, hoje só a CT2), e no pé Configuração, Ajuda e
    Encerrar sessão; a visão na tela tem fundo claro e uma marca vermelha na borda (o vermelho só marca: visão ativa,
    verificações bloqueantes e achados). Topo com a trilha ("Ferramentas › ferramenta | arquivos") acima do título da
    tela e as ações à direita; a única ação primária é "Exportar planilha". Com a análise pronta, uma faixa de
    **indicadores-chave** logo abaixo do topo (`figuresOf` em `src/app/moduleViews.tsx`; CFGR700: linhas, documentos,
-   partidas excluídas, alterações efetivas, desbalanceados e período, pelo escopo escolhido; CT2: linhas, documentos,
-   lotes, desbalanceados (B1 ligado), exceções e período). Barra de status no pé: aviso de privacidade, versão,
+   partidas excluídas, alterações efetivas, desbalanceados e período, pelo escopo escolhido; CT2, sete: Lançamentos (linhas com valor),
+   Documentos, Lotes, Desbalanceados (B1 ligado), Exceções (Erro e Alerta), Para conferência (ocorrências de I4a mais
+   documentos mistos) e Período; todos seguem o escopo, não os filtros da barra). Barra de status no pé: aviso de privacidade, versão,
    autoria e o botão de tema.
    **Densidade e movimento:** o que pede atenção fica aberto (falhas, alertas, sinalizações que exigem ação); o que
    está OK fica recolhido numa linha ("N verificação(ões) OK", "N sinalização(ões) sem ocorrência"); quadros de
@@ -78,7 +81,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 3. **Reconciliação** — por arquivo: SHA-256, integridade do ZIP, parâmetros, reconciliação de linhas, eventos por
    operação e verificações (bloqueantes e alertas); resumo da análise por escopo. Integridade da CT2: linhas após o
    cabeçalho − em branco = detalhe, valores ilegíveis por tipo com as primeiras linhas de origem, colunas encontradas,
-   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4. Visões que o módulo não
+   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4, e a **matriz de amarração** (que antes ficava no fim do Painel). Visões que o módulo não
    oferece não aparecem no menu.
 4. **Painel** (`panel`) — escopo (cada arquivo e Consolidado); período por atalho (inclui os do usuário) ou datas;
    data de corte editável; quadros: categorias por origem (cada número abre a tabela filtrada por categoria,
@@ -93,17 +96,54 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    linha de total igual ao modo Geral (cada número abre a tabela com a fase), eventos por fase e operação, segregação
    de funções, orientação para eventos Não determinados (extrair com "Exclui campos não alterados = Não" ou consultar a
    tabela pelo Recno) e o texto de limitações da seção 13.
-   **Integridade da CT2** (`segmentPanel`, `src/app/modules/ct2Integrity/Ct2PanelView.tsx`): seletor de segmento
-   ("Todos os segmentos" ou um), parâmetros da execução recolhidos com "Reaplicar os testes" (comando `analyze`, sem
-   reler os arquivos; validados na tela antes de enviar), indicadores por segmento, quadro de testes (cada número abre
-   a tabela com exatamente aquelas linhas; sem ocorrência recolhidos), documentos desbalanceados com a compensação, os
-   10 maiores documentos, perfil e matriz de amarração.
+   **Integridade da CT2** (`overview`, `src/app/modules/ct2Integrity/Ct2OverviewView.tsx`) — composição da extração,
+   tudo respeitando a barra de filtros (item 4b); débito e crédito nunca são somados entre segmentos. Indicadores
+   (cada número abre a tabela correspondente ou aplica o filtro): botões "Documentos: N", "Lotes: N" e "Lotes com
+   intervenção manual: N", lançamentos e linhas de continuação de histórico, débito total e % do débito em linhas
+   manuais (por segmento) e documentos por origem, com botões "<Origem>: N documento(s)". Grupos de opções "Medida por
+   rotina" (Linhas | Documentos | Débito) e "Medida por dia" (Linhas | Débito); a medida Débito fica desabilitada,
+   com a explicação, com mais de um segmento e nenhum escolhido. Barras por rotina empilhadas por origem, cada uma um
+   botão com nome "<rotina>: <n> linhas", "<rotina>: <n> documentos" ou "<rotina>: <valor> de débito" (clique = filtro
+   Rotina), limitadas às maiores, com "Mostrar todas as N rotinas"; colunas por dia, cada uma um botão "dd/mm/aaaa: n
+   linhas" (mais " (dia não útil)" quando for o caso; clique = filtro Dia). Tabela de lotes com intervenção manual, com
+   "Filtrar o lote X/Y", "Abrir o 1º documento do lote X/Y" (painel lateral, item 4c) e "Ver os N na tabela de lotes".
+   Perfil (por rotina, por lançamento padrão e por "Lcto Manual?") recolhido. Gráficos em SVG próprio, só com tokens,
+   sem animar números, legíveis nos dois temas; o vermelho continua reservado a achados e à visão ativa.
+4a. **Achados** (`findings`, `Ct2FindingsView.tsx`; "o que verificar", separado do Painel) — "Parâmetros da execução"
+   recolhidos, com "Reaplicar os testes" (comando `analyze`, sem reler os arquivos; validados na tela antes de enviar).
+   Cartões, na ordem: "Exceções — Erro e Alerta · N ocorrências" e "Conferir com documento de aprovação · N
+   ocorrências e M documentos mistos", abertos; "Informativos · N ocorrências em T testes" e "N teste(s) sem
+   ocorrência", recolhidos. Um bloco (`article`) por teste, com as primeiras ocorrências e o motivo de cada uma, o
+   botão "Ver todas as ocorrências de <código>" (abre Tabelas › Exceções com o teste) e, no grupo de aprovação, o
+   botão "Documentos mistos: N" e a lista deles. Cada ocorrência com documento tem o botão "Abrir o documento <doc> do
+   lote <lote>" (painel lateral). Depois, documentos desbalanceados (com a compensação) e os maiores documentos. A
+   severidade vem da configuração: teste elevado a Erro ou Alerta passa ao grupo de exceções.
+4b. **Barra de filtros da CT2** (`Ct2FilterBar.tsx`; região "Filtros", fixa em Painel, Achados e Tabelas, com o estado
+   em `Ct2Workspace`) — combobox "Segmento" (só com mais de um segmento), grupo "Origem do documento" com botões de
+   alternância Automático, Manual, Misto e Não identificado (seleção múltipla), combobox "Rotina", campos "Lote" e
+   "Sub-lote" com o botão "Filtrar o lote" e campo "Dia". Cada filtro ativo é um chip com o botão "Remover filtro
+   Segmento|Origem|Rotina|Lote|Dia"; "Limpar filtros" tira todos. Clicar num número ou gráfico cria o filtro. Chip que
+   não vale para a tabela aberta (origem e rotina em Lotes e Dias; lote em Dias) fica esmaecido, com a dica "não se
+   aplica a esta tabela", e é ignorado nela. Semântica: a linha passa quando seu bloco está no segmento, dia e lote, o
+   documento tem origem escolhida e a rotina da linha é a escolhida; documento, lote ou dia passa se ao menos uma de
+   suas linhas passa. Todo número do Painel e de Achados é igual ao total da tabela aberta com o mesmo filtro.
+4c. **Painel lateral do documento** (`Ct2DocumentPanel.tsx`; comando `document`) — diálogo (`role="dialog"`) com o
+   nome "Documento <doc> · lote <lote>/<sub> · dd/mm/aaaa", foco preso, **Esc** fecha e o foco volta a quem o abriu.
+   Cabeçalho com chave, origem, rotinas, débito e crédito por segmento e situação de B1/B4; linhas com marca discreta
+   (não vermelha) nas manuais, marca de achado e o motivo nas com exceção, e "Valor Moeda1" visível quando difere de
+   "Valor". Botões "Ver na Base" (abre Tabelas › Base filtrada pelo documento) e "Fechar o documento". Abre por
+   clique ou Enter numa linha de Documentos, Exceções ou Base, e pelos botões de Painel e Achados.
 5. **Tabelas** (`page`) — tabela, busca, ordenação, filtros vindos do painel, paginação e rolagem virtualizada;
    colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). A tabela "Tipo de
    saldo" (`segregation`) tem uma linha por evento; o filtro do painel mostra também fase, operação, exceção,
-   informativo ou marcação, e "Remover filtro do painel" tira todos eles. Integridade da CT2: Documentos, Lotes, Dias,
-   Exceções e Base, com seletor de segmento, o teste vindo do painel ("Remover filtro do painel") e, na Base,
-   "Mostrar todas as colunas"; sem o filtro de origem do CFGR700.
+   informativo ou marcação, e "Remover filtro do painel" tira todos eles. Integridade da CT2: Documentos (com "Origem
+   do documento"), Lotes (com "Documentos manuais" e "Documentos mistos"), Dias, Exceções e Base, todas com a barra
+   de filtros (item 4b), o teste vindo de Achados ("Remover filtro do painel") e, na Base, "Mostrar todas as colunas";
+   sem o filtro de origem do CFGR700. Exceções: combobox "Grupo" (Exceção, Conferir com aprovação, Informativo) e
+   colunas de contexto (contas, centros de custo, itens e classes mapeados, Valor, Valor Moeda1, Histórico, Rotina,
+   Lcto Manual?, Motivo e Grupo). Chips "Lotes com intervenção manual" ("Remover filtro de intervenção manual") e
+   "Linhas de um documento" ("Remover filtro de documento"). Uma linha de Documentos, Exceções ou Base abre o painel
+   lateral (item 4c) por clique ou Enter.
 6. **Justificativas** — listas de exclusão e de alteração (tabelas `deletionJustifications` e
    `changeJustifications`, com valor do documento, valor excluído e histórico); editor (texto, responsável, copiar
    da outra lista, confirmar que abrange o novo evento); importar planilha exportada ou JSON com prévia, cobertura
@@ -145,7 +185,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
-  da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Cada teste também reprova
+  da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
+  trilha "Reconciliação", "Painel", "Achados", "Tabelas" e "Exportação"; título "Matriz de amarração" (Reconciliação);
+  região "Filtros", combobox "Segmento", botões "Remover filtro Segmento|Rotina" e "Limpar filtros", a dica "não se
+  aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
+  "Documentos: N", "Lotes com intervenção manual: N"; títulos "Por rotina" e "Exceções — Erro e Alerta", botões "B1: N
+  documentos", "Reaplicar os testes" e "Remover filtro do painel"; e, no painel lateral, o diálogo "Documento …", "Ver
+  na Base" e "Fechar o documento". Esses nomes não mudam sem atualizar o teste. Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

@@ -60,7 +60,7 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 | `creditAccount` | Cta Credito | CT2_CREDIT | sim |
 | `amount` | Valor | CT2_VALOR | sim |
 | `history` | Hist Lanc | CT2_HIST | sim |
-| `amountCurrency1` | Valor Moeda1 | — | não (I4 desligado se ausente) |
+| `amountCurrency1` | Valor Moeda1 | — | não (I4a, I4b e I4c desligados se ausente) |
 | `routine` | Rotina | CT2_ROTINA | não |
 | `standardEntry` | Lanc Padrao | CT2_LP | não |
 | `ctkSequence` | Seq CTK | CT2_SEQUEN | não (P3 desligado se ausente) |
@@ -68,6 +68,16 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 | `origin` | Origem | CT2_ORIGEM | não |
 | `companyOrigin` | Empresa Orig | CT2_EMPORI | não |
 | `branchOrigin` | Filial Orig | CT2_FILORI | não |
+| `costCenterDebit` | C Custo Deb | CT2_CCD | não (entidades de I3a e I3b, ver abaixo) |
+| `costCenterCredit` | C Custo Crd | CT2_CCC | não |
+| `itemDebit` | Item Debito | CT2_ITEMD | não |
+| `itemCredit` | Item Credito | CT2_ITEMC | não |
+| `valueClassDebit` | Cl Vlr Deb | CT2_CLVLDB | não |
+| `valueClassCredit` | Cl Vlr Cred | CT2_CLVLCR | não |
+
+As seis colunas de **entidade** (centro de custo, item contábil e classe de valor, de cada lado) são opcionais, vêm
+como texto (guardado por dicionário, como as demais colunas de texto) e servem à comparação de I3a e I3b (seção 6.2);
+a coluna ausente conta como vazia nos dois lados. Nenhuma delas pode fazer parte da chave do documento.
 
 Coluna obrigatória ausente: erro na etapa de leitura, com a lista do que faltou e do que foi encontrado. Colunas não
 mapeadas são lidas e exportadas na Base como texto/número, na ordem original; um título não mapeado repetido ganha o
@@ -81,7 +91,7 @@ da chave do documento precisam ser colunas obrigatórias (a configuração recus
 - `amount` e `amountCurrency1`: célula numérica → centavos com `Math.round(v * 100)`; texto → parse pt-BR
   (`1.234,56`: sinal de menos opcional, milhares com ponto, até duas casas depois da vírgula; outro formato nunca é
   adivinhado). Ilegível = CI-4. `amount` vazio vale 0 só na continuação de histórico; nas demais linhas, CI-4.
-  `amountCurrency1` vazio fica sem valor; ilegível gera alerta (a linha fica fora do teste I4).
+  `amountCurrency1` vazio fica sem valor; ilegível gera alerta (a linha fica fora dos testes I4a, I4b e I4c).
 - `date`: número serial do Excel inteiro (sistema 1900 ou 1904, conforme a pasta), entre 1932 e 2067, ou texto
   `dd/mm/aaaa`. Guardar como número de dia, sem fuso. Serial com fração, data inexistente ou fora do intervalo = CI-4.
 - Códigos (`batch`, `document`, `line`, `balanceType`, `currency`…) são **texto**: zeros à esquerda preservados, espaços
@@ -142,8 +152,8 @@ nada ficou de fora (matriz de amarração). Detalhe da apresentação por segmen
 ## 6. Testes
 
 Todo teste tem código, nível, severidade e regra; liga/desliga e severidade vêm da configuração. **Erro** e
-**Alerta** são achados da análise (não bloqueiam a exportação); **Info** é perfil. Nenhum teste altera ou exclui
-linhas.
+**Alerta** são achados da análise (não bloqueiam a exportação); **Info** é perfil ou apoio à conferência (os testes Info
+com nível aparecem em Achados, seção 6.6). Nenhum teste altera ou exclui linhas.
 
 ### 6.1 Balanceamento
 
@@ -161,9 +171,20 @@ linhas.
 |---|---|---|
 | I1 | Erro | tipo de lançamento incoerente com as contas: Partida Dobrada sem as duas contas; Debito sem conta débito ou com conta crédito; Credito sem conta crédito ou com conta débito; Cont.Hist com conta ou com valor ≠ 0; tipo não reconhecido |
 | I2 | Erro | linha com valor (tipo ≠ Cont.Hist) e valor ≤ 0 |
-| I3 | Alerta | Partida Dobrada com a mesma conta no débito e no crédito |
-| I4 | Alerta | moeda = moeda local da configuração e `amount` ≠ `amountCurrency1` |
+| I3a | Info | Partida Dobrada com a mesma conta (não vazia) no débito e no crédito e **ao menos uma** entidade diferente entre débito e crédito: reclassificação entre entidades |
+| I3b | Alerta | Partida Dobrada com a mesma conta (não vazia) no débito e no crédito e **todas** as entidades iguais: lançamento sem efeito contábil |
+| I4a | Info (grupo "Conferir com documento de aprovação") | moeda = moeda local da configuração, `amountCurrency1` legível e ≠ 0, `amount` legível e ≠ `amountCurrency1`: valor alterado depois da geração; vale para qualquer tipo de lançamento |
+| I4b | Info | moeda = moeda local, tipo ≠ Cont.Hist, `amount` ≠ 0, `amountCurrency1` = 0 e linha **manual** (código em `manualFlag.manual`): campo não preenchido pela rotina manual |
+| I4c | Alerta | como I4b, mas linha **não manual** (automática, não identificada ou coluna "Lcto Manual?" ausente): não esperado em rotina automática |
 | I5 | Alerta | histórico vazio (após `trim`) |
+
+Os testes de linha são 23 códigos no total (B1–B5, I1, I2, I3a, I3b, I4a–I4c, I5, E1–E6, P1–P4; Fase 14: I3a e I3b
+substituem o I3, e I4a, I4b e I4c o I4). "Entidades" são centro de custo, item contábil e classe de valor (seção 2);
+a comparação é exata, texto contra texto, e a coluna ausente conta como vazia. Sem nenhuma coluna de entidade
+mapeada, toda mesma conta cai em I3b (seção 10). `amountCurrency1` vazio ou ilegível deixa a linha fora de I4a–I4c
+(o aviso de valores ilegíveis é do CI-4). Valores comparados em centavos, de forma exata. A severidade e o liga/desliga
+de cada subtipo são editáveis na Configuração; I4a é **Info** por padrão e aparece aberto em Achados (seção 6.6), porque
+a alteração de um lançamento automático deve ter documento de aprovação.
 
 ### 6.3 Integridade estrutural
 
@@ -195,6 +216,56 @@ linhas.
 | Tolerância de balanceamento (R$) | 0,00 |
 | Limite de linhas por documento | 1.000 (valor do parâmetro `MV_NUMLIN` do Protheus na extração observada; pode ser aumentado no Protheus, e então o parâmetro da execução acompanha) |
 
+### 6.6 Atributos derivados e achados (Fase 14)
+
+**Origem do documento.** Calculada uma vez na análise, por **bloco de documento** (o documento dentro do seu tipo de
+saldo e moeda, seção 3), a partir de "Lcto Manual?" de todas as suas linhas, com os códigos de `manualFlag`:
+
+| Origem | Regra |
+|---|---|
+| Automático | só códigos automáticos |
+| Manual | só códigos manuais |
+| Misto | códigos manuais e automáticos no mesmo documento (lançamento automático com intervenção manual) |
+| Não identificado | nenhum código reconhecido; inclui a coluna "Lcto Manual?" ausente |
+
+Linhas sem código reconhecido (vazio ou outro valor) são **ignoradas** quando o documento tem ao menos um código
+reconhecido: nunca mudam a origem de um documento que tem um. A origem **da linha** (manual, automática ou não
+identificada) é o código da própria linha.
+
+**Lote com intervenção manual:** lote (segmento + data + lote + sub-lote, as mesmas linhas da tabela Lotes) com ao
+menos um documento Manual ou Misto.
+
+**Lançamentos (linhas com valor):** linhas cujo tipo **não** é continuação de histórico (Cont.Hist); linha de tipo
+desconhecido conta como lançamento. Somado às "linhas de continuação de histórico", dá as linhas da extração.
+
+**Grupos de achados.** Cada ocorrência de teste com nível (todos menos P1 e P2) pertence a um grupo:
+
+| Grupo | Quais testes | Na tela | Na planilha (Excecoes) |
+|---|---|---|---|
+| Exceção | severidade Erro ou Alerta (inclusive I4a, se a severidade for elevada) | Achados › "Exceções — Erro e Alerta" | sim |
+| Conferir com aprovação | Info com o atributo `review: 'approval'` em `CT2_TEST_INFO` (hoje, I4a) | Achados › "Conferir com documento de aprovação", aberto | sim |
+| Informativo | os demais Info com nível | Achados › "Informativos", recolhido | não: ficam nas colunas de teste e no Resumo |
+
+A lista de achados segue a ordem: Exceção (Erro, depois Alerta), Conferir com aprovação, Informativo; dentro do grupo,
+a ordem dos testes e a do nível. A Excecoes da planilha é um prefixo dessa lista (CI-5 continua valendo para Erro e
+Alerta).
+
+**Motivo.** Cada ocorrência tem um texto em pt-BR, gerado pelo motor (`findings.ts`) com os valores formatados por
+`src/shared/format.ts`; texto vazio aparece como "(vazio)". A planilha reproduz o mesmo texto por fórmula (seção 7.10).
+
+| Teste | Motivo |
+|---|---|
+| B1, B2, B3 | `Débito <D> e crédito <C>; diferença <D−C>` |
+| B4, B5 | `Diferença <D−C>; <resultado de B4>` / `Diferença <D−C> sem compensação pelo documento vizinho do lote` |
+| I1 | `Tipo <tipo> com conta D <conta> e conta C <conta>` (com `; valor <v>` na continuação de histórico com valor) |
+| I2 | `Valor <v>` |
+| I3a | `Conta <conta> em D e C; CC <ccD> → <ccC>`: só as entidades que diferem, item (`Item <iD> → <iC>`) e classe (`Classe <cD> → <cC>`) na mesma forma, separados por "; " |
+| I3b | `Conta <conta> em D e C com as mesmas entidades` |
+| I4a | `Valor gerado <Valor Moeda1> → atual <Valor>; documento com <n> linha(s) manual(is)` |
+| I4b, I4c | `Valor Moeda1 não preenchido (<origem da linha>)`, com a origem da linha manual, automática ou não identificada |
+| I5 | `Histórico vazio` |
+| E1 a E6, P3, P4 | descrição curta da condição com os seus valores (linha repetida, lacuna, tipo de saldo ou moeda esperados, período, dia não útil, Seq CTK, limite de linhas) |
+
 ## 7. Planilha exportada — amarração por fórmulas
 
 ### 7.1 Princípio
@@ -225,7 +296,9 @@ Regras:
 ### 7.2 Nomes definidos (aba Criterios)
 
 `P_DATA_INI`, `P_DATA_FIM`, `P_SALDO`, `P_MOEDA`, `P_MOEDA_LOCAL`, `P_TOL`, `P_LIMITE_LINHAS`, `P_TIPO_PD`,
-`P_TIPO_DEB`, `P_TIPO_CRED`, `P_TIPO_HIST`, `P_FERIADOS` (intervalo). Células de parâmetro com texto azul e
+`P_TIPO_DEB`, `P_TIPO_CRED`, `P_TIPO_HIST`, `P_COD_MANUAL`, `P_COD_AUTO` (listas dos códigos de "Lcto Manual?" de
+`manualFlag`, usadas por I4b, I4c e pela origem do documento; lista vazia mantém uma célula vazia, que nunca confere),
+`P_FERIADOS` (intervalo). Células de parâmetro com texto azul e
 preenchimento de entrada; alterar um parâmetro recalcula testes e status. A estrutura (blocos, ordenação) não muda
 com parâmetros.
 
@@ -238,7 +311,7 @@ com parâmetros.
 | 3 | Documentos / Documents | uma linha por documento |
 | 4 | Lotes / Batches | uma linha por lote |
 | 5 | Dias / Days | uma linha por dia |
-| 6 | Excecoes / Exceptions | uma linha por ocorrência de teste com severidade Erro ou Alerta (Info fica nas abas de nível) |
+| 6 | Excecoes / Exceptions | uma linha por ocorrência dos grupos Exceção (Erro ou Alerta) e Conferir com aprovação (I4a); os demais Info ficam nas abas de nível e nas colunas de teste |
 | 7 | Perfil / Profile | P1, P2, P3, P4 |
 | 8 | Base / Base | extração ordenada + colunas de teste |
 | 9 | Rastreabilidade / Traceability | versão, data, configuração (SHA-256 e diferenças), arquivos (nome, tamanho, SHA-256, cabeçalho encontrado, mapeamento de colunas, reconciliação de leitura), parâmetros, invariantes |
@@ -254,8 +327,11 @@ direita), e as colunas de fórmula (cabeçalho cinza, título explícito, result
 | Crédito | `=IF(OR({Tipo}=P_TIPO_PD,{Tipo}=P_TIPO_CRED),{Valor},0)` |
 | I1 Exceção? | `=IF(IF({Tipo}=P_TIPO_PD,AND({Deb}<>"",{Cred}<>""),IF({Tipo}=P_TIPO_DEB,AND({Deb}<>"",{Cred}=""),IF({Tipo}=P_TIPO_CRED,AND({Deb}="",{Cred}<>""),IF({Tipo}=P_TIPO_HIST,AND({Deb}="",{Cred}="",{Valor}=0),FALSE)))),"Não","Sim")` |
 | I2 Exceção? | `=IF(AND({Tipo}<>P_TIPO_HIST,{Valor}<=0),"Sim","Não")` |
-| I3 Exceção? | `=IF(AND({Tipo}=P_TIPO_PD,{Deb}={Cred}),"Sim","Não")` |
-| I4 Exceção? | `=IF(AND({Moeda}=P_MOEDA_LOCAL,ROUND({Valor}-{VlrMoeda1},2)<>0),"Sim","Não")` |
+| I3a Exceção? | `=IF(AND(COUNTIF(P_TIPO_PD,{Tipo})>0,{Deb}<>"",EXACT({Deb},{Cred}),OR(NOT(EXACT({CCD},{CCC})),NOT(EXACT({ItemD},{ItemC})),NOT(EXACT({ClD},{ClC})))),"Sim","Não")` (só com as colunas de entidade mapeadas; sem nenhuma, a coluna vale "Não") |
+| I3b Exceção? | `=IF(AND(COUNTIF(P_TIPO_PD,{Tipo})>0,{Deb}<>"",EXACT({Deb},{Cred}),NOT(OR(<mesmas comparações>))),"Sim","Não")` (sem coluna de entidade: a condição de entidades some e toda mesma conta é "Sim") |
+| I4a Exceção? | `=IF(AND(EXACT({Moeda},P_MOEDA_LOCAL),{VlrMoeda1}<>"",{Valor}<>"",{VlrMoeda1}<>0,ROUND({Valor}-{VlrMoeda1},2)<>0),"Sim","Não")` |
+| I4b Exceção? | `=IF(AND(EXACT({Moeda},P_MOEDA_LOCAL),{VlrMoeda1}<>"",{Valor}<>"",NOT(<tipo = Cont.Hist>),{Valor}<>0,{VlrMoeda1}=0,{Manual}<>"",COUNTIF(P_COD_MANUAL,{Manual})>0),"Sim","Não")` (sem a coluna "Lcto Manual?": sempre "Não") |
+| I4c Exceção? | igual a I4b, com `OR({Manual}="",COUNTIF(P_COD_MANUAL,{Manual})=0)` no lugar das duas últimas condições (sem a coluna "Lcto Manual?": toda linha que cumpre as demais condições) |
 | I5 Exceção? | `=IF(TRIM({Hist})="","Sim","Não")` |
 | E1 Exceção? | `=IF(AND({chave da linha r} = {chave da linha r−1}, campo a campo),"Sim","Não")` (1ª linha de dados: "Não") |
 | E3 Exceção? | `=IF({Saldo}<>P_SALDO,"Sim","Não")` |
@@ -263,7 +339,11 @@ direita), e as colunas de fórmula (cabeçalho cinza, título explícito, result
 | E5 Exceção? | `=IF(OR({Data}<P_DATA_INI,{Data}>P_DATA_FIM),"Sim","Não")` |
 | Exceções na linha | `=COUNTIF({I1}r:{E5}r,"Sim")` |
 
-Teste desligado na configuração: a coluna não é gerada e o teste sai do quadro do Resumo.
+Teste desligado na configuração: a coluna não é gerada e o teste sai do quadro do Resumo. As colunas de entidade
+mapeadas entram na Base com as demais colunas mapeadas (seção 7.8.1).
+
+`COUNTIF(P_COD_MANUAL, <Lcto Manual?>)` compara como o Excel: sem distinção de maiúsculas e, para códigos só com
+dígitos, como número (seção 10); o motor compara o texto exato.
 
 ### 7.5 Documentos
 
@@ -282,6 +362,8 @@ na Base, ordinal da última linha, Seq CTK distintos, "Seq CTK em outro document
 | P4 Atingiu limite de linhas? | `=IF(Linhas>=P_LIMITE_LINHAS,"Sim","Não")` |
 | Linhas com exceção | `=COUNTIF(Base!{Exceções na linha}$a:$b,">0")` |
 | Rotina, LP, Seq CTK, Histórico (1ª linha) | `=IF(Base!{col}a="","",Base!{col}a)` |
+| Linhas manuais / Linhas automáticas (Fase 14) | `=SUMPRODUCT(COUNTIF(Base!{Lcto Manual?}$a:{Lcto Manual?}$b,P_COD_MANUAL))` e o equivalente com `P_COD_AUTO` (`0` sem a coluna ou sem códigos) |
+| Origem do documento (Fase 14) | `=IF(Manuais>0,IF(Automáticas>0,"Misto","Manual"),IF(Automáticas>0,"Automático","Não identificado"))`; linha sem código reconhecido não entra nas duas contagens |
 
 "Mesmo lote" compara o segmento (tipo de saldo e moeda) e data, lote e sub-lote das duas linhas: a compensação
 adjacente nunca cruza segmentos.
@@ -290,14 +372,19 @@ adjacente nunca cruza segmentos.
 
 - **Lotes:** linha inicial/final em Documentos (valores); `Documentos =ROWS(Documentos!$A$x:$A$y)`;
   `Linhas`, `Débito`, `Crédito` = `SUM` do bloco em Documentos; `Diferença`; `B2 Desbalanceado?`;
-  `Documentos desbalanceados =COUNTIF(Documentos!{B1}x:{B1}y,"Sim")`.
+  `Documentos desbalanceados =COUNTIF(Documentos!{B1}x:{B1}y,"Sim")`; Fase 14: `Documentos manuais` e `Documentos mistos
+  =COUNTIF(Documentos!{Origem do documento}x:{Origem do documento}y,"Manual"|"Misto")` e `Intervenção manual? =IF(manuais+mistos>0,"Sim","Não")`.
 - **Dias:** mesmo esquema sobre Lotes; `Lotes =ROWS(...)`; `B3 Desbalanceado?`;
   `E6 Dia não útil? =IF(OR(WEEKDAY(Data,2)>5,COUNTIF(P_FERIADOS,Data)>0),"Sim","Não")`.
 
 ### 7.7 Exceções
 
-Uma linha por ocorrência (valores): código, nível, severidade, aba de origem, linha na aba de origem, chave
-(data, lote, sub-lote, documento, linha), valor, descrição. Coluna de fórmula **"Confirmada na origem?"**:
+Uma linha por ocorrência dos grupos **Exceção** (Erro ou Alerta) e **Conferir com aprovação** (I4a; seção 6.6), nesta
+ordem; os demais Info não vão para Excecoes. Valores: código, nível, severidade, **grupo**, aba de origem, linha na aba
+de origem, chave (data, lote, sub-lote, documento, linha), valor, descrição. Fase 14, por fórmula: as colunas de
+**contexto** da linha (Conta D, Conta C, as entidades mapeadas, Valor, Valor Moeda1, Histórico, Rotina, Lcto Manual?)
+lidas da Base por `INDEX` (vazias para documento, lote e dia) e o **Motivo**, texto montado por fórmula com o mesmo
+texto do motor (seção 6.6). Coluna de fórmula **"Confirmada na origem?"**:
 `=IF(INDEX(<aba>!<coluna do teste>:<coluna>, <linha>)="Sim","Sim","Não")`, uma fórmula por linha apontando para a
 coluna do teste na aba de origem (Base para linha; Documentos, Lotes, Dias para os demais). Ordenação: severidade,
 código, chave.
@@ -322,10 +409,17 @@ código, chave.
 3. **Quadro de testes:** código, teste, nível, severidade, ocorrências por fórmula (`COUNTIF` na coluna do teste),
    ocorrências em Excecoes (`COUNTIF` do código), ocorrências pela ferramenta (valor), "confirmadas na origem"
    (`COUNTIFS` código + "Sim"), conferência (`"Confere"` quando as quatro contagens são iguais), status
-   (`OK` / `Verificar` / `Info`). Info não vai para Excecoes: as duas colunas de Excecoes ficam "—".
-4. **Documentos desbalanceados:** até 50 linhas com `INDEX` sobre Documentos (lista gerada pelo motor como números de
+   (`OK` / `Verificar` / `Info`). Info não vai para Excecoes: as duas colunas de Excecoes ficam "—". **Exceção:** as
+   linhas do grupo Conferir com aprovação (I4a) estão em Excecoes e são conferidas como as exceções (as quatro
+   contagens iguais), mas o status continua "Info" (nunca "Verificar"); os indicadores trazem a contagem do grupo.
+4. **Composição por origem (Fase 14):** documentos e linhas por origem do documento (`COUNTIFS` e `SUMIFS` sobre
+   Documentos), lotes com intervenção manual (`COUNTIF` em Lotes), lançamentos e linhas de continuação de histórico
+   (`COUNTA` e `COUNTIF` sobre a Base) e, **por segmento**, o débito das linhas manuais e das automáticas (`SUMIFS` na
+   Base pelos códigos de "Lcto Manual?"); cada número ao lado do valor da ferramenta, com a coluna "Conferência".
+   Valores nunca são somados entre tipos de saldo e moedas.
+5. **Documentos desbalanceados:** até 50 linhas com `INDEX` sobre Documentos (lista gerada pelo motor como números de
    linha, com tratamento de vazio); nota com o total quando passar de 50.
-5. **Conclusão automática** (texto montado pelo motor, na língua da exportação), com as frases condicionadas:
+6. **Conclusão automática** (texto montado pelo motor, na língua da exportação), com as frases condicionadas:
    balanceamento por nível; quantos desbalanceados têm compensação adjacente; quantos documentos atingiram o limite
    de linhas; testes com Erro. Sem juízo de causa: "indícios" e "a confirmar pelo analista".
 
@@ -366,6 +460,29 @@ código, chave.
   as colunas mapeadas, 465 MB e o LibreOffice esgota 15 GB de memória ao recalcular). Excel: 1.048.576 linhas por aba.
 - A gravação para com erro claro se uma aba passar de 4 GB sem compressão (nunca um arquivo corrompido).
 - Fórmula nunca trocada por valor para caber: decisão do usuário.
+- **Fase 14 (medições em `docs/MEDICOES.md`, 11/11/2026):** com as colunas novas (três de fórmula a mais por linha da
+  Base, entidades e contexto da Excecoes) o recálculo no LibreOffice ficou em 169 s com 300 mil linhas (251 MB, maior
+  aba 2,2 GB sem compressão, geração em 60 s) e 301 s com 600 mil (502 MB, duas abas da Base, cerca de 2 min de
+  geração); matriz e quadro todos OK/Confere. O LibreOffice usou cerca de 11,4 GB recalculando 600 mil linhas e uma
+  tentativa foi encerrada por falta de memória na máquina de 15 GB: **o teto continua em 600.000 linhas** (CI-8) e a
+  conferência no Excel com uma extração real fica pendente.
+
+### 7.10 Como foi implementado (Fase 14, `workpaper.ts`, `workpaperLabels.ts`)
+
+- **Base:** as seis colunas de entidade mapeadas entram com as demais colunas mapeadas; as colunas de teste I3a, I3b,
+  I4a, I4b e I4c ocupam o lugar das de I3 e I4 (seção 7.4).
+- **Documentos:** `Linhas manuais`, `Linhas automáticas` e `Origem do documento` por fórmula sobre o bloco contíguo da
+  Base (`SUMPRODUCT(COUNTIF(<bloco>, P_COD_MANUAL))`). **Lotes:** `Documentos manuais`, `Documentos mistos` e
+  `Intervenção manual?` por `COUNTIF` sobre o bloco de Documentos.
+- **Excecoes:** `Grupo`, contexto por `INDEX` na Base, `Motivo` e `Confirmada na origem?` (seção 7.7). O `Motivo` usa
+  `FIXED(valor, 2)` para os valores e `RIGHT("0"&DAY(x),2)&"/"&RIGHT("0"&MONTH(x),2)&"/"&YEAR(x)` para as datas;
+  **nunca `TEXT`**, cujo código de formato depende do idioma do Excel. Os separadores decimais saem como os do Excel de
+  quem abre a planilha; o texto dos rótulos é o do idioma escolhido na exportação (pt/en).
+- **Resumo:** bloco "Composição por origem" (seção 7.8, item 4). As linhas de I4a entram no quadro de testes como o
+  grupo Conferir com aprovação: contadas na Base, em Excecoes e "confirmadas na origem", com status "Info".
+- **Criterios:** nomes `P_COD_MANUAL` e `P_COD_AUTO`, descrição dos testes novos, da origem do documento e das
+  limitações da seção 10.
+- `tests/support/xlsxEval.ts` avalia as funções novas; o determinismo byte a byte continua.
 
 ## 8. Invariantes (verificados a cada execução)
 
@@ -379,11 +496,18 @@ código, chave.
 | CI-6 | Contagens: documentos = pares segmento + chave distintos; lotes e dias idem | sim |
 | CI-7 | Exportação: nenhuma data zero ou anterior a 1901; nenhuma mesclagem sobreposta (mesmas regras 9 e 10 do CFGR700) | sim |
 | CI-8 | Base com até 600.000 linhas (limite da planilha amarrada, seção 7.9), em abas de dias inteiros que cabem numa aba do Excel | sim |
-| CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso) | não |
+| CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso; desde a Fase 14 também as colunas de entidade ausentes, com o aviso de que toda mesma conta cai em I3b quando nenhuma está mapeada) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
 
 Exportação com invariante bloqueante falhando: mesma regra do CFGR700 (confirmação explícita registrada no Resumo e
 na Rastreabilidade).
+
+**Versão da configuração (Fase 14):** `schemaVersion` 3. A versão 2 (e a 1, que antes já migrava para a 2) é migrada ao
+ler (`readCt2Config`, `src/config/ct2IntegritySchema.ts`): as seis colunas de entidade entram com os padrões; o
+`enabled` do I3 antigo passa para I3a e I3b e o do I4 para I4a, I4b e I4c; **as severidades vêm do padrão**
+(I3a Info, I3b Alerta, I4a Info, I4b Info, I4c Alerta), o "Alerta" do I4 antigo não é herdado. As cópias de segurança
+com a configuração da versão anterior são restauradas pela mesma migração; a configuração salva no computador é
+migrada ao abrir e regravada na versão 3.
 
 **Como são conferidos (Fase 10, `src/worker/modules/ct2Integrity/checks.ts`):** cada invariante reconta por um
 caminho próprio. CI-3 soma as linhas na ordem de leitura (sem a ordem da base) e compara com a base ordenada, os
@@ -394,7 +518,7 @@ opcionais ausentes de todos os arquivos (teste desligado) e de parte deles (essa
 campo vazio). CI-10 conta as linhas com data válida fora do período.
 
 **Detalhes da aplicação dos testes (Fase 10):** valor ilegível (CI-4) conta 0 nas somas e fica fora de I2 e da parte
-de valor de I1 e I4; data inválida fica fora de E5 e o dia sem data válida, de E6; Seq CTK vazio não é sequência
+de valor de I1 e de I4a–I4c; data inválida fica fora de E5 e o dia sem data válida, de E6; Seq CTK vazio não é sequência
 (P3); grupo de rotina ou de lançamento padrão vazio é um grupo próprio (P1); B4 só diagnostica documentos com B1, e
 B5 só existe com B4 ligado (a configuração recusa B4 sem B1 e B5 sem B4). O teste ligado cuja coluna opcional falta em
 todos os arquivos aparece como "sem a coluna" no quadro de testes.
@@ -405,11 +529,53 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 
 - **Parâmetros** da execução (seção 6.5) num quadro do painel: os testes rodam com os padrões e são reaplicados em
   segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
-- **Seletor de segmento:** "Todos os segmentos" ou um segmento, para o painel e as tabelas.
-- **Painel:** indicadores; matriz de amarração com OK/Verificar; quadro de testes (cada número abre a tabela filtrada:
-  Excecoes pelo código, ou Documentos/Lotes/Dias pelo status); documentos desbalanceados com a compensação
-  adjacente; 10 maiores documentos com o limite de linhas; perfil por rotina.
-- **Tabelas:** Documentos, Lotes, Dias, Exceções, Base (com as colunas de teste; as demais colunas da extração sob
+- **Trilho (Fase 14):** Reconciliação · Painel · Achados · Tabelas · Exportação (Configuração e Ajuda no pé).
+  Reconciliação traz a **matriz de amarração** (OK/Verificar) que ficava no fim do Painel; o Painel é "o que há na
+  extração" e Achados é "o que verificar".
+- **Filtro comum** ao Painel, Achados e Tabelas, com o estado na área de trabalho do módulo (substitui o seletor de
+  segmento de cada visão): Segmento, Origem do documento (uma ou mais), Rotina, Lote e Dia. Cada filtro ativo é um chip
+  removível e há um botão que limpa todos; clicar num elemento de gráfico ou num número cria o filtro correspondente.
+  Semântica (`Ct2Filter`, `src/worker/modules/ct2Integrity/filter.ts`): uma **linha** passa quando o seu bloco está no
+  segmento, no dia e no lote, a origem do **seu documento** é uma das escolhidas e a **sua própria** rotina é a
+  escolhida; um documento, lote ou dia passa quando **ao menos uma** das suas linhas passa. Todo número do Painel e de
+  Achados é calculado sobre o que passa. Contagens podem somar segmentos; débito, crédito e percentuais em valor
+  aparecem por segmento (seção 5).
+- **Aplicabilidade por tabela** (o filtro que não se aplica é ignorado e a tela o esmaece, com a dica "não se aplica a
+  esta tabela"):
+
+  | Tabela | Segmento | Dia | Lote | Origem | Rotina |
+  |---|---|---|---|---|---|
+  | Documentos | sim | sim | sim | sim | sim |
+  | Lotes | sim | sim | sim | não | não |
+  | Dias | sim | sim | não | não | não |
+  | Exceções | sim | sim | sim | sim | sim |
+  | Base | sim | sim | sim | sim | sim |
+
+  Em Exceções, com filtro de origem ou de rotina ativo, os achados de lote e de dia ficam **fora** das contagens e da
+  tabela (não têm origem nem rotina). Além do filtro comum, as tabelas têm busca, teste, grupo (Exceções), "só lotes
+  com intervenção manual" (Lotes) e documento (Base, usado por "Ver na Base").
+- **Painel (composição da extração, tudo respeita o filtro):** lançamentos (linhas com valor) e linhas de
+  continuação de histórico; documentos, lotes e dias; documentos por origem (Automático, Manual, Misto, Não
+  identificado); lotes com intervenção manual; débito por segmento e % do débito em linhas manuais; distribuição por
+  rotina (linhas, documentos ou débito, empilhada por origem); distribuição por dia (linhas ou débito; dias não úteis
+  marcados pela regra do E6 e os feriados da plataforma); tabela dos lotes com intervenção manual (a lista vem
+  limitada, com o total dito na tela); perfil P1/P2 recolhido. **Lotes e Dias ignoram origem e rotina** quando o filtro
+  as traz (seção 13).
+- **Achados (o que verificar):** parâmetros da execução e "Reaplicar os testes" (recolhidos); Exceções — Erro e
+  Alerta (um bloco por teste com ocorrência, as primeiras ocorrências com o motivo e "Ver todas", que abre Tabelas ›
+  Exceções no teste); Conferir com documento de aprovação (I4a e documentos mistos); Informativos (recolhidos, com a
+  contagem); testes sem ocorrência (uma linha recolhida); documentos desbalanceados (B1, B4, B5) e maiores documentos
+  (P4). Cada ocorrência abre o painel lateral do documento.
+- **Painel lateral do documento** (comando `document`): a chave, a data, a origem por segmento, as rotinas, débito e
+  crédito **por segmento**, a situação de B1/B4 e as linhas do documento (limitadas, com o total dito) com as colunas
+  mapeadas, as entidades, "Valor Moeda1" quando difere de "Valor", "Lcto Manual?", as marcas dos testes e o motivo;
+  "Ver na Base" abre Tabelas › Base filtrada pelo documento. Detalhes de comportamento em `docs/INTERFACE.md`.
+- **Faixa de indicadores-chave:** Lançamentos (linhas com valor), Documentos, Lotes, Desbalanceados, Exceções (Erro +
+  Alerta), Para conferência (ocorrências de I4a + documentos mistos) e Período.
+- **Tabelas:** Documentos (com "Origem do documento"), Lotes (com "Documentos manuais" e "Documentos mistos"), Dias,
+  Exceções (com Conta D e C, as entidades mapeadas, Valor, Valor Moeda1, Histórico, Rotina, Lcto Manual?, Motivo e
+  Grupo: Exceção, Conferir com aprovação ou Informativo; filtro por grupo; **a tela lista os três grupos**, a planilha
+  só os dois primeiros), Base (com as colunas de teste; as demais colunas da extração sob
   "Mostrar todas as colunas"), virtualizadas e paginadas no worker.
 - **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx` (com mais de um mês,
   `<AAAA-MM>_a_<AAAA-MM>`).
@@ -426,6 +592,15 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   amarração passa a mostrar "Verificar".
 - B4 e P4 são indícios: compensação adjacente e limite de linhas não provam a causa do desbalanceamento.
 - E2 vale só para a numeração 001–999 enquanto a regra após A00 não estiver confirmada.
+- **Sem coluna de entidade mapeada, toda mesma conta cai em I3b** (sem efeito contábil): I3a nunca ocorre. A
+  Critérios da planilha diz isso e o CI-9 lista as colunas ausentes.
+- **A origem do documento depende de "Lcto Manual?"**: sem a coluna (ou sem código reconhecido) o documento é Não
+  identificado e I4b nunca marca (toda linha é não manual e cai em I4c).
+- **COUNTIF do Excel × motor:** o `COUNTIF(P_COD_MANUAL, …)` da planilha ignora maiúsculas e minúsculas e compara como
+  número os códigos só com dígitos (`01` = `1`); o motor compara o texto exato. Códigos de "Lcto Manual?" que só
+  diferem nisso podem dar origens diferentes no Excel e no motor; o Resumo mostra a diferença na coluna Conferência.
+- No Painel (visão por documento), um documento com linhas de mais de uma rotina conta em **cada** rotina; a soma por
+  rotina de documentos pode passar do total de documentos (a de linhas e a de débito não).
 - O módulo não identifica o usuário que fez o lançamento (seção 12, item 4); a análise por usuário é do módulo
   CFGR700.
 
@@ -434,7 +609,9 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 - **Sintéticos (versionados):** gerador de extração CT2 `.xlsx` com o layout real (linha de título, linha em branco,
   cabeçalho com espaços à direita, ~80 colunas, códigos como texto e como número). Um caso por regra: documento
   balanceado; par desbalanceado que se compensa (documento com 1.000 linhas `001`–`999` + `A00` e continuação no
-  seguinte); desbalanceado sem compensação; I1 em cada variação; I2; I3; I4; I5; E1 dentro do arquivo e entre dois
+  seguinte); desbalanceado sem compensação; I1 em cada variação; I2; I3a (só o CC difere; só o item difere), I3b (com
+  e sem colunas de entidade); I4a, I4b, I4c e "Valor Moeda1" vazio (não testado); documento de cada origem
+  (Automático, Manual, Misto, Não identificado) e lote com e sem intervenção manual; I5; E1 dentro do arquivo e entre dois
   arquivos; E2; E3; E4; E5; E6 com sábado e feriado; Seq CTK em dois documentos; documento com linhas em dois
   segmentos (moedas `01` e `02`, mesmas linhas, cada segmento balanceado e sem E1); coluna opcional ausente; coluna
   obrigatória ausente; chave incompleta; valor ilegível.
@@ -559,3 +736,29 @@ Situação em 20/10/2026 (decisões na seção 13):
   com a Base em duas abas, abriu no Excel e recalculou em alguns minutos; a matriz de amarração ficou toda "OK" e o
   quadro de testes todo "Confere". Decidido pelo usuário: **o módulo deixa de ser prévia** (versão 2.1.0).
 
+- 10/11/2026 — Fase 14 (painel de composição, Achados e subtipos de I3 e I4), respostas do usuário
+  (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`, seção 2, e as decisões que completaram a especificação):
+  - **Navegação:** "o que há na extração" (Painel) separado de "o que verificar" (Achados), como itens próprios do
+    trilho; a matriz de amarração passa para a Reconciliação.
+  - **I3 e I4 divididos:** I3a (Info, reclassificação entre entidades) e I3b (Alerta, sem efeito contábil); I4a (Info),
+    I4b (Info) e I4c (Alerta). Seis colunas de entidade opcionais (seção 2).
+  - **I4a não é alerta:** a alteração de um lançamento automático deve ter documento de aprovação; o teste é Info, mas
+    aparece aberto em Achados, no grupo "Conferir com documento de aprovação". Vale para **qualquer tipo de
+    lançamento**, como escrito, com comparação exata em centavos.
+  - **Lista de exceções:** na tela, a tabela Exceções lista os três grupos (Exceção, Conferir com aprovação e
+    Informativo), com filtro por grupo; na planilha, a Excecoes lista só Exceção e Conferir com aprovação (os Info ficam
+    como colunas de teste da Base e contagens do Resumo).
+  - **"Lançamentos (linhas com valor)":** as linhas cujo tipo não é continuação de histórico (Cont.Hist); somadas às
+    "linhas de continuação de histórico" dão as linhas da extração.
+  - **Origem do documento** (seção 6.6): calculada por bloco de documento (dentro do tipo de saldo e da moeda); linhas
+    sem código reconhecido são ignoradas quando há ao menos um código reconhecido; só manuais = Manual, só automáticos
+    = Automático, os dois = Misto, nenhum = Não identificado (inclui a coluna ausente).
+  - **I4b e I4c sem a coluna "Lcto Manual?":** toda linha conta como não manual e cai em I4c.
+  - **Valores nunca somados** entre tipos de saldo e moedas (débito, crédito e percentuais em valor por segmento);
+    contagens podem somar.
+  - **Filtro comum:** com filtro de origem ou de rotina, os achados de lote e de dia ficam fora das contagens e da
+    tabela Exceções; Lotes e Dias ignoram origem e rotina (a tela esmaece o filtro que não se aplica).
+  - **Planilha:** os subtipos, a origem do documento e as colunas de contexto entram também na planilha, por fórmula.
+    O teto continua em **600.000 linhas** (medições de 11/11/2026 em `docs/MEDICOES.md`).
+  - **Fora desta fase:** a conferência automática com os pacotes de lançamento manual assinados (leitura dos nomes dos
+    PDFs) fica para a próxima fase; usuário a partir de "Origem" continua fora do escopo (seção 12, item 4).

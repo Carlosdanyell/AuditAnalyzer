@@ -3,7 +3,7 @@
  * level), CI-5 (exceptions = marks), CI-6 (blocks = distinct keys, counted without the order), and the alerts CI-9
  * (optional columns) and CI-10 (period). Each one recounts by a path of its own.
  */
-import { CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, formatDay } from '../../../shared/dates';
 import { formatCents } from '../../../shared/format';
 import { CT2_TEST_INFO, type Ct2RunParameters, type Ct2TestResult } from '../../../shared/modules/ct2Integrity';
@@ -113,14 +113,17 @@ function countsCheck({ base, blocks, config }: CheckInput): CheckResult {
 
 /** What a missing optional column does to the tests (CI-9): absent from every file, or from some of them. */
 const EFFECT: Partial<Record<Ct2Field, { all: string; some: string }>> = {
-  amountCurrency1: { all: 'I4 desligado', some: 'I4 não testa essas linhas' },
+  amountCurrency1: { all: 'I4a, I4b e I4c desligados', some: 'I4a, I4b e I4c não testam essas linhas' },
   ctkSequence: { all: 'P3 desligado', some: 'P3 não considera essas linhas' },
-  manual: { all: 'P2 desligado', some: 'P2 conta essas linhas como não identificadas' },
+  manual: { all: 'P2 desligado; I4b e I4c tratam as linhas como não manuais', some: 'P2 conta essas linhas como não identificadas; I4b e I4c, como não manuais' },
   routine: { all: 'P1 sem a rotina', some: 'P1 com a rotina vazia nessas linhas' },
   standardEntry: { all: 'P1 sem o lançamento padrão', some: 'P1 com o lançamento padrão vazio nessas linhas' },
   companyOrigin: { all: 'E1 compara as linhas sem ela', some: 'E1 compara essas linhas com ela vazia' },
   branchOrigin: { all: 'E1 compara as linhas sem ela', some: 'E1 compara essas linhas com ela vazia' },
   origin: { all: 'nenhum teste usa', some: 'nenhum teste usa' },
+  ...Object.fromEntries(
+    CT2_ENTITY_PAIRS.flat().map((f) => [f, { all: 'I3a e I3b comparam as entidades sem ela', some: 'I3a e I3b comparam essas linhas com ela vazia' }]),
+  ),
 };
 
 function optionalCheck({ base, config, present }: CheckInput): CheckResult {

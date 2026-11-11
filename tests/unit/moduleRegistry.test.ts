@@ -31,7 +31,7 @@ describe('module registry', () => {
     expect(m.accepts).toEqual({ extensions: ['.xlsx'], maxFiles: 255 });
     expect(m.helpAnchor).toBe('cfgr700');
     expect(m.preview).toBeNull();
-    expect(m.features).toEqual({ panel: true, tables: true, justifications: true, export: true });
+    expect(m.features).toEqual({ panel: true, findings: false, tables: true, justifications: true, export: true });
     expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(defaultConfig());
     // The default configuration is the one recorded in the workbook of every analysis so far.
@@ -45,7 +45,7 @@ describe('module registry', () => {
     const m = ct2IntegrityModule;
     expect(m).toMatchObject({ status: 'available', title: 'Integridade da CT2', helpAnchor: 'ct2' });
     expect(m.preview).toBeNull();
-    expect(m.features).toEqual({ panel: true, tables: true, justifications: false, export: true });
+    expect(m.features).toEqual({ panel: true, findings: true, tables: true, justifications: false, export: true });
     expect(m.config.saved).toBe(true);
     expect(m.config.defaults()).toEqual(ct2DefaultConfig());
     expect(m.progress.stages.map((s) => s.id)).toEqual(['fileCheck', 'sharedStrings', 'rows', 'reconciliation', 'sort', 'documents', 'checks']);

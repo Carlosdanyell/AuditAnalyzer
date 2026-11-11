@@ -18,6 +18,10 @@ const doc = (date: string, batch: string, document: string) => ({ date, batch, d
 const D10 = doc('15/09/2026', '000002', '000010');
 const BATCH4 = doc('16/09/2026', '000004', '');
 const BATCH6 = doc('16/09/2026', '000006', '');
+const BATCH10 = doc('18/09/2026', '000010', '');
+const BATCH11 = doc('18/09/2026', '000011', '');
+/** Entities filled and equal on both sides. */
+const SAME_ENTITIES: Fields = { costCenterDebit: 'CC01', costCenterCredit: 'CC01', itemDebit: 'IT01', itemCredit: 'IT01', valueClassDebit: 'CV01', valueClassCredit: 'CV01' };
 const at = (base: typeof BATCH4, document: string, line: string, f: Fields = {}): Fields => ({ ...base, document, line, ...f });
 
 export const ENGINE_HOLIDAYS = ['07/09/2026'];
@@ -50,10 +54,19 @@ export const ENGINE_ROWS: Ct2LineRow[] = [
   ct2Line(at(BATCH4, '000035', '001', { entryType: 'XYZ', amount: 10, amountCurrency1: 10 })), // I1: unknown type
   pd(0, at(BATCH4, '000036', '001')), // I2
   pd(-5, at(BATCH4, '000036', '002')), // I2
-  pd(10, at(BATCH4, '000037', '001', { creditAccount: '11101001' })), // I3
-  ct2Line(at(BATCH4, '000038', '001', { amount: 10, amountCurrency1: 9 })), // I4
-  ct2Line(at(BATCH4, '000038', '002', { amount: 10, amountCurrency1: null })), // out of I4 (no value to compare)
+  // Same account without any entity (I3 until Phase 14): every entity empty on both sides, so I3b (Alerta).
+  pd(10, at(BATCH4, '000037', '001', { creditAccount: '11101001' })), // I3b
+  // "Valor" changed after the generation (I4 until Phase 14): now I4a, Info, so it leaves the exceptions.
+  ct2Line(at(BATCH4, '000038', '001', { amount: 10, amountCurrency1: 9 })), // I4a
+  ct2Line(at(BATCH4, '000038', '002', { amount: 10, amountCurrency1: null })), // out of I4a-I4c (empty "Valor Moeda1")
   pd(10, at(BATCH4, '000039', '001', { history: '   ' })), // I5
+  // Phase 14: the subtypes of I3 (same account, entities compared) and I4 ("Valor Moeda1" = 0), documents balanced.
+  pd(10, at(BATCH4, '000051', '001', { creditAccount: '11101001', costCenterDebit: 'CC01', costCenterCredit: 'CC02' })), // I3a: cost center
+  pd(10, at(BATCH4, '000052', '001', { creditAccount: '11101001', itemDebit: 'IT01', itemCredit: 'IT02' })), // I3a: item
+  pd(10, at(BATCH4, '000053', '001', { ...SAME_ENTITIES, creditAccount: '11101001' })), // I3b: every entity equal
+  pd(10, at(BATCH4, '000054', '001', { amountCurrency1: 0 })), // I4b: manual line
+  pd(10, at(BATCH4, '000055', '001', { amountCurrency1: 0, manual: '2' })), // I4c: automatic line
+  pd(10, at(BATCH4, '000056', '001', { amountCurrency1: 0, manual: null })), // I4c: line not identified
   // 16/09, batch 000006: structure.
   pd(10, at(BATCH6, '000040', '001')),
   pd(10, at(BATCH6, '000040', '001')), // E1 (and E2: 2 lines, last ordinal 1)
@@ -71,7 +84,30 @@ export const ENGINE_ROWS: Ct2LineRow[] = [
   pd(10, { ...doc('01/10/2026', '000007', '000044'), line: '001' }),
   pd(10, { ...doc('19/09/2026', '000008', '000045'), line: '001', manual: '2' }),
   pd(10, { ...doc('07/09/2026', '000009', '000046'), line: '001', manual: null }),
+  // Phase 14, origin of the document (section 3.4). 18/09, batch 000010, with manual intervention: document 70 Misto,
+  // an automatic line (routine CTBANFE) whose "Valor" was reduced from 10 to 8 and a manual line (CTBA102) of 2; 71
+  // Automático, its line with an unrecognized code ignored; 72 Não identificado (only an unrecognized code).
+  ct2Line(at(BATCH10, '000070', '001', { amount: 8, amountCurrency1: 10, manual: '2', routine: 'CTBANFE' })), // I4a
+  ct2Line(at(BATCH10, '000070', '002', { amount: 2, amountCurrency1: 0 })), // I4b
+  pd(10, at(BATCH10, '000071', '001', { manual: '2', routine: 'CTBANFE' })),
+  pd(10, at(BATCH10, '000071', '002', { manual: 'X', routine: 'CTBANFE' })),
+  pd(10, at(BATCH10, '000072', '001', { manual: 'X' })),
+  // 18/09, batch 000011, without manual intervention: document 73 Automático.
+  pd(10, at(BATCH11, '000073', '001', { manual: '2', routine: 'CTBANFE' })),
 ];
+
+/**
+ * Origin of each document (by number; documents 42, 43 and 50 in other segments: 50 is in two, both Manual), with the
+ * default codes ("1" manual, "2" automatic). Every other document is Manual (the default line is manual).
+ */
+export const ENGINE_ORIGINS = {
+  automatic: ['000045', '000055', '000071', '000073'],
+  mixed: ['000070'],
+  unidentified: ['000046', '000056', '000072'],
+};
+
+/** Batches (date and number) without manual intervention: their documents are all Automático or Não identificado. */
+export const ENGINE_NO_INTERVENTION = ['07/09/2026 000009', '18/09/2026 000011', '19/09/2026 000008'];
 
 /**
  * Exceptions (Erro and Alerta) with the default configuration, in the order of the list: by test, then in the order
@@ -98,8 +134,12 @@ export const ENGINE_EXCEPTIONS = [
   'I1 linha 000035-001',
   'I2 linha 000036-001',
   'I2 linha 000036-002',
-  'I3 linha 000037-001',
-  'I4 linha 000038-001',
+  // Phase 14: I3 became I3b here (no entity differs) and I3b of document 53; I4 of 000038-001 became I4a, Info, so it
+  // is no longer listed; I4c lists the automatic and the unidentified lines with "Valor Moeda1" = 0.
+  'I3b linha 000037-001',
+  'I3b linha 000053-001',
+  'I4c linha 000055-001',
+  'I4c linha 000056-001',
   'I5 linha 000039-001',
   'E1 linha 000040-001',
   'E3 linha 000042-001 [2/01]',
@@ -121,6 +161,10 @@ export const ENGINE_INFO = {
     '000062': 'Compensa doc 000061',
   },
   E2: ['000040', '000041'],
+  /** Lines (document-line) of the Info tests of Phase 14. */
+  I3a: ['000051-001', '000052-001'],
+  I4a: ['000038-001', '000070-001'],
+  I4b: ['000054-001', '000070-002'],
   E6: ['07/09/2026', '19/09/2026'],
   P3: ['000047', '000048', '000049'],
   P4: ['000010'],

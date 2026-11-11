@@ -66,9 +66,9 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
   it('aggregates documents, batches, days and segments as blocks of the Base, in cents', () => {
     const b = analysis.blocks;
     expect(b.segments).toBe(3);
-    // 1/01: 27 documents; 1/02: 43 and 50; 2/01: 42.
-    expect(b.documents).toBe(30);
-    expect(b.days).toBe(8);
+    // 1/01: 37 documents (27 + the six of Phase 14, 51-56, and the four of the origins, 70-73); 1/02: 43 and 50; 2/01: 42.
+    expect(b.documents).toBe(40);
+    expect(b.days).toBe(9);
     const d10 = Array.from({ length: b.documents }, (_, d) => d).find((d) => documentRef(analysis, base, d).document === '000010')!;
     expect(b.documentStart[d10 + 1]! - b.documentStart[d10]!).toBe(1000);
     expect(b.documentDebit[d10]).toBe(99_900 + 5_000);
@@ -99,6 +99,18 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
     expect(test(analysis, 'B4').detail).toBe('5 compensados pelo documento vizinho, 1 sem compensação');
   });
 
+  it('marks the Info tests of a line without listing them as exceptions (I3a, I4a, I4b)', () => {
+    for (const code of ['I3a', 'I4a', 'I4b'] as const) {
+      const lines: string[] = [];
+      for (let pos = 0; pos < base.order.length; pos++) {
+        if (!hasMark(analysis.marks.line, pos, code)) continue;
+        const i = base.order[pos]!;
+        lines.push(`${base.store.text.document.get(i)}-${base.store.text.line.get(i)}`);
+      }
+      expect(lines, code).toEqual(ENGINE_INFO[code]);
+    }
+  });
+
   it('marks the Info tests without listing them as exceptions (E2, E6, P3, P4)', () => {
     expect(markedDocuments(base, analysis, 'E2')).toEqual(ENGINE_INFO.E2);
     expect(markedDocuments(base, analysis, 'P3')).toEqual(ENGINE_INFO.P3);
@@ -114,10 +126,12 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
     const counts = Object.fromEntries(analysis.tests.map((t) => [t.code, t.occurrences]));
     expect(counts).toEqual({
       B1: 6, B2: 2, B3: 2, B4: 6, B5: 1,
-      I1: 6, I2: 2, I3: 1, I4: 1, I5: 1,
+      // Phase 14: I3 (1) became I3b, joined by document 53; I4 (1) became I4a; I3a, I4b and I4c are new cases.
+      // Document 70 (origins): one more I4a and one more I4b.
+      I1: 6, I2: 2, I3a: 2, I3b: 2, I4a: 2, I4b: 2, I4c: 2, I5: 1,
       E1: 1, E2: 2, E3: 1, E4: 2, E5: 0, E6: 2,
-      // P1: groups of segment + routine (1/01 CTBA102 and CTBA500, 1/02 and 2/01 CTBA102) and of standard entry (4).
-      P1: 8, P2: 5, P3: 3, P4: 1,
+      // P1: groups of segment + routine (1/01 CTBA102, CTBA500 and CTBANFE, 1/02 and 2/01 CTBA102) and of standard entry (4).
+      P1: 9, P2: 5, P3: 3, P4: 1,
     });
     expect(analysis.tests.every((t) => t.state === 'on')).toBe(true);
     expect(analysis.exceptions.count).toBe(ENGINE_EXCEPTIONS.length);
@@ -127,17 +141,21 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
   it('profiles the Base by routine, standard entry and origin, never adding segments (P1, P2)', () => {
     const p = analysis.profile;
     const routine = p.routines.map((g) => `${g.balanceType}/${g.currency} ${g.value} ${g.lines}`);
-    expect(routine).toEqual(['1/01 CTBA102 1034', '1/01 CTBA500 1', '1/02 CTBA102 2', '2/01 CTBA102 1']);
+    // Phase 14: six lines more in 1/01 (documents 51-56), routine CTBA102 and no standard entry; documents 70-73 (two
+    // lines CTBA102, four CTBANFE).
+    expect(routine).toEqual(['1/01 CTBA102 1042', '1/01 CTBA500 1', '1/01 CTBANFE 4', '1/02 CTBA102 2', '2/01 CTBA102 1']);
     expect(p.standardEntries.map((g) => `${g.balanceType}/${g.currency} ${g.value || '(vazio)'} ${g.lines}`)).toEqual([
-      '1/01 (vazio) 1033',
+      '1/01 (vazio) 1045',
       '1/01 610 2',
       '1/02 (vazio) 2',
       '2/01 (vazio) 1',
     ]);
     expect(p.manual.map((g) => `${g.balanceType}/${g.currency} ${g.origin} ${g.lines}`)).toEqual([
-      '1/01 manual 1033',
-      '1/01 automatic 1',
-      '1/01 unidentified 1',
+      // Phase 14: documents 51-54 manual, 55 automatic, 56 not identified; 70-73: one manual line, three automatic and two
+      // with the unrecognized code.
+      '1/01 manual 1038',
+      '1/01 automatic 5',
+      '1/01 unidentified 4',
       '1/02 manual 2',
       '2/01 manual 1',
     ]);
@@ -201,18 +219,70 @@ describe('CT2 analysis: configuration and parameters', () => {
   it('turns off the tests of an optional column absent from every file (CI-9)', async () => {
     const columns = CT2_COLUMNS.filter((t) => !['Valor Moeda1', 'Seq CTK'].includes(t.trim()));
     const { analysis } = await run([{ rows: ENGINE_ROWS, columns }]);
-    expect(test(analysis, 'I4')).toMatchObject({ state: 'noColumn', occurrences: 0 });
+    for (const code of ['I4a', 'I4b', 'I4c'] as const) expect(test(analysis, code)).toMatchObject({ state: 'noColumn', occurrences: 0 });
     expect(test(analysis, 'P3')).toMatchObject({ state: 'noColumn', occurrences: 0 });
     const optional = checkOf(analysis, 'ct2-optional');
     expect(optional).toMatchObject({ severity: 'warning', passed: false });
-    expect(optional.message).toBe('Colunas opcionais ausentes: Valor Moeda1 (I4 desligado), Seq CTK (P3 desligado).');
+    expect(optional.message).toBe('Colunas opcionais ausentes: Valor Moeda1 (I4a, I4b e I4c desligados), Seq CTK (P3 desligado).');
   });
 
   it('says which files lack an optional column present in others (CI-9)', async () => {
     const columns = CT2_COLUMNS.filter((t) => t.trim() !== 'Valor Moeda1');
     const { analysis } = await run([{ rows: ENGINE_ROWS }, { rows: [ct2Line({ document: '000099' })], columns }]);
-    expect(test(analysis, 'I4').state).toBe('on');
-    expect(checkOf(analysis, 'ct2-optional').message).toBe('Colunas opcionais ausentes em parte dos arquivos: Valor Moeda1 em b.xlsx (I4 não testa essas linhas).');
+    expect(test(analysis, 'I4a').state).toBe('on');
+    expect(checkOf(analysis, 'ct2-optional').message).toBe('Colunas opcionais ausentes em parte dos arquivos: Valor Moeda1 em b.xlsx (I4a, I4b e I4c não testam essas linhas).');
+  });
+
+  it('puts every same-account line in I3b when no entity column is mapped, and says so (CI-9)', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const columns = CT2_COLUMNS.filter((t) => !entities.includes(t.trim()));
+    const { base, analysis } = await run([{ rows: ENGINE_ROWS, columns }]);
+    expect(test(analysis, 'I3a')).toMatchObject({ state: 'on', occurrences: 0 });
+    expect(test(analysis, 'I3b')).toMatchObject({ state: 'on', occurrences: 4 });
+    expect(exceptions(base, analysis).filter((e) => e.startsWith('I3'))).toEqual([
+      'I3b linha 000037-001',
+      'I3b linha 000051-001',
+      'I3b linha 000052-001',
+      'I3b linha 000053-001',
+    ]);
+    expect(checkOf(analysis, 'ct2-optional').message).toBe(
+      'Colunas opcionais ausentes: ' + entities.map((t) => `${t} (I3a e I3b comparam as entidades sem ela)`).join(', ') + '.',
+    );
+  });
+
+  it('compares the entities of a column absent on one side as empty, and I4b/I4c by the manual codes', async () => {
+    // Only the debit cost center is mapped: a filled value against the absent credit one is a difference (I3a).
+    const columns = CT2_COLUMNS.filter((t) => !['C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'].includes(t.trim()));
+    const same = { creditAccount: '11101001' };
+    const rows = [
+      ct2Line({ ...same, line: '001', costCenterDebit: 'CC01' }),
+      ct2Line({ ...same, line: '002', costCenterDebit: '' }),
+      // Valor Moeda1 = 0: the manual code of the configuration (here "M") decides between I4b and I4c.
+      ct2Line({ line: '003', amountCurrency1: 0, manual: 'M' }),
+      ct2Line({ line: '004', amountCurrency1: 0, manual: '1' }),
+      // Out of I4b/I4c: history continuation, amount zero, another currency.
+      ct2Line({ line: '005', entryType: 'Cont.Hist', debitAccount: null, creditAccount: null, amount: null, amountCurrency1: 0 }),
+      ct2Line({ line: '006', amount: 0, amountCurrency1: 0 }),
+      ct2Line({ line: '007', currency: '02', amountCurrency1: 0 }),
+    ];
+    const config = ct2DefaultConfig();
+    config.manualFlag.manual = ['M'];
+    const { base, analysis } = await run([{ rows, columns }], config);
+    const marked = (code: Ct2TestCode) =>
+      Array.from(base.order).filter((_, pos) => hasMark(analysis.marks.line, pos, code)).map((i) => base.store.text.line.get(i));
+    expect(marked('I3a')).toEqual(['001']);
+    expect(marked('I3b')).toEqual(['002']);
+    expect(marked('I4b')).toEqual(['003']);
+    expect(marked('I4c')).toEqual(['004']);
+    expect(marked('I4a')).toEqual([]);
+  });
+
+  it('counts every line as not manual in I4c when "Lcto Manual?" is absent', async () => {
+    const columns = CT2_COLUMNS.filter((t) => t.trim() !== 'Lcto Manual?');
+    const { analysis } = await run([{ rows: ENGINE_ROWS, columns }]);
+    expect(test(analysis, 'I4b').occurrences).toBe(0);
+    // 55, 56 and the manual lines 54 and 70-002.
+    expect(test(analysis, 'I4c').occurrences).toBe(4);
   });
 
   it('runs on an extraction without any valid date: no period, E5 and E6 have nothing to test', async () => {

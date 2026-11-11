@@ -26,7 +26,9 @@ describe('CT2 configuration screen', () => {
   it('lists every test with its switch and severity; the B4 diagnostic and the profile stay Info', () => {
     const html = renderToStaticMarkup(<Ct2ConfigView config={ct2DefaultConfig()} {...props} />);
     expect(html).toContain('Configuração padrão, sem alterações.');
-    for (const code of ['B1', 'B5', 'I4', 'E6', 'P4']) expect(html).toContain(`aria-label="Ligar ${code}"`);
+    for (const code of ['B1', 'B5', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'E6', 'P4']) expect(html).toContain(`aria-label="Ligar ${code}"`);
+    expect(html).not.toContain('aria-label="Ligar I4"');
+    for (const code of ['I3a', 'I4a', 'I4c']) expect(html).not.toMatch(new RegExp(`<select[^>]*disabled=""[^>]*aria-label="Severidade de ${code}"`));
     expect(html).toMatch(/<select[^>]*disabled=""[^>]*aria-label="Severidade de B4"/);
     expect(html).not.toMatch(/<select[^>]*disabled=""[^>]*aria-label="Severidade de B1"/);
     expect(html).toContain('Limite de linhas por documento (P4)');

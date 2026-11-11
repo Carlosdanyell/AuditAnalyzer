@@ -136,9 +136,35 @@ export function createCommandHandler(
           return;
         }
         try {
-          post({ type: 'segmentPanel', requestId: command.requestId, data: session.segmentPanel(command.segment) });
+          post({ type: 'segmentPanel', requestId: command.requestId, data: session.segmentPanel(command.filter) });
         } catch (e) {
           post(errorEvent(e, 'panel', command.requestId));
+        }
+        return;
+      }
+
+      case 'overview': {
+        if (!session || !session.overview) {
+          post({ type: 'error', stage: 'panel', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'overview', requestId: command.requestId, data: session.overview(command.filter) });
+        } catch (e) {
+          post(errorEvent(e, 'panel', command.requestId));
+        }
+        return;
+      }
+
+      case 'document': {
+        if (!session || !session.document) {
+          post({ type: 'error', stage: 'page', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'document', requestId: command.requestId, data: session.document(command.index) });
+        } catch (e) {
+          post(errorEvent(e, 'page', command.requestId));
         }
         return;
       }

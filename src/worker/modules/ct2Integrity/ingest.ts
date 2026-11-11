@@ -22,7 +22,7 @@ import { ProgressReporter } from '../../ingest/progress';
 import { readSheet, type CellText, type HeadRow } from '../../ingest/readSheet';
 import { CellKind, type ParsedRow } from '../../ingest/sheetStream';
 import type { PackedColumn } from '../../store/packedColumn';
-import { analyzeCt2, type Ct2Analysis } from './analysis';
+import { analyzeCt2, ct2SummaryAnalysis, type Ct2Analysis } from './analysis';
 import { checkOrder, firstDifference, keyLevels, sortBase, sortKeys, type KeyPart } from './order';
 import { Ct2Store, RowFlag, TEXT_FIELDS, type Ct2StoreRow, type RowProblem, type TextField } from './store';
 import { rowSides } from './aggregate';
@@ -502,11 +502,7 @@ export async function ingestCt2(
     progress.begin('documents', undefined, store.rows, 'rows', 'Aglutinando por documento, lote e dia e aplicando os testes');
     analyzed = analyzeCt2(base, config, analysis.holidays);
     progress.update(store.rows);
-    summary.analysis = {
-      parameters: analyzed.parameters,
-      tests: analyzed.tests,
-      exceptions: analyzed.exceptions.count,
-    };
+    summary.analysis = ct2SummaryAnalysis(analyzed);
   }
 
   progress.begin('checks', undefined, 1, 'steps', 'Conferindo os invariantes');

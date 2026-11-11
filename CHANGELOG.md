@@ -4,6 +4,37 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.2.0] — 2026-11-11
+
+### Integridade da CT2: painel de composição, Achados e subtipos de I3 e I4 (Fase 14)
+- **Testes mais específicos.** "Mesma conta no débito e no crédito" (I3) agora distingue a reclassificação entre
+  centros de custo, itens ou classes de valor (I3a, informativo) do lançamento sem efeito contábil (I3b, alerta). A
+  diferença entre "Valor" e "Valor Moeda1" (I4) vira três testes: valor alterado depois da geração (I4a, informativo,
+  para conferir com o documento de aprovação), "Valor Moeda1" não preenchido em linha manual (I4b, informativo) e em
+  linha não manual (I4c, alerta). A rotina manual deixa de gerar uma exceção por linha.
+- **Novas colunas opcionais** da extração: centro de custo, item e classe de valor, de débito e de crédito. Sem elas,
+  toda mesma conta cai em I3b, e a tela e a planilha avisam.
+- **Origem do documento:** Automático, Manual, Misto (automático com linha manual) ou Não identificado, pelos códigos
+  de "Lcto Manual?" das linhas. Lote com intervenção manual é o que tem ao menos um documento Manual ou Misto.
+- **Painel** passa a mostrar a composição da extração: lançamentos (linhas com valor) e linhas de continuação de
+  histórico, documentos por origem, lotes com intervenção manual, débito por segmento e % em linhas manuais, barras por
+  rotina e por dia (dias não úteis marcados) e a lista dos lotes com intervenção manual.
+- **Achados**, visão nova, separa o que verificar: exceções (Erro e Alerta) com o motivo de cada ocorrência, "Conferir
+  com documento de aprovação" (I4a e documentos mistos), informativos, testes sem ocorrência, documentos
+  desbalanceados e maiores documentos. A matriz de amarração passou para a Reconciliação.
+- **Painel lateral do documento:** clicar num documento mostra as linhas com contas, entidades, "Valor Moeda1",
+  "Lcto Manual?", marcas dos testes e motivo, com "Ver na Base".
+- **Filtros comuns** a Painel, Achados e Tabelas: segmento, origem, rotina, lote e dia, como chips removíveis; clicar
+  num gráfico ou num número cria o filtro. O filtro que não se aplica a uma tabela aparece esmaecido.
+- **Tabelas:** Documentos ganha "Origem do documento"; Lotes, "Documentos manuais" e "Documentos mistos"; Exceções,
+  contas, entidades, valores, histórico, rotina, "Lcto Manual?", motivo e grupo.
+- **Planilha exportada:** colunas de entidade e dos testes novos na Base; "Origem do documento" em Documentos;
+  "Documentos manuais", "Documentos mistos" e "Intervenção manual?" em Lotes; contexto, "Motivo" e "Grupo" em
+  Excecoes (que lista as exceções e o grupo "Conferir com aprovação"); bloco "Composição por origem" no Resumo; nomes
+  `P_COD_MANUAL` e `P_COD_AUTO` na Critérios. Tudo por fórmula; o limite continua em 600.000 linhas.
+- **Configuração migrada sozinha** (versão 3): o liga/desliga do I3 e do I4 antigos passa para os novos testes, com as
+  severidades padrão; cópias de segurança antigas são restauradas do mesmo modo.
+
 ## [2.1.0] — 2026-10-30
 
 A Integridade da CT2 deixa de ser prévia: conferida no Excel com uma extração real de nove meses (matriz de

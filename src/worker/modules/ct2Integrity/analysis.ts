@@ -3,9 +3,20 @@
  * the configuration as marks by line, document, batch and day, the list of exceptions (Erro and Alerta), the profile
  * and the invariants CI-3, CI-5, CI-6, CI-9 and CI-10. Pure: the same Base and configuration give the same result.
  */
-import { CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, lastDayOfMonth } from '../../../shared/dates';
-import { CT2_TEST_INFO, type Ct2Level, type Ct2RunParameters, type Ct2TestResult } from '../../../shared/modules/ct2Integrity';
+import {
+  CT2_FINDING_GROUPS,
+  CT2_ORIGINS,
+  CT2_TEST_INFO,
+  findingGroup,
+  type Ct2FindingGroup,
+  type Ct2Level,
+  type Ct2Origin,
+  type Ct2RunParameters,
+  type Ct2SummaryAnalysis,
+  type Ct2TestResult,
+} from '../../../shared/modules/ct2Integrity';
 import type { CheckResult } from '../../../shared/protocol';
 import { ChunkedArray } from '../../store/chunked';
 import { isBusinessDay } from '../../engine/periods';
@@ -14,7 +25,7 @@ import { analysisChecks } from './checks';
 import type { Ct2Ingested } from './ingest';
 import { BIT, marksOf, type Ct2Marks } from './marks';
 import { firstDifference, keyLevels } from './order';
-import { buildProfile, textOf, type Ct2Profile } from './profile';
+import { MANUAL_ORIGINS, buildProfile, textOf, type Ct2Profile } from './profile';
 import { distinctTuples } from './tuples';
 import { lineOrdinal } from './values';
 
@@ -36,19 +47,50 @@ export interface Ct2Analysis {
   /** P3 by document; null when P3 did not run. */
   sequences: Ct2Sequences | null;
   /** Erro and Alerta occurrences: test (index in CT2_TESTS) and item of its level (Base position or block). */
-  exceptions: { count: number; test: ChunkedArray<Uint8Array>; item: ChunkedArray<Uint32Array> };
+  exceptions: Ct2Occurrences;
+  /**
+   * Every occurrence of a test with a level (decision 1 of 10/11/2026): the exceptions (Erro, then Alerta), then the
+   * approval group, then the other Info tests; inside a group by test, then in the order of the level. The exception
+   * and approval groups are a prefix of the list.
+   */
+  findings: Ct2Occurrences & { groupCounts: Record<Ct2FindingGroup, number> };
+  /** Origin of the line at each Base position: index in MANUAL_ORIGINS (manual, automatic, unidentified). */
+  lineOrigin: Uint8Array;
+  /** Origin of each document block: index in CT2_ORIGINS. */
+  documentOrigin: Uint8Array;
+  /** Manual and Misto documents of each batch block (a batch with either has manual intervention). */
+  batchManualDocuments: Uint32Array;
+  batchMixedDocuments: Uint32Array;
+  /** Composition of the Base (Phase 14, section 4.3). */
+  composition: {
+    entries: number;
+    historyLines: number;
+    origins: Record<Ct2Origin, number>;
+    interventionBatches: number;
+  };
   tests: Ct2TestResult[];
   profile: Ct2Profile;
   checks: CheckResult[];
 }
 
+export interface Ct2Occurrences {
+  count: number;
+  test: ChunkedArray<Uint8Array>;
+  item: ChunkedArray<Uint32Array>;
+}
+
 /** Optional columns the tests depend on (section 2, CI-9). */
 export const TEST_COLUMNS: Partial<Record<Ct2TestCode, readonly Ct2Field[]>> = {
-  I4: ['amountCurrency1'],
+  I4a: ['amountCurrency1'],
+  I4b: ['amountCurrency1'],
+  I4c: ['amountCurrency1'],
   P1: ['routine', 'standardEntry'],
   P2: ['manual'],
   P3: ['ctkSequence'],
 };
+
+/** Tests of a line, in the order of CT2_TESTS. */
+export const LINE_TESTS = CT2_TESTS.filter((c) => CT2_TEST_INFO[c].level === 'line');
 
 /**
  * Parameters of the run (section 6.5): the defaults of the configuration and, as period, every month read (first day
@@ -90,12 +132,21 @@ export function analyzeCt2(
   const line = new Uint32Array(rows);
   const p = parameters;
   const { periodStart, periodEnd } = parameters;
-  const lineTests = { I1: on.I1, I2: on.I2, I3: on.I3, I4: on.I4, I5: on.I5, E1: on.E1, E3: on.E3, E4: on.E4, E5: on.E5 && periodStart !== null };
+  const lineTests = { ...on, E5: on.E5 && periodStart !== null };
   const t = store.text;
+  const manualCodes = new Set(config.manualFlag.manual);
+  const automaticCodes = new Set(config.manualFlag.automatic);
+  const lineOrigin = new Uint8Array(rows);
+  let historyLines = 0;
   for (let pos = 0; pos < rows; pos++) {
     const i = order[pos]!;
     let m = 0;
     const type = store.entryType.get(i);
+    const manualCode = textOf(t.manual, i);
+    // Without the "Lcto Manual?" column every line is not manual (decision of 10/11/2026), so it falls in I4c.
+    const manual = manualCodes.has(manualCode);
+    lineOrigin[pos] = manual ? 0 : automaticCodes.has(manualCode) ? 1 : 2;
+    if (type === 4) historyLines++;
     const amount = store.amount.get(i);
     const debitAccount = textOf(t.debitAccount, i);
     const creditAccount = textOf(t.creditAccount, i);
@@ -107,10 +158,22 @@ export function analyzeCt2(
       if (bad) m |= BIT.I1;
     }
     if (lineTests.I2 && type !== 4 && !Number.isNaN(amount) && amount <= 0) m |= BIT.I2;
-    if (lineTests.I3 && type === 1 && debitAccount !== '' && debitAccount === creditAccount) m |= BIT.I3;
-    if (lineTests.I4) {
+    // I3a/I3b: the same account on a double entry; an entity column absent is empty on both sides.
+    if ((lineTests.I3a || lineTests.I3b) && type === 1 && debitAccount !== '' && debitAccount === creditAccount) {
+      const differs = CT2_ENTITY_PAIRS.some(([dr, cr]) => textOf(t[dr], i) !== textOf(t[cr], i));
+      if (differs && lineTests.I3a) m |= BIT.I3a;
+      if (!differs && lineTests.I3b) m |= BIT.I3b;
+    }
+    // I4a-I4c: lines in the local currency with a readable "Valor Moeda1" (empty or unreadable stay out).
+    if (lineTests.I4a || lineTests.I4b || lineTests.I4c) {
       const m1 = store.amountCurrency1.get(i);
-      if (!Number.isNaN(m1) && !Number.isNaN(amount) && amount !== m1 && textOf(t.currency, i) === p.localCurrency) m |= BIT.I4;
+      if (!Number.isNaN(m1) && !Number.isNaN(amount) && textOf(t.currency, i) === p.localCurrency) {
+        if (lineTests.I4a && m1 !== 0 && amount !== m1) m |= BIT.I4a;
+        if (m1 === 0 && amount !== 0 && type !== 4) {
+          if (manual && lineTests.I4b) m |= BIT.I4b;
+          if (!manual && lineTests.I4c) m |= BIT.I4c;
+        }
+      }
     }
     if (lineTests.I5 && textOf(t.history, i) === '') m |= BIT.I5;
     if (lineTests.E1 && pos > 0 && firstDifference(keys, order[pos - 1]!, i) === keys.length) m |= BIT.E1;
@@ -128,14 +191,24 @@ export function analyzeCt2(
   const document = new Uint32Array(documents);
   const compensation = new Int32Array(documents).fill(-2);
   const documentExceptionLines = new Uint32Array(documents);
-  const lineExceptionBits = (['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as const).reduce((bits, c) => (isException(c) ? bits | BIT[c] : bits), 0);
+  const lineExceptionBits = LINE_TESTS.reduce((bits, c) => (isException(c) ? bits | BIT[c] : bits), 0);
   const diff = (d: number) => blocks.documentDebit[d]! - blocks.documentCredit[d]!;
+  // Origin of the document (section 3.4): lines without a recognized code are ignored when another line has one.
+  const documentOrigin = new Uint8Array(documents);
+  const ORIGIN = { automatic: CT2_ORIGINS.indexOf('automatic'), manual: CT2_ORIGINS.indexOf('manual'), mixed: CT2_ORIGINS.indexOf('mixed'), unidentified: CT2_ORIGINS.indexOf('unidentified') };
   for (let d = 0; d < documents; d++) {
     const from = blocks.documentStart[d]!;
     const to = blocks.documentStart[d + 1]!;
     let n = 0;
-    for (let pos = from; pos < to; pos++) if (line[pos]! & lineExceptionBits) n++;
+    let manualLines = 0;
+    let automaticLines = 0;
+    for (let pos = from; pos < to; pos++) {
+      if (line[pos]! & lineExceptionBits) n++;
+      if (lineOrigin[pos] === 0) manualLines++;
+      else if (lineOrigin[pos] === 1) automaticLines++;
+    }
     documentExceptionLines[d] = n;
+    documentOrigin[d] = manualLines > 0 ? (automaticLines > 0 ? ORIGIN.mixed : ORIGIN.manual) : automaticLines > 0 ? ORIGIN.automatic : ORIGIN.unidentified;
     let m = 0;
     if (on.B1 && Math.abs(diff(d)) > p.toleranceCents) m |= BIT.B1;
     if (on.E2) {
@@ -162,9 +235,17 @@ export function analyzeCt2(
   // ── Batches and days ──
   const batch = new Uint32Array(blocks.batches);
   const batchUnbalanced = new Uint32Array(blocks.batches);
+  const batchManualDocuments = new Uint32Array(blocks.batches);
+  const batchMixedDocuments = new Uint32Array(blocks.batches);
+  let interventionBatches = 0;
   for (let b = 0; b < blocks.batches; b++) {
     if (on.B2 && Math.abs(blocks.batchDebit[b]! - blocks.batchCredit[b]!) > p.toleranceCents) batch[b] = BIT.B2;
-    for (let d = blocks.batchStart[b]!; d < blocks.batchStart[b + 1]!; d++) if (document[d]! & BIT.B1) batchUnbalanced[b]!++;
+    for (let d = blocks.batchStart[b]!; d < blocks.batchStart[b + 1]!; d++) {
+      if (document[d]! & BIT.B1) batchUnbalanced[b]!++;
+      if (documentOrigin[d] === ORIGIN.manual) batchManualDocuments[b]!++;
+      else if (documentOrigin[d] === ORIGIN.mixed) batchMixedDocuments[b]!++;
+    }
+    if (batchManualDocuments[b]! + batchMixedDocuments[b]! > 0) interventionBatches++;
   }
   const day = new Uint32Array(blocks.days);
   const dayNumber = new Int32Array(blocks.days);
@@ -191,6 +272,31 @@ export function analyzeCt2(
       }
     }
   }
+
+  // ── Findings: the exceptions (Erro, then Alerta), the approval group, then the other Info tests ──
+  const groupOf = (code: Ct2TestCode) => (on[code] ? findingGroup(code, config.tests[code].severity) : null);
+  const findingTests = [
+    ...CT2_TESTS.filter((c) => groupOf(c) === 'exception' && config.tests[c].severity === 'error'),
+    ...CT2_TESTS.filter((c) => groupOf(c) === 'exception' && config.tests[c].severity === 'warning'),
+    ...CT2_FINDING_GROUPS.slice(1).flatMap((g) => CT2_TESTS.filter((c) => groupOf(c) === g)),
+  ];
+  const groupCounts = Object.fromEntries(CT2_FINDING_GROUPS.map((g) => [g, 0])) as Record<Ct2FindingGroup, number>;
+  const findings = { count: 0, test: new ChunkedArray((n) => new Uint8Array(n)), item: new ChunkedArray((n) => new Uint32Array(n)), groupCounts };
+  for (const code of findingTests) {
+    const level = marksOf(marks, CT2_TEST_INFO[code].level)!;
+    const index = CT2_TESTS.indexOf(code);
+    for (let k = 0; k < level.length; k++) {
+      if (level[k]! & BIT[code]) {
+        findings.test.push(index);
+        findings.item.push(k);
+        findings.count++;
+        groupCounts[groupOf(code)!]++;
+      }
+    }
+  }
+  const origins = Object.fromEntries(CT2_ORIGINS.map((o) => [o, 0])) as Record<Ct2Origin, number>;
+  for (let d = 0; d < documents; d++) origins[CT2_ORIGINS[documentOrigin[d]!]!]++;
+  const composition = { entries: rows - historyLines, historyLines, origins, interventionBatches };
 
   const profile = buildProfile(store, order, blocks, config, {
     routines: on.P1 && present.has('routine'),
@@ -223,8 +329,47 @@ export function analyzeCt2(
   });
 
   const checks = analysisChecks({ base, blocks, marks, exceptions, isException, present, state, parameters, config });
-  return { parameters, blocks, marks, dayNumber, compensation, documentExceptionLines, batchUnbalanced, sequences: seqCtk, exceptions, tests, profile, checks };
+  return {
+    parameters,
+    blocks,
+    marks,
+    dayNumber,
+    compensation,
+    documentExceptionLines,
+    batchUnbalanced,
+    sequences: seqCtk,
+    exceptions,
+    findings,
+    lineOrigin,
+    documentOrigin,
+    batchManualDocuments,
+    batchMixedDocuments,
+    composition,
+    tests,
+    profile,
+    checks,
+  };
 }
+
+/** The analysis in the summary (key figures, without a query). */
+export function ct2SummaryAnalysis(a: Ct2Analysis): Ct2SummaryAnalysis {
+  const approval = a.tests.filter((t) => t.state === 'on' && findingGroup(t.code, t.severity) === 'approval').reduce((n, t) => n + t.occurrences, 0);
+  return {
+    parameters: a.parameters,
+    tests: a.tests,
+    exceptions: a.exceptions.count,
+    entries: a.composition.entries,
+    historyLines: a.composition.historyLines,
+    origins: { ...a.composition.origins },
+    interventionBatches: a.composition.interventionBatches,
+    approval: { occurrences: approval, mixedDocuments: a.composition.origins.mixed },
+  };
+}
+
+/** Origin of a document block. */
+export const documentOriginOf = (a: Ct2Analysis, d: number): Ct2Origin => CT2_ORIGINS[a.documentOrigin[d]!]!;
+/** Origin of the line at a Base position. */
+export const lineOriginOf = (a: Ct2Analysis, pos: number) => MANUAL_ORIGINS[a.lineOrigin[pos]!]!;
 
 /**
  * P3 (section 6.4; decision of 29/10/2026): a document is its key without the segment, so the same entry in two

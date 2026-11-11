@@ -81,9 +81,10 @@
           <li><a href="#ct2-leitura">Leitura e reconciliação</a></li>
           <li><a href="#ct2-verificacoes">Conferências</a></li>
           <li><a href="#ct2-testes">Testes da análise</a></li>
+          <li><a href="#ct2-origem">Origem do documento</a></li>
           <li><a href="#ct2-planilha">A planilha exportada</a></li>
           <li><a href="#ct2-configuracao">Regras da CT2</a></li>
-          <li><a href="#ct2-painel">Painel e tabelas</a></li>
+          <li><a href="#ct2-painel">Painel, Achados e tabelas</a></li>
           <li><a href="#ct2-limitacoes">Limites</a></li>
         </ol>
         <ul>
@@ -266,8 +267,8 @@
           <p>
             Confere a extração da tabela CT2 (lançamentos contábeis): integridade dos arquivos, reconciliação de todas as linhas e
             valores legíveis; depois aglutina os lançamentos por documento, lote e dia e aplica os testes de balanceamento e de
-            integridade. O resultado aparece no <strong>quadro de testes</strong> da reconciliação, no <strong>painel</strong> por tipo de
-            saldo e moeda, nas <strong>tabelas</strong> e na <strong>planilha amarrada por fórmulas</strong> (Exportação).
+            integridade. O resultado aparece no <strong>quadro de testes</strong> da reconciliação, no <strong>painel</strong> (a composição
+            da extração), em <strong>achados</strong> (o que verificar), nas <strong>tabelas</strong> e na <strong>planilha amarrada por fórmulas</strong> (Exportação).
           </p>
         </section>
 
@@ -303,53 +304,73 @@
 
         <section id="ct2-testes">
           <h2>5. Testes da análise</h2>
-          <p>Todo balanceamento é medido dentro de cada tipo de saldo e moeda, em centavos. <strong>Erro</strong> e <strong>Alerta</strong> são exceções (entram na lista de exceções); <strong>Info</strong> é perfil. Nenhum teste altera ou exclui linhas.</p>
+          <p>Todo balanceamento é medido dentro de cada tipo de saldo e moeda, em centavos. <strong>Erro</strong> e <strong>Alerta</strong> são exceções (entram na lista de exceções); <strong>Info</strong> é informativo ou perfil. Nenhum teste altera ou exclui linhas.</p>
           <ul>
             <li><strong>B1, B2, B3</strong> — documento, lote e dia com |débito − crédito| maior que a tolerância (padrão 0,00).</li>
             <li><strong>B4</strong> — para cada documento desbalanceado, se o documento seguinte do mesmo lote compensa exatamente a diferença (depois, o anterior); <strong>B5</strong> — desbalanceado sem compensação adjacente. A compensação é um indício, não a prova da causa.</li>
-            <li><strong>I1 a I5</strong> — tipo de lançamento incoerente com as contas, valor zero ou negativo, mesma conta no débito e no crédito, valor diferente do valor na moeda 1 (moeda local; célula vazia fica fora) e histórico vazio.</li>
+            <li><strong>I1, I2 e I5</strong> — tipo de lançamento incoerente com as contas, valor zero ou negativo e histórico vazio.</li>
+            <li><strong>I3a</strong> (Info) — mesma conta no débito e no crédito, mas com pelo menos uma entidade diferente (centro de custo, item contábil ou classe de valor): reclassificação entre entidades, normalmente legítima. <strong>I3b</strong> (Alerta) — mesma conta e todas as entidades iguais: lançamento sem efeito contábil.</li>
+            <li><strong>I4a</strong> (Info, mas aberto em Achados no grupo <em>Conferir com documento de aprovação</em>) — na moeda local, "Valor" diferente de "Valor Moeda1" (que é legível e diferente de zero): o valor foi alterado depois de gerado. <strong>I4b</strong> (Info) — "Valor" preenchido e "Valor Moeda1" zero em linha manual. <strong>I4c</strong> (Alerta) — o mesmo em linha que não é manual (automática ou não identificada).</li>
             <li><strong>E1 a E6</strong> — linha duplicada, lacuna na numeração (só 001–999), tipo de saldo e moeda diferentes dos esperados, data fora do período e dia não útil (sábado, domingo ou feriado).</li>
             <li><strong>P1 a P4</strong> — linhas e valores por rotina, por lançamento padrão e por origem (Lcto Manual?: 1 manual, 2 automático, outro valor não identificado), Seq CTK repetido entre documentos ou mais de um no documento, documentos no limite de linhas (MV_NUMLIN) e os 10 maiores.</li>
           </ul>
+          <p><strong>Por que o I4 foi dividido.</strong> A rotina de lançamento manual grava zero em "Valor Moeda1" em todas as linhas; tratar isso como exceção enchia a lista de ruído (I4b, só informativo). Já a diferença entre "Valor" e um "Valor Moeda1" diferente de zero mostra que o valor de um lançamento foi mudado depois de a rotina o gerar, em geral num lançamento automático ajustado à mão: isso deve ter documento de aprovação e por isso o I4a é o que se confere. I4c (linha não manual com "Valor Moeda1" zero) não é esperado e fica como alerta. As comparações são exatas, em centavos; "Valor Moeda1" vazio ou ilegível fica fora dos testes (o aviso de valores ilegíveis continua). As severidades podem ser mudadas na Configuração.</p>
           <p>O período da análise cobre todos os meses lidos: do 1º dia do mês da primeira data ao último dia do mês da última. Uma extração com vários meses é analisada inteira, e a tela mostra o período analisado e quantos meses ele tem.</p>
         </section>
 
-        <section id="ct2-planilha">
-          <h2>6. A planilha exportada</h2>
+        <section id="ct2-origem">
+          <h2>6. Origem do documento</h2>
+          <p>A origem é calculada por documento (dentro do seu tipo de saldo e moeda), a partir do campo <em>Lcto Manual?</em> de todas as suas linhas, com os códigos da Configuração. Linhas não identificadas são ignoradas quando o documento tem ao menos um código reconhecido.</p>
           <ul>
-            <li><strong>Resumo:</strong> indicadores por tipo de saldo e moeda, matriz de amarração (cada nível recalculado pelo Excel a partir da Base, com a linha da ferramenta para comparar), quadro de testes ("Confere" quando fórmula, lista de exceções, ferramenta e confirmação na origem batem), os documentos desbalanceados e uma conclusão automática que fala em indícios, nunca em causa.</li>
-            <li><strong>Criterios:</strong> os parâmetros como nomes definidos (<code>P_DATA_INI</code>, <code>P_TOL</code>…). Mudar um parâmetro, por exemplo a tolerância ou o período, recalcula os testes e os status.</li>
-            <li><strong>Documentos, Lotes e Dias:</strong> uma linha por bloco, com as linhas inicial e final do bloco e as somas por fórmula (<code>SUM</code>/<code>ROWS</code> do bloco). <strong>Não reordene nem insira linhas na Base:</strong> os blocos dependem da ordem.</li>
-            <li><strong>Excecoes:</strong> cada ocorrência de Erro ou Alerta, com "Confirmada na origem?" por fórmula. Acima do limite de linhas do Excel, continua em <em>Excecoes (2)</em>.</li>
-            <li><strong>Perfil, Base e Rastreabilidade:</strong> perfil por rotina, lançamento padrão e origem; a extração ordenada com as colunas de teste; SHA-256, leitura de cada arquivo, colunas encontradas e verificações.</li>
+            <li><strong>Automático:</strong> só códigos automáticos.</li>
+            <li><strong>Manual:</strong> só códigos manuais.</li>
+            <li><strong>Misto:</strong> códigos manuais e automáticos no mesmo documento, isto é, lançamento automático com intervenção manual. Os documentos mistos aparecem em Achados para conferência com a aprovação.</li>
+            <li><strong>Não identificado:</strong> nenhum código reconhecido (inclui a coluna ausente).</li>
+          </ul>
+          <p>Um <strong>lote com intervenção manual</strong> é um lote com pelo menos um documento Manual ou Misto.</p>
+        </section>
+
+        <section id="ct2-planilha">
+          <h2>7. A planilha exportada</h2>
+          <ul>
+            <li><strong>Resumo:</strong> indicadores por tipo de saldo e moeda, matriz de amarração (cada nível recalculado pelo Excel a partir da Base, com a linha da ferramenta para comparar), quadro de testes ("Confere" quando fórmula, lista de exceções, ferramenta e confirmação na origem batem, com I3a, I3b, I4a, I4b e I4c), o bloco <strong>Composição por origem</strong> (documentos e linhas por origem; débito das linhas manuais e automáticas por tipo de saldo e moeda, por fórmula sobre Documentos e Base), os documentos desbalanceados e uma conclusão automática que fala em indícios, nunca em causa.</li>
+            <li><strong>Criterios:</strong> os parâmetros como nomes definidos (<code>P_DATA_INI</code>, <code>P_TOL</code>…), incluindo <code>P_COD_MANUAL</code> e <code>P_COD_AUTO</code>, as listas de códigos do Lcto Manual?. Mudar um parâmetro, por exemplo a tolerância ou o período, recalcula os testes e os status.</li>
+            <li><strong>Documentos, Lotes e Dias:</strong> uma linha por bloco, com as linhas inicial e final do bloco e as somas por fórmula (<code>SUM</code>/<code>ROWS</code> do bloco). Documentos ganha <strong>Origem do documento</strong> (fórmula sobre o bloco da Base e os códigos de Criterios) e Lotes ganha <strong>Documentos manuais</strong> e <strong>Documentos mistos</strong> (contagem sobre Documentos). <strong>Não reordene nem insira linhas na Base:</strong> os blocos dependem da ordem.</li>
+            <li><strong>Excecoes:</strong> cada ocorrência dos grupos <em>Exceção</em> (Erro ou Alerta) e <em>Conferir com aprovação</em>, com colunas de contexto (contas, centros de custo, itens e classes de valor, "Valor Moeda1", histórico, rotina, Lcto Manual?), o <strong>Motivo</strong> e o <strong>Grupo</strong>, por fórmula sobre a Base, e "Confirmada na origem?". Os testes informativos não entram: ficam como colunas da Base e como contagens no Resumo. Acima do limite de linhas do Excel, continua em <em>Excecoes (2)</em>.</li>
+            <li><strong>Perfil, Base e Rastreabilidade:</strong> perfil por rotina, lançamento padrão e origem; a extração ordenada com as colunas de entidade mapeadas e as de teste (I3a, I3b, I4a, I4b e I4c no lugar de I3 e I4); SHA-256, leitura de cada arquivo, colunas encontradas e verificações.</li>
             <li>Até 600.000 linhas por exportação, o bastante para um ano de uma extração típica (cerca de 450 mil linhas: arquivo de ~330 MB que leva alguns minutos para recalcular ao abrir). Depois de 300.000 linhas, a Base continua nas abas <em>Base (2)</em>, <em>Base (3)</em>…, sempre no início de um dia; a coluna <strong>Aba da Base</strong> de Documentos diz onde está cada documento. Acima de 600.000 linhas a exportação é bloqueada: divida a extração (por exemplo, por semestre) e analise cada parte; a leitura e o quadro de testes valem para qualquer tamanho.</li>
           </ul>
         </section>
 
         <section id="ct2-configuracao">
-          <h2>7. Regras da CT2</h2>
+          <h2>8. Regras da CT2</h2>
           <ul>
             <li>Em <strong>Configuração</strong>, aba <em>Integridade da CT2</em>: ligar ou desligar cada teste e escolher a severidade (B4 e o perfil são sempre Info), os valores padrão dos parâmetros (tipo de saldo e moeda esperados, moeda local, tolerância, limite de linhas por documento), os códigos do Lcto Manual? e, no JSON, os títulos das colunas.</li>
+            <li>Configuração e cópias de segurança feitas com os testes I3 e I4 antigos são migradas sozinhas: o que estava ligado ou desligado passa para os novos, e as severidades novas vêm do padrão.</li>
             <li>Fica salva neste computador, separada da do CFGR700, e entra na cópia de segurança. Os feriados são os da plataforma, editados na aba do CFGR700.</li>
           </ul>
         </section>
 
         <section id="ct2-painel">
-          <h2>8. Painel e tabelas</h2>
+          <h2>9. Painel, Achados e tabelas</h2>
           <ul>
-            <li><strong>Segmento:</strong> "Todos os segmentos" ou um tipo de saldo e moeda; indicadores, quadro de testes, listas e tabelas seguem a escolha. Débito e crédito nunca são somados entre segmentos.</li>
-            <li><strong>Parâmetros da execução:</strong> período, tipo de saldo e moeda esperados, moeda local, tolerância e limite de linhas. Altere e clique em <strong>Reaplicar os testes</strong>: os testes rodam de novo em segundos, sem reler os arquivos, e o painel, as tabelas e a planilha passam a usar os novos valores. Os padrões ficam na Configuração.</li>
-            <li><strong>Quadro de testes:</strong> cada número abre a tabela com exatamente aquelas linhas — Exceções pelo código (Erro e Alerta) ou Documentos, Lotes e Dias pelo teste (Info). O mesmo número aparece no Resumo da planilha.</li>
-            <li>Documentos desbalanceados com a compensação pelo documento vizinho, os 10 maiores documentos com o limite de linhas, o perfil por rotina, lançamento padrão e origem, e a matriz de amarração.</li>
-            <li><strong>Tabelas:</strong> Documentos, Lotes, Dias, Exceções e Base, com busca, ordenação e o filtro do painel. A Base mostra as colunas mapeadas e as de teste; <strong>Mostrar todas as colunas</strong> traz as demais colunas da extração.</li>
+            <li><strong>Painel</strong> — a composição da extração: lançamentos (linhas com valor) e linhas de continuação de histórico, documentos, lotes, documentos por origem, lotes com intervenção manual e débito (por tipo de saldo e moeda, nunca somado entre eles). Barras por rotina (linhas, documentos ou débito, empilhadas por origem), colunas por dia (com os dias não úteis marcados) e a tabela dos lotes com intervenção manual. O perfil por rotina, lançamento padrão e origem fica recolhido.</li>
+            <li><strong>Achados</strong> — o que verificar: <em>Exceções — Erro e Alerta</em> e <em>Conferir com documento de aprovação</em> (I4a e documentos mistos) abertos, com as primeiras ocorrências e o motivo de cada uma; <em>Informativos</em> e os testes sem ocorrência recolhidos; depois os documentos desbalanceados com a compensação pelo documento vizinho e os 10 maiores documentos com o limite de linhas. "Ver todas as ocorrências" abre a tabela Exceções com o teste.</li>
+            <li><strong>Parâmetros da execução</strong> (em Achados): período, tipo de saldo e moeda esperados, moeda local, tolerância e limite de linhas. Altere e clique em <strong>Reaplicar os testes</strong>: os testes rodam de novo em segundos, sem reler os arquivos, e o painel, as tabelas e a planilha passam a usar os novos valores. Os padrões ficam na Configuração.</li>
+            <li><strong>Barra de filtros</strong> (Painel, Achados e Tabelas): segmento (um tipo de saldo e moeda ou todos), origem do documento, rotina, lote e dia. Clicar numa barra, num dia ou num número cria o filtro, que aparece como etiqueta removível; <strong>Limpar filtros</strong> tira todos. Um filtro que não vale para a tabela aberta (por exemplo, rotina em Lotes) fica esmaecido, com a dica "não se aplica a esta tabela". Cada número do painel e de Achados é igual ao total da tabela que ele abre e ao do Resumo da planilha.</li>
+            <li><strong>Painel do documento:</strong> clicar numa ocorrência, num documento ou numa linha de Documentos, Exceções ou Base abre ao lado todas as linhas do documento, com origem, rotinas, débito e crédito por segmento, "Valor Moeda1" quando difere do valor, marca nas linhas manuais e nas com achado e o motivo. <strong>Ver na Base</strong> abre a Base filtrada pelo documento; Esc fecha.</li>
+            <li><strong>Tabelas:</strong> Documentos (com a origem), Lotes (com documentos manuais e mistos), Dias, Exceções (com filtro por grupo e as colunas de contexto) e Base, com busca, ordenação e os filtros. A Base mostra as colunas mapeadas e as de teste; <strong>Mostrar todas as colunas</strong> traz as demais da extração.</li>
+            <li>A <strong>matriz de amarração</strong> está na Reconciliação.</li>
           </ul>
         </section>
 
         <section id="ct2-limitacoes">
-          <h2>9. Limites</h2>
+          <h2>10. Limites</h2>
           <ul>
             <li>Sem justificativas (são do log de auditoria CFGR700).</li>
             <li>Até 600.000 linhas por exportação da planilha; a leitura, os testes e o painel valem para qualquer tamanho.</li>
+            <li>Sem nenhuma coluna de entidade (centro de custo, item, classe de valor) na extração, toda linha com a mesma conta no débito e no crédito cai em I3b, pois nada permite distinguir uma reclassificação.</li>
+            <li>A origem do documento depende do campo "Lcto Manual?": sem a coluna ou sem os códigos esperados, os documentos ficam como Não identificado, e toda linha conta como não manual, de modo que "Valor Moeda1" zero cai em I4c e não em I4b.</li>
             <li>Só as linhas presentes na extração: lançamentos excluídos antes da extração não aparecem (veja o log de auditoria CFGR700).</li>
           </ul>
         </section>

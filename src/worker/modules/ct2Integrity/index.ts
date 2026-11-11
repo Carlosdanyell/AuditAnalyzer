@@ -1,7 +1,7 @@
 /**
  * CT2 integrity module in the worker (docs/MODULOS.md, docs/REGRAS_CT2_INTEGRIDADE.md): reading, reconciliation, the
- * analysis (aglutinação, tests, exceptions, invariants) and the workpaper tied out by formulas. The panel and the
- * tables come in Phase 12, so the handler answers them as not offered.
+ * analysis (aglutinação, tests, exceptions, invariants) and the workpaper tied out by formulas; it also answers the panel and
+ * the tables (Phase 12), the overview and the side panel of a document (Phase 14).
  */
 import { ct2DefaultConfig, readCt2Config, readCt2RunParameters } from '../../../config/ct2IntegritySchema';
 import { configDiff, configHash } from '../../../shared/configTools';
@@ -9,8 +9,11 @@ import { parseDate } from '../../../shared/dates';
 import { APP_VERSION_LABEL } from '../../../shared/version';
 import { assertExportableDates, blockingFailures } from '../../export/common/guards';
 import { ParametersError, type ModuleSession, type WorkerModule } from '../types';
-import { analyzeCt2, type Ct2Analysis } from './analysis';
+import { analyzeCt2, ct2SummaryAnalysis, type Ct2Analysis } from './analysis';
 import { ingestCt2, type Ct2Ingested } from './ingest';
+import { ct2Document } from './document';
+import { filterIndex, type Ct2FilterIndex } from './filter';
+import { ct2Overview } from './overview';
 import { ct2Panel } from './panel';
 import { segmentMap, type Ct2SegmentMap } from './segments';
 import { Ct2Tables } from './tables';
@@ -31,9 +34,11 @@ export const ct2IntegrityWorker: WorkerModule = {
       let analysis: Ct2Analysis = result.analysis!;
       // Built on the first query of each analysis (the segment of every block; the tables and their cache).
       let segmentCache: Ct2SegmentMap | null = null;
+      let indexCache: Ct2FilterIndex | null = null;
       let tableCache: Ct2Tables | null = null;
       const segments = () => (segmentCache ??= segmentMap(base, analysis.blocks));
-      const tables = () => (tableCache ??= new Ct2Tables(base, analysis));
+      const index = () => (indexCache ??= filterIndex(base, segments()));
+      const tables = () => (tableCache ??= new Ct2Tables(base, analysis, segments(), index()));
       const analysisChecks = new Set(analysis.checks.map((c) => c.id));
       const session: ModuleSession & { readonly base: typeof base; readonly analysis: Ct2Analysis } = {
         base,
@@ -46,14 +51,21 @@ export const ct2IntegrityWorker: WorkerModule = {
           if (!read.ok) throw new ParametersError(read.errors.map((e) => `${e.path}: ${e.message}`).join('\n'));
           analysis = analyzeCt2(base, config, holidaySet, read.parameters);
           segmentCache = null;
+          indexCache = null;
           tableCache = null;
           const { reconciliation, summary } = base;
           reconciliation.checks = [...reconciliation.checks.filter((c) => !analysisChecks.has(c.id)), ...analysis.checks];
-          summary.analysis = { parameters: analysis.parameters, tests: analysis.tests, exceptions: analysis.exceptions.count };
+          summary.analysis = ct2SummaryAnalysis(analysis);
           return { summary, checks: reconciliation.checks, reconciliation };
         },
-        segmentPanel(segment) {
-          return ct2Panel(base, analysis, segment, segments());
+        segmentPanel(filter) {
+          return ct2Panel(base, analysis, filter ?? {}, segments(), index());
+        },
+        overview(filter) {
+          return ct2Overview(base, analysis, index(), filter ?? {}, holidaySet);
+        },
+        document(d) {
+          return ct2Document(base, analysis, segments(), d);
         },
         page(_scope, table, filter, sort, offset, limit) {
           return tables().page(table as Ct2TableId, filter, sort, offset, limit);

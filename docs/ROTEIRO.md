@@ -22,6 +22,7 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 12 — CT2 Integridade: painel e tabelas | concluída em 29/10/2026 (seção 9) |
 | 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0` |
 | Depois da 2.0 — versão 2.1.0 | concluída em 30/10/2026: um ano por exportação da CT2 (até 600.000 linhas, Base em abas de dias inteiros), escolha da aba a analisar; Integridade da CT2 conferida com uma extração real no Excel e fora da prévia |
+| 14 — CT2: painel de composição, Achados e subtipos de I3/I4 | implementada em 11/11/2026 (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`), versão 2.2.0; pendente no computador do usuário: golden local das contagens novas e conferência no Excel com uma extração real |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
 todos dentro do esperado (ver MEDICOES.md).
@@ -265,6 +266,36 @@ em todos os segmentos (`tests/unit/ct2Tables.test.ts`) e no navegador (`tests/e2
 ## Fase 13 — Entrega da versão 2.0
 
 Ajuda (seção do novo módulo e do seletor), README (plataforma e módulos), CHANGELOG, versão 2.0.0, tag e release.
+
+---
+
+## Fase 14 — CT2: painel de composição, Achados e subtipos de I3/I4
+
+**Prompt:**
+> Leia `docs/FASE_14_CT2_PAINEL_ACHADOS.md`, o `CLAUDE.md`, `docs/REGRAS_CT2_INTEGRIDADE.md` e `docs/INTERFACE.md`.
+> Implemente a Fase 14 na ordem da seção 8, uma etapa por commit, mostrando o plano antes de começar e escrevendo os
+> testes primeiro. Pare e me pergunte nas situações listadas no fim da seção 8.
+
+**Pronto quando:**
+- cada número do Painel e de Achados = total da tabela aberta pelo clique = valor correspondente no Resumo da planilha,
+  em todos os segmentos e com os filtros combinados;
+- com a extração real em `local/`, as contagens batem com o golden informado pelo usuário;
+- e2e, unidade, lint e build passando; memória e tempo dentro das metas; nenhum dado real no repositório.
+
+Etapas (uma por commit): 1 configuração (colunas de entidade, códigos novos, migração v2 → v3 e cópias de segurança);
+2 motor (I3a–I4c, origem do documento, motivo, comandos `overview` e `document`, filtros novos em `page`); 3 planilha
+(colunas, nomes definidos, fórmulas, Resumo, `xlsxEval`, medição de recálculo); 4 tela (trilho, barra de filtros,
+Painel, Achados, Reconciliação com a matriz, colunas das Tabelas, painel lateral); 5 documentação, ajuda, CHANGELOG,
+versão 2.2.0, e2e e medições. Regras e decisões em `docs/REGRAS_CT2_INTEGRIDADE.md` (seções 6.6 e 13).
+
+**Implementada (11/11/2026).** Decisões do usuário de 10/11/2026 na seção 13 das regras: a tela lista os três grupos de
+achados e a aba Excecoes só "Exceção" e "Conferir com aprovação"; "lançamentos" são as linhas que não são continuação
+de histórico. Painel = tabela = Resumo conferido em todos os segmentos e com os filtros combinados
+(`tests/unit/ct2Overview.test.ts`, `tests/unit/ct2Tables.test.ts`, `tests/unit/ct2Workpaper.test.ts`) e no
+navegador (`tests/e2e/modules.spec.ts`). Medições em `docs/MEDICOES.md` (11/11/2026): `overview` em 45 ms com ~1 milhão
+de linhas; pico do worker abaixo de 400 MB; planilha de 600 mil linhas recalculada com tudo "OK"/"Confere", com cerca
+de 11 GB de memória no LibreOffice. **Pendente no computador do usuário:** o golden local
+(`local/ct2/golden-ct2-integrity.json`) com as contagens novas da extração real e a conferência da planilha no Excel.
 
 ---
 

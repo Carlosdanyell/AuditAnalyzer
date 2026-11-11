@@ -78,8 +78,8 @@ interface TablesViewProps {
   originFilters?: boolean;
   /** Text of the empty table (the filters of the module). */
   emptyHint?: string;
-  /** Makes rows clickable; receives the row as { columnId: value }. */
-  onRowClick?: (row: Record<string, Cell>) => void;
+  /** Makes rows clickable; receives the row as { columnId: value } and its document block, when the worker gives it (CT2). */
+  onRowClick?: (row: Record<string, Cell>, document: number | null) => void;
   /** Value of the "documento" column of the highlighted row. */
   selectedKey?: string | null;
   /** Extra controls in the toolbar. */
@@ -109,6 +109,7 @@ export function TablesView({
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(request.filter.search ?? '');
   const pages = useRef(new Map<number, Cell[][]>());
+  const documentPages = useRef(new Map<number, (number | null)[]>());
   const requested = useRef(new Set<number>());
   const generation = useRef(0);
   const [, setVersion] = useState(0);
@@ -136,6 +137,7 @@ export function TablesView({
       .then((answer) => {
         if (gen !== generation.current) return;
         pages.current.set(page, answer.rows);
+        if (answer.documents) documentPages.current.set(page, answer.documents);
         setColumns(answer.columns);
         setTotal(answer.total);
         setError(null);
@@ -150,6 +152,7 @@ export function TablesView({
     lastQuery.current = JSON.stringify([scope, request]);
     generation.current++;
     pages.current = new Map();
+    documentPages.current = new Map();
     requested.current = new Set();
     setTotal(null);
     // A refresh of the same query keeps the scroll position.
@@ -292,6 +295,7 @@ export function TablesView({
         <div style={{ height: virtualizer.getTotalSize(), width, position: 'relative' }}>
           {items.map((item) => {
             const row = pages.current.get(Math.floor(item.index / PAGE))?.[item.index % PAGE];
+            const document = documentPages.current.get(Math.floor(item.index / PAGE))?.[item.index % PAGE] ?? null;
             const docAt = columns.findIndex((c) => c.id === 'documento');
             const selected = !!row && selectedKey != null && docAt >= 0 && row[docAt] === selectedKey;
             return (
@@ -303,11 +307,11 @@ export function TablesView({
                 tabIndex={onRowClick && row ? 0 : undefined}
                 className={`${styles.row} ${item.index % 2 ? styles.odd : ''} ${onRowClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
                 style={{ transform: `translateY(${item.start}px)`, height: ROW_HEIGHT }}
-                onClick={() => row && onRowClick?.(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])))}
+                onClick={() => row && onRowClick?.(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])), document)}
                 onKeyDown={(e) => {
                   if (row && onRowClick && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
-                    onRowClick(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])));
+                    onRowClick(Object.fromEntries(columns.map((c, i) => [c.id, row[i] ?? null])), document);
                   }
                 }}
               >

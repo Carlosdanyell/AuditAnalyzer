@@ -1,26 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig, type Ct2IntegrityConfig, type Ct2TestCode } from '../../src/config/ct2IntegritySchema';
 import { formatDay, parseDate } from '../../src/shared/dates';
-import { analyzeCt2, compensationText, documentRef, hasMark } from '../../src/worker/modules/ct2Integrity/analysis';
+import { analyzeCt2, compensationText, documentOriginOf, documentRef, hasMark } from '../../src/worker/modules/ct2Integrity/analysis';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { BASE_SHEET_ROWS, MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
+import { filterIndex } from '../../src/worker/modules/ct2Integrity/filter';
+import { findingAt, findingReason } from '../../src/worker/modules/ct2Integrity/findings';
+import { ct2Overview } from '../../src/worker/modules/ct2Integrity/overview';
+import { textOf } from '../../src/worker/modules/ct2Integrity/profile';
+import { segmentMap } from '../../src/worker/modules/ct2Integrity/segments';
+import { CT2_ORIGINS, CT2_TEST_INFO, type Ct2RunParameters } from '../../src/shared/modules/ct2Integrity';
 import { CT2_LABELS } from '../../src/worker/modules/ct2Integrity/workpaperLabels';
 import type { Language } from '../../src/worker/export/labels';
-import { ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
+import { CT2_COLUMNS, ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
 import { ENGINE_HOLIDAYS, ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 import { Workbook, type Value } from '../support/xlsxEval';
 
 /** The CT2 workpaper tied out by formulas (docs/REGRAS_CT2_INTEGRIDADE.md, section 7), evaluated by the test evaluator. */
 const holidays = ENGINE_HOLIDAYS.map(parseDate);
 
-async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number; baseSheetRows?: number } = {}) {
+async function build(
+  o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number; baseSheetRows?: number; informed?: Partial<Ct2RunParameters> } = {},
+) {
   const config = o.config ?? ct2DefaultConfig();
   const ingested = await ingestCt2(
     (o.files ?? [{ rows: ENGINE_ROWS }]).map((f, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(f) })),
     config,
     () => {},
   );
-  const analysis = analyzeCt2(ingested, config, new Set(holidays));
+  const analysis = analyzeCt2(ingested, config, new Set(holidays), o.informed);
   const out = await buildCt2Workpaper(
     {
       base: ingested,
@@ -40,6 +48,8 @@ async function build(o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityC
     () => {},
   );
   const book = await Workbook.read(out.blob);
+  // The Portuguese workpaper is read by an Excel in pt-BR, the English one by an Excel in en-US (xlsxEval).
+  if (o.language === 'en') book.locale = 'en-US';
   return { ingested, analysis, out, book, L: CT2_LABELS[o.language ?? 'pt'] };
 }
 
@@ -65,13 +75,26 @@ function rowOf(book: Workbook, sheet: string, text: string, from = 1): { r: numb
 }
 
 const yes = (L: { yes: string; no: string }, marked: boolean) => (marked ? L.yes : L.no);
+const LINE_CODES: Ct2TestCode[] = ['I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E3', 'E4', 'E5'];
+
+/** Every line test of the Base equal to the engine marks, the matrix OK and the board "Confere". */
+function expectTiedOut(r: Awaited<ReturnType<typeof build>>) {
+  const { book, analysis, L } = r;
+  for (const code of LINE_CODES) {
+    if (analysis.tests.find((t) => t.code === code)!.state !== 'on') continue;
+    const values = column(book, 'Base', `${code} Exceção?`);
+    values.forEach((v, pos) => expect(v, `${code} linha ${pos + 2}`).toBe(yes(L, hasMark(analysis.marks.line, pos, code))));
+  }
+  for (const level of ['Base', 'Documentos', 'Lotes', 'Dias', 'Ferramenta (motor)']) expect(rowOf(book, 'Resumo', level, 10).cells('G'), level).toBe('OK');
+  for (const t of analysis.tests.filter((x) => x.state === 'on')) expect(rowOf(book, 'Resumo', t.code, 10).cells('I'), t.code).toBe('Confere');
+}
 
 describe('CT2 workpaper: sheets and tie-out', async () => {
   const { ingested, analysis, out, book, L } = await build();
 
   it('has the sheets of section 7.3, the defined names of the parameters and a dated file name', () => {
     expect([...book.sheets.keys()]).toEqual(['Resumo', 'Criterios', 'Documentos', 'Lotes', 'Dias', 'Excecoes', 'Perfil', 'Base', 'Rastreabilidade']);
-    for (const n of ['P_DATA_INI', 'P_DATA_FIM', 'P_SALDO', 'P_MOEDA', 'P_MOEDA_LOCAL', 'P_TOL', 'P_LIMITE_LINHAS', 'P_TIPO_PD', 'P_TIPO_DEB', 'P_TIPO_CRED', 'P_TIPO_HIST', 'P_FERIADOS']) {
+    for (const n of ['P_DATA_INI', 'P_DATA_FIM', 'P_SALDO', 'P_MOEDA', 'P_MOEDA_LOCAL', 'P_TOL', 'P_LIMITE_LINHAS', 'P_TIPO_PD', 'P_TIPO_DEB', 'P_TIPO_CRED', 'P_TIPO_HIST', 'P_FERIADOS', 'P_COD_MANUAL', 'P_COD_AUTO']) {
       expect(book.names.has(n), n).toBe(true);
     }
     expect(out.fileName).toBe('CT2_Integridade_2026-09_a_2026-10_2026-10-29.xlsx');
@@ -96,7 +119,9 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
       expect(row.cells('E'), t.code).toBe(t.occurrences);
     }
     const confirmed = column(book, 'Excecoes', 'Confirmada na origem?');
-    expect(confirmed).toHaveLength(analysis.exceptions.count);
+    // Exceção and Conferir com aprovação (decision 1 of 10/11/2026): a prefix of the findings.
+    expect(confirmed).toHaveLength(analysis.findings.groupCounts.exception + analysis.findings.groupCounts.approval);
+    expect(analysis.findings.groupCounts.approval).toBeGreaterThan(0);
     expect(confirmed.every((v) => v === 'Sim')).toBe(true);
     // Erro first, then Alerta.
     const severities = column(book, 'Excecoes', 'Severidade');
@@ -119,10 +144,12 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
   });
 
   it('marks each line of the Base as the engine did, test by test', () => {
-    for (const code of ['I1', 'I2', 'I3', 'I4', 'I5', 'E1', 'E3', 'E4', 'E5'] as Ct2TestCode[]) {
+    for (const code of LINE_CODES) {
       const values = column(book, 'Base', `${code} Exceção?`);
       values.forEach((v, pos) => expect(v, `${code} linha ${pos + 2}`).toBe(yes(L, hasMark(analysis.marks.line, pos, code))));
     }
+    // The entities are mapped fields of the Base.
+    for (const title of ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred']) expect(column(book, 'Base', title)).toHaveLength(analysis.marks.line.length);
     const exceptions = column(book, 'Base', 'Exceções na linha');
     const docs = column(book, 'Documentos', 'Linhas com exceção');
     expect(docs).toEqual(Array.from(analysis.documentExceptionLines));
@@ -144,6 +171,49 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
     expect(docs).toEqual(['000010', '000011', '000020', '000060', '000061', '000062']);
     const d10 = Array.from({ length: analysis.blocks.documents }, (_, d) => d).find((d) => documentRef(analysis, ingested, d).document === '000010')!;
     expect(book.value('Resumo', `A${head.r + 1}`)).toBe(d10 + 2);
+  });
+});
+
+describe('CT2 workpaper: the subtypes of I3 and I4 (Phase 14)', () => {
+  it('lists the manual and automatic codes of "Lcto Manual?" as defined names in Criterios', async () => {
+    const config = ct2DefaultConfig();
+    config.manualFlag = { manual: ['1', 'M'], automatic: ['2'] };
+    const { book } = await build({ config });
+    const cells = (name: string) => {
+      const [, a, b] = /!\$([A-Z]+\$\d+):\$([A-Z]+\$\d+)$/.exec(book.names.get(name)!)!;
+      const [ca, ra] = a!.split('$');
+      const rb = Number(b!.split('$')[1]);
+      return Array.from({ length: rb - Number(ra) + 1 }, (_, k) => book.value('Criterios', `${ca}${Number(ra) + k}`));
+    };
+    expect(cells('P_COD_MANUAL')).toEqual(['1', 'M']);
+    expect(cells('P_COD_AUTO')).toEqual(['2']);
+  });
+
+  it('ties out without any entity column: every same-account line is I3b', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const columns = CT2_COLUMNS.filter((t) => !entities.includes(t.trim()));
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns }] });
+    expectTiedOut(r);
+    expect(column(r.book, 'Base', 'I3b Exceção?').filter((v) => v === 'Sim')).toHaveLength(4);
+  });
+
+  it('ties out with only one side of an entity and without "Lcto Manual?" (I4b never, I4c the rest)', async () => {
+    const oneSide = CT2_COLUMNS.filter((t) => !['C Custo Crd', 'Lcto Manual?'].includes(t.trim()));
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns: oneSide }] });
+    expectTiedOut(r);
+    expect(column(r.book, 'Base', 'I4b Exceção?').every((v) => v === 'Não')).toBe(true);
+    // Phase 14: four with the manual line of document 70 (engine fixture).
+    expect(column(r.book, 'Base', 'I4c Exceção?').filter((v) => v === 'Sim')).toHaveLength(4);
+  });
+
+  it('ties out with the codes of "Lcto Manual?" of two files, one without the entities', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const other = [
+      ct2Line({ document: '000097', creditAccount: '11101001', amountCurrency1: 0, manual: '2' }),
+      ct2Line({ document: '000098', amountCurrency1: 0, manual: '1' }),
+    ];
+    const r = await build({ files: [{ rows: ENGINE_ROWS }, { rows: other, columns: CT2_COLUMNS.filter((t) => !entities.includes(t.trim())) }] });
+    expectTiedOut(r);
   });
 });
 
@@ -286,5 +356,148 @@ describe('CT2 workpaper: configuration, language, limits and determinism', () =>
   it('names the file by its only month when the period has one', () => {
     const sep = parseDate('01/09/2026');
     expect(ct2FileName('pt', sep, parseDate('30/09/2026'), '29/10/2026 10:30:00')).toBe('CT2_Integridade_2026-09_2026-10-29.xlsx');
+  });
+});
+
+/** Rows of a column over a sheet and its continuations ("Excecoes", "Excecoes (2)"…), empty cells as "". */
+function columnAll(book: Workbook, sheet: string, header: string): Value[] {
+  return [...book.sheets.keys()].filter((x) => x === sheet || x.startsWith(`${sheet} (`)).flatMap((x) => column(book, x, header).map((v) => v ?? ''));
+}
+
+/**
+ * Phase 14, section 5: origin of each document, the manual and mixed documents of each batch, the findings of the
+ * Exceção and approval groups with their context and reason, and the composition block, all by formula and equal to
+ * the engine.
+ */
+function expectPhase14(r: Awaited<ReturnType<typeof build>>, language: Language = 'pt') {
+  const { book, analysis: a, ingested, L } = r;
+  const S = L.sheets;
+  const H = L.cols;
+  // Documentos: origin; Lotes: manual and mixed documents.
+  const origins = column(book, S.documents, H.documentOrigin);
+  expect(origins).toHaveLength(a.blocks.documents);
+  origins.forEach((v, d) => expect(v, `origem ${d}`).toBe(L.documentOrigins[documentOriginOf(a, d)]));
+  expect(column(book, S.batches, H.manualDocuments)).toEqual(Array.from(a.batchManualDocuments));
+  expect(column(book, S.batches, H.mixedDocuments)).toEqual(Array.from(a.batchMixedDocuments));
+  // Excecoes: the exception and approval groups, in the order of the findings.
+  const n = a.findings.groupCounts.exception + a.findings.groupCounts.approval;
+  const codes = columnAll(book, S.exceptions, H.code);
+  const groups = columnAll(book, S.exceptions, H.group);
+  const reasons = columnAll(book, S.exceptions, H.reason);
+  const confirmed = columnAll(book, S.exceptions, H.confirmed);
+  const debitAccounts = columnAll(book, S.exceptions, H.debitAccount);
+  const values = columnAll(book, S.exceptions, H.value);
+  expect(codes).toHaveLength(n);
+  const b = a.blocks;
+  for (let k = 0; k < n; k++) {
+    const f = findingAt(a, k);
+    expect(codes[k], `código ${k}`).toBe(f.code);
+    expect(groups[k], `grupo ${k}`).toBe(L.groups[f.group as 'exception' | 'approval']);
+    expect(confirmed[k], `confirmada ${k} ${f.code}`).toBe(L.yes);
+    expect(typeof reasons[k], `motivo ${k} ${f.code}: ${JSON.stringify(reasons[k])}`).toBe('string');
+    if (language === 'pt') expect(reasons[k], `motivo ${k} ${f.code}`).toBe(findingReason(ingested, a, f.code, f.item));
+    const i = ingested.order[f.level === 'line' ? f.item : 0]!;
+    expect(debitAccounts[k], `conta D ${k}`).toBe(f.level === 'line' ? textOf(ingested.store.text.debitAccount, i) : '');
+    const engineValue =
+      f.level === 'line'
+        ? ingested.store.amount.get(i)
+        : f.level === 'document'
+          ? b.documentDebit[f.item]! - b.documentCredit[f.item]!
+          : f.level === 'batch'
+            ? b.batchDebit[f.item]! - b.batchCredit[f.item]!
+            : b.dayDebit[f.item]! - b.dayCredit[f.item]!;
+    expect(values[k], `valor ${k}`).toBe(Number.isNaN(engineValue) ? '' : engineValue / 100);
+  }
+  // The board: every test listed in Excecoes (I4a included) is "in the list" and "confirmed" as often as it occurs.
+  for (const t of a.tests.filter((x) => x.state === 'on')) {
+    const row = rowOf(book, S.summary, t.code, 10);
+    expect(row.cells('I'), t.code).toBe(L.matches);
+    if (CT2_TEST_INFO[t.code].review === 'approval' && t.severity === 'info') expect([row.cells('F'), row.cells('H')], t.code).toEqual([t.occurrences, t.occurrences]);
+  }
+  // Composition by origin: the documents and lines of the engine (overview without filter), and the debit of the
+  // manual and automatic lines of each segment.
+  const map = segmentMap(ingested, a.blocks);
+  const overview = ct2Overview(ingested, a, filterIndex(ingested, map), {}, new Set(holidays));
+  const block = rowOf(book, S.summary, L.summary.composition).r;
+  for (const o of CT2_ORIGINS) {
+    const row = rowOf(book, S.summary, L.documentOrigins[o], block);
+    expect([row.cells('B'), row.cells('C'), row.cells('D'), row.cells('E'), row.cells('F')], o).toEqual([
+      overview.counts.origins[o].documents,
+      overview.counts.origins[o].lines,
+      a.composition.origins[o],
+      overview.counts.origins[o].lines,
+      L.matches,
+    ]);
+  }
+  const intervention = rowOf(book, S.summary, L.summary.interventionBatches, block);
+  expect([intervention.cells('B'), intervention.cells('D'), intervention.cells('F')]).toEqual([a.composition.interventionBatches, a.composition.interventionBatches, L.matches]);
+  const debitHead = rowOf(book, S.summary, L.summary.debitBySegment, block).r;
+  overview.values.forEach((v, s) => {
+    const i = ingested.order[b.documentStart[b.batchStart[b.dayStart[b.segmentStart[s]!]!]!]!]!;
+    const row = rowOf(book, S.summary, L.segment(textOf(ingested.store.text.balanceType, i), textOf(ingested.store.text.currency, i)), debitHead);
+    expect([row.cells('B'), row.cells('C'), row.cells('D'), row.cells('E'), row.cells('F')], `segmento ${s}`).toEqual([
+      v.manualDebitCents / 100,
+      v.automaticDebitCents / 100,
+      v.manualDebitCents / 100,
+      v.automaticDebitCents / 100,
+      L.matches,
+    ]);
+  });
+}
+
+describe('CT2 workpaper: origin, findings and composition by formula (Phase 14, section 5)', () => {
+  it('ties out the engine fixture: origins, batch counts, Excecoes with reason and group, composition', async () => {
+    const r = await build();
+    expectTiedOut(r);
+    expectPhase14(r);
+    // The fixture has the four origins and an approval row (I4a) in Excecoes.
+    expect(new Set(column(r.book, 'Documentos', 'Origem do documento'))).toEqual(new Set(['Manual', 'Automático', 'Misto', 'Não identificado']));
+    expect(column(r.book, 'Excecoes', 'Grupo')).toContain('Conferir com aprovação');
+    expect(rowOf(r.book, 'Resumo', 'Conferir com aprovação').cells('B')).toBe(r.analysis.findings.groupCounts.approval);
+    // Lines with a value and history continuation lines, by formula over the Base.
+    expect(rowOf(r.book, 'Resumo', r.L.summary.entries, 10).cells('B')).toBe(r.analysis.composition.entries);
+  });
+
+  it('reproduces the reason of every test that can be listed, with every Info test raised to Alerta', async () => {
+    const config = ct2DefaultConfig();
+    for (const code of Object.keys(config.tests) as Ct2TestCode[]) if (CT2_TEST_INFO[code].level !== 'profile' && config.tests[code].severity === 'info') config.tests[code].severity = 'warning';
+    // A period informed for the run that ends before the last date: E5 on the lines of October.
+    const r = await build({ config, informed: { periodEnd: parseDate('30/09/2026') } });
+    expectTiedOut(r);
+    expectPhase14(r);
+    const listed = new Set(column(r.book, 'Excecoes', 'Código'));
+    for (const code of ['B1', 'B2', 'B3', 'B4', 'B5', 'I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'P3', 'P4']) expect(listed.has(code), code).toBe(true);
+  });
+
+  it('ties out with the Base split in several sheets', { timeout: 60_000 }, async () => {
+    const r = await build({ baseSheetRows: 20 });
+    expect([...r.book.sheets.keys()].filter((x) => x.startsWith('Base')).length).toBeGreaterThan(2);
+    expectPhase14(r);
+  });
+
+  it('ties out without any entity column', async () => {
+    const entities = ['C Custo Deb', 'C Custo Crd', 'Item Debito', 'Item Credito', 'Cl Vlr Deb', 'Cl Vlr Cred'];
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns: CT2_COLUMNS.filter((t) => !entities.includes(t.trim())) }] });
+    expectPhase14(r);
+    expect(() => column(r.book, 'Excecoes', 'CC D')).toThrow();
+  });
+
+  it('without "Lcto Manual?" every document is Não identificado and no line is manual or automatic', async () => {
+    const r = await build({ files: [{ rows: ENGINE_ROWS, columns: CT2_COLUMNS.filter((t) => t.trim() !== 'Lcto Manual?') }] });
+    expectPhase14(r);
+    expect(new Set(column(r.book, 'Documentos', 'Origem do documento'))).toEqual(new Set(['Não identificado']));
+    expect(column(r.book, 'Lotes', 'Documentos manuais').every((v) => v === 0)).toBe(true);
+  });
+
+  it('writes the English workpaper with English statuses, groups, origins and reasons (Excel in en-US)', async () => {
+    const r = await build({ language: 'en' });
+    expectPhase14(r, 'en');
+    for (const level of ['Base', 'Documents', 'Batches', 'Days', 'Tool (engine)']) expect(rowOf(r.book, 'Summary', level, 10).cells('G'), level).toBe('OK');
+    expect(new Set(column(r.book, 'Documents', 'Document origin'))).toEqual(new Set(['Manual', 'Automatic', 'Mixed', 'Unidentified']));
+    expect(new Set(column(r.book, 'Exceptions', 'Group'))).toEqual(new Set(['Exception', 'Check with approval']));
+    const reasons = column(r.book, 'Exceptions', 'Reason');
+    const codes = column(r.book, 'Exceptions', 'Code');
+    expect(reasons.filter((_, k) => codes[k] === 'I4a')).toContain('Amount generated 10.00 → current 8.00; document with 1 manual line(s)');
+    expect(reasons[codes.indexOf('I3b')]).toMatch(/^Account \d+ on D and C with the same entities$/);
   });
 });

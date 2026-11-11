@@ -19,6 +19,9 @@ import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import type { WorkerEvent } from '../../src/shared/protocol';
 import type { InflateMode } from '../../src/worker/ingest/inflate';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
+import { filterIndex } from '../../src/worker/modules/ct2Integrity/filter';
+import { ct2Overview } from '../../src/worker/modules/ct2Integrity/overview';
+import { segmentMap } from '../../src/worker/modules/ct2Integrity/segments';
 import { writeLargeCt2, type LargeCt2Expected, type LargeCt2Options } from '../synthetic/ct2Large';
 
 setFlagsFromString('--expose-gc');
@@ -100,6 +103,34 @@ describe.runIf(process.env.MEDIR_CT2)('CT2 reading: measurements', () => {
     const a = generated('ct2-1m.xlsx', { rows: 1_000_000, seed: 11, firstDate: '01/09/2026', days: 22, firstBatch: 0 });
     const result = await measure('1 arquivo, ~1 milhão de linhas', [{ name: 'ct2-1m.xlsx', ...a }]);
     expect(result.summary.segments).toEqual(a.expected.segments);
+  });
+
+  // Phase 14 (section 3.6): the overview is answered from the typed arrays; measured without and with a filter.
+  it('overview of ~1 million detail rows', async () => {
+    const a = generated('ct2-1m.xlsx', { rows: 1_000_000, seed: 11, firstDate: '01/09/2026', days: 22, firstBatch: 0 });
+    const result = await ingestCt2([{ name: 'ct2-1m.xlsx', blob: await openAsBlob(a.path) }], ct2DefaultConfig(), () => {}, { inflateMode }, { holidays: new Set() });
+    const analysis = result.analysis!;
+    let started = performance.now();
+    const index = filterIndex(result, segmentMap(result, analysis.blocks));
+    const indexMs = performance.now() - started;
+    const time = (filter: Parameters<typeof ct2Overview>[3]) => {
+      const runs: number[] = [];
+      let lines = 0;
+      for (let n = 0; n < 5; n++) {
+        started = performance.now();
+        lines = ct2Overview(result, analysis, index, filter, new Set()).counts.lines;
+        runs.push(performance.now() - started);
+      }
+      return { ms: Math.min(...runs), first: runs[0]!, lines };
+    };
+    const all = time({});
+    const combined = time({ segment: 0, origins: ['mixed', 'manual'], routine: 'FINA370' });
+    console.log(
+      `[medição] overview, ${result.summary.lines} linhas: índice do filtro ${indexMs.toFixed(0)} ms; ` +
+        `sem filtro ${all.ms.toFixed(0)} ms (1ª ${all.first.toFixed(0)} ms); ` +
+        `segmento + origem + rotina ${combined.ms.toFixed(0)} ms (1ª ${combined.first.toFixed(0)} ms, ${combined.lines} linhas)`,
+    );
+    expect(all.lines).toBe(result.summary.lines);
   });
 
   it('two files, ~1.3 million detail rows', async () => {

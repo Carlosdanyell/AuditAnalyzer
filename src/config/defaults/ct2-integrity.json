@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "table": "CT2",
   "reading": {
     "headerSearchRows": 30
@@ -24,7 +24,13 @@
     "manual": { "title": "Lcto Manual?", "aliases": ["CT2_MANUAL"], "required": false },
     "origin": { "title": "Origem", "aliases": ["CT2_ORIGEM"], "required": false },
     "companyOrigin": { "title": "Empresa Orig", "aliases": ["CT2_EMPORI"], "required": false },
-    "branchOrigin": { "title": "Filial Orig", "aliases": ["CT2_FILORI"], "required": false }
+    "branchOrigin": { "title": "Filial Orig", "aliases": ["CT2_FILORI"], "required": false },
+    "costCenterDebit": { "title": "C Custo Deb", "aliases": ["CT2_CCD"], "required": false },
+    "costCenterCredit": { "title": "C Custo Crd", "aliases": ["CT2_CCC"], "required": false },
+    "itemDebit": { "title": "Item Debito", "aliases": ["CT2_ITEMD"], "required": false },
+    "itemCredit": { "title": "Item Credito", "aliases": ["CT2_ITEMC"], "required": false },
+    "valueClassDebit": { "title": "Cl Vlr Deb", "aliases": ["CT2_CLVLDB"], "required": false },
+    "valueClassCredit": { "title": "Cl Vlr Cred", "aliases": ["CT2_CLVLCR"], "required": false }
   },
   "documentKey": ["date", "batch", "subBatch", "document"],
   "codeWidths": { "batch": 6, "subBatch": 3, "document": 6, "line": 3, "balanceType": 1, "currency": 2 },
@@ -42,8 +48,11 @@
     "B5": { "enabled": true, "severity": "warning" },
     "I1": { "enabled": true, "severity": "error" },
     "I2": { "enabled": true, "severity": "error" },
-    "I3": { "enabled": true, "severity": "warning" },
-    "I4": { "enabled": true, "severity": "warning" },
+    "I3a": { "enabled": true, "severity": "info" },
+    "I3b": { "enabled": true, "severity": "warning" },
+    "I4a": { "enabled": true, "severity": "info" },
+    "I4b": { "enabled": true, "severity": "info" },
+    "I4c": { "enabled": true, "severity": "warning" },
     "I5": { "enabled": true, "severity": "warning" },
     "E1": { "enabled": true, "severity": "error" },
     "E2": { "enabled": true, "severity": "info" },

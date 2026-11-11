@@ -77,6 +77,15 @@
   --series-changed: #1b9a6c;
   --series-unbalanced: #d29400;
 
+  /*
+   * Origin of a CT2 document (Painel charts): a fixed order, never red (red marks findings). Checked for colour-vision
+   * separation against the surface of each theme; "Não identificado" is a deliberate neutral, always labelled.
+   */
+  --origin-automatic: #1e6495;
+  --origin-manual: #c98500;
+  --origin-mixed: #1b9a6c;
+  --origin-unidentified: #a3adba;
+
   --radius-sm: 4px;
   --radius: 6px;
   --radius-lg: 6px;
@@ -128,6 +137,11 @@
   --series-deleted: #d1683c;
   --series-changed: #2aa77b;
   --series-unbalanced: #c99419;
+
+  --origin-automatic: #4e93cc;
+  --origin-manual: #b8860f;
+  --origin-mixed: #2aa77b;
+  --origin-unidentified: #56647a;
 
   --shadow-lg: 0 24px 60px -20px rgb(0 0 0 / 70%);
 

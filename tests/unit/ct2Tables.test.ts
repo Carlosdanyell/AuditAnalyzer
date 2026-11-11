@@ -30,8 +30,10 @@ describe('CT2 tables', async () => {
       analysis.blocks.documents,
       analysis.blocks.batches,
       analysis.blocks.days,
-      analysis.exceptions.count,
-      1038,
+      // Phase 14: Exceções lists every finding (the three groups).
+      analysis.findings.count,
+      // Phase 14: six lines more in the engine fixture (documents 51-56) and six of the origins (70-73).
+      1050,
     ]);
     const page = tables.page('ct2Documents', {}, undefined, 0, 2);
     expect(page.columns.slice(0, 5).map((c) => c.header)).toEqual(['Segmento', 'Data', 'Lote', 'Sub-lote', 'Documento']);
@@ -39,8 +41,22 @@ describe('CT2 tables', async () => {
     expect(page.rows[0]![1]).toBe(parseDate('07/09/2026'));
   });
 
+  it('gives the document block of each row of Documentos, Exceções and Base, for the side panel (Phase 14, section 4.5)', () => {
+    const docs = tables.page('ct2Documents', {}, undefined, 3, 5);
+    expect(docs.documents).toEqual([3, 4, 5, 6, 7]);
+    const b = analysis.blocks;
+    const lines = tables.page('ct2Base', {}, undefined, 0, base.order.length);
+    expect(lines.documents).toHaveLength(base.order.length);
+    for (let d = 0; d < b.documents; d++) for (let p = b.documentStart[d]!; p < b.documentStart[d + 1]!; p++) expect(lines.documents![p]).toBe(d);
+    // A finding of a line or a document points to its document; of a batch or a day, to none.
+    const findings = tables.page('ct2Exceptions', {}, undefined, 0, 2000);
+    const level = findings.columns.findIndex((c) => c.id === 'level');
+    findings.rows.forEach((r, n) => expect(findings.documents![n] === null).toBe(r[level] === 'Lote' || r[level] === 'Dia'));
+    expect(tables.page('ct2Batches', {}, undefined, 0, 5).documents).toBeUndefined();
+  });
+
   it('lists the exceptions in the order of the workpaper, with their key', () => {
-    const page = tables.page('ct2Exceptions', {}, undefined, 0, 200);
+    const page = tables.page('ct2Exceptions', { group: 'exception' }, undefined, 0, 200);
     const col = (id: string) => page.columns.findIndex((c) => c.id === id);
     const texts = page.rows.map((r) => {
       const level = r[col('level')];
@@ -48,9 +64,10 @@ describe('CT2 tables', async () => {
       return `${r[col('code')]} ${where}`;
     });
     // Erro first, then Alerta (the order of the Excecoes tab).
-    const errors = ENGINE_EXCEPTIONS.filter((e) => config.tests[e.slice(0, 2) as 'B1'].severity === 'error');
+    const codeOf = (e: string) => e.split(' ')[0] as 'B1';
+    const errors = ENGINE_EXCEPTIONS.filter((e) => config.tests[codeOf(e)].severity === 'error');
     expect(texts.length).toBe(ENGINE_EXCEPTIONS.length);
-    expect(texts.slice(0, errors.length).every((t) => config.tests[t.slice(0, 2) as 'B1'].severity === 'error')).toBe(true);
+    expect(texts.slice(0, errors.length).every((t) => config.tests[codeOf(t)].severity === 'error')).toBe(true);
   });
 
   it('opens each number of the board with exactly that many rows, in every segment, as the Resumo of the workpaper', async () => {
@@ -60,7 +77,7 @@ describe('CT2 tables', async () => {
     );
     const book = await Workbook.read(out.blob);
     for (const segment of [null, 0, 1, 2]) {
-      const panel = ct2Panel(base, analysis, segment);
+      const panel = ct2Panel(base, analysis, segment === null ? {} : { segment });
       for (const t of panel.board) {
         if (!t.link) continue;
         const filter = { test: t.code, ...(segment !== null && { segment }) };
@@ -78,7 +95,7 @@ describe('CT2 tables', async () => {
   });
 
   it('searches without accents or case and sorts by a column, keeping the Base order on ties', () => {
-    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1038 - 1);
+    expect(tables.page('ct2Base', { search: 'sintetico' }, undefined, 0, 1).total).toBe(1050 - 1);
     const sorted = tables.page('ct2Documents', {}, { column: 'lines', direction: 'desc' }, 0, 3);
     const lines = sorted.columns.findIndex((c) => c.id === 'lines');
     expect(sorted.rows.map((r) => r[lines])).toEqual([1000, 2, 2]);

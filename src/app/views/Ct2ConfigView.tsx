@@ -303,7 +303,7 @@ export function Ct2ConfigView({ config, onSave, holidays, analysisLoaded, needsR
         <div className={styles.grid}>
           {field('Tipo de saldo esperado (E3)', ['parameters', 'expectedBalanceType'], textInput(['parameters', 'expectedBalanceType']))}
           {field('Moeda esperada (E4)', ['parameters', 'expectedCurrency'], textInput(['parameters', 'expectedCurrency']))}
-          {field('Moeda local (I4)', ['parameters', 'localCurrency'], textInput(['parameters', 'localCurrency']))}
+          {field('Moeda local (I4a a I4c)', ['parameters', 'localCurrency'], textInput(['parameters', 'localCurrency']))}
           {field(
             'Tolerância de balanceamento (R$)',
             ['parameters', 'toleranceCents'],

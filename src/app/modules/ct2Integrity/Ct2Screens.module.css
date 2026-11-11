@@ -1,0 +1,752 @@
+/*
+ * Screens of the CT2 after the analysis (Phase 14, section 4): filter bar, Painel charts, Achados blocks and the side
+ * panel of a document. Flat panels, hairline borders, small radii, colours only from the tokens of global.css; the
+ * colour of an origin is --origin-<origin>, never red (red marks findings and the active view).
+ */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.left {
+  text-align: left !important;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.subTitle {
+  margin: 0 0 8px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.caption {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ── Origin swatches (legend, toggles, bars) ── */
+
+.swatch {
+  flex: none;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+[data-origin='automatic'].swatch,
+[data-origin='automatic'].barPart {
+  background: var(--origin-automatic);
+}
+
+[data-origin='manual'].swatch,
+[data-origin='manual'].barPart {
+  background: var(--origin-manual);
+}
+
+[data-origin='mixed'].swatch,
+[data-origin='mixed'].barPart {
+  background: var(--origin-mixed);
+}
+
+[data-origin='unidentified'].swatch,
+[data-origin='unidentified'].barPart {
+  background: var(--origin-unidentified);
+}
+
+[data-day='business'].swatch {
+  background: var(--accent);
+}
+
+/* A non-business day: hatched, so it reads without colour too. */
+[data-day='off'].swatch,
+.dayOff .dayFill {
+  background: repeating-linear-gradient(135deg, var(--text-subtle) 0 2px, transparent 2px 4px);
+  box-shadow: inset 0 0 0 1px var(--text-subtle);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Filter bar ── */
+
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.filterControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.filterField select {
+  max-width: 260px;
+}
+
+.short {
+  width: 92px;
+}
+
+.batchForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.toggles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: none;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggle + .toggle {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+.toggle:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.toggleOn,
+.toggleOn:hover {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 3px 3px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.chipLabel {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.chipHint {
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chip button:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* A filter the table on screen ignores. */
+.chipIdle {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text-subtle);
+}
+
+.clear {
+  font-size: 13px;
+}
+
+/* ── Painel ── */
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 140px;
+  padding: 2px 20px 2px 0;
+  margin: 0 20px 8px 0;
+  border-right: 1px solid var(--border);
+}
+
+.stat:last-child {
+  border-right: 0;
+}
+
+.stat dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.stat dd button {
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.origins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.originButton {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.originButton strong {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.originButton .muted,
+.originButton > span:last-child {
+  grid-column: 2 / 4;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.originButton:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.barOn,
+.barOn:hover {
+  border-color: var(--accent) !important;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(80px, 160px) 1fr minmax(84px, auto);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bar:hover {
+  background: var(--surface-muted);
+}
+
+.barLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.barTrack {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  min-width: 0;
+}
+
+.barPart {
+  min-width: 2px;
+  height: 100%;
+}
+
+.barPart:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.barValue {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.daysPlot {
+  position: relative;
+  overflow-x: auto;
+  padding-top: 18px;
+}
+
+.daysMax {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+
+.days {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: min-content;
+  margin: 0;
+  padding: 0;
+  border-top: 1px dashed var(--border);
+  list-style: none;
+}
+
+.dayCol {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 24px;
+  padding: 0 2px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.dayCol:hover {
+  background: var(--surface-muted);
+}
+
+.dayTrack {
+  display: flex;
+  align-items: flex-end;
+  height: 140px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.dayFill {
+  width: 100%;
+  min-height: 1px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+
+.dayLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.dayOff .dayLabel {
+  color: var(--text-subtle);
+  text-decoration: underline dotted;
+}
+
+.history {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  text-align: left;
+}
+
+.profile {
+  margin-top: 6px;
+}
+
+/* ── Folded panels ── */
+
+.fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg {
+  flex: none;
+  color: var(--text-subtle);
+  transition: transform 160ms var(--ease);
+}
+
+.fold[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.fold > summary > span:last-child:not(:first-of-type) {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.fold[open] > summary {
+  margin-bottom: 6px;
+}
+
+/* ── Achados ── */
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.blocks > .block:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.blockHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.blockTitle code {
+  margin-right: 4px;
+}
+
+.samples {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sample {
+  display: grid;
+  grid-template-columns: minmax(200px, 360px) 1fr;
+  gap: 4px 14px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+
+button.sample {
+  cursor: pointer;
+}
+
+button.sample:hover {
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.sampleWhere {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sampleWhy {
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.quiet li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+/* ── Side panel of a document (an overlay: the one place with a shadow) ── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(10 17 28 / 38%);
+  animation: fade 160ms var(--ease) both;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.drawerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px 28px;
+  overflow: auto;
+}
+
+.drawerTitle {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.drawerFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.drawerFacts dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.drawerFacts dd {
+  margin: 0;
+}
+
+.lines td,
+.lines th {
+  padding: 5px 10px;
+}
+
+.lines thead th {
+  white-space: nowrap;
+}
+
+/* A manual line: a discreet rule on its left, in the ink of the text (not red). */
+.lines tr[data-origin='manual'] > :first-child {
+  box-shadow: inset 2px 0 0 var(--text-subtle);
+}
+
+.manualMark {
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.lineFound > * {
+  border-bottom: none !important;
+}
+
+.findingMark {
+  display: inline-flex;
+  margin-right: 6px;
+  color: var(--signal);
+  vertical-align: -1px;
+}
+
+.reasonRow > td {
+  padding-top: 0 !important;
+  white-space: normal !important;
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 2px;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.historyCell {
+  min-width: 180px;
+  white-space: normal !important;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (width < 700px) {
+  .bar {
+    grid-template-columns: minmax(64px, 96px) 1fr;
+  }
+
+  .barValue {
+    grid-column: 1 / 3;
+    text-align: left;
+  }
+
+  .sample {
+    grid-template-columns: 1fr;
+  }
+
+  .stat {
+    min-width: 0;
+    padding-right: 12px;
+    margin-right: 12px;
+  }
+
+  .filterField select {
+    max-width: 100%;
+  }
+}

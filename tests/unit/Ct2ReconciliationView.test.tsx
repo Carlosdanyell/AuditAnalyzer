@@ -34,6 +34,19 @@ describe('CT2 reconciliation screen', () => {
     expect(html).toMatch(/Valor<\/th><td[^>]*>K<\/td>/);
   });
 
+  it('closes with the tie-out matrix of the levels, moved from the panel (Phase 14, section 4.2)', async () => {
+    const { reconciliation, summary } = await ingestCt2([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }], ct2DefaultConfig(), () => {}, { now: () => 0 });
+    const matrix = [
+      { level: 'base' as const, lines: 8, documents: null, batches: null, debitCents: 151456, creditCents: 151456, ok: true },
+      { level: 'documents' as const, lines: 8, documents: 6, batches: null, debitCents: 151456, creditCents: 151456, ok: false },
+    ];
+    const html = renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={null} matrix={matrix} />);
+    expect(html).toContain('Matriz de amarração');
+    expect(html).toMatch(/<th scope="row">Documentos<\/th><td>8<\/td><td>6<\/td><td>—<\/td>/);
+    expect(html).toContain('Verificar');
+    expect(renderToStaticMarkup(<Ct2ReconciliationView data={reconciliation} summary={summary} preview={null} />)).not.toContain('Matriz de amarração');
+  });
+
   it('shows the consolidated alerts when there are several files', async () => {
     const html = await render([
       { name: 'a.xlsx', blob: ct2Blob(fileA()) },
@@ -46,7 +59,8 @@ describe('CT2 reconciliation screen', () => {
   it('shows the board of tests: the tests with occurrences open, the others folded with those turned off', async () => {
     const html = await render([{ name: 'a.xlsx', blob: ct2Blob({ rows: ENGINE_ROWS }) }], { holidays: new Set() });
     expect(html).toContain('Quadro de testes');
-    expect(html).toContain('26 exceção(ões) de Erro ou Alerta');
+    // Phase 14: two I3b and two I4c instead of one I3 and one I4.
+    expect(html).toContain('28 exceção(ões) de Erro ou Alerta');
     // The period covers every month read, and the screen says so.
     expect(html).toMatch(/Período da análise<\/dt><dd>01\/09\/2026 a 31\/10\/2026 \(2 meses\)<\/dd>/);
     expect(html).toContain('Período 01/09/2026 a 31/10/2026 (2 meses) · tipo de saldo 1 · moeda 01 (local 01) · tolerância 0,00 · limite de 1.000 linhas por documento');
@@ -63,6 +77,7 @@ describe('CT2 reconciliation screen', () => {
 
   it('folds the tests without occurrences and says which are turned off', async () => {
     const html = await render([{ name: 'b.xlsx', blob: ct2Blob(fileB()) }], { holidays: new Set() });
-    expect(html).toMatch(/1\d teste\(s\) sem ocorrência ou desligado\(s\)/);
+    // Phase 14: 23 tests (I3 and I4 split in five), so more than 20 fold here.
+    expect(html).toMatch(/2\d teste\(s\) sem ocorrência ou desligado\(s\)/);
   });
 });

@@ -55,7 +55,7 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
   /** Section of the user manual (public/ajuda.html#<anchor>). */
   helpAnchor: string;
   /** Views offered after the reconciliation, which every module has (the others are shown locked). */
-  features: { panel: boolean; tables: boolean; justifications: boolean; export: boolean };
+  features: { panel: boolean; findings: boolean; tables: boolean; justifications: boolean; export: boolean };
   /**
    * Own configuration, validated and versioned by the module. `saved`: edited on the Configuração screen and kept on
    * this computer; otherwise the analysis runs with the defaults.
