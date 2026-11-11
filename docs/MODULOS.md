@@ -89,7 +89,7 @@ interface AvailableModule<C> {
   progress: { stages: { id: Stage; label }[]; perFile: number };   // etapas do processamento
   accepts: { extensions: readonly string[]; maxFiles: number };
   helpAnchor: string;                                   // public/ajuda.html#<anchor>
-  features: { panel; tables; justifications; export: boolean };   // visões além da reconciliação
+  features: { panel; findings; tables; justifications; export: boolean };   // visões além da reconciliação (Fase 14: findings)
   config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };
   detect(sheets: SheetSample[], config: C): 'match' | 'maybe' | 'no';   // Fase 9; nunca bloqueia
 }
@@ -158,6 +158,18 @@ interface ModuleSession {                               // objeto novo a cada in
   da configuração, verificações bloqueantes com confirmação, CI-7 de datas); a mesclagem sobreposta continua barrada
   pelo próprio `XlsxWriter`. A visão Exportação mostra o conteúdo de cada módulo (`ExportContent`).
 
+- **Fase 14 (capacidades opcionais da sessão, CT2):** `ModuleSession` ganha `overview(filter)` (composição da extração
+  sob o filtro comum: contagens, origem dos documentos, rotinas, dias e lotes com intervenção manual; resposta pequena,
+  sem linhas) e `document(index)` (todas as linhas de um bloco de documento, nos segmentos em que aparece, para o painel
+  lateral), com os comandos `overview` e `document` no protocolo (`src/shared/protocol.ts`) e as respostas de mesmo
+  nome. `segmentPanel` recebe o **filtro comum** (`Ct2Filter`: segmento, origem, rotina, lote, dia) em vez de só o
+  segmento, e `page` aceita `Ct2TableFilter` (o filtro comum mais busca, teste, grupo, intervenção e documento).
+  O descritor ganha a visão **Achados** em `features.findings` (CT2: `true`; CFGR700: `false`); o trilho
+  (`src/app/rail.ts`, `VIEWS` e `railViews`) fica Reconciliação · Painel · Achados · Tabelas · Justificativas ·
+  Exportação, mostrando só o que `features` oferece (a Reconciliação sempre), nunca pelo id do módulo.
+  Como as demais, são opcionais: um módulo que não as oferece recebe o erro "não oferecido" do despacho
+  (`src/worker/handler.ts`) e a tela não as chama; o filtro comum e os tipos ficam em `src/shared/modules/ct2Integrity.ts`.
+
 ## 4. Tela
 
 - **Início da plataforma (Ferramentas):** uma linha por módulo numa lista com colunas (`src/components/ToolHome.tsx`:
@@ -170,7 +182,7 @@ interface ModuleSession {                               // objeto novo a cada in
   `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
 - **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para
   caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição e arquivo esperado para a linha
-  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até seis
+  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até sete
   indicadores-chave (`KeyFigures`). Cores, fontes, logo e componentes são os da plataforma: a ferramenta não traz
   marca própria.
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser

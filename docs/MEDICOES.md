@@ -194,3 +194,57 @@ máquina; `MEDIR_CT2_LINHAS=450000,600000`.
   abriu no Excel e recalculou em alguns minutos, com a matriz de amarração e o quadro de testes conferindo. Os
   tamanhos e as contagens reais ficam em `local/`.
 
+
+## 2026-11-11 — Fase 14 (CT2: painel de composição, Achados e subtipos de I3/I4), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Mesmas extrações sintéticas (`tests/synthetic/ct2Large.ts`) e mesmo método das medições da Fase 9 a 12; configuração
+padrão da versão 3 (seis colunas de entidade a mais, cinco testes de linha no lugar de dois, origem do documento).
+
+### Comando `overview` com ~1 milhão de linhas
+
+`MEDIR_CT2=1 npx vitest run --config vitest.local.config.ts tests/local/ct2Measure.test.ts --testTimeout 3600000`
+(caso "overview"; menor de cinco repetições). 1.000.001 linhas:
+
+| Caso | Tempo |
+|---|---|
+| Índice do filtro (rotina de cada posição; uma vez por análise) | 20 ms |
+| Sem filtro | 45 ms |
+| Filtro combinado (segmento + origem + rotina) | 32 ms |
+
+Abaixo dos ~200 ms da especificação (seção 3.6): não foi preciso pré-agregar por documento.
+
+### Planilha amarrada (recálculo no LibreOffice, 24.2)
+
+Mesmo método da Fase 11 (`MEDIR_CT2_PLANILHA=1`); a Base ganhou as colunas de entidade e três colunas de fórmula por
+linha, os Documentos duas de contagem e a origem, e a Excecoes o contexto e o motivo.
+
+| Linhas | Base | Geração | Arquivo | Maior aba (sem compressão) | Recálculo no LibreOffice | Matriz e quadro | Antes (arquivo / recálculo) |
+|---|---|---|---|---|---|---|---|
+| 300 mil | uma aba | 60 s | 251 MB | 2,2 GB | 169 s | todos OK/Confere | 218 MB / 140 s |
+| 600 mil | 2 abas de dias inteiros | cerca de 2 min | 502 MB | 2,3 GB | 301 s | todos OK/Confere | 437 MB / 266 s |
+
+- O custo das colunas novas: arquivo cerca de 15% maior e recálculo 13% a 21% mais longo.
+- Com 600 mil linhas o LibreOffice usou cerca de **11,4 GB** de memória ao recalcular, e uma tentativa foi encerrada por
+  falta de memória na máquina de 15 GB. O teto **continua em 600.000 linhas** (decisão de 30/10/2026); a conferência no
+  Excel com uma extração real fica **pendente**.
+
+### Memória da leitura (worker) e tempo, com a análise da Fase 14
+
+`MEDIR_CT2=1 npx vitest run --config vitest.local.config.ts tests/local/ct2Measure.test.ts --testTimeout 3600000`
+(fflate; `--disableConsoleIntercept` para ver as linhas "[medição]"). Pico vivo = amostrado depois de uma coleta de
+lixo; ao lado, os números anteriores da Fase 10 para o mesmo caso.
+
+| Caso | Tempo (antes) | Pico vivo (antes) | Mantido, base (antes) |
+|---|---|---|---|
+| 1 arquivo, ~1 milhão de linhas | 47,9 s (47,5 s) | 218 MB (223 MB) | 187 MB, base 113 MB (182 MB, 113 MB) |
+| 2 arquivos, ~1,3 milhão de linhas | 63,2 s (58,8 s) | 286 MB (283 MB) | 239 MB, base 144 MB (236 MB, 144 MB) |
+
+- Aglutinação e testes: 2,3 s (1 arquivo) e 3,6 s (2 arquivos), contra 2,0 s e 2,8 s. A origem do documento e as seis
+  colunas de entidade (texto por dicionário) quase não mudam a memória.
+- **O pico do worker continua abaixo da meta de 400 MB** (maior valor vivo: 286 MB com dois arquivos; RSS máximo do
+  processo de teste 592 MB, que inclui o arquivo sintético e o gerador). O pico "com lixo" de 422 MB do caso de dois
+  arquivos é o do processo de teste, sem coleta, e não é o número da meta.
+- Rodando os três casos num mesmo processo, o caso de dois arquivos mostra só 42 MB vivos: a linha de base da medição
+  já inclui o que o caso anterior deixou na memória. Por isso o caso foi repetido sozinho (números da tabela); a
+  medição vale um caso por processo, como na Fase 9.
+- Pendente, como antes: medir no Chromium (memória do worker na tela) e com a extração real, no computador do trabalho.
