@@ -53,4 +53,45 @@ describe('test evaluator: functions of the CT2 workpaper', () => {
     const wb = book({ A1: '610', A2: 610, A3: '0610', A4: 'x', B1: { f: 'COUNTIF(A1:A4,"=610")' }, B2: { f: 'COUNTIF(A1:A4,"<>610")' }, B3: { f: 'COUNTIF(A1:A4,">600")' } });
     expect(['B1', 'B2', 'B3'].map((r) => wb.value('S', r))).toEqual([3, 1, 1]);
   });
+
+  it('SUMPRODUCT of COUNTIF with an array of criteria counts the cells that are any of them (document origin)', () => {
+    const wb = book(
+      { A1: '1', A2: '2', A3: 'X', A4: null, A5: '1', B1: { f: 'SUMPRODUCT(COUNTIF(A1:A5,MANUAL))' }, B2: { f: 'SUMPRODUCT(COUNTIF(A1:A5,AUTO))' }, B3: { f: 'SUMPRODUCT(COUNTIF(A3:A4,MANUAL))>0' }, C1: '1', C2: 'M', D1: '2' },
+      { MANUAL: 'S!$C$1:$C$2', AUTO: 'S!$D$1:$D$1' },
+    );
+    expect(['B1', 'B2', 'B3'].map((r) => wb.value('S', r))).toEqual([2, 1, false]);
+  });
+
+  it('FIXED formats with the separators of the language of Excel: pt-BR by default, en-US for the English workpaper', () => {
+    const cells = { A1: { f: 'FIXED(1234567.5,2)' }, A2: { f: 'FIXED(-0.005,2)' }, A3: { f: 'FIXED(-1234.565,2)' }, A4: { f: 'FIXED(1234,0)' }, A5: { f: 'FIXED(999.999,2)' }, A6: { f: 'FIXED(B1,2)' }, B1: 8 };
+    const pt = book(cells);
+    expect(['A1', 'A2', 'A3', 'A4', 'A5', 'A6'].map((r) => pt.value('S', r))).toEqual(['1.234.567,50', '-0,01', '-1.234,57', '1.234', '1.000,00', '8,00']);
+    const en = book(cells);
+    en.locale = 'en-US';
+    expect(['A1', 'A3', 'A4', 'A6'].map((r) => en.value('S', r))).toEqual(['1,234,567.50', '-1,234.57', '1,234', '8.00']);
+  });
+
+  it('a number joined to a text takes the decimal separator of the language', () => {
+    const cells = { A1: { f: '"x "&1.5' }, A2: { f: '"n "&12' } };
+    const pt = book(cells);
+    expect([pt.value('S', 'A1'), pt.value('S', 'A2')]).toEqual(['x 1,5', 'n 12']);
+    const en = book(cells);
+    en.locale = 'en-US';
+    expect(en.value('S', 'A1')).toBe('x 1.5');
+  });
+
+  it('DAY, MONTH and YEAR read a serial of the 1900 system; a date text is composed without TEXT()', () => {
+    // 46280 = 15/09/2026; 36526 = 01/01/2000; 59 = 28/02/1900; 61 = 01/03/1900.
+    const wb = book({
+      A1: { f: 'DAY(46280)' }, A2: { f: 'MONTH(46280)' }, A3: { f: 'YEAR(46280)' },
+      A4: { f: 'RIGHT("0"&DAY(B1),2)&"/"&RIGHT("0"&MONTH(B1),2)&"/"&YEAR(B1)' }, B1: 36526,
+      A5: { f: 'DAY(59)&"/"&MONTH(59)&" "&DAY(61)&"/"&MONTH(61)' },
+    });
+    expect(['A1', 'A2', 'A3', 'A4', 'A5'].map((r) => wb.value('S', r))).toEqual([15, 9, 2026, '01/01/2000', '28/2 1/3']);
+  });
+
+  it('LEFT, RIGHT, MID and LOWER work on texts', () => {
+    const wb = book({ A1: 'Compensa doc 000011', B1: { f: 'LOWER(LEFT(A1,1))&MID(A1,2,1000)' }, B2: { f: 'RIGHT(A1,6)' }, B3: { f: 'LEFT(A1)' }, B4: { f: 'MID(A1,10,3)' } });
+    expect(['B1', 'B2', 'B3', 'B4'].map((r) => wb.value('S', r))).toEqual(['compensa doc 000011', '000011', 'C', 'doc']);
+  });
 });

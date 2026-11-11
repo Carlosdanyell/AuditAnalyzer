@@ -77,6 +77,7 @@ describe.runIf(process.env.MEDIR_CT2_PLANILHA)('CT2 workpaper: measurements', ()
       const sheetBytes = Math.max(...[...xml.matchAll(/^\s*(\d+)\s+\S+\s+\S+\s+xl\/worksheets\//gm)].map((m) => Number(m[1])));
       let recalc = '—';
       let statuses: string[] = [];
+      let composition: string[] = [];
       if (soffice) {
         const outDir = join(dir, `csv-${rows}${onlyMapped ? '-mapeadas' : ''}`);
         rmSync(outDir, { recursive: true, force: true });
@@ -85,18 +86,27 @@ describe.runIf(process.env.MEDIR_CT2_PLANILHA)('CT2 workpaper: measurements', ()
         execFileSync('soffice', ['--headless', '--calc', '--convert-to', 'csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,false,false,false,1', '--outdir', outDir, path], { timeout: 3_600_000 });
         recalc = `${((performance.now() - t) / 1000).toFixed(0)} s`;
         const csv = readFileSync(join(outDir, `planilha-${rows}${onlyMapped ? '-mapeadas' : ''}-Resumo.csv`), 'utf8');
-        // The status of each level of the matrix (7th column) and the tie-out of each test of the board (9th column).
+        // The status of each level of the matrix (7th column), the tie-out of each test of the board (9th column; it
+        // also proves every row of Excecoes, I4a included, confirmed at its source) and of the composition by origin
+        // (6th column, from its section to the next one).
         const lines = csv.split('\n').map((l) => l.split(','));
         const matrix = ['Base', 'Documentos', 'Lotes', 'Dias', 'Ferramenta (motor)'];
-        statuses = lines.flatMap((c) => (matrix.includes(c[0]!) ? [c[6]!] : /^[BIEP]\d$/.test(c[0]!) ? [c[8]!] : []));
+        statuses = lines.flatMap((c) => (matrix.includes(c[0]!) ? [c[6]!] : /^[BIEP]\d[a-c]?$/.test(c[0]!) ? [c[8]!] : []));
+        const from = lines.findIndex((c) => c[0] === 'Composição por origem');
+        const to = lines.findIndex((c, k) => k > from && c[0] === 'Documentos desbalanceados');
+        composition = lines.slice(from, to).flatMap((c) => (c[5] === 'Confere' || c[5] === 'Verificar' ? [c[5]] : []));
       }
       console.log(
         `[medição] planilha CT2${onlyMapped ? ' (só colunas mapeadas)' : ''}, ${rows} linhas: geração ${(ms / 1000).toFixed(1)} s, arquivo ${mb(statSync(path).size)}, maior aba ${mb(sheetBytes)} descompactada, ` +
-          `pico da geração ${mb(peak)}; LibreOffice (abrir, recalcular, exportar o Resumo): ${recalc}; matriz e quadro: ${statuses.filter((s) => s === 'OK' || s === 'Confere').length} OK/Confere, ${statuses.filter((s) => s !== 'OK' && s !== 'Confere').length} outros`,
+          `pico da geração ${mb(peak)}; LibreOffice (abrir, recalcular, exportar o Resumo): ${recalc}; matriz e quadro: ${statuses.filter((s) => s === 'OK' || s === 'Confere').length} OK/Confere, ${statuses.filter((s) => s !== 'OK' && s !== 'Confere').length} outros; ` +
+          `composição: ${composition.filter((s) => s === 'Confere').length} Confere, ${composition.filter((s) => s !== 'Confere').length} outros`,
       );
       if (soffice) {
         expect(statuses.length).toBeGreaterThan(5);
         expect(statuses.filter((s) => s !== 'OK' && s !== 'Confere')).toEqual([]);
+        // Four origins, the total, the batches with intervention, the entries, the history lines and each segment.
+        expect(composition.length).toBeGreaterThanOrEqual(9);
+        expect(composition.filter((s) => s !== 'Confere')).toEqual([]);
       }
     }, 7_200_000);
   }
