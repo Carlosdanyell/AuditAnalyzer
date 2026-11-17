@@ -19,7 +19,8 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 
 ## 2. Arquivo de entrada
 
-- `.xlsx` exportado da CT2 pelo Protheus (exportação de planilha da consulta/browse da tabela). Um ou mais arquivos;
+- `.xlsx` exportado da CT2 pelo Protheus (exportação de planilha da consulta/browse da tabela), ou o XML que o sistema
+  grava antes da conversão, puro ou dentro de um `.zip` (seção 2.1). Um ou mais arquivos, de formatos misturados ou não;
   com mais de um, as linhas são unidas numa base só (ex.: meses seguidos) e a duplicidade entre arquivos é coberta
   pelo teste E1.
 - Estrutura observada: uma aba (nome irrelevante, ex. `SCACKST0.XML`); linha 1 com o nome da tabela, linha 2 em
@@ -43,6 +44,43 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
   de leitura com o nome do arquivo e da aba.
 - **Reconciliação de leitura (por arquivo):** linhas após o cabeçalho − linhas em branco = linhas de detalhe.
 - SHA-256 do arquivo, CRC32 e tamanho de cada parte do ZIP: mesma rotina do módulo CFGR700.
+
+### 2.1 Formatos aceitos: `.xlsx`, XML do sistema e XML em `.zip` (17/11/2026)
+
+O Protheus grava a extração no formato **XML Spreadsheet 2003** do Excel (o arquivo `.XML` que o sistema gera, sem a
+conversão para `.xlsx`): um único documento XML, `<Workbook>` → `<Worksheet ss:Name>` → `<Table>` → `<Row>` →
+`<Cell>` → `<Data ss:Type>`, com a mesma disposição do `.xlsx` (título na linha 1, linha 2 em branco, títulos na
+linha 3). A ferramenta lê os três formatos; o formato é reconhecido pelo **conteúdo** (ZIP começa por `PK`), nunca
+pela extensão:
+
+| Formato | Como é lido | Integridade conferida |
+|---|---|---|
+| `.xlsx` | como antes (seção 2) | SHA-256; CRC32 e tamanho de cada parte do ZIP |
+| XML do sistema (`.xml`) | em fluxo, decodificado na codificação da declaração (`UTF-8`, `ISO-8859-1`…) | SHA-256; XML bem formado e **completo até `</Workbook>`** |
+| XML dentro de um `.zip` | o único `.xml` do `.zip`, descompactado em fluxo (nada é gravado em disco) | SHA-256 do `.zip`; CRC32 e tamanho de cada entrada; XML completo |
+
+- **Mesma leitura do `.xlsx`.** Cada célula vira o que o Excel gravaria ao converter o arquivo: `String` → texto (texto
+  vazio = célula vazia; quebras de linha `\r\n` lidas como `\n`), `Number` → número como escrito, `DateTime`
+  (`aaaa-mm-ddThh:mm:ss.fff`) → número de série do Excel (dia inteiro à meia-noite; a hora vira fração e a data é
+  rejeitada pelo CI-4, como no `.xlsx`), `Boolean`/`Error` → outro valor. Posição da linha e da célula por `ss:Index`
+  ou pela anterior; `ss:MergeAcross` ocupa as colunas seguintes; CDATA, entidades, texto formatado (marcas dentro de
+  `<Data>`), comentários e o prefixo `ss:` nos elementos são aceitos. `ss:ExpandedRowCount` faz o papel do
+  `<dimension>` (o sistema não o grava).
+- **Arquivo incompleto.** Sem ZIP não há CRC32: o que prova que o XML veio inteiro é o fim do documento. Arquivo que
+  termina antes de `</Workbook>` (transferência interrompida), linha sem `</Row>`, célula sem `</Cell>` ou células fora
+  de ordem são **erro de leitura** com o nome do arquivo; a análise não começa.
+- **Abas.** O XML não tem diretório: a primeira passada (a do SHA-256, no XML puro) lista as abas e guarda as primeiras
+  linhas de cada uma para a escolha automática ou para a aba escolhida na lista de arquivos; a segunda lê as linhas da
+  aba escolhida.
+- **`.zip`.** Deve conter um único `.xml` (pastas e a pasta `__MACOSX/` do Mac são ignoradas); dois ou nenhum é erro.
+  ZIP64 (arquivo compactado com mais de 4 GB) não é suportado, como no `.xlsx`.
+- **Na tela e na planilha.** A Reconciliação mostra o formato de cada arquivo; no XML puro, no lugar da tabela de
+  integridade do ZIP, a frase de que o SHA-256 e o fim do arquivo foram conferidos. A Rastreabilidade ganha a coluna
+  "Formato" e, no XML puro, "Sem ZIP (fim do XML conferido)" em "Partes do ZIP conferidas". O texto do CI-1 diz o que
+  provou cada arquivo inteiro (CRC32 das partes compactadas e/ou o fim do XML).
+- **Tamanho.** O XML não é compactado: cerca de 7 KB por linha (um ano com ~340 mil linhas tem ~2,4 GB). A leitura é
+  em fluxo e a memória não depende do tamanho do arquivo (`docs/MEDICOES.md`, 17/11/2026); o `.zip` reduz o arquivo
+  cerca de 30 vezes para guardar e enviar.
 
 ### Colunas (localizar pelo título; aliases na configuração)
 
@@ -762,3 +800,11 @@ Situação em 20/10/2026 (decisões na seção 13):
     O teto continua em **600.000 linhas** (medições de 11/11/2026 em `docs/MEDICOES.md`).
   - **Fora desta fase:** a conferência automática com os pacotes de lançamento manual assinados (leitura dos nomes dos
     PDFs) fica para a próxima fase; usuário a partir de "Origem" continua fora do escopo (seção 12, item 4).
+- 17/11/2026 — Leitura do XML do sistema (versão 2.3.0, seção 2.1), respostas do usuário:
+  - **Escopo:** só a Integridade da CT2; o leitor fica na leitura comum (`readSheet`) e o CFGR700 pode usá-lo depois,
+    numa entrega própria, conferida com um XML real do relatório.
+  - **`.zip`:** aceito, com o XML dentro, lido sem descompactar em disco (um único `.xml` por `.zip`).
+  - **Integridade do XML puro** (proposta aprovada com o plano): sem ZIP não há CRC32; conferidos o SHA-256, o XML bem
+    formado e o fim do documento (`</Workbook>`). Arquivo incompleto é erro de leitura e a análise não começa.
+  - **Conferência:** uma extração real em XML (em `local/`) dá a mesma leitura e a mesma análise que o mesmo arquivo em
+    `.zip` e convertido para `.xlsx`.

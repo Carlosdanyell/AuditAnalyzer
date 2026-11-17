@@ -91,6 +91,26 @@ test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; ofe
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
 });
 
+test('Integridade da CT2: lê o XML gerado pelo sistema, puro ou dentro de um .zip, e mostra o formato de cada arquivo', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  await expect(page.getByText('.xml', { exact: true })).toBeVisible();
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.xml]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/bloqueante\(s\) falhou/)).toHaveCount(0);
+  await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toBeVisible();
+  await expect(page.getByText(/Arquivo XML sem compactação/)).toBeVisible();
+  await expect(page.getByText('XML gerado pelo sistema (XML Spreadsheet 2003)')).toBeAttached();
+
+  await page.getByRole('button', { name: 'Nova análise' }).click();
+  await page.getByRole('button', { name: /Remover/ }).first().click();
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.xmlZip]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByText(/Integridade do ZIP \(1 de 1 entradas conferem\)/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('XML gerado pelo sistema, dentro de um .zip')).toBeAttached();
+});
+
 test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de testes conferem no avaliador', async ({ page, ct2Files }, testInfo) => {
   await page.goto('');
   await chooseModule(page, CT2);

@@ -35,7 +35,7 @@ CFGR700 ler outras tabelas.
 
 | Camada | Itens | Onde fica |
 |---|---|---|
-| Leitura | ZIP com acesso aleatório, inflate, CRC32, SHA-256, sharedStrings, leitura da aba em fluxo, dicionário, colunas | `src/worker/ingest/`, `src/worker/store/` |
+| Leitura | ZIP com acesso aleatório, inflate, CRC32, SHA-256, sharedStrings, leitura da aba em fluxo (`.xlsx`, ou o XML Spreadsheet 2003 do sistema, puro ou em `.zip`, reconhecido pelo conteúdo), dicionário, colunas | `src/worker/ingest/`, `src/worker/store/` |
 | Exportação | gerador XLSX em fluxo, tema, mesclagens validadas, nomes definidos, formatação condicional, aba Rastreabilidade | `src/worker/export/` |
 | Utilitários | datas sem fuso, centavos, formatação pt-BR, hash da configuração | `src/shared/` |
 | Tela | Arquivos, Processamento (etapas), Reconciliação de leitura, tabelas virtualizadas, Exportação, Configuração, tema, ajuda, cópia de segurança | `src/app/`, `src/components/` |
@@ -50,7 +50,7 @@ interface ModuleDescriptor {            // tela e worker
   id: 'cfgr700' | 'ct2Integrity';
   title: string;                        // "Log de auditoria (CFGR700)", "Integridade da CT2"
   description: string;                  // uma frase no seletor de análises
-  accepts: { extensions: ['.xlsx']; maxFiles: number };
+  accepts: { extensions: string[]; maxFiles: number };  // CFGR700 ['.xlsx']; CT2 ['.xlsx', '.xml', '.zip'] (2.3.0)
   detect(headerSample: string[][]): 'match' | 'maybe' | 'no';   // aviso de arquivo trocado, nunca bloqueia sozinho
   configSchema: ZodType;                // schema próprio
   defaultConfig: unknown;               // config/defaults/<id>.json

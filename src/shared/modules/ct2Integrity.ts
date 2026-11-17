@@ -4,7 +4,7 @@
  * `module: 'ct2Integrity'`; the CFGR700 payloads carry no mark, so their content does not change.
  */
 import type { Ct2Field, Ct2Severity, Ct2TestCode } from '../../config/ct2IntegritySchema';
-import type { Alert, CheckResult, EntryIntegrity, Stage } from '../protocol';
+import type { Alert, CheckResult, EntryIntegrity, InputFormat, Stage } from '../protocol';
 import type { Reconciliation, Summary } from './cfgr700';
 
 /** Processing stages of the CT2 module; the first three repeat for each file. */
@@ -135,6 +135,8 @@ export interface Ct2FileReconciliation {
   name: string;
   size: number;
   sha256: string;
+  /** How the file is stored; a plain XML has no ZIP entries to check (`entries` empty). */
+  format: InputFormat;
   entries: EntryIntegrity[];
   sheetName: string;
   sheetNames: string[];

@@ -1,7 +1,7 @@
 import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2MatrixRow, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
 import { dateParts, formatDay } from '../shared/dates';
-import { formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
+import { INPUT_FORMAT_LABEL, formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
 import { Alerts, Checks, RunStatus, ZipIntegrity, type StatusTile } from './ReconciliationParts';
 import { cx } from './cx';
@@ -401,11 +401,20 @@ function FileCard({ file }: { file: Ct2FileReconciliation }) {
             <dd>{file.header.unmapped.join(', ') || 'nenhuma'}</dd>
             <dt>Abas do arquivo</dt>
             <dd>{file.sheetNames.join(', ')}</dd>
+            <dt>Formato</dt>
+            <dd>{INPUT_FORMAT_LABEL[file.format]}</dd>
           </dl>
         </div>
       </details>
 
-      <ZipIntegrity entries={file.entries} />
+      {file.format === 'xml' ? (
+        <p className={styles.timings}>
+          <Icon name="check" size={14} />
+          Arquivo XML sem compactação: não há partes com CRC32; a leitura conferiu o SHA-256 e que o arquivo está completo, até o fim da planilha.
+        </p>
+      ) : (
+        <ZipIntegrity entries={file.entries} />
+      )}
 
       <p className={styles.timings}>
         <Icon name="clock" size={14} />

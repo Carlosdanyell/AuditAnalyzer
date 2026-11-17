@@ -104,6 +104,12 @@ export interface ExportOptions {
   generatedAt: string;
 }
 
+/**
+ * How an input file is stored: an .xlsx workbook, the XML Spreadsheet 2003 file the system writes, or that XML inside
+ * a .zip (docs/REGRAS_CT2_INTEGRIDADE.md, section 2.1).
+ */
+export type InputFormat = 'xlsx' | 'xml' | 'xmlZip';
+
 /** CRC32 and size of a ZIP entry, checked against the central directory. */
 export interface EntryIntegrity {
   name: string;

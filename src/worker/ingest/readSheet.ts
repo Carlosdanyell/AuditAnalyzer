@@ -3,8 +3,11 @@
  * file, ZIP directory, CRC32 and size of every entry, shared strings, then the rows of the sheet chosen by the
  * module, given one by one. What a row means (header, blank, detail) is decided by the module. Built only on the
  * reading primitives used by the CFGR700 pipeline, which keeps its own path.
+ *
+ * The same reading takes the XML Spreadsheet 2003 file the system writes, plain or inside a .zip (xmlSheet.ts): the
+ * format is told by the content of the file, never by its extension.
  */
-import type { Alert, EntryIntegrity } from '../../shared/protocol';
+import type { Alert, EntryIntegrity, InputFormat } from '../../shared/protocol';
 import { IngestError } from './errors';
 import type { InflateMode } from './inflate';
 import { requireIntact, sha256 } from './integrity';
@@ -13,6 +16,7 @@ import type { ProgressReporter } from './progress';
 import { CellKind, SheetFormatError, SheetParser, type ParsedRow } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath, type WorkbookSheet } from './workbook';
+import { readXmlSheet, xmlEntryOf } from './xmlSheet';
 import { ZipFormatError, readEntry, readEntryBytes, readEntryHead, readZipDirectory, type ZipEntry } from './zip';
 
 /** A row of the beginning of a sheet, with its cells as text. */
@@ -56,7 +60,8 @@ export interface SheetReadResult {
   name: string;
   size: number;
   sha256: string;
-  /** Every entry of the ZIP, in directory order, all intact. */
+  format: InputFormat;
+  /** Every entry of the ZIP, in directory order, all intact (none for a plain XML). */
   entries: EntryIntegrity[];
   sheetNames: string[];
   sheetName: string;
@@ -80,6 +85,10 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
   const checked = new Map<string, EntryIntegrity>();
   const alerts: Alert[] = [];
 
+  // A ZIP starts with "PK"; anything else is read as the XML the system writes.
+  const start = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+  if (start[0] !== 0x50 || start[1] !== 0x4b) return readXmlSheet(input, o, null);
+
   // 1. File check: SHA-256, ZIP directory, workbook structure and the small entries.
   progress.begin('fileCheck', fileIndex, blob.size, 'bytes', `Conferindo ${name}`);
   const hash = await sha256(blob, progress);
@@ -91,6 +100,8 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     throw e;
   }
   const byName = new Map(entries.map((e) => [e.name, e]));
+  // A .zip without a workbook: the XML of the system, compressed by the user.
+  if (!byName.has('xl/workbook.xml')) return readXmlSheet(input, o, { sha256: hash, entries, entry: xmlEntryOf(name, entries) });
   const readText = async (entryName: string): Promise<string> => {
     const entry = byName.get(entryName);
     if (!entry) throw new IngestError('fileCheck', `${name}: o arquivo não é um .xlsx válido (${entryName} ausente).`);
@@ -211,6 +222,7 @@ export async function readSheet(input: IngestInput, o: SheetReadOptions): Promis
     name,
     size: blob.size,
     sha256: hash,
+    format: 'xlsx',
     entries: entries.map((e) => checked.get(e.name)!).filter((e) => e !== undefined),
     sheetNames: sheets.map((s) => s.name),
     sheetName: sheet.name,

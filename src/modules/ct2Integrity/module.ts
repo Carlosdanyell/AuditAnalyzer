@@ -25,14 +25,14 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   title: 'Integridade da CT2',
   shortTitle: 'CT2',
   description: 'Aglutinação dos lançamentos por documento, lote e dia, testes de balanceamento e de integridade, planilha amarrada por fórmulas.',
-  input: 'Extração da tabela CT2 (lançamentos), em .xlsx',
+  input: 'Extração da tabela CT2 (lançamentos), em .xlsx ou no XML gerado pelo Protheus',
   brandSubtitle: 'Integridade da CT2 · Protheus',
   preview: null,
   start: {
     heading: 'Extração da CT2',
     headingDescription: 'Lançamentos contábeis exportados da tabela CT2 do Protheus',
     uploadTitle: 'Carregue as extrações da CT2',
-    uploadDescription: 'Uma ou mais extrações da tabela CT2, em .xlsx. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só.',
+    uploadDescription: 'Uma ou mais extrações da tabela CT2, em .xlsx ou no XML gerado pelo Protheus (também dentro de um .zip). Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só.',
     dropTitle: 'Arraste os arquivos da CT2 aqui',
     guide: [
       { title: 'Carregue', text: 'as extrações da CT2, com os títulos das colunas nas primeiras linhas da aba.' },
@@ -42,7 +42,8 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   },
   progress: { stages: CT2_STAGES.map((id: Stage & keyof typeof LABELS) => ({ id, label: LABELS[id] })), perFile: 3 },
   // The worker enforces the same limit (src/worker/modules/ct2Integrity/ingest.ts).
-  accepts: { extensions: ['.xlsx'], maxFiles: 255 },
+  // The XML the system writes is read as it comes (docs/REGRAS_CT2_INTEGRIDADE.md, section 2.1), or inside a .zip.
+  accepts: { extensions: ['.xlsx', '.xml', '.zip'], maxFiles: 255 },
   helpAnchor: 'ct2',
   features: { panel: true, findings: true, tables: true, justifications: false, export: true },
   config: { defaults: ct2DefaultConfig, read: readCt2Config, saved: true },

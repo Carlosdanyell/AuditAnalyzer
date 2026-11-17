@@ -2,12 +2,15 @@
  * First rows of every sheet of a workbook (docs/MODULOS.md, section 3.1), for the warning of the start screen about
  * a file of another analysis. Reads only the beginning of each sheet and of the shared strings, up to the last string
  * those rows use: a few kilobytes even for the largest files. Nothing is checked here (the analysis checks everything).
+ * For the XML the system writes (no directory), the worksheets that start in its first megabytes.
  */
 import type { SheetSample } from '../../shared/protocol';
 import type { InflateMode } from './inflate';
 import { CellKind, SheetParser } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath } from './workbook';
+import { xmlEntryOf } from './xmlSheet';
+import { XmlSpreadsheetParser, xmlDeclaredEncoding } from './xmlSpreadsheet';
 import { readEntryBytes, readEntryHead, readZipDirectory } from './zip';
 
 /** Columns read per row. */
@@ -15,9 +18,47 @@ const WIDTH = 256;
 
 type RawCell = number | string;
 
+/** Text read from the beginning of an XML file for its first rows (the first worksheets of the file). */
+const XML_HEAD_BYTES = 4 * 1024 * 1024;
+
+/** First rows of each worksheet that starts in the first bytes of the XML the system writes (plain or zipped). */
+async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<void>, rows: number): Promise<SheetSample[]> {
+  const out: SheetSample[] = [];
+  const parser = new XmlSpreadsheetParser(
+    {
+      onSheet: (s) => out.push({ name: s.name, rows: [] }),
+      onRow: (sheet, r, row) => {
+        const titles = Array.from({ length: row.width }, (_, c) => (row.kind[c] === CellKind.Empty ? '' : row.text[c]!));
+        while (titles.length > 0 && titles[titles.length - 1] === '') titles.pop();
+        out[sheet]!.rows.push({ r, titles });
+      },
+    },
+    WIDTH,
+    { headRows: rows },
+  );
+  let decoder: TextDecoder | null = null;
+  let seen = 0;
+  await read((chunk) => {
+    decoder ??= new TextDecoder(xmlDeclaredEncoding(chunk));
+    parser.push(decoder.decode(chunk, { stream: true }));
+    seen += chunk.length;
+    return !parser.complete && seen < XML_HEAD_BYTES;
+  });
+  if (!parser.started) throw new Error('Não é uma planilha XML.');
+  return out;
+}
+
 export async function probeWorkbook(blob: Blob, rows: number, inflateMode: InflateMode = 'auto'): Promise<SheetSample[]> {
+  const start = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+  if (start[0] !== 0x50 || start[1] !== 0x4b) {
+    return probeXml(async (onChunk) => void onChunk(new Uint8Array(await blob.slice(0, XML_HEAD_BYTES).arrayBuffer())), rows);
+  }
   const entries = await readZipDirectory(blob);
   const byName = new Map(entries.map((e) => [e.name, e]));
+  if (!byName.has('xl/workbook.xml')) {
+    const entry = xmlEntryOf('', entries);
+    return probeXml((onChunk) => readEntryHead(blob, entry, onChunk, inflateMode), rows);
+  }
   const text = async (name: string) => {
     const entry = byName.get(name);
     if (!entry) throw new Error(`${name} ausente.`);

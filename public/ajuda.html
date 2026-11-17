@@ -102,7 +102,7 @@
             <thead><tr><th>Análise</th><th>Arquivo esperado</th><th>Situação</th></tr></thead>
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
-              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Disponível</td></tr>
+              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
             </tbody>
           </table>
           <ul>
@@ -275,9 +275,11 @@
         <section id="ct2-extracao">
           <h2>2. Extração da CT2</h2>
           <ul>
-            <li>Uma ou mais planilhas <code>.xlsx</code> exportadas da consulta da tabela CT2. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
+            <li>Uma ou mais extrações da consulta da tabela CT2: a planilha <code>.xlsx</code>, o arquivo <code>.XML</code> que o Protheus gera (antes de abrir no Excel e salvar como <code>.xlsx</code>) ou esse XML dentro de um <code>.zip</code>. O formato é reconhecido pelo conteúdo do arquivo; os três dão o mesmo resultado. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
             <li>O cabeçalho é a primeira linha, entre as 30 primeiras da aba, que tem todos os títulos obrigatórios: Data Lcto, Numero Lote, Sub Lote, Numero Doc, Numero Linha, Tipo do Sld, Moeda Lancto, Tipo Lcto, Cta Debito, Cta Credito, Valor e Hist Lanc (ou os nomes de campo CT2_DATA, CT2_LOTE e assim por diante). Espaços nas pontas dos títulos não importam.</li>
             <li>Se o arquivo tiver várias abas, escolha a aba na lista de arquivos (campo <strong>Aba</strong>). Em <em>Automática</em>, vale a que tem o cabeçalho; se duas abas tiverem o cabeçalho, a tela pede a escolha antes de analisar.</li>
+            <li>O XML não é compactado e fica grande (cerca de 7 KB por linha: um ano com 340 mil linhas passa de 2 GB). A leitura é em fluxo e não depende do tamanho; para guardar ou enviar, compacte o XML num <code>.zip</code> (fica cerca de 30 vezes menor) e carregue o <code>.zip</code> direto, sem descompactar. O <code>.zip</code> deve ter um único <code>.xml</code>.</li>
+            <li>Um XML que termina antes do fim da planilha (cópia ou transferência interrompida) não é analisado: a tela mostra o erro com o nome do arquivo. No XML sem <code>.zip</code> não há CRC32; o que prova que o arquivo veio inteiro é o fim do documento, e a Reconciliação diz isso no lugar da integridade do ZIP.</li>
             <li>Códigos (lote, documento, linha, tipo de saldo, moeda) são lidos como texto, com os zeros à esquerda. Valores numéricos ou em texto no formato <code>1.234,56</code>; datas como data do Excel ou <code>dd/mm/aaaa</code>.</li>
           </ul>
         </section>

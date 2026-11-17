@@ -4,6 +4,17 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.3.0] — 2026-11-17
+
+### Integridade da CT2: leitura do XML gerado pelo Protheus
+- A ferramenta lê a extração no XML que o sistema grava (formato XML Spreadsheet 2003), sem a conversão para `.xlsx`,
+  e também esse XML dentro de um `.zip`. O formato é reconhecido pelo conteúdo; o resultado é o mesmo do `.xlsx`
+  (conferido com uma extração real, em XML, em `.zip` e convertida para `.xlsx`).
+- Integridade do XML: SHA-256, XML bem formado e arquivo completo até o fim da planilha (sem ZIP não há CRC32); um
+  arquivo cortado não é analisado. No `.zip`, CRC32 e tamanho de cada entrada, como no `.xlsx`.
+- A Reconciliação mostra o formato de cada arquivo; a Rastreabilidade da planilha ganha a coluna "Formato".
+- Um ano em XML (~340 mil linhas, ~2,4 GB) é lido em cerca de 50 s, com ~90 MB de memória no worker.
+
 ## [2.2.0] — 2026-11-11
 
 ### Integridade da CT2: painel de composição, Achados e subtipos de I3 e I4 (Fase 14)

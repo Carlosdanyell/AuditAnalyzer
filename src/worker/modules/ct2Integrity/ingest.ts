@@ -316,6 +316,7 @@ async function readFile(
       name,
       size: read.size,
       sha256: read.sha256,
+      format: read.format,
       entries: read.entries,
       sheetName: read.sheetName,
       sheetNames: read.sheetNames,
@@ -419,7 +420,12 @@ function readingCheck(files: Ct2FileReconciliation[]): CheckResult {
     passed: problems.length === 0,
     message:
       problems.length === 0
-        ? 'Todas as linhas foram contadas: linhas após o cabeçalho − linhas em branco = linhas de detalhe, em cada arquivo, e todo valor está numa coluna com título. CRC32 e tamanho de cada parte dos arquivos conferem.'
+        ? 'Todas as linhas foram contadas: linhas após o cabeçalho − linhas em branco = linhas de detalhe, em cada arquivo, e todo valor está numa coluna com título. ' +
+          (files.every((f) => f.format === 'xml')
+            ? 'Cada arquivo XML está completo, até o fim da planilha.'
+            : files.some((f) => f.format === 'xml')
+              ? 'CRC32 e tamanho de cada parte compactada conferem, e cada arquivo XML está completo, até o fim da planilha.'
+              : 'CRC32 e tamanho de cada parte dos arquivos conferem.')
         : `A leitura não fecha: ${problems.join('; ')}.`,
   };
 }

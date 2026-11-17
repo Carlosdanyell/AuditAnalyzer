@@ -195,6 +195,26 @@ máquina; `MEDIR_CT2_LINHAS=450000,600000`.
   tamanhos e as contagens reais ficam em `local/`.
 
 
+## 2026-11-17 — Versão 2.3.0 (CT2: leitura do XML do sistema), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Extração sintética de ~340 mil linhas (`ct2Large.ts`, 250 dias, um ano típico), transcrita linha a linha para o XML
+Spreadsheet 2003 com a disposição do arquivo do sistema (todas as ~80 colunas de cada linha como célula com
+`ss:Index` e estilo, texto vazio em CDATA, data em DateTime, fim de linha CRLF): 2,4 GB, cerca de 7 KB por linha, como
+o arquivo real. `MEDIR_CT2=1 MEDIR_CT2_XML=1 npx vitest run --config vitest.local.config.ts tests/local/ct2Measure.test.ts -t "one year" --testTimeout 3600000 --disableConsoleIntercept`.
+
+| Arquivo | Tempo total | Conferência (SHA-256, abas, fim do XML) | Linhas | Pico vivo | Mantido (base) |
+|---|---|---|---|---|---|
+| XML puro (2,4 GB) | 48 s | 15 s | 32 s | 91 MB | 69 MB (42 MB) |
+| XML em `.zip` (75 MB, `zip -1`) | 58 s | 16 s (+ 0,4 s do SHA-256) | 40 s | 94 MB | 67 MB (42 MB) |
+
+- Antes da cópia dos textos longos ao sair do pedaço lido (`docs/ARQUITETURA.md`, 1.2), o pico vivo foi de 928 MB (XML)
+  e 1,8 GB (`.zip`): cada histórico distinto prendia o seu pedaço de 64 KB do arquivo. Com a cópia, a memória não
+  depende do tamanho do arquivo; o leitor sozinho (sem a base) fica abaixo de 10 MB.
+- O mesmo número de linhas em `.xlsx` lê em ~16 s: o XML tem cerca de 27 vezes mais bytes para decodificar.
+- A extração real em XML (em `local/ct2/`) dá a mesma leitura e a mesma análise do mesmo arquivo em `.zip` e convertido
+  para `.xlsx` pelo LibreOffice (`tests/local/ct2Xml.test.ts`).
+- Pendente: medir no Chromium (memória do worker na tela) com um XML real de um ano, no computador do trabalho.
+
 ## 2026-11-11 — Fase 14 (CT2: painel de composição, Achados e subtipos de I3/I4), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
 
 Mesmas extrações sintéticas (`tests/synthetic/ct2Large.ts`) e mesmo método das medições da Fase 9 a 12; configuração
