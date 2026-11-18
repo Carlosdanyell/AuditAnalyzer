@@ -85,6 +85,16 @@ export function buildCt2Xml(o: Ct2XmlOptions): Uint8Array {
   return bytes;
 }
 
+/** An XML Spreadsheet 2003 workbook with raw sheets (rows from row 1; an empty row is written without cells), in UTF-8. */
+export function buildXmlWorkbook(sheets: Record<string, Ct2Value[][]>, o: Ct2XmlOptions = { rows: [] }): Uint8Array {
+  const body = Object.entries(sheets).map(([name, rows]) => worksheetXml(name, rows.map((cells, i) => ({ r: i + 1, cells: cells.length > 0 ? cells : null })), new Set(), o));
+  return new TextEncoder().encode(
+    '<?xml version="1.0" encoding="UTF-8" ?>\r\n<?mso-application progid="Excel.Sheet"?>\r\n' +
+      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\r\n' +
+      `${body.join('\r\n')}\r\n</Workbook>\r\n`,
+  );
+}
+
 /** A .zip with the given entries (e.g. the XML of the extraction), as the user would compress it. */
 export function zipFiles(entries: Record<string, Uint8Array>): Uint8Array {
   return zipSync(entries, { mtime: new Date(2026, 0, 1) });

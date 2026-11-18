@@ -1,13 +1,15 @@
 /**
  * Reading of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-4 and 8): each file streamed through
  * readSheet, its header found by title, its detail rows converted and stored in reading order; then the Base order,
- * the reading invariants CI-1, CI-2 and CI-4 and the totals of each segment. Nothing here is analysis yet (Phase 10).
+ * the reading invariants CI-1, CI-2, CI-4 and CI-11 and the totals of each segment. A file of the list may be the chart
+ * of accounts (chart.ts), recognized by its header. Nothing here is analysis yet (Phase 10).
  */
-import { CODE_FIELDS, CT2_FIELDS, type Ct2Field, type Ct2IntegrityConfig } from '../../../config/ct2IntegritySchema';
-import { columnLabel, findHeaderRow, type HeaderMatch } from '../../../modules/ct2Integrity/header';
+import { CODE_FIELDS, CT2_CHART_TESTS, CT2_FIELDS, type Ct2Field, type Ct2IntegrityConfig } from '../../../config/ct2IntegritySchema';
+import { columnLabel, findChartHeaderRow, findHeaderRow, type HeaderMatch } from '../../../modules/ct2Integrity/header';
 import { INVALID_TIME, dayFromExcelSerial, parseDate } from '../../../shared/dates';
 import { centsFromBrText, centsFromNumberText } from '../../../shared/money';
 import type {
+  Ct2ChartReconciliation,
   Ct2FileReconciliation,
   Ct2Reconciliation,
   Ct2Segment,
@@ -26,12 +28,16 @@ import { analyzeCt2, ct2SummaryAnalysis, type Ct2Analysis } from './analysis';
 import { checkOrder, firstDifference, keyLevels, sortBase, sortKeys, type KeyPart } from './order';
 import { Ct2Store, RowFlag, TEXT_FIELDS, type Ct2StoreRow, type RowProblem, type TextField } from './store';
 import { rowSides } from './aggregate';
+import { CHART_RULES, ChartReader, lineSides, type Ct2Chart } from './chart';
+import { textOf } from './profile';
 import { ENTRY_TYPE_CODES, codeFromCell, entryTypeLookup, otherValue } from './values';
 
 /** Columns read per row; values beyond them are counted as outside the columns (CI-1). */
 const SHEET_WIDTH = 256;
 /** Rows listed as examples of unreadable values, per file. */
 const EXAMPLES = 5;
+/** Accounts of the extraction absent from the chart named in the alert. */
+const MISSING_ACCOUNTS_SHOWN = 10;
 
 const PROBLEMS = Object.keys(RowFlag) as RowProblem[];
 /** Text fields that are not codes: kept as read, without spaces at the ends. */
@@ -54,6 +60,8 @@ export interface Ct2Ingested {
   order: Uint32Array;
   /** Parts of the sort key of each row (order.ts), for the analysis; the session does not keep them. */
   keys: KeyPart[];
+  /** The chart of accounts loaded with the extraction (tests C1-C5); null when none was. */
+  chart: Ct2Chart | null;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -84,15 +92,24 @@ function notFoundDetail(missing: string[], found: string[]): string {
   return `Colunas obrigatórias não encontradas: ${missing.join(', ')}. Títulos encontrados: ${found.length > 0 ? found.join(', ') : 'nenhum'}.`;
 }
 
-/** Reads one file into the store; returns its reading reconciliation. */
+type FileRead =
+  | { kind: 'extraction'; file: Ct2FileReconciliation; unmapped: string[] }
+  | { kind: 'chart'; chart: Ct2Chart; reconciliation: Omit<Ct2ChartReconciliation, 'missingAccounts'> };
+
+/**
+ * Reads one file of the list: an extraction into the store (`source` = its position among the extractions), or the
+ * chart of accounts (`chartRead`: the name of a chart already read, which makes a second one an error).
+ */
 async function readFile(
   input: IngestInput,
   fileIndex: number,
+  source: number,
+  chartRead: string | null,
   config: Ct2IntegrityConfig,
   store: Ct2Store,
   progress: ProgressReporter,
   options: IngestOptions,
-): Promise<{ file: Ct2FileReconciliation; unmapped: string[] }> {
+): Promise<FileRead> {
   const { name } = input;
   const searchRows = config.reading.headerSearchRows;
   const lookupType = entryTypeLookup(config);
@@ -113,7 +130,9 @@ async function readFile(
   let unmapped: string[] = [];
   let headerTitles: string[] = [];
   const text: Partial<Record<TextField, string>> = {};
-  const stored: Ct2StoreRow = { source: fileIndex, sourceRow: 0, day: 0, amount: 0, amountCurrency1: NaN, entryType: 0, flags: 0, text };
+  let chartReader: ChartReader | null = null;
+  let chartMissing: string[] = [];
+  const stored: Ct2StoreRow = { source, sourceRow: 0, day: 0, amount: 0, amountCurrency1: NaN, entryType: 0, flags: 0, text };
   // Every field of the key is a mandatory column (schema), so it is always read.
   const keyFields = config.documentKey.filter((f): f is TextField => f !== 'date');
 
@@ -141,6 +160,7 @@ async function readFile(
   };
 
   const onRow = (r: number, row: ParsedRow, cell: CellText, invalidShared: () => number): void => {
+    if (chartReader) return chartReader.onRow(r, row, cell);
     const header = match!.row;
     if (r < header) return;
     // Cells beyond the columns read: lost, so any value there fails CI-1 (only spaces or a style is no value).
@@ -236,16 +256,34 @@ async function readFile(
       // The sheet chosen on the start screen is the only one looked at; else every sheet.
       const sheets = input.sheet === undefined ? all : all.filter((s) => s.name === input.sheet);
       if (sheets.length === 0) throw new IngestError('rows', `A aba "${input.sheet}" não existe em ${name}. Abas do arquivo: ${all.map((s) => s.name).join(', ')}.`);
-      const results: { sheet: (typeof sheets)[number]; rows: HeadRow[]; search: ReturnType<typeof findHeaderRow> }[] = [];
+      const results: { sheet: (typeof sheets)[number]; rows: HeadRow[]; search: ReturnType<typeof findHeaderRow>; chart: ReturnType<typeof findChartHeaderRow> }[] = [];
       for (const sheet of sheets) {
         const rows = await head(sheet, searchRows);
-        results.push({ sheet, rows, search: findHeaderRow(rows, config) });
+        results.push({ sheet, rows, search: findHeaderRow(rows, config), chart: findChartHeaderRow(rows, config) });
       }
-      const candidates = results.filter((x) => x.search.ok || x.search.reason === 'duplicate');
-      if (candidates.length > 1) {
-        throw new IngestError('rows', `Mais de uma aba de ${name} tem o cabeçalho da extração CT2: ${candidates.map((x) => x.sheet.name).join(', ')}. Escolha a aba na lista de arquivos.`);
+      // A sheet is the extraction (the CT2 header) or the chart of accounts (its account and "required" flags).
+      const extractions = results.filter((x) => x.search.ok || x.search.reason === 'duplicate');
+      const charts = results.filter((x) => !extractions.includes(x) && (x.chart.ok || x.chart.reason === 'duplicate'));
+      if (extractions.length + charts.length > 1) {
+        throw new IngestError(
+          'rows',
+          charts.length === 0
+            ? `Mais de uma aba de ${name} tem o cabeçalho da extração CT2: ${extractions.map((x) => x.sheet.name).join(', ')}. Escolha a aba na lista de arquivos.`
+            : `Mais de uma aba de ${name} tem o cabeçalho da extração CT2 ou do plano de contas: ${[...extractions, ...charts].map((x) => x.sheet.name).join(', ')}. Escolha a aba na lista de arquivos.`,
+        );
       }
-      const chosen = candidates[0];
+      const chartSheet = charts[0];
+      if (chartSheet) {
+        if (chartRead !== null) {
+          throw new IngestError('rows', `Mais de um plano de contas na lista de arquivos: ${chartRead} e ${name}. Carregue um único plano de contas por análise.`);
+        }
+        const found = chartSheet.chart;
+        if (!found.ok) throw new IngestError('rows', `Coluna repetida no cabeçalho do plano de contas, aba "${chartSheet.sheet.name}" de ${name}.`, found.reason === 'duplicate' ? found.duplicates.join('; ') : undefined);
+        chartReader = new ChartReader(found.match, config, SHEET_WIDTH);
+        chartMissing = found.match.missing.map((f) => config.chart.columns[f].title);
+        return all.indexOf(chartSheet.sheet);
+      }
+      const chosen = extractions[0];
       if (!chosen) {
         const misses = results.flatMap(({ sheet, search }) => (search.ok || search.reason !== 'notFound' ? [] : [{ sheet, search }]));
         if (sheets.length === 1) {
@@ -285,6 +323,47 @@ async function readFile(
     onRow,
   });
 
+  if (chartReader) {
+    const reader: ChartReader = chartReader;
+    const { chart, counts } = reader.finish();
+    const alerts: Alert[] = read.alerts.map((a) => ({ ...a, message: `${name}: ${a.message}` }));
+    if (chartMissing.length > 0) {
+      const off = CT2_CHART_TESTS.filter((code) => config.tests[code].enabled && !chart.columns.includes(CHART_RULES[code].flag));
+      alerts.push({
+        level: 'warning',
+        message: `${name}: colunas do plano de contas ausentes: ${chartMissing.join(', ')}${off.length > 0 ? ` (${off.join(', ')} ${off.length > 1 ? 'desligados' : 'desligado'})` : ''}.`,
+      });
+    }
+    if (counts.withoutAccount > 0) {
+      alerts.push({ level: 'warning', message: `${name}: ${plural(counts.withoutAccount, 'linha do plano de contas tem', 'linhas do plano de contas têm')} valores sem conta; não entram no plano.` });
+    }
+    return {
+      kind: 'chart',
+      chart,
+      reconciliation: {
+        fileIndex,
+        name,
+        size: read.size,
+        sha256: read.sha256,
+        format: read.format,
+        entries: read.entries,
+        sheetName: read.sheetName,
+        sheetNames: read.sheetNames,
+        headerRow: reader.headerRow,
+        rows: counts.rows,
+        withoutAccount: counts.withoutAccount,
+        accounts: chart.accounts.size,
+        repeatedRows: counts.repeatedRows,
+        duplicates: counts.duplicates,
+        conflicting: counts.conflicting,
+        unknownFlags: counts.unknownFlags,
+        missingColumns: chartMissing,
+        alerts,
+        timings: progress.timings.slice(timingsStart),
+      },
+    };
+  }
+
   const header = match!;
   const totalRows = Math.max(read.lastRow, read.dimensionRows ?? 0, header.row);
   missingRows += totalRows - Math.max(read.lastRow, header.row);
@@ -310,6 +389,7 @@ async function readFile(
     return column === undefined ? [] : [{ field, title: normalizeTitle(headerTitles[column]!), column: column + 1 }];
   });
   return {
+    kind: 'extraction',
     unmapped,
     file: {
       fileIndex,
@@ -442,6 +522,43 @@ function orderCheckResult(problem: string | null): CheckResult {
   };
 }
 
+/** CI-11 (warning): the chart of accounts has no account repeated with other flags and no flag that is neither yes nor no. */
+function chartCheck(chart: Ct2ChartReconciliation | null): CheckResult {
+  const result = (passed: boolean, message: string): CheckResult => ({ id: 'ct2-chart', label: 'Plano de contas legível', severity: 'warning', passed, message });
+  if (chart === null) return result(true, 'Nenhum plano de contas carregado: os testes C1 a C5 não foram aplicados.');
+  const problems = [
+    ...(chart.conflicting > 0
+      ? [`${plural(chart.conflicting, 'conta repetida com marcas diferentes (marcas tratadas como desconhecidas)', 'contas repetidas com marcas diferentes (marcas tratadas como desconhecidas)')}`]
+      : []),
+    ...(chart.unknownFlags > 0 ? [`${plural(chart.unknownFlags, 'marca que não é Sim nem Não', 'marcas que não são Sim nem Não')}`] : []),
+  ];
+  if (problems.length === 0) {
+    return result(true, `${plural(chart.accounts, 'conta', 'contas')} no plano de contas, cada uma com as marcas Sim ou Não em todas as colunas lidas.`);
+  }
+  return result(false, `Plano de contas com ${problems.join(' e ')}: as contas e os lados com marca desconhecida ficam fora dos testes C1 a C5.`);
+}
+
+/**
+ * Accounts of the extraction absent from the chart, on the sides the tests C1-C5 look at (lineSides): how many, and the
+ * first ones in the order of their text (code units).
+ */
+function missingAccounts(store: Ct2Store, chart: Ct2Chart): Ct2ChartReconciliation['missingAccounts'] {
+  const missing = new Set<string>();
+  for (let i = 0; i < store.rows; i++) {
+    const sides = lineSides(store.entryType.get(i));
+    for (const [side, column] of [
+      [sides.debit, store.text.debitAccount],
+      [sides.credit, store.text.creditAccount],
+    ] as const) {
+      if (!side) continue;
+      const account = textOf(column, i);
+      if (account !== '' && !chart.accounts.has(account)) missing.add(account);
+    }
+  }
+  const sorted = [...missing].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return { count: missing.size, sample: sorted.slice(0, MISSING_ACCOUNTS_SHOWN) };
+}
+
 function valuesCheck(files: Ct2FileReconciliation[]): CheckResult {
   const rows = files.reduce((n, f) => n + f.unreadable.rows, 0);
   let message = 'Toda linha de detalhe tem a chave do documento completa, linha, tipo de saldo, moeda, data válida e valor legível.';
@@ -477,15 +594,39 @@ export async function ingestCt2(
   const store = new Ct2Store();
   const files: Ct2FileReconciliation[] = [];
   const unmapped: string[][] = [];
+  let chart: Ct2Chart | null = null;
+  let chartFile: Omit<Ct2ChartReconciliation, 'missingAccounts'> | null = null;
   for (const [i, input] of inputs.entries()) {
-    const read = await readFile(input, i, config, store, progress, options);
+    const read = await readFile(input, i, files.length, chartFile?.name ?? null, config, store, progress, options);
+    if (read.kind === 'chart') {
+      chart = read.chart;
+      chartFile = read.reconciliation;
+      continue;
+    }
     files.push(read.file);
     unmapped.push(read.unmapped);
+  }
+  if (files.length === 0) {
+    throw new IngestError('rows', `Nenhuma extração da CT2 na lista de arquivos: ${chartFile?.name ?? ''} é o plano de contas, lido junto com a extração. Carregue também a extração.`);
   }
 
   progress.begin('reconciliation', undefined, files.length, 'steps', 'Conferindo a leitura dos arquivos');
   store.padOther();
   const alerts = columnAlerts(files, unmapped);
+  const chartTests = CT2_CHART_TESTS.filter((code) => config.tests[code].enabled);
+  let chartReconciliation: Ct2ChartReconciliation | null = null;
+  if (chart && chartFile) {
+    chartReconciliation = { ...chartFile, missingAccounts: missingAccounts(store, chart) };
+    const { count, sample } = chartReconciliation.missingAccounts;
+    if (count > 0) {
+      chartReconciliation.alerts.push({
+        level: 'warning',
+        message: `${count} ${count === 1 ? 'conta da extração não está' : 'contas da extração não estão'} no plano de contas; os testes C1 a C5 não se aplicam a ${count === 1 ? 'ela' : 'elas'}: ${sample.join(', ')}${count > sample.length ? '…' : ''}.`,
+      });
+    }
+  } else if (chartTests.length > 0) {
+    alerts.push({ level: 'warning', message: 'Plano de contas não carregado: os testes C1 a C5 não foram aplicados.' });
+  }
   progress.update(files.length);
 
   progress.begin('sort', undefined, store.rows, 'rows', 'Ordenando a base por segmento e chave');
@@ -497,11 +638,12 @@ export async function ingestCt2(
   const reconciliation: Ct2Reconciliation = {
     module: 'ct2Integrity',
     files,
+    chart: chartReconciliation,
     consolidated: { detailRows: store.rows, alerts },
-    checks: [readingCheck(files), orderCheckResult(ordered.problem), valuesCheck(files)],
+    checks: [readingCheck(files), orderCheckResult(ordered.problem), valuesCheck(files), chartCheck(chartReconciliation)],
     totalMs: 0,
   };
-  const base: Ct2Ingested = { reconciliation, summary, store, order, keys };
+  const base: Ct2Ingested = { reconciliation, summary, store, order, keys, chart };
 
   let analyzed: Ct2Analysis | undefined;
   if (analysis) {

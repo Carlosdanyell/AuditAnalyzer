@@ -4,7 +4,7 @@
  * (SUM/ROWS of a block, never SUMIFS per aggregation row). Formulas of a Base row read only that row, the previous one
  * (E1) and the defined names of the Criterios tab. Streamed by the XLSX writer; the same input gives the same bytes.
  */
-import { CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_CHART_TESTS, CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
 import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_ORIGINS, CT2_TEST_INFO, findingGroup, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
@@ -175,8 +175,10 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const yesNo = (cond: string) => `IF(${cond},${str(L.yes)},${str(L.no)})`;
   const YES = str(L.yes);
 
-  // What runs (section 6): a test turned off, or without its column, has no column and leaves the board.
-  const on = Object.fromEntries(a.tests.map((t) => [t.code, t.state === 'on'])) as Record<Ct2TestCode, boolean>;
+  // What runs (section 6): a test turned off, or without its column, has no column and leaves the board. The tests
+  // against the chart of accounts (C1-C5) are not in the workpaper yet: no column, no row of the board or of Excecoes.
+  const inWorkpaper = (code: Ct2TestCode) => !(CT2_CHART_TESTS as readonly Ct2TestCode[]).includes(code);
+  const on = Object.fromEntries(a.tests.map((t) => [t.code, t.state === 'on' && inWorkpaper(t.code)])) as Record<Ct2TestCode, boolean>;
   const isException = (code: Ct2TestCode) => on[code] && config.tests[code].severity !== 'info';
   // Listed in Excecoes: the exception and approval groups (decision 1 of 10/11/2026); the other Info tests stay out.
   const isListed = (code: Ct2TestCode) => {
@@ -297,7 +299,11 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
 
   // Exceptions: the exception group (Erro, then Alerta) and the approval group, a prefix of the findings of the engine
   // (inside a group, the order of the tests and of the level). Split over sheets.
-  const listed = a.findings.groupCounts.exception + a.findings.groupCounts.approval;
+  const prefix = a.findings.groupCounts.exception + a.findings.groupCounts.approval;
+  // Positions of the findings listed (the prefix of the findings without the tests left out of the workpaper).
+  const listedFindings: number[] = [];
+  for (let k = 0; k < prefix; k++) if (inWorkpaper(findingAt(a, k).code)) listedFindings.push(k);
+  const listed = listedFindings.length;
   const perSheet = sheetRows - 1;
   const exceptionSheets = Math.max(1, Math.ceil(listed / perSheet));
   // Context of a line (Phase 14, section 4.5): read from its Base row by INDEX; empty for a document, batch or day.
@@ -574,7 +580,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       return `COUNTIF(${LEVEL_LAYOUT[level].range(`t:${code}`)},${YES})`;
     };
     for (const t of a.tests) {
-      if (t.state !== 'on') continue;
+      if (!on[t.code]) continue;
       const r = sheet.nextRow;
       const exception = isException(t.code);
       // The approval group (I4a) is in Excecoes too: in the list and confirmed as the exceptions; its status stays Info.
@@ -740,7 +746,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.skip(1);
     sheet.row([{ v: CR.rules, s: T.h2 }], { height: 22 });
     sheet.row(CR.ruleCols.map((v) => ({ v, s: T.headSummary })), { height: 20 });
-    for (const code of CT2_TESTS) {
+    for (const code of CT2_TESTS.filter(inWorkpaper)) {
       const t = a.tests.find((x) => x.code === code)!;
       const rule = CT2_RULES[language][code];
       const state = t.state === 'on' ? L.severities[t.severity] : t.state === 'off' ? (language === 'pt' ? 'Desligado' : 'Off') : language === 'pt' ? 'Sem a coluna' : 'No column';
@@ -942,7 +948,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       header(sheet, layout);
       const st = styles(layout);
       for (let n = 0; n < layout.rows; n++, k++) {
-        const { code, item, level, group } = findingAt(a, k);
+        const { code, item, level, group } = findingAt(a, listedFindings[k]!);
         const linePart = level === 'line' ? partOf(item) : 0;
         const origin = level === 'line' ? BASES[linePart]! : LEVEL_LAYOUT[level];
         const position = level === 'line' ? item : level === 'document' ? b.documentStart[item]! : level === 'batch' ? b.documentStart[b.batchStart[item]!]! : b.documentStart[b.batchStart[b.dayStart[item]!]!]!;
@@ -1360,7 +1366,7 @@ function conclusion(language: Language, a: Ct2Analysis, on: Record<Ct2TestCode, 
         : `${count('P4')} document(s) reached the limit of ${a.parameters.documentLineLimit} lines per document (P4).`,
     );
   }
-  const errors = a.tests.filter((t) => t.state === 'on' && config.tests[t.code].severity === 'error' && t.occurrences > 0);
+  const errors = a.tests.filter((t) => on[t.code] && config.tests[t.code].severity === 'error' && t.occurrences > 0);
   parts.push(
     errors.length === 0
       ? pt

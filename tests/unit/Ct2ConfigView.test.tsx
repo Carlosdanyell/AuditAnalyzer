@@ -26,7 +26,12 @@ describe('CT2 configuration screen', () => {
   it('lists every test with its switch and severity; the B4 diagnostic and the profile stay Info', () => {
     const html = renderToStaticMarkup(<Ct2ConfigView config={ct2DefaultConfig()} {...props} />);
     expect(html).toContain('Configuração padrão, sem alterações.');
-    for (const code of ['B1', 'B5', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'E6', 'P4']) expect(html).toContain(`aria-label="Ligar ${code}"`);
+    for (const code of ['B1', 'B5', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'E6', 'C1', 'C2', 'C3', 'C4', 'C5', 'P4']) expect(html).toContain(`aria-label="Ligar ${code}"`);
+    // Version 4: the tests against the chart of accounts, editable like the others, and where the chart columns are edited.
+    for (const code of ['C1', 'C5']) expect(html).not.toMatch(new RegExp(`<select[^>]*disabled=""[^>]*aria-label="Severidade de ${code}"`));
+    expect(html).toContain('Centro de custo obrigatório não informado');
+    expect(html).toContain('só rodam quando ele é carregado junto com a extração');
+    expect(html).toContain('as colunas do plano de contas e os valores lidos como Sim e Não');
     expect(html).not.toContain('aria-label="Ligar I4"');
     for (const code of ['I3a', 'I4a', 'I4c']) expect(html).not.toMatch(new RegExp(`<select[^>]*disabled=""[^>]*aria-label="Severidade de ${code}"`));
     expect(html).toMatch(/<select[^>]*disabled=""[^>]*aria-label="Severidade de B4"/);

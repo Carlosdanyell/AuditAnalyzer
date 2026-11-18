@@ -297,6 +297,29 @@ test('Integridade da CT2: achados com os grupos do quadro; cada ocorrência abre
   await expect(row).toBeFocused();
 });
 
+test('Integridade da CT2: o plano de contas vai na lista com a extração; a Reconciliação o mostra e Achados traz o C1', async ({ page, ct2Files }) => {
+  await page.goto('');
+  await chooseModule(page, CT2);
+  // The chart first: it is recognized by its header, in any position, without the notice of another analysis.
+  await page.locator('input[type=file]').first().setInputFiles([ct2Files.chart, ct2Files.chartCases]);
+  await expect(page.getByText('plano-de-contas.xlsx', { exact: true })).toBeVisible();
+  await expect(page.getByText(/parece ser/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: 'Plano de contas — plano-de-contas.xlsx' })).toBeVisible();
+  await expect(page.getByText('Contas — aba “Plano de Contas”')).toBeVisible();
+  await expect(page.getByText('Plano de contas legível')).toBeVisible();
+  await nav.getByRole('button', { name: 'Achados' }).click();
+  const c1 = page.getByRole('article', { name: 'C1 Centro de custo obrigatório não informado' });
+  await expect(c1).toBeVisible();
+  await expect(c1.getByText('Conta C 31101001 exige centro de custo; C Custo Crd vazio', { exact: true })).toBeVisible();
+  // The count opens Exceções with as many rows.
+  await c1.getByRole('button', { name: 'C1: 7 linhas' }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Exceções' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('7 linha(s)', { exact: true })).toBeVisible();
+});
+
 test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
@@ -309,7 +332,7 @@ test('configuração da CT2: aba própria, chave própria no computador e reproc
   await page.getByLabel('Ligar I5').uncheck();
   await page.getByRole('button', { name: 'Salvar configuração' }).click();
   await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
-  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 3, tests: { I5: { enabled: false } } });
+  expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 4, tests: { I5: { enabled: false } } });
   await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
   await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
   await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });

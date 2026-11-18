@@ -3,13 +3,14 @@
  * level), CI-5 (exceptions = marks), CI-6 (blocks = distinct keys, counted without the order), and the alerts CI-9
  * (optional columns) and CI-10 (period). Each one recounts by a path of its own.
  */
-import { CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_CHART_TESTS, CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, formatDay } from '../../../shared/dates';
 import { formatCents } from '../../../shared/format';
 import { CT2_TEST_INFO, type Ct2RunParameters, type Ct2TestResult } from '../../../shared/modules/ct2Integrity';
 import type { CheckResult } from '../../../shared/protocol';
 import type { ChunkedArray } from '../../store/chunked';
 import { rowSides, type Ct2Blocks } from './aggregate';
+import { CHART_RULES } from './chart';
 import { BIT, marksOf, type Ct2Marks } from './marks';
 import type { Ct2Ingested } from './ingest';
 import { keyLevels } from './order';
@@ -126,17 +127,34 @@ const EFFECT: Partial<Record<Ct2Field, { all: string; some: string }>> = {
   ),
 };
 
-function optionalCheck({ base, config, present }: CheckInput): CheckResult {
+const list = (codes: readonly string[]) => (codes.length > 1 ? `${codes.slice(0, -1).join(', ')} e ${codes.at(-1)}` : codes.join(''));
+
+/**
+ * What a missing entity column does to C1-C5 (with a chart of accounts): the tests whose two sides lack it are off;
+ * otherwise the side counts as empty, as in I3a/I3b.
+ */
+function chartEffect(field: Ct2Field, inAll: boolean, { present, state }: CheckInput): string {
+  const codes = CT2_CHART_TESTS.filter((c) => (CHART_RULES[c].entity as readonly Ct2Field[]).includes(field) && state(c) !== 'off');
+  if (codes.length === 0) return '';
+  const pairOff = CHART_RULES[codes[0]!].entity.every((f) => !present.has(f));
+  if (inAll && pairOff) return `; ${list(codes)} ${codes.length > 1 ? 'desligados' : 'desligado'}`;
+  return inAll ? `; ${list(codes)} ${codes.length > 1 ? 'consideram' : 'considera'} o lado vazio` : `; ${list(codes)} também`;
+}
+
+function optionalCheck(input: CheckInput): CheckResult {
+  const { base, config, present } = input;
   const files = base.reconciliation.files;
   const all: string[] = [];
   const some: string[] = [];
+  const entities: readonly Ct2Field[] = CT2_ENTITY_PAIRS.flat();
   for (const [field, effect] of Object.entries(EFFECT) as [Ct2Field, { all: string; some: string }][]) {
     if (config.columns[field].required) continue;
     const title = config.columns[field].title;
     const lacking = files.filter((f) => !f.header.mapped.some((m) => m.field === field)).map((f) => f.name);
     if (lacking.length === 0) continue;
-    if (!present.has(field)) all.push(`${title} (${effect.all})`);
-    else some.push(`${title} em ${lacking.join(', ')} (${effect.some})`);
+    const chart = entities.includes(field) ? chartEffect(field, !present.has(field), input) : '';
+    if (!present.has(field)) all.push(`${title} (${effect.all}${chart})`);
+    else some.push(`${title} em ${lacking.join(', ')} (${effect.some}${chart})`);
   }
   const parts = [
     ...(all.length > 0 ? [`Colunas opcionais ausentes: ${all.join(', ')}.`] : []),

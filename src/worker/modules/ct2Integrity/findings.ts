@@ -8,6 +8,7 @@ import { formatCents, formatDay, formatInteger } from '../../../shared/format';
 import { CT2_LINE_ORIGIN_LABEL, CT2_TEST_INFO, findingGroup, type Ct2FindingGroup, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { Ct2Blocks } from './aggregate';
 import { compensationText, lineOriginOf, type Ct2Analysis } from './analysis';
+import { CHART_RULES, lineSides, sideFails } from './chart';
 import type { Ct2Ingested } from './ingest';
 import { textOf } from './profile';
 import { lineOrdinal } from './values';
@@ -49,6 +50,8 @@ export function findingAt(a: Ct2Analysis, n: number): { code: Ct2TestCode; item:
 const shown = (text: string) => (text === '' ? '(vazio)' : text);
 const money = (cents: number) => (Number.isNaN(cents) ? '(ilegível)' : formatCents(cents));
 const ENTITY_NAMES = ['CC', 'Item', 'Classe'] as const;
+/** What the account of a side requires or does not accept, in the reasons of C1-C5. */
+const CHART_NEED = { C1: 'exige centro de custo', C2: 'exige item contábil (filial)', C3: 'não aceita centro de custo', C4: 'não aceita item contábil', C5: 'não aceita classe de valor' } as const;
 
 /** Where an item is: date, batch, document and line, by its level. */
 export function findingLabel(base: Ct2Ingested, a: Ct2Analysis, level: ItemLevel, k: number): string {
@@ -63,8 +66,9 @@ export function findingLabel(base: Ct2Ingested, a: Ct2Analysis, level: ItemLevel
 
 /**
  * Reason of an occurrence of a test (section 3.5): I3a/I3b with the account and the entities that differ, I4a with the
- * value generated and the manual lines of the document, I4b/I4c with the origin of the line; the others a short
- * description of the condition with its values. `item` is the item of the level of the test.
+ * value generated and the manual lines of the document, I4b/I4c with the origin of the line, C1-C5 with the account and
+ * the entity of each side that fails; the others a short description of the condition with its values. `item` is the
+ * item of the level of the test.
  */
 export function findingReason(base: Ct2Ingested, a: Ct2Analysis, code: Ct2TestCode, item: number): string {
   const b = a.blocks;
@@ -116,6 +120,28 @@ export function findingReason(base: Ct2Ingested, a: Ct2Analysis, code: Ct2TestCo
       return `Valor Moeda1 não preenchido (${CT2_LINE_ORIGIN_LABEL[lineOriginOf(a, pos)]})`;
     case 'I5':
       return 'Histórico vazio';
+    case 'C1':
+    case 'C2':
+    case 'C3':
+    case 'C4':
+    case 'C5': {
+      // The sides that fail, debit first: "Conta D <conta> exige centro de custo; C Custo Deb vazio".
+      const rule = CHART_RULES[code];
+      const sides = lineSides(base.store.entryType.get(i));
+      const parts = (
+        [
+          ['D', sides.debit, 'debitAccount', rule.entity[0]],
+          ['C', sides.credit, 'creditAccount', rule.entity[1]],
+        ] as const
+      ).flatMap(([mark, applies, accountField, entityField]) => {
+        const account = text(accountField);
+        const entity = text(entityField);
+        const flags = applies && account !== '' ? base.chart?.accounts.get(account) : undefined;
+        if (!sideFails(rule, flags, entity)) return [];
+        return [`Conta ${mark} ${account} ${CHART_NEED[code]}; ${a.titles[entityField]} ${rule.fails === 'empty' ? 'vazio' : entity}`];
+      });
+      return parts.join('; ');
+    }
     case 'E1':
       return `Repete a linha anterior da Base (linha ${shown(text('line'))})`;
     case 'E2': {

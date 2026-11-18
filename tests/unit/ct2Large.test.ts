@@ -20,6 +20,7 @@ describe('large synthetic CT2 extraction', () => {
       ['ct2-reading', true],
       ['ct2-order', true],
       ['ct2-values', true],
+      ['ct2-chart', true],
     ]);
     expect(one.reconciliation.files[0]!.rows).toMatchObject({ detailRows: a.expected.detailRows, blankRows: 0, outsideCells: 0, balanced: true });
     const { segments, documents, batches, days } = a.expected;

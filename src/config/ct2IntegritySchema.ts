@@ -7,9 +7,9 @@ import ct2IntegrityDefaults from './defaults/ct2-integrity.json' with { type: 'j
  * Configuration of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-6): how the extraction is
  * read, which tests run with which severity, and the defaults of the execution parameters. Versioned by
  * `schemaVersion` (version 1, of Phase 9, had only the reading; version 2 had the 20 columns of Phases 9-13 and the
- * tests I3 and I4 whole; both are migrated by `readCt2Config`).
+ * tests I3 and I4 whole; version 3, of Phase 14, had no chart of accounts; all are migrated by `readCt2Config`).
  */
-export const CT2_CONFIG_VERSION = 3;
+export const CT2_CONFIG_VERSION = 4;
 const text = z.string().trim().min(1);
 
 /** Logical fields of section 2, in the order of the specification. */
@@ -62,8 +62,21 @@ const ENTITY_FIELDS: readonly Ct2Field[] = CT2_ENTITY_PAIRS.flat();
 const NOT_IN_DOCUMENT_KEY: readonly Ct2Field[] = ['balanceType', 'currency', 'line', 'companyOrigin', 'branchOrigin', 'amount', 'amountCurrency1', 'history', ...ENTITY_FIELDS];
 
 /** Tests of section 6, in the order of the specification. */
-export const CT2_TESTS = ['B1', 'B2', 'B3', 'B4', 'B5', 'I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'P1', 'P2', 'P3', 'P4'] as const;
+export const CT2_TESTS = ['B1', 'B2', 'B3', 'B4', 'B5', 'I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'C1', 'C2', 'C3', 'C4', 'C5', 'P1', 'P2', 'P3', 'P4'] as const;
 export type Ct2TestCode = (typeof CT2_TESTS)[number];
+/** Tests against the chart of accounts (version 4): they run only when a chart is loaded with the extraction. */
+export const CT2_CHART_TESTS = ['C1', 'C2', 'C3', 'C4', 'C5'] as const satisfies readonly Ct2TestCode[];
+
+/**
+ * Columns of the chart of accounts (the export of the CT1 of Protheus, version 4): the account and the flags of the
+ * entities it requires or accepts. The account and the two "required" flags make a sheet the chart; the others are
+ * optional (the tests that need them are off without them).
+ */
+export const CT2_CHART_FIELDS = ['account', 'costCenterAccepted', 'costCenterRequired', 'itemAccepted', 'itemRequired', 'valueClassAccepted'] as const;
+export type Ct2ChartField = (typeof CT2_CHART_FIELDS)[number];
+export type Ct2ChartFlag = Exclude<Ct2ChartField, 'account'>;
+export const CT2_CHART_FLAGS = CT2_CHART_FIELDS.filter((f): f is Ct2ChartFlag => f !== 'account');
+export const CT2_CHART_MANDATORY: readonly Ct2ChartField[] = ['account', 'costCenterRequired', 'itemRequired'];
 /** The B4 diagnostic and the profile: never exceptions, so their severity stays Info (B5 is the alert of B4). */
 export const CT2_INFO_ONLY: readonly Ct2TestCode[] = ['B4', 'P1', 'P2', 'P3', 'P4'];
 export type Ct2Severity = 'error' | 'warning' | 'info';
@@ -72,6 +85,9 @@ const testSchema = z.object({ enabled: z.boolean(), severity: z.enum(['error', '
 const infoTestSchema = z.object({ enabled: z.boolean(), severity: z.literal('info') }).strict();
 
 const columnSchema = z.object({ title: text, aliases: z.array(text), required: z.boolean() }).strict();
+const chartColumnSchema = z.object({ title: text, aliases: z.array(text) }).strict();
+/** Flag values compared after trim and without case ("Sim" = "SIM"). */
+const flagKey = (v: string) => v.trim().toLowerCase();
 
 export const ct2IntegrityConfigSchema = z
   .object({
@@ -107,6 +123,16 @@ export const ct2IntegrityConfigSchema = z
       .strict(),
     /** "Lcto Manual?" codes (P2), the same rule as the CFGR700 origin: other values or empty = Não identificado. */
     manualFlag: z.object({ manual: z.array(text), automatic: z.array(text) }).strict(),
+    /** Chart of accounts (C1-C5): its columns and the values of a flag (other values or empty = unknown). */
+    chart: z
+      .object({
+        columns: z
+          .object(Object.fromEntries(CT2_CHART_FIELDS.map((f) => [f, chartColumnSchema])) as Record<Ct2ChartField, typeof chartColumnSchema>)
+          .strict(),
+        yes: z.array(text).min(1),
+        no: z.array(text).min(1),
+      })
+      .strict(),
   })
   .strict()
   .superRefine((c, ctx) => {
@@ -145,6 +171,22 @@ export const ct2IntegrityConfigSchema = z
         }
         typeOf.set(v, type);
       }
+    }
+    const chartOwner = new Map<string, Ct2ChartField>();
+    for (const f of CT2_CHART_FIELDS) {
+      for (const name of [c.chart.columns[f].title, ...c.chart.columns[f].aliases]) {
+        const key = normalizeTitle(name);
+        const other = chartOwner.get(key);
+        if (other !== undefined && other !== f) {
+          ctx.addIssue({ code: 'custom', message: `O título "${key}" é usado por mais de uma coluna do plano de contas (${other} e ${f}).`, path: ['chart', 'columns', f] });
+        }
+        chartOwner.set(key, f);
+      }
+    }
+    const yes = new Set(c.chart.yes.map(flagKey));
+    const yesAndNo = c.chart.no.filter((v) => yes.has(flagKey(v)));
+    if (yesAndNo.length > 0) {
+      ctx.addIssue({ code: 'custom', message: `Valor do plano de contas em Sim e em Não ao mesmo tempo: ${yesAndNo.join(', ')}.`, path: ['chart', 'no'] });
     }
     const both = c.manualFlag.manual.filter((v) => c.manualFlag.automatic.includes(v));
     if (both.length > 0) {
@@ -210,24 +252,44 @@ function migrateTestsV2(tests: unknown): unknown {
   return out;
 }
 
+/** Versions 1-3 → 4: the tests against the chart of accounts, with their defaults, after E6 (the order of CT2_TESTS). */
+function withChartTests(tests: unknown): unknown {
+  // Not the tests of an earlier version (or already with a C code): left as they are, for the schema to report.
+  if (!isObject(tests) || CT2_CHART_TESTS.some((code) => code in tests)) return tests;
+  const out: Record<string, unknown> = {};
+  for (const [code, test] of Object.entries(tests)) {
+    if (code === 'P1') for (const c of CT2_CHART_TESTS) out[c] = { ...ct2IntegrityDefaults.tests[c] };
+    out[code] = test;
+  }
+  for (const c of CT2_CHART_TESTS) if (!(c in out)) out[c] = { ...ct2IntegrityDefaults.tests[c] };
+  return out;
+}
+
 /** Versions 1 and 2 → 3: the entity columns, with their defaults. */
 function withEntityColumns(columns: unknown): unknown {
   if (!isObject(columns)) return columns;
   return { ...columns, ...Object.fromEntries(ENTITY_FIELDS.map((f) => [f, ct2IntegrityDefaults.columns[f as keyof typeof ct2IntegrityDefaults.columns]])) };
 }
 
-/** Validates a configuration (import, IndexedDB, worker, backup), migrating versions 1 and 2; errors in Portuguese by field. */
+/**
+ * Validates a configuration (import, IndexedDB, worker, backup), migrating versions 1 to 3; errors in Portuguese by
+ * field. Every migration adds the chart of accounts and its tests (version 4) with the defaults.
+ */
 export function readCt2Config(input: unknown): Ct2ConfigRead {
   let value = input;
   let migratedFrom: number | undefined;
+  const { chart } = ct2IntegrityDefaults;
   if (isObject(input) && input.schemaVersion === 1) {
-    // Version 1 → 3: the entity columns, the tests, the parameters and the "Lcto Manual?" codes, with their defaults.
+    // Version 1 → 4: the entity columns, the tests, the parameters, the "Lcto Manual?" codes and the chart, with their defaults.
     const { tests, parameters, manualFlag } = ct2IntegrityDefaults;
-    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests, parameters, manualFlag };
+    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests, parameters, manualFlag, chart };
     migratedFrom = 1;
   } else if (isObject(input) && input.schemaVersion === 2) {
-    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests: migrateTestsV2(input.tests) };
+    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, columns: withEntityColumns(input.columns), tests: withChartTests(migrateTestsV2(input.tests)), chart };
     migratedFrom = 2;
+  } else if (isObject(input) && input.schemaVersion === 3) {
+    value = { ...input, schemaVersion: CT2_CONFIG_VERSION, tests: withChartTests(input.tests), chart };
+    migratedFrom = 3;
   }
   const parsed = ct2IntegrityConfigSchema.safeParse(structuredClone(value));
   if (parsed.success) return { ok: true, config: parsed.data, ...(migratedFrom !== undefined && { migratedFrom }) };

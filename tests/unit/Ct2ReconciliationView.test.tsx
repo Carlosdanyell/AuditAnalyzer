@@ -7,6 +7,7 @@ import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { ct2Blob } from '../synthetic/ct2Extraction';
 import { fileA, fileB } from '../synthetic/ct2Fixtures';
 import { ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
+import { CHART_ACCOUNTS, CHART_ROWS, buildCt2Chart } from '../synthetic/ct2Chart';
 
 /** Reconciliation screen of the CT2 module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8). */
 async function render(files: { name: string; blob: Blob }[], analysis?: { holidays: ReadonlySet<number> }, preview: string | null = ct2IntegrityModule.preview) {
@@ -68,8 +69,8 @@ describe('CT2 reconciliation screen', () => {
     expect(html).toContain('5 compensados pelo documento vizinho, 1 sem compensação');
     // Without holidays only the Saturday is not a business day.
     expect(html).toMatch(/E6<\/span> Dia não útil<\/th><td><span[^>]*>Info<\/span><\/td><td>1 dia<\/td>/);
-    // Every month read is in the period: E5, the only test without occurrences, is folded.
-    expect(html).toContain('1 teste(s) sem ocorrência ou desligado(s)');
+    // Every month read is in the period: E5, the only test without occurrences, is folded with C1-C5 (no chart).
+    expect(html).toContain('6 teste(s) sem ocorrência ou desligado(s)');
     // The new invariants are in the list of checks.
     expect(html).toContain('Débito e crédito iguais em todos os níveis');
     expect(html).toContain('Período da análise');
@@ -79,5 +80,33 @@ describe('CT2 reconciliation screen', () => {
     const html = await render([{ name: 'b.xlsx', blob: ct2Blob(fileB()) }], { holidays: new Set() });
     // Phase 14: 23 tests (I3 and I4 split in five), so more than 20 fold here.
     expect(html).toMatch(/2\d teste\(s\) sem ocorrência ou desligado\(s\)/);
+  });
+
+  it('shows the chart of accounts loaded with the extraction: file, header, accounts and what could not be used', async () => {
+    const chart = new Blob([buildCt2Chart({ accounts: CHART_ACCOUNTS }) as Uint8Array<ArrayBuffer>]);
+    const html = await render([
+      { name: 'ct2.xlsx', blob: ct2Blob({ rows: CHART_ROWS }) },
+      { name: 'plano.xlsx', blob: chart },
+    ], { holidays: new Set() });
+    expect(html).toMatch(/Plano de contas<\/dt><dd>10 conta\(s\)<\/dd>/);
+    expect(html).toContain('Plano de contas — plano.xlsx');
+    expect(html).toContain('marcas a conferir');
+    expect(html).toContain('Contas — aba “Plano de Contas”');
+    expect(html).toMatch(/Linha do cabeçalho<\/th><td>4<\/td>/);
+    expect(html).toMatch(/Linhas lidas<\/th><td>13<\/td>/);
+    expect(html).toMatch(/\(=\) Contas<\/th><td>10<\/td>/);
+    expect(html).toMatch(/Marcas que não são Sim nem Não<small>[^<]*<\/small><\/th><td>2<\/td>/);
+    expect(html).toMatch(/Contas da extração fora do plano<small>99999998, 99999999<\/small><\/th><td>2<\/td>/);
+    expect(html).toMatch(/Colunas opcionais ausentes<\/dt><dd>nenhuma<\/dd>/);
+    expect(html).toContain('Plano de contas legível');
+    // The chart is the second file of the list.
+    expect(html).toMatch(/<span class="[^"]*">2<\/span>Plano de contas — plano.xlsx/);
+    expect(html).toMatch(/C1<\/span> Centro de custo obrigatório não informado<\/th><td><span[^>]*>Alerta<\/span><\/td><td>7 linhas<\/td>/);
+  });
+
+  it('says when no chart of accounts was loaded', async () => {
+    const html = await render([{ name: 'b.xlsx', blob: ct2Blob(fileB()) }], { holidays: new Set() });
+    expect(html).toMatch(/Plano de contas<\/dt><dd>não carregado<\/dd>/);
+    expect(html).toContain('Nenhum plano de contas carregado: os testes C1 a C5');
   });
 });

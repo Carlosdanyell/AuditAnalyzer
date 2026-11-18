@@ -1,4 +1,4 @@
-import { CT2_TEST_INFO, type Ct2FileReconciliation, type Ct2MatrixRow, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
+import { CT2_TEST_INFO, type Ct2ChartReconciliation, type Ct2FileReconciliation, type Ct2MatrixRow, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
 import { dateParts, formatDay } from '../shared/dates';
 import { INPUT_FORMAT_LABEL, formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
@@ -42,8 +42,8 @@ function periodText(start: number | null, end: number | null): string {
 
 /**
  * Reconciliation of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2, 3, 6 and 8): verdict, invariants,
- * the board of tests, totals of the Base by segment, the tie-out matrix of the levels (Phase 14, section 4.2) and the
- * reading of each file.
+ * the board of tests, totals of the Base by segment, the tie-out matrix of the levels (Phase 14, section 4.2), the
+ * chart of accounts loaded with the extraction (or a note that none was) and the reading of each file.
  */
 export function Ct2ReconciliationView({ data, summary, preview, matrix = null }: { data: Ct2Reconciliation; summary: Ct2Summary | null; preview: string | null; matrix?: Ct2MatrixRow[] | null }) {
   const tiles: StatusTile[] = [
@@ -54,6 +54,7 @@ export function Ct2ReconciliationView({ data, summary, preview, matrix = null }:
     ...(summary?.analysis
       ? [{ icon: 'calendar' as const, label: 'Período da análise', value: periodText(summary.analysis.parameters.periodStart, summary.analysis.parameters.periodEnd) }]
       : []),
+    { icon: 'layers', label: 'Plano de contas', value: data.chart ? `${n(data.chart.accounts)} conta(s)` : 'não carregado' },
     { icon: 'clock', label: 'Processamento', value: formatElapsed(data.totalMs) },
   ];
   return (
@@ -91,10 +92,148 @@ export function Ct2ReconciliationView({ data, summary, preview, matrix = null }:
         </section>
       )}
 
+      <ChartCard chart={data.chart} />
+
       {data.files.map((file) => (
         <FileCard key={file.fileIndex} file={file} />
       ))}
     </div>
+  );
+}
+
+/**
+ * The chart of accounts (tests C1-C5): the file and its integrity, the header, the accounts kept and what could not be
+ * used (repeated with other flags, flags that are neither yes nor no, accounts of the extraction outside it).
+ */
+function ChartCard({ chart }: { chart: Ct2ChartReconciliation | null }) {
+  if (chart === null) {
+    return (
+      <section className={ui.card}>
+        <h2 className={ui.cardTitle}>
+          <span className={ui.cardIcon}>
+            <Icon name="layers" />
+          </span>
+          Plano de contas
+        </h2>
+        <p className={ui.muted}>
+          Nenhum plano de contas carregado: os testes C1 a C5 (centro de custo, item contábil e classe de valor exigidos ou não aceitos pela conta) não foram
+          aplicados. Para aplicá-los, carregue o plano de contas junto com a extração.
+        </p>
+      </section>
+    );
+  }
+  const legible = chart.conflicting === 0 && chart.unknownFlags === 0;
+  const missing = chart.missingAccounts;
+  return (
+    <section className={ui.card}>
+      <div className={ui.cardHead}>
+        <h2 className={cx(ui.cardTitle, styles.fileTitle)}>
+          <span className={styles.index}>{chart.fileIndex + 1}</span>
+          Plano de contas — {chart.name}
+        </h2>
+        <span className={styles.fileBadges}>
+          <span className={cx(ui.pill, legible ? ui.ok : ui.warn)}>
+            <Icon name={legible ? 'check' : 'alert'} size={13} strokeWidth={2.6} />
+            {legible ? 'marcas legíveis' : 'marcas a conferir'}
+          </span>
+          <span className={cx(ui.pill, ui.neutral)}>{formatBytes(chart.size)}</span>
+        </span>
+      </div>
+      <p className={styles.hash}>
+        <span>SHA-256</span>
+        <code>{chart.sha256}</code>
+      </p>
+
+      <div className={styles.grid}>
+        <table className={styles.table}>
+          <caption>Contas — aba “{chart.sheetName}”</caption>
+          <tbody>
+            <tr>
+              <th scope="row">Linha do cabeçalho</th>
+              <td>{n(chart.headerRow)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Linhas lidas</th>
+              <td>{n(chart.rows)}</td>
+            </tr>
+            <tr>
+              <th scope="row">(−) Linhas sem conta</th>
+              <td>{n(chart.withoutAccount)}</td>
+            </tr>
+            <tr>
+              <th scope="row">
+                (−) Linhas que repetem uma conta
+                <small>
+                  {n(chart.duplicates)} conta(s) com as mesmas marcas, mantidas uma vez; {n(chart.conflicting)} com marcas diferentes
+                </small>
+              </th>
+              <td>{n(chart.repeatedRows)}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">(=) Contas</th>
+              <td>{n(chart.accounts)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <table className={styles.table}>
+          <caption>Marcas usadas nos testes C1 a C5</caption>
+          <tbody>
+            <tr>
+              <th scope="row">
+                Contas repetidas com marcas diferentes
+                <small>marcas tratadas como desconhecidas</small>
+              </th>
+              <td>{n(chart.conflicting)}</td>
+            </tr>
+            <tr>
+              <th scope="row">
+                Marcas que não são Sim nem Não
+                <small>o lado da conta fica fora do teste</small>
+              </th>
+              <td>{n(chart.unknownFlags)}</td>
+            </tr>
+            <tr>
+              <th scope="row">
+                Contas da extração fora do plano
+                {missing.count > 0 && (
+                  <small>
+                    {missing.sample.join(', ')}
+                    {missing.count > missing.sample.length && '…'}
+                  </small>
+                )}
+              </th>
+              <td>{n(missing.count)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <dl className={styles.facts}>
+        <dt>Colunas opcionais ausentes</dt>
+        <dd>{chart.missingColumns.join(', ') || 'nenhuma'}</dd>
+        <dt>Abas do arquivo</dt>
+        <dd>{chart.sheetNames.join(', ')}</dd>
+        <dt>Formato</dt>
+        <dd>{INPUT_FORMAT_LABEL[chart.format]}</dd>
+      </dl>
+      <Alerts alerts={chart.alerts} />
+
+      {chart.format === 'xml' ? (
+        <p className={styles.timings}>
+          <Icon name="check" size={14} />
+          Arquivo XML sem compactação: não há partes com CRC32; a leitura conferiu o SHA-256 e que o arquivo está completo, até o fim da planilha.
+        </p>
+      ) : (
+        <ZipIntegrity entries={chart.entries} />
+      )}
+      <p className={styles.timings}>
+        <Icon name="clock" size={14} />
+        Tempos: {chart.timings.map((t) => `${STAGE_NAMES[t.stage] ?? t.stage} ${formatElapsed(t.ms)}`).join(' · ')}
+      </p>
+    </section>
   );
 }
 

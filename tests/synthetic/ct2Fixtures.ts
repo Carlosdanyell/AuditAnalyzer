@@ -63,9 +63,20 @@ function columnsBeforeV3(): Record<string, unknown> {
   return columns;
 }
 
+/** Tests added by version 4: those against the chart of accounts. */
+const V4_TESTS = /^C[1-5]$/;
+
+/** The default configuration without what version 4 added (the chart of accounts and its tests). */
+function beforeV4(): Record<string, unknown> {
+  const c: Record<string, unknown> = { ...ct2DefaultConfig() };
+  delete c.chart;
+  c.tests = Object.fromEntries(Object.entries(ct2DefaultConfig().tests).filter(([code]) => !V4_TESTS.test(code)));
+  return c;
+}
+
 /** The default configuration as version 1 wrote it (Phase 9: the reading only, without tests and parameters). */
 export function ct2ConfigV1(): Record<string, unknown> {
-  const c: Record<string, unknown> = { ...ct2DefaultConfig(), schemaVersion: 1, columns: columnsBeforeV3() };
+  const c: Record<string, unknown> = { ...beforeV4(), schemaVersion: 1, columns: columnsBeforeV3() };
   delete c.tests;
   delete c.parameters;
   delete c.manualFlag;
@@ -75,10 +86,15 @@ export function ct2ConfigV1(): Record<string, unknown> {
 /** The default configuration as version 2 wrote it (Phases 10-13): the 20 columns and the tests I3 and I4 whole. */
 export function ct2ConfigV2(): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
-  for (const [code, t] of Object.entries(ct2DefaultConfig().tests)) {
+  for (const [code, t] of Object.entries(beforeV4().tests as Record<string, object>)) {
     if (code === 'I3a') ordered.I3 = { enabled: true, severity: 'warning' };
     else if (code === 'I4a') ordered.I4 = { enabled: true, severity: 'warning' };
     if (!/^I[34][abc]$/.test(code)) ordered[code] = { ...t };
   }
-  return { ...ct2DefaultConfig(), schemaVersion: 2, columns: columnsBeforeV3(), tests: ordered };
+  return { ...beforeV4(), schemaVersion: 2, columns: columnsBeforeV3(), tests: ordered };
+}
+
+/** The default configuration as version 3 wrote it (Phase 14): without the chart of accounts and the tests C1-C5. */
+export function ct2ConfigV3(): Record<string, unknown> {
+  return { ...beforeV4(), schemaVersion: 3 };
 }
