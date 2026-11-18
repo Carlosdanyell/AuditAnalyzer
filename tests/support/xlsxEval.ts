@@ -4,6 +4,8 @@
  * COUNTA, ROWS, WEEKDAY, EXACT, SUM, SUMPRODUCT, ROUND, IF, IFERROR, ISNUMBER, INDEX, MATCH (exact), AND, OR, NOT, LEN,
  * TRIM, ABS, MAX, MIN, DATE, DAY, MONTH, YEAR, FIXED, LEFT, RIGHT, MID, LOWER, arithmetic, comparison and "&", ranges
  * with sheet names and defined names. Criteria strings follow Excel (">=46266", "<>Não identificado", "", "Manual").
+ * Errors propagate as in Excel through IF, AND, OR and NOT (INDEX of a text or "" is #VALUE!; MATCH of an empty cell
+ * is #N/A), so a formula that would show an error in Excel shows one here too.
  *
  * Number to text: Excel formats with the separators of the language of the user, not of the workbook. The evaluator
  * assumes Excel in pt-BR (`locale = 'pt-BR'`, the default: FIXED(1234.5,2) = "1.234,50", 1.5&"" = "1,5") for the
@@ -438,8 +440,11 @@ class Evaluator {
         const values = args[2] ? flat(a(2)) : range;
         return range.reduce<number>((n, x, k) => (test(x ?? null) ? n + (toNumber(values[k] ?? 0) || 0) : n), 0);
       }
+      // An error in a condition is the result, as in Excel (AND/OR evaluate every argument: an INDEX without its
+      // guard fails there even when another argument decides).
       case 'IF': {
         const c = a(0);
+        if (isError(c)) return c;
         return (typeof c === 'boolean' ? c : toNumber(c) !== 0) ? a(1) : args[2] ? a(2) : false;
       }
       case 'IFERROR': {
@@ -450,9 +455,15 @@ class Evaluator {
         const v = a(0);
         return typeof v === 'number' && Number.isFinite(v);
       }
-      case 'AND': return args.every((_, i) => { const v = a(i); return typeof v === 'boolean' ? v : toNumber(v) !== 0; });
-      case 'OR': return args.some((_, i) => { const v = a(i); return typeof v === 'boolean' ? v : toNumber(v) !== 0; });
-      case 'NOT': { const v = a(0); return !(typeof v === 'boolean' ? v : toNumber(v) !== 0); }
+      case 'AND':
+      case 'OR': {
+        const values = args.map((_, i) => a(i));
+        const error = values.find(isError);
+        if (error) return error;
+        const truth = values.map((v) => (typeof v === 'boolean' ? v : toNumber(v) !== 0));
+        return name === 'AND' ? truth.every(Boolean) : truth.some(Boolean);
+      }
+      case 'NOT': { const v = a(0); if (isError(v)) return v; return !(typeof v === 'boolean' ? v : toNumber(v) !== 0); }
       case 'LEN': return toText(a(0)).length;
       case 'TRIM': return toText(a(0)).trim().replace(/\s+/g, ' ');
       case 'ABS': return Math.abs(toNumber(a(0)));
@@ -480,12 +491,20 @@ class Evaluator {
       }
       case 'INDEX': {
         const range = flat(a(0));
-        const i = toNumber(a(1));
+        const at = a(1);
+        if (isError(at)) return at;
+        // A text that is not a number ("" included) is #VALUE! in Excel.
+        if (typeof at === 'string' && Number.isNaN(toNumber(at === '' ? 'x' : at))) return { error: '#VALUE!' };
+        const i = toNumber(at);
         if (!(i >= 1 && i <= range.length)) return { error: '#REF!' };
         return range[i - 1]!;
       }
       case 'MATCH': {
         const target = a(0);
+        if (isError(target)) return target;
+        // Exact match only; the lookup of an empty cell finds nothing (#N/A), as in Excel.
+        if (args[2] === undefined || toNumber(a(2)) !== 0) return { error: 'MATCH: só o tipo 0' };
+        if (target === null || target === '') return { error: '#N/A' };
         const range = flat(a(1));
         const i = range.findIndex((x) => x !== null && compare(x, target, '='));
         return i < 0 ? { error: '#N/A' } : i + 1;

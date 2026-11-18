@@ -42,6 +42,10 @@ const reasonPt = {
   sequencesInDocument: ' Seq CTK no documento',
   sequenceShared: 'Seq CTK também em outro documento',
   limit: (lines: P, limit: P): P[] => [lines, ' linhas; limite ', limit],
+  /** C1-C5, one side that fails: "Conta D <conta> exige centro de custo; C Custo Deb vazio". */
+  chartSide: (side: 'D' | 'C', account: P, need: string, title: string, entity: P): P[] => [`Conta ${side} `, account, ` ${need}; ${title} `, entity],
+  chartNeed: { C1: 'exige centro de custo', C2: 'exige item contábil (filial)', C3: 'não aceita centro de custo', C4: 'não aceita item contábil', C5: 'não aceita classe de valor' },
+  chartEmpty: 'vazio',
 };
 
 const pt = {
@@ -55,6 +59,7 @@ const pt = {
     profile: 'Perfil',
     base: 'Base',
     trace: 'Rastreabilidade',
+    chart: 'PlanoContas',
   },
   yes: 'Sim',
   no: 'Não',
@@ -169,6 +174,8 @@ const pt = {
     history: 'Histórico',
     routine: 'Rotina',
     manual: 'Lcto Manual?',
+    chartDebitRow: 'Linha da conta D na aba PlanoContas',
+    chartCreditRow: 'Linha da conta C na aba PlanoContas',
   },
   /** Headers of the test columns ("I1 Exceção?"). */
   testCol: (code: Ct2TestCode) =>
@@ -260,6 +267,8 @@ const pt = {
     fileCols: ['Arquivo', 'Tamanho (bytes)', 'Aba', 'Linha do cabeçalho', 'Linhas após o cabeçalho', 'Linhas em branco', 'Linhas de detalhe', 'Reconciliação', 'Formato', 'Partes do ZIP conferidas', 'SHA-256'],
     formats: { xlsx: 'Planilha .xlsx', xml: 'XML do sistema', xmlZip: 'XML do sistema em .zip' },
     noZip: 'Sem ZIP (fim do XML conferido)',
+    chart: 'Plano de contas',
+    chartCols: ['Arquivo', 'Tamanho (bytes)', 'Aba', 'Linha do cabeçalho', 'Linhas de detalhe', 'Contas', 'Contas repetidas com marcas diferentes', 'Marcas desconhecidas', 'Formato', 'Partes do ZIP conferidas', 'SHA-256'],
     mapping: 'Colunas encontradas',
     mappingCols: ['Arquivo', 'Campo', 'Título na extração', 'Coluna'],
     checks: 'Verificações',
@@ -287,6 +296,7 @@ const en: Ct2WorkpaperLabels = {
     profile: 'Profile',
     base: 'Base',
     trace: 'Traceability',
+    chart: 'ChartOfAccounts',
   },
   yes: 'Yes',
   no: 'No',
@@ -327,6 +337,9 @@ const en: Ct2WorkpaperLabels = {
     sequencesInDocument: ' Seq CTK in the document',
     sequenceShared: 'Seq CTK also in another document',
     limit: (lines: P, limit: P): P[] => [lines, ' lines; limit ', limit],
+    chartSide: (side: 'D' | 'C', account: P, need: string, title: string, entity: P): P[] => [`Account ${side} `, account, ` ${need}; ${title} `, entity],
+    chartNeed: { C1: 'requires a cost center', C2: 'requires an accounting item (branch)', C3: 'does not accept a cost center', C4: 'does not accept an accounting item', C5: 'does not accept a value class' },
+    chartEmpty: 'empty',
   },
   segment: (balanceType: string, currency: string) => `Balance ${balanceType || '(empty)'} · Currency ${currency || '(empty)'}`,
   file: (period: string, date: string) => `CT2_Integrity_${period}_${date}.xlsx`,
@@ -424,6 +437,8 @@ const en: Ct2WorkpaperLabels = {
     history: 'History',
     routine: 'Routine',
     manual: 'Lcto Manual?',
+    chartDebitRow: 'Row of the debit account in ChartOfAccounts',
+    chartCreditRow: 'Row of the credit account in ChartOfAccounts',
   },
   testCol: (code: Ct2TestCode) =>
     ({ B1: 'B1 Unbalanced?', B2: 'B2 Unbalanced?', B3: 'B3 Unbalanced?', B4: 'B4 Adjacent offset', B5: 'B5 Exception?', E2: 'E2 Gap in numbering?', E6: 'E6 Non-business day?', P3: 'P3 Seq CTK repeated?', P4: 'P4 Reached line limit?' })[code as string] ?? `${code} Exception?`,
@@ -514,6 +529,8 @@ const en: Ct2WorkpaperLabels = {
     fileCols: ['File', 'Size (bytes)', 'Sheet', 'Header row', 'Rows after the header', 'Blank rows', 'Detail rows', 'Reconciliation', 'Format', 'ZIP parts checked', 'SHA-256'],
     formats: { xlsx: '.xlsx workbook', xml: 'System XML', xmlZip: 'System XML in a .zip' },
     noZip: 'No ZIP (end of the XML checked)',
+    chart: 'Chart of accounts',
+    chartCols: ['File', 'Size (bytes)', 'Sheet', 'Header row', 'Detail rows', 'Accounts', 'Accounts repeated with different flags', 'Unknown flags', 'Format', 'ZIP parts checked', 'SHA-256'],
     mapping: 'Columns found',
     mappingCols: ['File', 'Field', 'Title in the extraction', 'Column'],
     checks: 'Checks',
@@ -593,9 +610,12 @@ export const CT2_RULES: Record<Language, Record<Ct2TestCode, string>> = {
   },
 };
 
-/** Paragraphs of the Criterios tab after the rules: source, columns, limitations (section 10) and the workbook. */
-export function criteriaParagraphs(language: Language, table: string): [string, string][] {
-  return language === 'pt'
+/**
+ * Paragraphs of the Criterios tab after the rules: source, columns, the chart of accounts when one was loaded (C1-C5),
+ * limitations (section 10) and the workbook.
+ */
+export function criteriaParagraphs(language: Language, table: string, chart: { name: string; accounts: number } | null = null): [string, string][] {
+  const paragraphs: [string, string][] = language === 'pt'
     ? [
         ['Objetivo', `Aglutinar os lançamentos da tabela ${table} por documento, lote e dia, testar o balanceamento em cada nível e aspectos gerais de integridade, com a planilha toda amarrada por fórmulas.`],
         ['Base', 'A aba Base traz a extração ordenada por segmento (tipo de saldo e moeda), chave do documento e linha, com o arquivo e a linha de origem. Cada documento ocupa um bloco contíguo de linhas; Documentos, Lotes e Dias somam esses blocos (SUM/ROWS) e o Resumo amarra tudo. Uma Base grande continua em "Base (2)", "Base (3)"…, sempre no início de um dia: nenhum documento, lote ou dia fica dividido entre abas, e a coluna "Aba da Base" de Documentos diz onde está cada documento.'],
@@ -616,4 +636,18 @@ export function criteriaParagraphs(language: Language, table: string): [string, 
         ['Limitations', 'Only the lines present in the extraction (entries deleted before do not appear; see the CFGR700 module). Sorting or inserting rows in the Base breaks the blocks and the matrix shows "Check". B4 and P4 are indications and do not prove the cause of an imbalance. E2 holds only for the numbering 001–999. Without any entity column (cost center, item, value class), every line with the same account on debit and credit is I3b. Without the "Lcto Manual?" column no line is manual: what would be I4b falls in I4c, and every document is Unidentified. The origin depends on the "Lcto Manual?" codes informed; Excel compares these codes without case and reads codes of digits only as numbers (e.g. 1 and 01 are equal), while the tool compares the exact text. The module does not identify the user of the entry.'],
         ['Workbook', 'Amounts in reais with negatives in parentheses. Dates stored as Excel dates. Formulas recalculate on open; yellow cells are editable parameters.'],
       ];
+  if (!chart) return paragraphs;
+  // With a chart: how C1-C5 read it, before the limitations, and the limitation of MATCH (decisions of 18/11/2026).
+  const pt = language === 'pt';
+  const accounts = `${chart.accounts} ${pt ? (chart.accounts === 1 ? 'conta' : 'contas') : chart.accounts === 1 ? 'account' : 'accounts'}`;
+  const text = pt
+    ? `Testes C1 a C5 contra o plano de contas ${chart.name} (${accounts}; SHA-256 em Rastreabilidade), carregado com a extração. A aba PlanoContas traz cada conta distinta na ordem de leitura e as marcas que a ferramenta usou: "Sim", "Não" ou vazia quando a marca é desconhecida (outro valor, célula em branco ou conta repetida com marcas diferentes); marca vazia não testa o lado. Na Base, "Linha da conta D na aba PlanoContas" e "Linha da conta C na aba PlanoContas" localizam a conta de cada lado (MATCH exato sobre PC_CONTA), vazias quando o tipo de lançamento não tem o lado (débito: partida dobrada e débito; crédito: partida dobrada e crédito), a conta está vazia ou não está no plano; cada teste lê a marca da conta do lado por INDEX (PC_CC_OBRIG, PC_CC_ACEITA, PC_ITEM_OBRIG, PC_ITEM_ACEITA, PC_CLVL_ACEITA) e o centro de custo, o item ou a classe de valor do mesmo lado (coluna ausente da extração conta como vazia). Contas da extração fora do plano não são testadas.`
+    : `Tests C1 to C5 against the chart of accounts ${chart.name} (${accounts}; SHA-256 in Traceability), loaded with the extraction. The ChartOfAccounts sheet holds each distinct account in reading order and the flags the tool used: "Yes", "No" or empty when the flag is unknown (another value, a blank cell or an account repeated with different flags); an empty flag does not test the side. In the Base, "Row of the debit account in ChartOfAccounts" and "Row of the credit account in ChartOfAccounts" locate the account of each side (exact MATCH over PC_CONTA), empty when the entry type has no such side (debit: double entry and debit; credit: double entry and credit), the account is empty or not in the chart; each test reads the flag of the account of the side by INDEX (PC_CC_OBRIG, PC_CC_ACEITA, PC_ITEM_OBRIG, PC_ITEM_ACEITA, PC_CLVL_ACEITA) and the cost center, item or value class of the same side (a column absent from the extraction counts as empty). Accounts of the extraction absent from the chart are not tested.`;
+  const limitation = pt
+    ? ' O Excel localiza a conta no plano de contas (MATCH) sem distinguir maiúsculas e minúsculas e com os curingas * e ?, enquanto a ferramenta compara o texto exato; com contas só de dígitos, como as do plano do sistema, o resultado é o mesmo.'
+    : ' Excel finds the account in the chart of accounts (MATCH) without case and with the wildcards * and ?, while the tool compares the exact text; with accounts of digits only, as in the chart of the system, the result is the same.';
+  const at = paragraphs.findIndex(([title]) => title === (pt ? 'Limitações' : 'Limitations'));
+  paragraphs[at] = [paragraphs[at]![0], paragraphs[at]![1] + limitation];
+  paragraphs.splice(at, 0, [pt ? 'Plano de contas' : 'Chart of accounts', text]);
+  return paragraphs;
 }

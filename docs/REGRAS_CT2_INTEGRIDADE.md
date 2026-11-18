@@ -560,6 +560,28 @@ código, chave.
   limitações da seção 10.
 - `tests/support/xlsxEval.ts` avalia as funções novas; o determinismo byte a byte continua.
 
+### 7.11 Plano de contas e C1–C5 na planilha (18/11/2026, `workpaper.ts`, `workpaperLabels.ts`)
+
+- **Aba PlanoContas** (em inglês, ChartOfAccounts), depois da Criterios, só quando um plano foi carregado: uma linha
+  por conta distinta, na ordem de leitura, com Conta e as colunas de marca lidas, gravadas "Sim", "Não" ou vazio
+  (desconhecida ou com marcas diferentes): exatamente o que o motor usou. Nomes definidos `PC_CONTA`, `PC_CC_ACEITA`,
+  `PC_CC_OBRIG`, `PC_ITEM_ACEITA`, `PC_ITEM_OBRIG`, `PC_CLVL_ACEITA` (só os das colunas lidas).
+- **Base:** duas colunas auxiliares, "Linha da conta D na aba PlanoContas" e a do C:
+  `=IF(AND({Deb}<>"",OR(COUNTIF(P_TIPO_PD,{Tipo})>0,COUNTIF(P_TIPO_DEB,{Tipo})>0)),IFERROR(MATCH({Deb},PC_CONTA,0)+1,""),"")`
+  (vazia quando o lado não vale para o tipo de lançamento ou a conta não está no plano), e uma coluna por teste C
+  ligado: `"Sim"` se um dos lados falha, com `INDEX(PC_<marca>, linha − 1)` = Sim ou Não e a entidade do lado vazia ou
+  preenchida, como no motor; coluna de entidade ausente da extração vale `""`. Sem plano, ou teste desligado, a coluna
+  não é gerada. As colunas entram nas contagens de Documentos e do Resumo e no quadro de testes como os demais testes
+  de linha (fórmula = lista = confirmada = ferramenta).
+- **Excecoes:** "Motivo" por fórmula com o texto do motor (`Conta D … exige centro de custo; C Custo Deb vazio`),
+  montado a partir das colunas de contexto, nunca com `TEXT`.
+- **Criterios:** a descrição de C1–C5, o arquivo do plano e o número de contas; sem plano, C1–C5 aparecem "Sem plano
+  de contas". **Rastreabilidade:** a linha do plano (arquivo, tamanho, aba, linha do cabeçalho, linhas, contas, com
+  marcas diferentes, marcas desconhecidas, formato, partes do ZIP, SHA-256); o CI-11 entre as verificações.
+- **Teto:** continua 600.000 linhas, também com o plano (decisão de 18/11/2026). No LibreOffice, 300 mil linhas com o
+  plano recalculam em 274 s com 13,2 GB de memória (sem o plano, 155 s e 5,8 GB; `docs/MEDICOES.md`); a conferência no
+  Excel com uma extração grande e o plano fica com o usuário.
+
 ## 8. Invariantes (verificados a cada execução)
 
 | Código | Regra | Bloqueia exportação |
@@ -677,6 +699,9 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   Critérios da planilha diz isso e o CI-9 lista as colunas ausentes.
 - **A origem do documento depende de "Lcto Manual?"**: sem a coluna (ou sem código reconhecido) o documento é Não
   identificado e I4b nunca marca (toda linha é não manual e cai em I4c).
+- **MATCH do Excel × motor (C1–C5):** o `MATCH(…, PC_CONTA, 0)` da planilha ignora maiúsculas e minúsculas e aceita os
+  curingas `*` e `?`; o motor compara o texto exato da conta. As contas são códigos de dígitos, então na prática dão o
+  mesmo resultado; o quadro de testes mostra qualquer diferença.
 - **COUNTIF do Excel × motor:** o `COUNTIF(P_COD_MANUAL, …)` da planilha ignora maiúsculas e minúsculas e compara como
   número os códigos só com dígitos (`01` = `1`); o motor compara o texto exato. Códigos de "Lcto Manual?" que só
   diferem nisso podem dar origens diferentes no Excel e no motor; o Resumo mostra a diferença na coluna Conferência.
@@ -855,6 +880,9 @@ Situação em 20/10/2026 (decisões na seção 13):
   - **Também "entidade informada em conta que não aceita"** (centro de custo, item, classe de valor). Fora: conta
     inexistente no plano, conta sintética, conta bloqueada.
   - **Severidade padrão Alerta** para os obrigatórios ausentes; também adotada para C3–C5 (editável).
+  - **Teto da planilha mantido em 600.000 linhas** com o plano: no LibreOffice, 300 mil linhas com o plano usaram
+    13,2 GB para recalcular; o usuário confere no Excel com uma extração grande e, se pesar, o teto com o plano é
+    revisto.
 - 17/11/2026 — Leitura do XML do sistema (versão 2.3.0, seção 2.1), respostas do usuário:
   - **Escopo:** só a Integridade da CT2; o leitor fica na leitura comum (`readSheet`) e o CFGR700 pode usá-lo depois,
     numa entrega própria, conferida com um XML real do relatório.

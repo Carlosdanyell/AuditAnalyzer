@@ -277,7 +277,7 @@ describe('chart of accounts: the tests C1-C5', async () => {
     }
   });
 
-  it('stays out of the workpaper for now, which still ties out (formula = list = confirmed = engine)', async () => {
+  it('is in the workpaper, which ties out (formula = list = confirmed = engine; details in ct2Workpaper.test.ts)', async () => {
     const config = ct2DefaultConfig();
     const out = await buildCt2Workpaper(
       { base, analysis, config, holidays: [], language: 'pt', generatedAt: '18/11/2026 10:00:00', appVersion: 't', configHash: '-', configDifferences: [], confirmedFailures: [] },
@@ -287,17 +287,16 @@ describe('chart of accounts: the tests C1-C5', async () => {
     const codes = new Map<string, number>();
     for (let r = 10; r < 200; r++) {
       const code = book.value('Resumo', `A${r}`);
-      if (typeof code === 'string' && /^[BIEP]\d[a-c]?$/.test(code) && !codes.has(code)) {
+      if (typeof code === 'string' && /^[BIECP]\d[a-c]?$/.test(code) && !codes.has(code)) {
         codes.set(code, r);
         expect(book.value('Resumo', `I${r}`), code).toBe('Confere');
       }
     }
-    expect([...codes.keys()]).toEqual(analysis.tests.filter((t) => t.state === 'on' && !(CT2_CHART_TESTS as readonly string[]).includes(t.code)).map((t) => t.code));
-    const confirmed: unknown[] = [];
-    for (let r = 2; book.value('Excecoes', `A${r}`) !== null && book.value('Excecoes', `A${r}`) !== ''; r++) confirmed.push(book.value('Excecoes', `A${r}`));
-    const chartListed = CT2_CHART_TESTS.reduce((n, c) => n + CHART_OCCURRENCES[c].length, 0);
-    expect(confirmed).toHaveLength(analysis.findings.groupCounts.exception + analysis.findings.groupCounts.approval - chartListed);
-    expect(confirmed.some((c) => (CT2_CHART_TESTS as readonly unknown[]).includes(c))).toBe(false);
+    expect([...codes.keys()]).toEqual(analysis.tests.filter((t) => t.state === 'on').map((t) => t.code));
+    const listed: unknown[] = [];
+    for (let r = 2; book.value('Excecoes', `A${r}`) !== null && book.value('Excecoes', `A${r}`) !== ''; r++) listed.push(book.value('Excecoes', `A${r}`));
+    expect(listed).toHaveLength(analysis.findings.groupCounts.exception + analysis.findings.groupCounts.approval);
+    for (const code of CT2_CHART_TESTS) expect(listed.filter((c) => c === code), code).toHaveLength(CHART_OCCURRENCES[code].length);
   });
 
   it('follows the configuration: a test off, a severity changed, other yes/no values', async () => {

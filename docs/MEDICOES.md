@@ -195,6 +195,28 @@ máquina; `MEDIR_CT2_LINHAS=450000,600000`.
   tamanhos e as contagens reais ficam em `local/`.
 
 
+## 2026-11-18 — Versão 2.3.0 (CT2: C1–C5 na planilha amarrada), ambiente de nuvem (Linux, 4 núcleos, 15 GB, LibreOffice 24.2)
+
+Mesmo método da Fase 11 (`MEDIR_CT2_PLANILHA=1`, `tests/local/ct2WorkpaperMeasure.test.ts`), agora com um plano de
+contas sintético de 5.800 contas (`largeCt2ChartAccounts()` em `ct2Large.ts`: contas que exigem centro de custo ou
+item, contas que não aceitam, 100 contas por lado fora do plano); `MEDIR_CT2_SEM_PLANO=1` mede sem ele.
+
+| Linhas | Plano | Recálculo no LibreOffice | Pico de memória do LibreOffice | Arquivo | Maior aba (sem compressão) | Matriz e quadro |
+|---|---|---|---|---|---|---|
+| 40 mil | não | 16–18 s | 0,93 GB | 33 MB | 287 MB | todos OK/Confere |
+| 40 mil | sim | 31–33 s | 1,9 GB | 45 MB | 361 MB | todos OK/Confere |
+| 300 mil | não | 155 s | 5,8 GB | 251 MB | 2,2 GB | todos OK/Confere |
+| 300 mil | sim | 274 s | 13,2 GB | 342 MB | — | 33/33 OK/Confere |
+
+- Com o plano, a planilha ganha sete colunas de fórmula na Base (as duas auxiliares e C1–C5): recálculo ~1,8 vez e
+  memória do LibreOffice ~2,3 vezes. Dentro do processo de teste, a medição de 300 mil linhas com o plano foi
+  encerrada por falta de memória (12,5 GB); o LibreOffice sozinho, sobre o arquivo salvo, terminou com 13,2 GB.
+- Geração com 40 mil linhas: 11,8 s com o plano (8,0 s sem).
+- O teto continua 600.000 linhas (decisão de 18/11/2026). Com 600 mil linhas e o plano, o recálculo não cabe no
+  LibreOffice desta máquina; a conferência no Excel com uma extração grande fica pendente.
+- A extração real em XML com o plano real (em `local/ct2/`): matriz e quadro todos OK/Confere, C1–C5 "Confere"
+  (`tests/local/ct2Chart.test.ts`).
+
 ## 2026-11-17 — Versão 2.3.0 (CT2: leitura do XML do sistema), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
 
 Extração sintética de ~340 mil linhas (`ct2Large.ts`, 250 dias, um ano típico), transcrita linha a linha para o XML

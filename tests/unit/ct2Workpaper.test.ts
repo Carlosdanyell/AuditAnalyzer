@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ct2DefaultConfig, type Ct2IntegrityConfig, type Ct2TestCode } from '../../src/config/ct2IntegritySchema';
+import { CT2_CHART_FLAGS, CT2_CHART_TESTS, ct2DefaultConfig, type Ct2IntegrityConfig, type Ct2TestCode } from '../../src/config/ct2IntegritySchema';
 import { formatDay, parseDate } from '../../src/shared/dates';
+import { lineSides } from '../../src/worker/modules/ct2Integrity/chart';
 import { analyzeCt2, compensationText, documentOriginOf, documentRef, hasMark } from '../../src/worker/modules/ct2Integrity/analysis';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { BASE_SHEET_ROWS, MAX_EXPORT_ROWS, buildCt2Workpaper, ct2FileName } from '../../src/worker/modules/ct2Integrity/workpaper';
@@ -14,17 +15,31 @@ import { CT2_LABELS } from '../../src/worker/modules/ct2Integrity/workpaperLabel
 import type { Language } from '../../src/worker/export/labels';
 import { CT2_COLUMNS, ct2Blob, ct2Line, type Ct2ExtractionOptions } from '../synthetic/ct2Extraction';
 import { ENGINE_HOLIDAYS, ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
+import { CHART_ACCOUNTS, CHART_OCCURRENCES, CHART_REASONS, CHART_ROWS, CT2_CHART_COLUMNS, buildCt2Chart, type ChartOptions } from '../synthetic/ct2Chart';
 import { Workbook, type Value } from '../support/xlsxEval';
 
 /** The CT2 workpaper tied out by formulas (docs/REGRAS_CT2_INTEGRIDADE.md, section 7), evaluated by the test evaluator. */
 const holidays = ENGINE_HOLIDAYS.map(parseDate);
 
 async function build(
-  o: { files?: Ct2ExtractionOptions[]; config?: Ct2IntegrityConfig; language?: Language; sheetRows?: number; maxRows?: number; baseSheetRows?: number; informed?: Partial<Ct2RunParameters> } = {},
+  o: {
+    files?: Ct2ExtractionOptions[];
+    /** A chart of accounts loaded after the extraction files (tests C1-C5). */
+    chart?: ChartOptions;
+    config?: Ct2IntegrityConfig;
+    language?: Language;
+    sheetRows?: number;
+    maxRows?: number;
+    baseSheetRows?: number;
+    informed?: Partial<Ct2RunParameters>;
+  } = {},
 ) {
   const config = o.config ?? ct2DefaultConfig();
   const ingested = await ingestCt2(
-    (o.files ?? [{ rows: ENGINE_ROWS }]).map((f, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(f) })),
+    [
+      ...(o.files ?? [{ rows: ENGINE_ROWS }]).map((f, i) => ({ name: `${'abc'[i]}.xlsx`, blob: ct2Blob(f) })),
+      ...(o.chart ? [{ name: 'plano.xlsx', blob: new Blob([buildCt2Chart(o.chart) as Uint8Array<ArrayBuffer>]) }] : []),
+    ],
     config,
     () => {},
   );
@@ -75,7 +90,7 @@ function rowOf(book: Workbook, sheet: string, text: string, from = 1): { r: numb
 }
 
 const yes = (L: { yes: string; no: string }, marked: boolean) => (marked ? L.yes : L.no);
-const LINE_CODES: Ct2TestCode[] = ['I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E3', 'E4', 'E5'];
+const LINE_CODES: Ct2TestCode[] = ['I1', 'I2', 'I3a', 'I3b', 'I4a', 'I4b', 'I4c', 'I5', 'E1', 'E3', 'E4', 'E5', 'C1', 'C2', 'C3', 'C4', 'C5'];
 
 /** Every line test of the Base equal to the engine marks, the matrix OK and the board "Confere". */
 function expectTiedOut(r: Awaited<ReturnType<typeof build>>) {
@@ -99,6 +114,15 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
     }
     expect(out.fileName).toBe('CT2_Integridade_2026-09_a_2026-10_2026-10-29.xlsx');
     expect(out.minDateSerial).toBeGreaterThan(367);
+    // Without a chart of accounts: no PlanoContas sheet (above), no PC_* names, no columns of C1-C5 on the Base nor on the board.
+    expect([...book.names.keys()].filter((n) => n.startsWith('PC_'))).toEqual([]);
+    for (const code of CT2_CHART_TESTS) {
+      expect(() => column(book, 'Base', `${code} Exceção?`), code).toThrow();
+      expect(() => rowOf(book, 'Resumo', code, 10), code).toThrow();
+    }
+    expect(() => column(book, 'Base', L.cols.chartDebitRow)).toThrow();
+    // Criterios says why they did not run.
+    expect(rowOf(book, 'Criterios', 'C1').cells('C')).toBe('Sem plano de contas');
   });
 
   it('ties out every level: the matrix is all OK and Excel computes what the engine did', () => {
@@ -145,6 +169,8 @@ describe('CT2 workpaper: sheets and tie-out', async () => {
 
   it('marks each line of the Base as the engine did, test by test', () => {
     for (const code of LINE_CODES) {
+      // C1-C5 need a chart of accounts (tested below).
+      if (analysis.tests.find((t) => t.code === code)!.state !== 'on') continue;
       const values = column(book, 'Base', `${code} Exceção?`);
       values.forEach((v, pos) => expect(v, `${code} linha ${pos + 2}`).toBe(yes(L, hasMark(analysis.marks.line, pos, code))));
     }
@@ -499,5 +525,160 @@ describe('CT2 workpaper: origin, findings and composition by formula (Phase 14, 
     const codes = column(r.book, 'Exceptions', 'Code');
     expect(reasons.filter((_, k) => codes[k] === 'I4a')).toContain('Amount generated 10.00 → current 8.00; document with 1 manual line(s)');
     expect(reasons[codes.indexOf('I3b')]).toMatch(/^Account \d+ on D and C with the same entities$/);
+  });
+});
+
+/**
+ * The tests against the chart of accounts (C1-C5; decisions of 18/11/2026) in the workpaper: the PlanoContas sheet with
+ * what the engine used, the row of the account of each side and the test columns of the Base by formula, the board, the
+ * Resumo and Excecoes tied out with the engine, Criterios and Rastreabilidade.
+ */
+describe('CT2 workpaper: the tests against the chart of accounts (C1-C5)', async () => {
+  const chart: ChartOptions = { accounts: CHART_ACCOUNTS };
+  const withChart = (o: Parameters<typeof build>[0] = {}) => build({ files: [{ rows: CHART_ROWS }], chart, ...o });
+  const r = await withChart();
+  const { book, analysis, ingested, L } = r;
+  const FLAG_TITLES = CT2_CHART_FLAGS.map((f) => ct2DefaultConfig().chart.columns[f].title);
+  const accounts = [...ingested.chart!.accounts.keys()];
+
+  it('writes on PlanoContas each distinct account in reading order with the flags the engine used, and names its columns', () => {
+    expect([...book.sheets.keys()]).toEqual(['Resumo', 'Criterios', 'PlanoContas', 'Documentos', 'Lotes', 'Dias', 'Excecoes', 'Perfil', 'Base', 'Rastreabilidade']);
+    expect(column(book, 'PlanoContas', 'Conta')).toEqual(['31101001', '31101002', '21101001', '11101001', '3', '41101001', '41101002', '51101001', '61101001', '71101001']);
+    // Unknown flags (another value, blank, an account repeated with other flags) are empty: never checked.
+    expect(column(book, 'PlanoContas', 'C. Custo Obrig.')).toEqual(['Sim', 'Não', 'Não', 'Não', 'Não', 'Sim', null, null, 'Sim', 'Sim']);
+    const shown = { yes: 'Sim', no: 'Não' } as const;
+    CT2_CHART_FLAGS.forEach((flag, k) => {
+      const values = column(book, 'PlanoContas', FLAG_TITLES[k]!);
+      expect(values, flag).toEqual(accounts.map((a) => (ingested.chart!.accounts.get(a)![flag] === null ? null : shown[ingested.chart!.accounts.get(a)![flag]!])));
+    });
+    const names = Object.fromEntries([...book.names].filter(([n]) => n.startsWith('PC_')));
+    expect(names).toEqual({
+      PC_CONTA: 'PlanoContas!$A$2:$A$11',
+      PC_CC_ACEITA: 'PlanoContas!$B$2:$B$11',
+      PC_CC_OBRIG: 'PlanoContas!$C$2:$C$11',
+      PC_ITEM_ACEITA: 'PlanoContas!$D$2:$D$11',
+      PC_ITEM_OBRIG: 'PlanoContas!$E$2:$E$11',
+      PC_CLVL_ACEITA: 'PlanoContas!$F$2:$F$11',
+    });
+  });
+
+  it('marks each line of the Base as the engine did, with the row of the account of each side in PlanoContas', () => {
+    expectTiedOut(r);
+    for (const code of CT2_CHART_TESTS) expect(column(book, 'Base', `${code} Exceção?`).filter((v) => v === 'Sim'), code).toHaveLength(CHART_OCCURRENCES[code].length);
+    const debit = column(book, 'Base', L.cols.chartDebitRow);
+    const credit = column(book, 'Base', L.cols.chartCreditRow);
+    const rowIn = (applies: boolean, account: string) => (applies && accounts.includes(account) ? accounts.indexOf(account) + 2 : '');
+    for (let pos = 0; pos < ingested.order.length; pos++) {
+      const i = ingested.order[pos]!;
+      const sides = lineSides(ingested.store.entryType.get(i));
+      expect(debit[pos], `D ${pos}`).toBe(rowIn(sides.debit, textOf(ingested.store.text.debitAccount, i)));
+      expect(credit[pos], `C ${pos}`).toBe(rowIn(sides.credit, textOf(ingested.store.text.creditAccount, i)));
+    }
+    // A debit line (document 107): its credit account is in the chart but the side does not apply.
+    expect(credit.filter((v) => v === '').length).toBeGreaterThan(0);
+    expect(column(book, 'Documentos', 'Linhas com exceção')).toEqual(Array.from(analysis.documentExceptionLines));
+  });
+
+  it('ties the board, the Resumo and Excecoes out with the engine (formula = list = confirmed = engine), reasons included', () => {
+    expectPhase14(r);
+    for (const code of CT2_CHART_TESTS) {
+      const row = rowOf(book, 'Resumo', code, 10);
+      const n = CHART_OCCURRENCES[code].length;
+      expect([row.cells('D'), row.cells('E'), row.cells('F'), row.cells('G'), row.cells('H'), row.cells('I'), row.cells('J')], code).toEqual(['Alerta', n, n, n, n, 'Confere', 'Verificar']);
+    }
+    const codes = column(book, 'Excecoes', 'Código');
+    const reasons = column(book, 'Excecoes', 'Motivo');
+    for (const code of CT2_CHART_TESTS) expect(reasons.filter((_, k) => codes[k] === code), code).toEqual(CHART_REASONS[code]);
+    const warnings = Array.from({ length: analysis.findings.groupCounts.exception }, (_, k) => findingAt(analysis, k)).filter((f) => analysis.tests.find((t) => t.code === f.code)!.severity === 'warning');
+    expect(rowOf(book, 'Resumo', 'Exceções de Alerta').cells('B')).toBe(warnings.length);
+  });
+
+  it('writes the English workpaper with English reasons (Excel in en-US)', async () => {
+    const en = await withChart({ language: 'en' });
+    expect([...en.book.sheets.keys()]).toContain('ChartOfAccounts');
+    expectPhase14(en, 'en');
+    for (const code of CT2_CHART_TESTS) expect(rowOf(en.book, 'Summary', code, 10).cells('I'), code).toBe('Matches');
+    const codes = column(en.book, 'Exceptions', 'Code');
+    const reasons = column(en.book, 'Exceptions', 'Reason');
+    expect(reasons.filter((_, k) => codes[k] === 'C1')[2]).toBe('Account D 31101001 requires a cost center; C Custo Deb empty; Account C 31101001 requires a cost center; C Custo Crd empty');
+    expect(reasons.filter((_, k) => codes[k] === 'C5')).toEqual([
+      'Account C 21101001 does not accept a value class; Cl Vlr Cred CV01',
+      'Account D 21101001 does not accept a value class; Cl Vlr Deb CV02',
+    ]);
+    expect(column(en.book, 'ChartOfAccounts', 'C. Custo Obrig.').slice(0, 2)).toEqual(['Yes', 'No']);
+  });
+
+  it('describes the tests and the chart on Criterios, and the chart file on Rastreabilidade', () => {
+    for (const code of CT2_CHART_TESTS) expect(rowOf(book, 'Criterios', code).cells('C'), code).toBe('Alerta');
+    const texts = [...book.sheets.get('Criterios')!.values()].map((c) => c.v).filter((v): v is string => typeof v === 'string');
+    expect(texts).toContain('Plano de contas');
+    expect(texts.find((t) => t.startsWith('Testes C1 a C5 contra o plano de contas plano.xlsx (10 contas'))).toBeDefined();
+    expect(texts.find((t) => t.includes('MATCH') && t.includes('sem distinguir maiúsculas'))).toBeDefined();
+    const c = ingested.reconciliation.chart!;
+    const trace = rowOf(book, 'Rastreabilidade', 'plano.xlsx');
+    expect(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'].map(trace.cells)).toEqual([
+      'plano.xlsx',
+      c.size,
+      'Plano de Contas',
+      4,
+      c.rows,
+      10,
+      1,
+      2,
+      'Planilha .xlsx',
+      `${c.entries.filter((e) => e.ok).length}/${c.entries.length}`,
+      c.sha256,
+    ]);
+    expect(rowOf(book, 'Rastreabilidade', 'Plano de contas legível').cells('C')).toBe('Falhou');
+  });
+
+  it('follows the configuration: a test off, a test Info, and the columns absent from the chart or the extraction', async () => {
+    const config = ct2DefaultConfig();
+    config.tests.C2.enabled = false;
+    config.tests.C3.severity = 'info';
+    const off = await withChart({ config });
+    expectTiedOut(off);
+    expectPhase14(off);
+    expect(() => column(off.book, 'Base', 'C2 Exceção?')).toThrow();
+    expect(() => rowOf(off.book, 'Resumo', 'C2', 10)).toThrow();
+    expect(rowOf(off.book, 'Criterios', 'C2').cells('C')).toBe('Desligado');
+    // Info: the column and the board, out of Excecoes.
+    expect(rowOf(off.book, 'Resumo', 'C3', 10).cells('J')).toBe('Info');
+    expect(column(off.book, 'Excecoes', 'Código')).not.toContain('C3');
+    // Without "Aceita Item" and "Aceita Cl. Valor": C4 and C5 have no column, their names are not defined.
+    const columns = CT2_CHART_COLUMNS.filter((t) => t !== 'Aceita Item' && t !== 'Aceita Cl. Valor');
+    const partial = await withChart({ chart: { accounts: CHART_ACCOUNTS, columns } });
+    expectTiedOut(partial);
+    expectPhase14(partial);
+    expect([...partial.book.names.keys()].filter((n) => n.startsWith('PC_'))).toEqual(['PC_CONTA', 'PC_CC_ACEITA', 'PC_CC_OBRIG', 'PC_ITEM_OBRIG']);
+    for (const code of ['C4', 'C5']) {
+      expect(() => column(partial.book, 'Base', `${code} Exceção?`), code).toThrow();
+      expect(rowOf(partial.book, 'Criterios', code).cells('C'), code).toBe('Sem a coluna');
+    }
+    // One side of the cost center absent from the extraction: counted as empty, as the engine does.
+    const oneSide = await withChart({ files: [{ rows: CHART_ROWS, columns: CT2_COLUMNS.filter((t) => t.trim() !== 'C Custo Crd') }] });
+    expectTiedOut(oneSide);
+    expectPhase14(oneSide);
+    // Every C test off: PlanoContas stays (the chart was loaded), the Base has neither the rows of the accounts nor tests.
+    const none = ct2DefaultConfig();
+    for (const code of CT2_CHART_TESTS) none.tests[code].enabled = false;
+    const quiet = await withChart({ config: none });
+    expect(quiet.book.sheets.has('PlanoContas')).toBe(true);
+    expect(() => column(quiet.book, 'Base', L.cols.chartDebitRow)).toThrow();
+    expectTiedOut(quiet);
+  });
+
+  it('ties out with the Base split in several sheets', { timeout: 60_000 }, async () => {
+    // One day per document group, so the Base can continue on other sheets.
+    const rows = CHART_ROWS.map((row) => ('fields' in row ? { ...row, fields: { ...row.fields, date: `${10 + (Number(row.fields.document) % 4)}/09/2026` } } : row));
+    const split = await build({ files: [{ rows }], chart, baseSheetRows: 6 });
+    expect([...split.book.sheets.keys()].filter((x) => x.startsWith('Base')).length).toBeGreaterThan(1);
+    expectTiedOut(split);
+    expectPhase14(split);
+  });
+
+  it('is deterministic: the same input and chart give the same bytes', async () => {
+    const again = await withChart();
+    expect(new Uint8Array(await again.out.blob.arrayBuffer())).toEqual(new Uint8Array(await r.out.blob.arrayBuffer()));
   });
 });

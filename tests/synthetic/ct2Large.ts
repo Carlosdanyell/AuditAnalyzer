@@ -8,6 +8,7 @@
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate';
 import { parseDate } from '../../src/shared/dates';
 import type { Ct2Segment } from '../../src/shared/modules/ct2Integrity';
+import type { ChartAccount } from './ct2Chart';
 import { CT2_COLUMNS, columnRef } from './ct2Extraction';
 
 export interface LargeCt2Options {
@@ -251,4 +252,23 @@ export function writeLargeCt2(sink: (chunk: Uint8Array) => void, o: LargeCt2Opti
 
   const sorted = [...segments.values()].sort((a, b) => (a.balanceType + a.currency < b.balanceType + b.currency ? -1 : 1));
   return { detailRows: detail, segments: sorted, documents, batches: batchKeys.size, days: dayKeys.size, bytes };
+}
+
+/**
+ * A synthetic chart of accounts for the accounts of writeLargeCt2 (debit 1xxxxxxx and credit 2xxxxxxx, 0000000 to
+ * 0002999; the debit cost center is always filled, the credit one is CC0000-CC0299, items and value classes are blank):
+ * some accounts require a cost center or an item, some do not accept a cost center, an item or a value class, and the
+ * last hundred of each side are left out (accounts of the extraction absent from the chart). C2 and C3 have
+ * occurrences; C1, C4 and C5 are evaluated on every side and have none. No real data.
+ */
+export function largeCt2ChartAccounts(): ChartAccount[] {
+  const accounts: ChartAccount[] = [];
+  const flag = (yes: boolean) => (yes ? 'Sim' : 'Não');
+  for (let k = 0; k < 2900; k++) {
+    accounts.push({ account: `1${pad(k, 7)}`, ccRequired: flag(k % 4 === 0), ccAccepted: flag(k % 10 !== 5), itemRequired: flag(k % 6 === 1), itemAccepted: flag(k % 9 !== 2), clAccepted: flag(k % 8 !== 3) });
+  }
+  for (let k = 0; k < 2900; k++) {
+    accounts.push({ account: `2${pad(k, 7)}`, ccRequired: flag(k % 3 === 0), ccAccepted: flag(k % 7 !== 1), itemRequired: flag(k % 5 === 2), itemAccepted: flag(k % 11 !== 4), clAccepted: flag(k % 13 !== 6) });
+  }
+  return accounts;
 }
