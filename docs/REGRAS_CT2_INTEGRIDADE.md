@@ -235,6 +235,44 @@ a alteração de um lançamento automático deve ter documento de aprovação.
 | E5 | Linha | Erro | data fora do período informado (parâmetros data inicial e final) |
 | E6 | Dia | Info | dia não útil (sábado, domingo ou feriado da configuração da plataforma) |
 
+### 6.3.1 Cadastro do plano de contas (C1–C5, a partir de 18/11/2026)
+
+Testes que só rodam quando o **plano de contas** é carregado junto com a extração (mesma lista de arquivos; `.xlsx` ou
+XML do sistema, puro ou em `.zip`). O plano é a exportação da CT1, reconhecida pelo cabeçalho: a linha, entre as
+primeiras da aba, que tem `Conta`, `C. Custo Obrig.` e `Item Obrig.` (ou os nomes de campo `CT1_CONTA`, `CT1_CCOBRG`,
+`CT1_ITOBRG`); opcionais `Aceita C. Custo`, `Aceita Item` e `Aceita Cl. Valor` (`CT1_ACCUST`, `CT1_ACITEM`,
+`CT1_ACCLVL`). Marcas "Sim"/"Não" (ou 1/2), comparadas sem espaços nas pontas e sem distinção de maiúsculas
+(configuração `chart`). O plano fica só na memória da sessão; o SHA-256 dele vai para a Reconciliação e a
+Rastreabilidade.
+
+**Item contábil = filial** (decisão de 18/11/2026): a "filial obrigatória" da conta é o Item Contábil ("Item Obrig."
+do plano, "Item Debito"/"Item Credito" da extração).
+
+Cada **lado** da linha é conferido pela conta dele: lado do débito em Débito e Partida Dobrada, lado do crédito em
+Crédito e Partida Dobrada, nenhum em continuação de histórico. O lado entra quando a conta não está vazia e está no
+plano com a marca conhecida. A linha é exceção uma vez por teste, se um dos lados falhar.
+
+| Código | Nível | Severidade | Regra (por lado) |
+|---|---|---|---|
+| C1 | Linha | Alerta | a conta exige centro de custo (`C. Custo Obrig.` = Sim) e o centro de custo do lado está vazio |
+| C2 | Linha | Alerta | a conta exige item contábil / filial (`Item Obrig.` = Sim) e o item do lado está vazio |
+| C3 | Linha | Alerta | a conta não aceita centro de custo (`Aceita C. Custo` = Não) e o lado tem centro de custo |
+| C4 | Linha | Alerta | a conta não aceita item contábil (`Aceita Item` = Não) e o lado tem item |
+| C5 | Linha | Alerta | a conta não aceita classe de valor (`Aceita Cl. Valor` = Não) e o lado tem classe de valor |
+
+- **Por que:** centro de custo ou filial ausente (ou informado onde a conta não aceita) distorce os saldos por
+  entidade na efetivação; o caso típico é o centro de custo informado no débito e ausente no crédito obrigatório.
+- **Motivo:** `Conta D <conta> exige centro de custo; C Custo Deb vazio`, `Conta C <conta> não aceita centro de custo;
+  C Custo Crd <cc>` e assim por diante (os dois lados juntos por "; ").
+- **Sem plano de contas:** C1–C5 não rodam (estado desligado no quadro) e a tela avisa. Coluna opcional ausente do
+  plano: os testes que dependem dela aparecem "sem a coluna". Coluna de entidade ausente da extração: conta como
+  vazia, como em I3a/I3b; o CI-9 diz quais testes consideram o lado vazio e quais ficaram desligados.
+- **Conta fora do plano:** não é conferida (fora do escopo pedido); a Reconciliação lista as contas da extração que
+  não estão no plano, para nada ficar de fora sem aviso.
+- **Conta repetida no plano:** com as mesmas marcas, vale uma vez; com marcas diferentes, as marcas ficam
+  desconhecidas (nunca adivinhadas) e a conta não é conferida. As duas situações e as marcas que não são Sim/Não são
+  contadas pelo CI-11.
+
 ### 6.4 Perfil (Info)
 
 | Código | Regra |
@@ -536,9 +574,14 @@ código, chave.
 | CI-8 | Base com até 600.000 linhas (limite da planilha amarrada, seção 7.9), em abas de dias inteiros que cabem numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso; desde a Fase 14 também as colunas de entidade ausentes, com o aviso de que toda mesma conta cai em I3b quando nenhuma está mapeada) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
+| CI-11 | Alerta: plano de contas legível (seção 6.3.1): nenhuma conta repetida com marcas diferentes e nenhuma marca que não seja Sim/Não nas colunas lidas; passa quando não há plano | não |
 
 Exportação com invariante bloqueante falhando: mesma regra do CFGR700 (confirmação explícita registrada no Resumo e
 na Rastreabilidade).
+
+**Versão da configuração (18/11/2026):** `schemaVersion` 4: os testes C1–C5 (ligados, Alerta) e o bloco `chart`
+(títulos das colunas do plano, aliases e valores Sim/Não) entram com os padrões ao migrar das versões 1, 2 e 3; o
+resto é mantido. As cópias de segurança antigas são restauradas pela mesma migração.
 
 **Versão da configuração (Fase 14):** `schemaVersion` 3. A versão 2 (e a 1, que antes já migrava para a 2) é migrada ao
 ler (`readCt2Config`, `src/config/ct2IntegritySchema.ts`): as seis colunas de entidade entram com os padrões; o
@@ -641,6 +684,9 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   rotina de documentos pode passar do total de documentos (a de linhas e a de débito não).
 - O módulo não identifica o usuário que fez o lançamento (seção 12, item 4); a análise por usuário é do módulo
   CFGR700.
+- **C1–C5 dependem do plano de contas carregado** e valem para a versão do plano carregada (SHA-256 na
+  Rastreabilidade); o plano exportado hoje pode diferir do vigente na data dos lançamentos. Contas fora do plano não
+  são conferidas (a Reconciliação as lista).
 
 ## 11. Testes da ferramenta
 
@@ -800,6 +846,15 @@ Situação em 20/10/2026 (decisões na seção 13):
     O teto continua em **600.000 linhas** (medições de 11/11/2026 em `docs/MEDICOES.md`).
   - **Fora desta fase:** a conferência automática com os pacotes de lançamento manual assinados (leitura dos nomes dos
     PDFs) fica para a próxima fase; usuário a partir de "Origem" continua fora do escopo (seção 12, item 4).
+- 18/11/2026 — Testes do plano de contas (C1–C5, seção 6.3.1), pedido e respostas do usuário:
+  - **Pedido:** contas que obrigam centro de custo ou filial, e o lançamento com centro de custo no débito e sem ele no
+    crédito obrigatório; trazer isso evita distorções na efetivação dos saldos.
+  - **Filial = Item Contábil** ("Item Obrig." do plano; "Item Debito"/"Item Credito" da extração).
+  - **Plano carregado junto com a extração** em cada análise, reconhecido pelo cabeçalho; nada fica gravado; o SHA-256
+    prova a versão usada.
+  - **Também "entidade informada em conta que não aceita"** (centro de custo, item, classe de valor). Fora: conta
+    inexistente no plano, conta sintética, conta bloqueada.
+  - **Severidade padrão Alerta** para os obrigatórios ausentes; também adotada para C3–C5 (editável).
 - 17/11/2026 — Leitura do XML do sistema (versão 2.3.0, seção 2.1), respostas do usuário:
   - **Escopo:** só a Integridade da CT2; o leitor fica na leitura comum (`readSheet`) e o CFGR700 pode usá-lo depois,
     numa entrega própria, conferida com um XML real do relatório.

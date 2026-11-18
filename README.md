@@ -61,6 +61,7 @@ leitura em fluxo, a rastreabilidade e as verificações comuns.
 | A extração está completa e legível? | Reconciliação de linhas por arquivo, valores e chaves legíveis, colunas encontradas |
 | Débito = crédito em cada documento, lote e dia, por tipo de saldo e moeda? | Testes B1–B3; B4/B5 indicam a compensação pelo documento vizinho |
 | Há linhas incoerentes, duplicadas, fora do período ou em dia não útil? | Testes I1–I5 e E1–E6, com a lista de exceções |
+| Os lançamentos respeitam o cadastro das contas: centro de custo e filial (item contábil) obrigatórios informados, nenhuma entidade em conta que não aceita? | C1–C5, com o plano de contas carregado junto com a extração, conferindo cada lado do lançamento |
 | Um lançamento automático foi alterado depois de gerado? Há lançamento sem efeito contábil? | I4a (valor diferente do "Valor Moeda1", para conferir com o documento de aprovação) e I3b (mesma conta e mesmas entidades) |
 | Quais documentos são manuais, automáticos ou mistos, e quais lotes tiveram intervenção manual? | Origem do documento, no **Painel** e na planilha |
 | Como se distribuem os lançamentos por rotina, por dia, lançamento padrão e origem? | **Painel** de composição, Perfil (P1–P4) e os 10 maiores documentos |

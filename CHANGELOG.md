@@ -4,7 +4,19 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
-## [2.3.0] — 2026-11-17
+## [2.3.0] — 2026-11-18
+
+### Integridade da CT2: testes contra o plano de contas (C1–C5)
+- O plano de contas (exportação da CT1) pode ser carregado junto com a extração, em `.xlsx` ou XML; é reconhecido
+  pelo cabeçalho e fica só na memória da análise, com o SHA-256 na Reconciliação e na Rastreabilidade.
+- Cada lado do lançamento é conferido contra o cadastro da conta: **C1** centro de custo obrigatório não informado;
+  **C2** item contábil (filial) obrigatório não informado; **C3**, **C4** e **C5** centro de custo, item ou classe de
+  valor informados em conta que não aceita. Alerta por padrão, com o motivo de cada ocorrência (ex.: centro de custo no
+  débito e ausente no crédito obrigatório).
+- Reconciliação: cartão do plano de contas, verificação CI-11 "Plano de contas legível" (alerta) e a lista das contas
+  da extração que não estão no plano.
+- Planilha: aba PlanoContas, colunas de C1–C5 por fórmula na Base, quadro de testes, Excecoes com o motivo.
+- Configuração versão 4 (migração automática das anteriores e das cópias de segurança).
 
 ### Integridade da CT2: leitura do XML gerado pelo Protheus
 - A ferramenta lê a extração no XML que o sistema grava (formato XML Spreadsheet 2003), sem a conversão para `.xlsx`,
