@@ -5,6 +5,8 @@
  * never to local/. When `soffice` is installed, the workpaper is opened headless, recalculated and its Resumo exported
  * as CSV: every status of the matrix and of the board must be OK / Confere after the recalculation.
  * MEDIR_CT2_SO_MAPEADAS=1 measures a Base with only the mapped columns (an alternative under discussion, section 7.9).
+ * A synthetic chart of accounts covering the accounts of the extraction is loaded with it (C1-C5 by formula);
+ * MEDIR_CT2_SEM_PLANO=1 measures without it.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openAsBlob, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
@@ -16,7 +18,8 @@ import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { ingestCt2 } from '../../src/worker/modules/ct2Integrity/ingest';
 import { buildCt2Workpaper } from '../../src/worker/modules/ct2Integrity/workpaper';
-import { writeLargeCt2 } from '../synthetic/ct2Large';
+import { buildCt2Chart } from '../synthetic/ct2Chart';
+import { largeCt2ChartAccounts, writeLargeCt2 } from '../synthetic/ct2Large';
 
 setFlagsFromString('--expose-gc');
 const gc = runInNewContext('gc') as () => void;
@@ -25,6 +28,8 @@ const mb = (n: number) => `${Math.round(n / 2 ** 20)} MB`;
 const sizes = (process.env.MEDIR_CT2_LINHAS ?? '40000,300000').split(',').map(Number);
 const soffice = spawnSync('which', ['soffice']).status === 0;
 const onlyMapped = process.env.MEDIR_CT2_SO_MAPEADAS === '1';
+const withChart = process.env.MEDIR_CT2_SEM_PLANO !== '1';
+const variant = `${onlyMapped ? '-mapeadas' : ''}${withChart ? '-plano' : ''}`;
 
 function extraction(rows: number): string {
   mkdirSync(dir, { recursive: true });
@@ -42,7 +47,9 @@ describe.runIf(process.env.MEDIR_CT2_PLANILHA)('CT2 workpaper: measurements', ()
     it(`${rows} detail rows`, async () => {
       const source = extraction(rows);
       const config = ct2DefaultConfig();
-      const ingested = await ingestCt2([{ name: 'ct2.xlsx', blob: await openAsBlob(source) }], config, () => {}, { inflateMode: 'fallback' }, { holidays: new Set() });
+      const chart = withChart ? [{ name: 'plano.xlsx', blob: new Blob([buildCt2Chart({ accounts: largeCt2ChartAccounts() }) as Uint8Array<ArrayBuffer>]) }] : [];
+      const ingested = await ingestCt2([{ name: 'ct2.xlsx', blob: await openAsBlob(source) }, ...chart], config, () => {}, { inflateMode: 'fallback' }, { holidays: new Set() });
+      const chartTests = ingested.analysis!.tests.filter((t) => t.code.startsWith('C')).map((t) => `${t.code} ${t.state === 'on' ? t.occurrences : t.state}`);
       gc();
       const before = process.memoryUsage();
       // Sampled at every progress call: the writing of the Base is synchronous, so a timer would not run.
@@ -71,7 +78,7 @@ describe.runIf(process.env.MEDIR_CT2_PLANILHA)('CT2 workpaper: measurements', ()
       );
       sample();
       const ms = performance.now() - started;
-      const path = join(dir, `planilha-${rows}${onlyMapped ? '-mapeadas' : ''}.xlsx`);
+      const path = join(dir, `planilha-${rows}${variant}.xlsx`);
       writeFileSync(path, new Uint8Array(await out.blob.arrayBuffer()));
       const xml = execFileSync('unzip', ['-l', path]).toString();
       const sheetBytes = Math.max(...[...xml.matchAll(/^\s*(\d+)\s+\S+\s+\S+\s+xl\/worksheets\//gm)].map((m) => Number(m[1])));
@@ -79,25 +86,25 @@ describe.runIf(process.env.MEDIR_CT2_PLANILHA)('CT2 workpaper: measurements', ()
       let statuses: string[] = [];
       let composition: string[] = [];
       if (soffice) {
-        const outDir = join(dir, `csv-${rows}${onlyMapped ? '-mapeadas' : ''}`);
+        const outDir = join(dir, `csv-${rows}${variant}`);
         rmSync(outDir, { recursive: true, force: true });
         const t = performance.now();
         // Sheet 1 (Resumo) as CSV, after LibreOffice computes every formula (the workbook has no cached values).
         execFileSync('soffice', ['--headless', '--calc', '--convert-to', 'csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,false,false,false,1', '--outdir', outDir, path], { timeout: 3_600_000 });
         recalc = `${((performance.now() - t) / 1000).toFixed(0)} s`;
-        const csv = readFileSync(join(outDir, `planilha-${rows}${onlyMapped ? '-mapeadas' : ''}-Resumo.csv`), 'utf8');
+        const csv = readFileSync(join(outDir, `planilha-${rows}${variant}-Resumo.csv`), 'utf8');
         // The status of each level of the matrix (7th column), the tie-out of each test of the board (9th column; it
         // also proves every row of Excecoes, I4a included, confirmed at its source) and of the composition by origin
         // (6th column, from its section to the next one).
         const lines = csv.split('\n').map((l) => l.split(','));
         const matrix = ['Base', 'Documentos', 'Lotes', 'Dias', 'Ferramenta (motor)'];
-        statuses = lines.flatMap((c) => (matrix.includes(c[0]!) ? [c[6]!] : /^[BIEP]\d[a-c]?$/.test(c[0]!) ? [c[8]!] : []));
+        statuses = lines.flatMap((c) => (matrix.includes(c[0]!) ? [c[6]!] : /^[BIECP]\d[a-c]?$/.test(c[0]!) ? [c[8]!] : []));
         const from = lines.findIndex((c) => c[0] === 'Composição por origem');
         const to = lines.findIndex((c, k) => k > from && c[0] === 'Documentos desbalanceados');
         composition = lines.slice(from, to).flatMap((c) => (c[5] === 'Confere' || c[5] === 'Verificar' ? [c[5]] : []));
       }
       console.log(
-        `[medição] planilha CT2${onlyMapped ? ' (só colunas mapeadas)' : ''}, ${rows} linhas: geração ${(ms / 1000).toFixed(1)} s, arquivo ${mb(statSync(path).size)}, maior aba ${mb(sheetBytes)} descompactada, ` +
+        `[medição] planilha CT2${onlyMapped ? ' (só colunas mapeadas)' : ''}${withChart ? ` com plano de contas (${chartTests.join(', ')})` : ' sem plano de contas'}, ${rows} linhas: geração ${(ms / 1000).toFixed(1)} s, arquivo ${mb(statSync(path).size)}, maior aba ${mb(sheetBytes)} descompactada, ` +
           `pico da geração ${mb(peak)}; LibreOffice (abrir, recalcular, exportar o Resumo): ${recalc}; matriz e quadro: ${statuses.filter((s) => s === 'OK' || s === 'Confere').length} OK/Confere, ${statuses.filter((s) => s !== 'OK' && s !== 'Confere').length} outros; ` +
           `composição: ${composition.filter((s) => s === 'Confere').length} Confere, ${composition.filter((s) => s !== 'Confere').length} outros`,
       );

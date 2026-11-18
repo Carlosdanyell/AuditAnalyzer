@@ -29,8 +29,9 @@ export const ct2IntegrityWorker: WorkerModule = {
     return async (inputs, post, options) => {
       const holidaySet = new Set(holidays);
       const result = await ingestCt2(inputs, config, post, options, { holidays: holidaySet });
-      // The Base, its sort keys (to reapply the analysis) and the analysis stay in the worker's memory for the session.
-      const base: Ct2Ingested = { reconciliation: result.reconciliation, summary: result.summary, store: result.store, order: result.order, keys: result.keys };
+      // The Base, its sort keys (to reapply the analysis), the chart of accounts (re-analysis and export) and the
+      // analysis stay in the worker's memory for the session; nothing of them is stored.
+      const base: Ct2Ingested = { reconciliation: result.reconciliation, summary: result.summary, store: result.store, order: result.order, keys: result.keys, chart: result.chart };
       let analysis: Ct2Analysis = result.analysis!;
       // Built on the first query of each analysis (the segment of every block; the tables and their cache).
       let segmentCache: Ct2SegmentMap | null = null;

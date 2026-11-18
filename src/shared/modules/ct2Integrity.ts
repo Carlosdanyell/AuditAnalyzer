@@ -4,7 +4,7 @@
  * `module: 'ct2Integrity'`; the CFGR700 payloads carry no mark, so their content does not change.
  */
 import type { Ct2Field, Ct2Severity, Ct2TestCode } from '../../config/ct2IntegritySchema';
-import type { Alert, CheckResult, EntryIntegrity, Stage } from '../protocol';
+import type { Alert, CheckResult, EntryIntegrity, InputFormat, Stage } from '../protocol';
 import type { Reconciliation, Summary } from './cfgr700';
 
 /** Processing stages of the CT2 module; the first three repeat for each file. */
@@ -54,6 +54,12 @@ export const CT2_TEST_INFO: Record<Ct2TestCode, Ct2TestInfo> = {
   E4: { level: 'line', label: 'Moeda diferente da esperada' },
   E5: { level: 'line', label: 'Data fora do período' },
   E6: { level: 'day', label: 'Dia não útil' },
+  // Against the chart of accounts loaded with the extraction (decisions of 18/11/2026): each side of the line.
+  C1: { level: 'line', label: 'Centro de custo obrigatório não informado' },
+  C2: { level: 'line', label: 'Item contábil (filial) obrigatório não informado' },
+  C3: { level: 'line', label: 'Centro de custo informado em conta que não aceita' },
+  C4: { level: 'line', label: 'Item contábil informado em conta que não aceita' },
+  C5: { level: 'line', label: 'Classe de valor informada em conta que não aceita' },
   P1: { level: 'profile', label: 'Linhas e valores por rotina e por lançamento padrão' },
   P2: { level: 'profile', label: 'Linhas e valores por origem (Lcto Manual?)' },
   P3: { level: 'document', label: 'Seq CTK repetido entre documentos ou mais de um no documento' },
@@ -135,6 +141,8 @@ export interface Ct2FileReconciliation {
   name: string;
   size: number;
   sha256: string;
+  /** How the file is stored; a plain XML has no ZIP entries to check (`entries` empty). */
+  format: InputFormat;
   entries: EntryIntegrity[];
   sheetName: string;
   sheetNames: string[];
@@ -174,9 +182,49 @@ export interface Ct2FileReconciliation {
   timings: { stage: Stage; ms: number }[];
 }
 
+/**
+ * Reading of the chart of accounts loaded with the extraction (version 4 of the configuration, tests C1-C5): the file,
+ * its header and the accounts. One entry per distinct account; an account repeated with other flags has every flag
+ * unknown (never guessed).
+ */
+export interface Ct2ChartReconciliation {
+  /** Position of the file in the list loaded (the extraction files are numbered in the same list). */
+  fileIndex: number;
+  name: string;
+  size: number;
+  sha256: string;
+  format: InputFormat;
+  entries: EntryIntegrity[];
+  sheetName: string;
+  sheetNames: string[];
+  headerRow: number;
+  /** Rows after the header with some value (detail rows of the chart). */
+  rows: number;
+  /** Rows with a value but an empty account: no account to keep. */
+  withoutAccount: number;
+  /** Distinct accounts kept. */
+  accounts: number;
+  /** Rows that repeat an account already read: rows = accounts + repeatedRows + withoutAccount. */
+  repeatedRows: number;
+  /** Accounts repeated with the same flags (kept once). */
+  duplicates: number;
+  /** Accounts repeated with different flags: their flags are unknown. */
+  conflicting: number;
+  /** Cells of the flag columns found that are neither a yes nor a no value (blank included). */
+  unknownFlags: number;
+  /** Titles of the optional flag columns absent from the chart (the tests that need them are off). */
+  missingColumns: string[];
+  /** Accounts of the extraction, on a side the tests look at, absent from the chart: how many and the first ones by text. */
+  missingAccounts: { count: number; sample: string[] };
+  alerts: Alert[];
+  timings: { stage: Stage; ms: number }[];
+}
+
 export interface Ct2Reconciliation {
   module: 'ct2Integrity';
   files: Ct2FileReconciliation[];
+  /** The chart of accounts, when one was loaded with the extraction. */
+  chart: Ct2ChartReconciliation | null;
   consolidated: { detailRows: number; alerts: Alert[] };
   checks: CheckResult[];
   totalMs: number;

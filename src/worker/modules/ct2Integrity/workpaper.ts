@@ -2,9 +2,10 @@
  * The CT2 integrity workpaper (docs/REGRAS_CT2_INTEGRIDADE.md, section 7): the Base as values, everything derived as
  * formulas in a chain (Base → Documentos → Lotes → Dias → Resumo), over the contiguous blocks of the Base order
  * (SUM/ROWS of a block, never SUMIFS per aggregation row). Formulas of a Base row read only that row, the previous one
- * (E1) and the defined names of the Criterios tab. Streamed by the XLSX writer; the same input gives the same bytes.
+ * (E1), the defined names of the Criterios tab and, for C1-C5, the chart of accounts the engine used (PlanoContas, by
+ * MATCH and INDEX). Streamed by the XLSX writer; the same input gives the same bytes.
  */
-import { CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_CHART_FLAGS, CT2_CHART_TESTS, CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2ChartFlag, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, formatDay } from '../../../shared/dates';
 import { CT2_BASE_SHEET_ROWS, CT2_MAX_EXPORT_ROWS, CT2_ORIGINS, CT2_TEST_INFO, findingGroup, type Ct2Level } from '../../../shared/modules/ct2Integrity';
 import type { ConfigDifference } from '../../../shared/configTools';
@@ -14,6 +15,7 @@ import { TraceSheet } from '../../export/common/traceability';
 import type { Language } from '../../export/labels';
 import { COLORS, createTheme, fitWidth, headerHeight, textHeight, type ColGroup, type ColKind } from '../../export/theme';
 import { XlsxWriter, colName, dateCell, type CellInput, type SheetWriter } from '../../export/xlsxWriter';
+import { CHART_RULES, type Ct2ChartTest } from './chart';
 import { BIT } from './marks';
 import { LINE_TESTS as ALL_LINE_TESTS, type Ct2Analysis } from './analysis';
 import type { Ct2Ingested } from './ingest';
@@ -59,6 +61,16 @@ export const MAX_EXPORT_ROWS = CT2_MAX_EXPORT_ROWS;
 export const BASE_SHEET_ROWS = CT2_BASE_SHEET_ROWS;
 /** Unbalanced documents listed on the Resumo. */
 const SUMMARY_UNBALANCED = 50;
+/** Defined name of each column of the chart of accounts on PlanoContas (C1-C5). */
+const CHART_NAMES: Record<Ct2ChartFlag | 'account', string> = {
+  account: 'PC_CONTA',
+  costCenterAccepted: 'PC_CC_ACEITA',
+  costCenterRequired: 'PC_CC_OBRIG',
+  itemAccepted: 'PC_ITEM_ACEITA',
+  itemRequired: 'PC_ITEM_OBRIG',
+  valueClassAccepted: 'PC_CLVL_ACEITA',
+};
+const isChartTest = (code: Ct2TestCode): code is Ct2ChartTest => (CT2_CHART_TESTS as readonly Ct2TestCode[]).includes(code);
 
 const q = (name: string) => (/^[A-Za-z_][\w.]*$/.test(name) ? name : `'${name.replace(/'/g, "''")}'`);
 const str = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -175,7 +187,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const yesNo = (cond: string) => `IF(${cond},${str(L.yes)},${str(L.no)})`;
   const YES = str(L.yes);
 
-  // What runs (section 6): a test turned off, or without its column, has no column and leaves the board.
+  // What runs (section 6): a test turned off, or without its column, has no column and leaves the board (C1-C5 also
+  // without a chart of accounts).
   const on = Object.fromEntries(a.tests.map((t) => [t.code, t.state === 'on'])) as Record<Ct2TestCode, boolean>;
   const isException = (code: Ct2TestCode) => on[code] && config.tests[code].severity !== 'info';
   // Listed in Excecoes: the exception and approval groups (decision 1 of 10/11/2026); the other Info tests stay out.
@@ -203,6 +216,9 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
   const fields = CT2_FIELDS.filter((f) => present.has(f));
   const others = [...store.other.keys()];
   const LINE_TESTS = ALL_LINE_TESTS.filter((t) => on[t]);
+  // C1-C5: the row of the account of each side in PlanoContas, read by the tests of the line.
+  const chart = base.chart;
+  const chartTestsOn = CT2_CHART_TESTS.some((t) => on[t]);
   const baseCols: Col[] = [
     col('file', C.file, 18, 'text'),
     col('sourceRow', C.sourceRow, 9, 'int'),
@@ -211,6 +227,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     ...others.map((t, i) => col(`o:${i}`, t, 12, 'text')),
     col('debit', C.debit, 13, 'money', 'helper'),
     col('credit', C.credit, 13, 'money', 'helper'),
+    ...(chartTestsOn ? [col('chartDebit', C.chartDebitRow, 11, 'int', 'helper'), col('chartCredit', C.chartCreditRow, 11, 'int', 'helper')] : []),
     ...LINE_TESTS.map((t) => col(`t:${t}`, L.testCol(t), 9, 'center', 'helper')),
     col('exceptions', C.exceptionsInLine, 10, 'int', 'helper'),
   ];
@@ -294,6 +311,14 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     b.days,
   );
   const LEVEL_LAYOUT: Record<Exclude<Ct2Level, 'profile'>, Layout> = { line: BASE, document: DOCS, batch: BATCHES, day: DAYS };
+  // The chart of accounts the engine used: each distinct account in reading order and the flag columns read.
+  const CHART = chart
+    ? new Layout(
+        SHEET.chart,
+        [col('account', config.chart.columns.account.title, 14, 'text'), ...CT2_CHART_FLAGS.filter((f) => chart.columns.includes(f)).map((f) => col(f, config.chart.columns[f].title, 11, 'center'))],
+        chart.accounts.size,
+      )
+    : null;
 
   // Exceptions: the exception group (Erro, then Alerta) and the approval group, a prefix of the findings of the engine
   // (inside a group, the order of the tests and of the level). Split over sheets.
@@ -374,6 +399,16 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     w.defineName(name, `${CRIT}!$${l}$${TYPE_ROW}:$${l}$${TYPE_ROW + Math.max(1, codeLists[i]!.length) - 1}`);
   });
   const typeIs = (t: string, list: 'PD' | 'DEB' | 'CRED' | 'HIST') => `COUNTIF(P_TIPO_${list},${t})>0`;
+  if (CHART) for (const c of CHART.cols) w.defineName(CHART_NAMES[c.id as Ct2ChartFlag | 'account'], CHART.range(c.id));
+  /**
+   * Whether one side of a line fails a test against the chart (sideFails in chart.ts): `row` is the row of its account
+   * in PlanoContas ("" when the side does not count), `entity` the cost center, item or value class of the side. The
+   * flag is read only with a row (INDEX of "" is an error, and AND evaluates every argument).
+   */
+  const chartSideFails = (code: Ct2ChartTest, row: string, entity: string) => {
+    const rule = CHART_RULES[code];
+    return `IF(${row}="",FALSE,AND(INDEX(${CHART_NAMES[rule.flag]},${row}-1)=${str(rule.when === 'yes' ? L.yes : L.no)},${entity}${rule.fails === 'empty' ? '=' : '<>'}""))`;
+  };
 
   // ── Period and texts shared by the sheets ──
   const periodText =
@@ -574,7 +609,7 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       return `COUNTIF(${LEVEL_LAYOUT[level].range(`t:${code}`)},${YES})`;
     };
     for (const t of a.tests) {
-      if (t.state !== 'on') continue;
+      if (!on[t.code]) continue;
       const r = sheet.nextRow;
       const exception = isException(t.code);
       // The approval group (I4a) is in Excecoes too: in the list and confirmed as the exceptions; its status stays Info.
@@ -740,10 +775,13 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.skip(1);
     sheet.row([{ v: CR.rules, s: T.h2 }], { height: 22 });
     sheet.row(CR.ruleCols.map((v) => ({ v, s: T.headSummary })), { height: 20 });
+    const states = language === 'pt' ? { off: 'Desligado', noColumn: 'Sem a coluna', noChart: 'Sem plano de contas' } : { off: 'Off', noColumn: 'No column', noChart: 'No chart of accounts' };
     for (const code of CT2_TESTS) {
       const t = a.tests.find((x) => x.code === code)!;
       const rule = CT2_RULES[language][code];
-      const state = t.state === 'on' ? L.severities[t.severity] : t.state === 'off' ? (language === 'pt' ? 'Desligado' : 'Off') : language === 'pt' ? 'Sem a coluna' : 'No column';
+      // C1-C5 turned on but without a chart of accounts loaded: not applied, and not by the choice of the user.
+      const noChart = isChartTest(code) && !chart && config.tests[code].enabled;
+      const state = t.state === 'on' ? L.severities[t.severity] : states[noChart ? 'noChart' : t.state];
       const r = sheet.row(
         [
           { v: code, s: T.center },
@@ -759,7 +797,8 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
       );
       sheet.merge(`D${r}:H${r}`);
     }
-    for (const [title, body] of criteriaParagraphs(language, config.table)) {
+    const chartFile = reconciliation.chart ? { name: reconciliation.chart.name, accounts: reconciliation.chart.accounts } : null;
+    for (const [title, body] of criteriaParagraphs(language, config.table, chartFile)) {
       sheet.skip(1);
       sheet.row([{ v: title, s: T.h2 }], { height: 20 });
       sheet.row([{ v: body, s: T.paragraph }], { height: textHeight(body, 160, 10) });
@@ -768,6 +807,17 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
     sheet.end();
   }
   progress();
+
+  // ════════ PlanoContas (C1-C5: the chart of accounts the engine used) ════════
+  if (chart && CHART) {
+    const sheet = sheetOf(CHART);
+    header(sheet, CHART);
+    const st = styles(CHART);
+    const shown = { yes: L.yes, no: L.no } as const;
+    // Unknown flags (and every flag of an account repeated with different flags) are empty: never checked.
+    for (const [account, flags] of chart.accounts) sheet.row([account, ...CHART.cols.slice(1).map((c) => (flags[c.id as Ct2ChartFlag] === null ? null : shown[flags[c.id as Ct2ChartFlag]!]))], { styles: st });
+    sheet.end();
+  }
 
   // ════════ Documentos ════════
   {
@@ -1062,6 +1112,22 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
           case 'P4':
             reason = R.limit(fixed(src('lines'), 0), fixed('P_LIMITE_LINHAS', 0));
             break;
+          case 'C1':
+          case 'C2':
+          case 'C3':
+          case 'C4':
+          case 'C5': {
+            // The sides that fail, debit first, each after "; ", the first "; " taken out (findingReason).
+            const rule = CHART_RULES[code];
+            const side = (mark: 'D' | 'C', rowId: string, accountId: string, entity: Ct2Field) => {
+              const value = present.has(entity) ? here(`c:${entity}`) : '""';
+              const row = src(rowId);
+              const part = text(R.chartSide(mark, F(here(accountId)), R.chartNeed[code], a.titles[entity], rule.fails === 'empty' ? R.chartEmpty : F(value)));
+              return `IF(${chartSideFails(code, row, value)},"; "&${part},"")`;
+            };
+            reason = [F(`MID(${side('D', 'chartDebit', 'c:debitAccount', rule.entity[0])}&${side('C', 'chartCredit', 'c:creditAccount', rule.entity[1])},3,1000)`)];
+            break;
+          }
           default:
             reason = [L.tests[code]];
         }
@@ -1199,6 +1265,12 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
         const Cc = `${CR}${r}`;
         cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'DEB')}),${V},0)` });
         cells.push({ f: `IF(OR(${typeIs(T_, 'PD')},${typeIs(T_, 'CRED')}),${V},0)` });
+        // C1-C5: the row of the account of each side in PlanoContas; empty when the type has no such side (the side
+        // of the amount), the account is empty or it is not in the chart.
+        if (chartTestsOn) {
+          cells.push({ f: `IF(AND(${D}<>"",OR(${typeIs(T_, 'PD')},${typeIs(T_, 'DEB')})),IFERROR(MATCH(${D},PC_CONTA,0)+1,""),"")` });
+          cells.push({ f: `IF(AND(${Cc}<>"",OR(${typeIs(T_, 'PD')},${typeIs(T_, 'CRED')})),IFERROR(MATCH(${Cc},PC_CONTA,0)+1,""),"")` });
+        }
         for (const t of LINE_TESTS) {
           let f: string;
           switch (t) {
@@ -1244,6 +1316,17 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
             case 'E4':
               f = yesNo(`NOT(EXACT(${CU}${r},P_MOEDA))`);
               break;
+            case 'C1':
+            case 'C2':
+            case 'C3':
+            case 'C4':
+            case 'C5': {
+              // Either side fails; a side whose entity column is absent from the extraction counts as empty.
+              const [dr, cr] = CHART_RULES[t].entity;
+              const entity = (field: Ct2Field) => (present.has(field) ? `${l(`f:${field}`)}${r}` : '""');
+              f = yesNo(`OR(${chartSideFails(t, `${l('chartDebit')}${r}`, entity(dr))},${chartSideFails(t, `${l('chartCredit')}${r}`, entity(cr))})`);
+              break;
+            }
             default:
               f = yesNo(`AND(ISNUMBER(${DT}${r}),OR(${DT}${r}<P_DATA_INI,${DT}${r}>P_DATA_FIM))`);
           }
@@ -1289,8 +1372,31 @@ export async function buildCt2Workpaper(input: Ct2WorkpaperInput, onProgress: (s
           { v: f.rows.blankRows, s: T.int },
           { v: f.rows.detailRows, s: T.int },
           { v: f.rows.balanced ? TR.reconciles : TR.diverges, s: T.center },
-          { v: `${f.entries.filter((e) => e.ok).length}/${f.entries.length}`, s: T.center },
+          { v: TR.formats[f.format], s: T.center },
+          { v: f.format === 'xml' ? TR.noZip : `${f.entries.filter((e) => e.ok).length}/${f.entries.length}`, s: T.center },
           { v: f.sha256, s: T.text },
+        ],
+        { height: 18 },
+      );
+    }
+    // The chart of accounts of C1-C5: which version of it was used (SHA-256) and what was read.
+    const pc = reconciliation.chart;
+    if (pc) {
+      trace.heading(TR.chart);
+      trace.headRow(TR.chartCols);
+      sheet.row(
+        [
+          { v: pc.name, s: T.text },
+          { v: pc.size, s: T.int },
+          { v: pc.sheetName, s: T.center },
+          { v: pc.headerRow, s: T.int },
+          { v: pc.rows, s: T.int },
+          { v: pc.accounts, s: T.int },
+          { v: pc.conflicting, s: T.int },
+          { v: pc.unknownFlags, s: T.int },
+          { v: TR.formats[pc.format], s: T.center },
+          { v: pc.format === 'xml' ? TR.noZip : `${pc.entries.filter((e) => e.ok).length}/${pc.entries.length}`, s: T.center },
+          { v: pc.sha256, s: T.text },
         ],
         { height: 18 },
       );
@@ -1359,7 +1465,7 @@ function conclusion(language: Language, a: Ct2Analysis, on: Record<Ct2TestCode, 
         : `${count('P4')} document(s) reached the limit of ${a.parameters.documentLineLimit} lines per document (P4).`,
     );
   }
-  const errors = a.tests.filter((t) => t.state === 'on' && config.tests[t.code].severity === 'error' && t.occurrences > 0);
+  const errors = a.tests.filter((t) => on[t.code] && config.tests[t.code].severity === 'error' && t.occurrences > 0);
   parts.push(
     errors.length === 0
       ? pt

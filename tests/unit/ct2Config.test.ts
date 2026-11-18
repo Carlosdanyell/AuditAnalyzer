@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config/schema';
-import { CT2_FIELDS, CT2_TESTS, ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
-import { ct2ConfigV1, ct2ConfigV2 } from '../synthetic/ct2Fixtures';
+import { CT2_CHART_FIELDS, CT2_FIELDS, CT2_TESTS, ct2DefaultConfig, readCt2Config } from '../../src/config/ct2IntegritySchema';
+import { ct2ConfigV1, ct2ConfigV2, ct2ConfigV3 } from '../synthetic/ct2Fixtures';
 
 /** Configuration of the CT2 integrity module (docs/REGRAS_CT2_INTEGRIDADE.md, sections 2-6). */
 describe('CT2 integrity configuration', () => {
   it('has a valid default with the 26 columns of section 2, twelve of them mandatory', () => {
     const c = ct2DefaultConfig();
-    expect(c.schemaVersion).toBe(3);
+    expect(c.schemaVersion).toBe(4);
     expect(Object.keys(c.columns)).toEqual([...CT2_FIELDS]);
     expect(Object.entries(c.columns).filter(([, col]) => col.required).map(([f]) => f)).toEqual([
       'date', 'batch', 'subBatch', 'document', 'line', 'balanceType', 'currency', 'entryType', 'debitAccount', 'creditAccount', 'amount', 'history',
@@ -88,12 +88,13 @@ describe('CT2 integrity configuration', () => {
   it('has the tests of section 6 with the default severities, all enabled', () => {
     const c = ct2DefaultConfig();
     expect(Object.keys(c.tests)).toEqual([...CT2_TESTS]);
-    expect(CT2_TESTS).toHaveLength(23);
+    expect(CT2_TESTS).toHaveLength(28);
     const severity = Object.fromEntries(Object.entries(c.tests).map(([code, t]) => [code, t.severity]));
     expect(severity).toEqual({
       B1: 'error', B2: 'error', B3: 'error', B4: 'info', B5: 'warning',
       I1: 'error', I2: 'error', I3a: 'info', I3b: 'warning', I4a: 'info', I4b: 'info', I4c: 'warning', I5: 'warning',
       E1: 'error', E2: 'info', E3: 'warning', E4: 'warning', E5: 'error', E6: 'info',
+      C1: 'warning', C2: 'warning', C3: 'warning', C4: 'warning', C5: 'warning',
       P1: 'info', P2: 'info', P3: 'info', P4: 'info',
     });
     expect(Object.values(c.tests).every((t) => t.enabled)).toBe(true);
@@ -138,12 +139,67 @@ describe('CT2 integrity configuration', () => {
     expect(readCt2Config(c).ok).toBe(true);
   });
 
-  it('migrates version 1 to version 3 with the default columns, tests and parameters', () => {
+  it('migrates version 1 to version 4 with the default columns, tests, parameters and chart', () => {
     const read = readCt2Config(ct2ConfigV1());
     expect(read).toEqual({ ok: true, config: ct2DefaultConfig(), migratedFrom: 1 });
     const { tests, parameters, manualFlag, ...v1 } = ct2DefaultConfig();
     expect([tests, parameters, manualFlag].every(Boolean)).toBe(true);
-    expect(readCt2Config({ ...v1, schemaVersion: 4 }).ok).toBe(false);
+    expect(readCt2Config({ ...v1, schemaVersion: 5 }).ok).toBe(false);
+  });
+
+  it('has the chart of accounts of version 4: the CT1 titles and aliases, yes and no values', () => {
+    const { chart } = ct2DefaultConfig();
+    expect(Object.keys(chart.columns)).toEqual([...CT2_CHART_FIELDS]);
+    expect(chart.columns).toEqual({
+      account: { title: 'Conta', aliases: ['CT1_CONTA'] },
+      costCenterAccepted: { title: 'Aceita C. Custo', aliases: ['CT1_ACCUST'] },
+      costCenterRequired: { title: 'C. Custo Obrig.', aliases: ['CT1_CCOBRG'] },
+      itemAccepted: { title: 'Aceita Item', aliases: ['CT1_ACITEM'] },
+      itemRequired: { title: 'Item Obrig.', aliases: ['CT1_ITOBRG'] },
+      valueClassAccepted: { title: 'Aceita Cl. Valor', aliases: ['CT1_ACCLVL'] },
+    });
+    expect([chart.yes, chart.no]).toEqual([['Sim', '1'], ['Não', '2']]);
+    // The C tests come after E6, before the profile.
+    expect(CT2_TESTS.slice(18, 25)).toEqual(['E6', 'C1', 'C2', 'C3', 'C4', 'C5', 'P1']);
+  });
+
+  it('refuses a chart title used by two columns and a value that is both yes and no', () => {
+    const title = ct2DefaultConfig();
+    title.chart.columns.itemRequired.aliases = [' C. Custo  Obrig. '];
+    const read = readCt2Config(title);
+    expect(!read.ok && read.errors).toEqual([{ path: 'chart.columns.itemRequired', message: 'O título "C. Custo Obrig." é usado por mais de uma coluna do plano de contas (costCenterRequired e itemRequired).' }]);
+    // Values compared after trim and without case.
+    const both = ct2DefaultConfig();
+    both.chart.no = ['Não', ' sim '];
+    const read2 = readCt2Config(both);
+    expect(!read2.ok && read2.errors).toEqual([{ path: 'chart.no', message: 'Valor do plano de contas em Sim e em Não ao mesmo tempo: sim.' }]);
+    const empty = ct2DefaultConfig();
+    empty.chart.yes = [];
+    expect(readCt2Config(empty).ok).toBe(false);
+    // A chart title may repeat one of the extraction: they are different files.
+    const shared = ct2DefaultConfig();
+    shared.chart.columns.account.aliases = ['Cta Debito'];
+    expect(readCt2Config(shared).ok).toBe(true);
+  });
+
+  it('migrates version 3 to version 4: the C tests and the chart from the defaults, everything else kept', () => {
+    const v3 = ct2ConfigV3();
+    const tests = v3.tests as Record<string, { enabled: boolean; severity: string }>;
+    tests.I5 = { enabled: false, severity: 'error' };
+    (v3.parameters as { documentLineLimit: number }).documentLineLimit = 999;
+    expect('chart' in v3 || 'C1' in tests).toBe(false);
+    const read = readCt2Config(v3);
+    expect(read.ok && read.migratedFrom).toBe(3);
+    if (!read.ok) return;
+    const expected = ct2DefaultConfig();
+    expected.tests.I5 = { enabled: false, severity: 'error' };
+    expected.parameters.documentLineLimit = 999;
+    expect(read.config).toEqual(expected);
+    expect(Object.keys(read.config.tests)).toEqual([...CT2_TESTS]);
+    // A version 3 that already has a C code is not a version 3: the schema reports it.
+    const odd = ct2ConfigV3();
+    (odd.tests as Record<string, unknown>).C1 = { enabled: true, severity: 'error' };
+    expect(readCt2Config(odd).ok).toBe(false);
   });
 
   it('migrates version 2 to version 3: the new columns from the defaults, I3 and I4 split keeping only "enabled"', () => {

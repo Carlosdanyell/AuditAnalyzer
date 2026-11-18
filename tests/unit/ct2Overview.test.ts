@@ -314,6 +314,7 @@ describe('CT2 Phase 14: the side panel of a document', async () => {
   it('marks every leveled test in some finding group', () => {
     const leveled = CT2_TESTS.filter((c) => !['P1', 'P2'].includes(c)) as Ct2TestCode[];
     const found = new Set(Array.from({ length: analysis.findings.count }, (_, n) => findingAt(analysis, n).code));
-    expect(leveled.filter((c) => !found.has(c))).toEqual(['E5']);
+    // C1-C5 need a chart of accounts (tests/unit/ct2Chart.test.ts).
+    expect(leveled.filter((c) => !found.has(c))).toEqual(['E5', 'C1', 'C2', 'C3', 'C4', 'C5']);
   });
 });

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "table": "CT2",
   "reading": {
     "headerSearchRows": 30
@@ -60,6 +60,11 @@
     "E4": { "enabled": true, "severity": "warning" },
     "E5": { "enabled": true, "severity": "error" },
     "E6": { "enabled": true, "severity": "info" },
+    "C1": { "enabled": true, "severity": "warning" },
+    "C2": { "enabled": true, "severity": "warning" },
+    "C3": { "enabled": true, "severity": "warning" },
+    "C4": { "enabled": true, "severity": "warning" },
+    "C5": { "enabled": true, "severity": "warning" },
     "P1": { "enabled": true, "severity": "info" },
     "P2": { "enabled": true, "severity": "info" },
     "P3": { "enabled": true, "severity": "info" },
@@ -75,5 +80,17 @@
   "manualFlag": {
     "manual": ["1"],
     "automatic": ["2"]
+  },
+  "chart": {
+    "columns": {
+      "account": { "title": "Conta", "aliases": ["CT1_CONTA"] },
+      "costCenterAccepted": { "title": "Aceita C. Custo", "aliases": ["CT1_ACCUST"] },
+      "costCenterRequired": { "title": "C. Custo Obrig.", "aliases": ["CT1_CCOBRG"] },
+      "itemAccepted": { "title": "Aceita Item", "aliases": ["CT1_ACITEM"] },
+      "itemRequired": { "title": "Item Obrig.", "aliases": ["CT1_ITOBRG"] },
+      "valueClassAccepted": { "title": "Aceita Cl. Valor", "aliases": ["CT1_ACCLVL"] }
+    },
+    "yes": ["Sim", "1"],
+    "no": ["Não", "2"]
   }
 }

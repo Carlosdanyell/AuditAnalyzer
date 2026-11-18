@@ -74,7 +74,8 @@ src/
                        # analysis.ts, marks.ts, profile.ts, tuples.ts, checks.ts; panel.ts, segments.ts,
                        # tables.ts; workpaper.ts)
     ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
-                       # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado)
+                       # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado);
+                       # xmlSpreadsheet.ts e xmlSheet.ts (XML Spreadsheet 2003 do sistema, puro ou em .zip)
     store/             # dictionary.ts, columns.ts (typed arrays), recordStore.ts; chunked.ts e packedColumn.ts
                        # (extrações largas: blocos fixos, códigos estreitos, textos distintos em bytes)
     engine/            # events.ts, records.ts, documents.ts, classify.ts, periods.ts, checks.ts

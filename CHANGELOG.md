@@ -4,6 +4,29 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.3.0] — 2026-11-18
+
+### Integridade da CT2: testes contra o plano de contas (C1–C5)
+- O plano de contas (exportação da CT1) pode ser carregado junto com a extração, em `.xlsx` ou XML; é reconhecido
+  pelo cabeçalho e fica só na memória da análise, com o SHA-256 na Reconciliação e na Rastreabilidade.
+- Cada lado do lançamento é conferido contra o cadastro da conta: **C1** centro de custo obrigatório não informado;
+  **C2** item contábil (filial) obrigatório não informado; **C3**, **C4** e **C5** centro de custo, item ou classe de
+  valor informados em conta que não aceita. Alerta por padrão, com o motivo de cada ocorrência (ex.: centro de custo no
+  débito e ausente no crédito obrigatório).
+- Reconciliação: cartão do plano de contas, verificação CI-11 "Plano de contas legível" (alerta) e a lista das contas
+  da extração que não estão no plano.
+- Planilha: aba PlanoContas, colunas de C1–C5 por fórmula na Base, quadro de testes, Excecoes com o motivo.
+- Configuração versão 4 (migração automática das anteriores e das cópias de segurança).
+
+### Integridade da CT2: leitura do XML gerado pelo Protheus
+- A ferramenta lê a extração no XML que o sistema grava (formato XML Spreadsheet 2003), sem a conversão para `.xlsx`,
+  e também esse XML dentro de um `.zip`. O formato é reconhecido pelo conteúdo; o resultado é o mesmo do `.xlsx`
+  (conferido com uma extração real, em XML, em `.zip` e convertida para `.xlsx`).
+- Integridade do XML: SHA-256, XML bem formado e arquivo completo até o fim da planilha (sem ZIP não há CRC32); um
+  arquivo cortado não é analisado. No `.zip`, CRC32 e tamanho de cada entrada, como no `.xlsx`.
+- A Reconciliação mostra o formato de cada arquivo; a Rastreabilidade da planilha ganha a coluna "Formato".
+- Um ano em XML (~340 mil linhas, ~2,4 GB) é lido em cerca de 50 s, com ~90 MB de memória no worker.
+
 ## [2.2.0] — 2026-11-11
 
 ### Integridade da CT2: painel de composição, Achados e subtipos de I3 e I4 (Fase 14)

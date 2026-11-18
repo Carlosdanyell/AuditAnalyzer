@@ -102,7 +102,7 @@
             <thead><tr><th>Análise</th><th>Arquivo esperado</th><th>Situação</th></tr></thead>
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
-              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code></td><td>Disponível</td></tr>
+              <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
             </tbody>
           </table>
           <ul>
@@ -275,9 +275,12 @@
         <section id="ct2-extracao">
           <h2>2. Extração da CT2</h2>
           <ul>
-            <li>Uma ou mais planilhas <code>.xlsx</code> exportadas da consulta da tabela CT2. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
+            <li>Uma ou mais extrações da consulta da tabela CT2: a planilha <code>.xlsx</code>, o arquivo <code>.XML</code> que o Protheus gera (antes de abrir no Excel e salvar como <code>.xlsx</code>) ou esse XML dentro de um <code>.zip</code>. O formato é reconhecido pelo conteúdo do arquivo; os três dão o mesmo resultado. Com mais de um arquivo (por exemplo, meses seguidos), as linhas são unidas numa base só; colunas diferentes entre os arquivos são unidas pelo título, com alerta.</li>
             <li>O cabeçalho é a primeira linha, entre as 30 primeiras da aba, que tem todos os títulos obrigatórios: Data Lcto, Numero Lote, Sub Lote, Numero Doc, Numero Linha, Tipo do Sld, Moeda Lancto, Tipo Lcto, Cta Debito, Cta Credito, Valor e Hist Lanc (ou os nomes de campo CT2_DATA, CT2_LOTE e assim por diante). Espaços nas pontas dos títulos não importam.</li>
             <li>Se o arquivo tiver várias abas, escolha a aba na lista de arquivos (campo <strong>Aba</strong>). Em <em>Automática</em>, vale a que tem o cabeçalho; se duas abas tiverem o cabeçalho, a tela pede a escolha antes de analisar.</li>
+            <li>O XML não é compactado e fica grande (cerca de 7 KB por linha: um ano com 340 mil linhas passa de 2 GB). A leitura é em fluxo e não depende do tamanho; para guardar ou enviar, compacte o XML num <code>.zip</code> (fica cerca de 30 vezes menor) e carregue o <code>.zip</code> direto, sem descompactar. O <code>.zip</code> deve ter um único <code>.xml</code>.</li>
+            <li>Um XML que termina antes do fim da planilha (cópia ou transferência interrompida) não é analisado: a tela mostra o erro com o nome do arquivo. No XML sem <code>.zip</code> não há CRC32; o que prova que o arquivo veio inteiro é o fim do documento, e a Reconciliação diz isso no lugar da integridade do ZIP.</li>
+            <li><strong>Plano de contas (opcional):</strong> para os testes C1 a C5, carregue também a exportação do plano de contas (CT1) na mesma lista de arquivos, em <code>.xlsx</code> ou XML. Ele é reconhecido pelo cabeçalho (Conta, C. Custo Obrig., Item Obrig.; e, se houver, Aceita C. Custo, Aceita Item, Aceita Cl. Valor) e fica só na memória da análise. A Reconciliação mostra o plano lido (contas, repetidas, marcas que não são Sim/Não) e lista as contas da extração que não estão no plano. Um plano por análise.</li>
             <li>Códigos (lote, documento, linha, tipo de saldo, moeda) são lidos como texto, com os zeros à esquerda. Valores numéricos ou em texto no formato <code>1.234,56</code>; datas como data do Excel ou <code>dd/mm/aaaa</code>.</li>
           </ul>
         </section>
@@ -299,7 +302,7 @@
             <li><strong>Valores legíveis:</strong> toda linha de detalhe tem data válida, lote, sub-lote, documento, linha, tipo de saldo, moeda e valor legível (valor vazio só em continuação de histórico). A tela lista as primeiras linhas com problema de cada arquivo.</li>
           </ul>
           <p>As três são bloqueantes: com alguma falha, a base não deve ser usada como está.</p>
-          <p>Depois dos testes, mais três conferências bloqueantes provam que a análise não perdeu nada: <strong>débito e crédito iguais em todos os níveis</strong> (linhas, documentos, lotes, dias e totais), <strong>exceções conferidas com as marcas</strong> e <strong>contagens de documentos, lotes e dias</strong> (refeitas sem depender da ordem da base). Dois alertas não bloqueiam: colunas opcionais ausentes (com os testes desligados por isso) e datas lidas fora do período da análise.</p>
+          <p>Depois dos testes, mais três conferências bloqueantes provam que a análise não perdeu nada: <strong>débito e crédito iguais em todos os níveis</strong> (linhas, documentos, lotes, dias e totais), <strong>exceções conferidas com as marcas</strong> e <strong>contagens de documentos, lotes e dias</strong> (refeitas sem depender da ordem da base). Três alertas não bloqueiam: colunas opcionais ausentes (com os testes desligados por isso), datas lidas fora do período da análise e <strong>plano de contas legível</strong> (conta repetida com marcas diferentes, ou marca que não é Sim/Não; essas contas não são conferidas por C1 a C5).</p>
         </section>
 
         <section id="ct2-testes">
@@ -312,6 +315,7 @@
             <li><strong>I3a</strong> (Info) — mesma conta no débito e no crédito, mas com pelo menos uma entidade diferente (centro de custo, item contábil ou classe de valor): reclassificação entre entidades, normalmente legítima. <strong>I3b</strong> (Alerta) — mesma conta e todas as entidades iguais: lançamento sem efeito contábil.</li>
             <li><strong>I4a</strong> (Info, mas aberto em Achados no grupo <em>Conferir com documento de aprovação</em>) — na moeda local, "Valor" diferente de "Valor Moeda1" (que é legível e diferente de zero): o valor foi alterado depois de gerado. <strong>I4b</strong> (Info) — "Valor" preenchido e "Valor Moeda1" zero em linha manual. <strong>I4c</strong> (Alerta) — o mesmo em linha que não é manual (automática ou não identificada).</li>
             <li><strong>E1 a E6</strong> — linha duplicada, lacuna na numeração (só 001–999), tipo de saldo e moeda diferentes dos esperados, data fora do período e dia não útil (sábado, domingo ou feriado).</li>
+            <li><strong>C1 a C5</strong> (Alerta; só com o plano de contas carregado, seção 2) — conferem cada lado do lançamento contra o cadastro da conta: <strong>C1</strong> centro de custo obrigatório não informado; <strong>C2</strong> item contábil (filial) obrigatório não informado; <strong>C3</strong>, <strong>C4</strong> e <strong>C5</strong> centro de custo, item contábil ou classe de valor informados em conta que não aceita. O lado do débito vale em Débito e Partida Dobrada; o do crédito, em Crédito e Partida Dobrada. Exemplo típico: partida dobrada com centro de custo no débito e sem ele no crédito, cuja conta exige. Entidade ausente ou indevida distorce os saldos por centro de custo e por filial na efetivação.</li>
             <li><strong>P1 a P4</strong> — linhas e valores por rotina, por lançamento padrão e por origem (Lcto Manual?: 1 manual, 2 automático, outro valor não identificado), Seq CTK repetido entre documentos ou mais de um no documento, documentos no limite de linhas (MV_NUMLIN) e os 10 maiores.</li>
           </ul>
           <p><strong>Por que o I4 foi dividido.</strong> A rotina de lançamento manual grava zero em "Valor Moeda1" em todas as linhas; tratar isso como exceção enchia a lista de ruído (I4b, só informativo). Já a diferença entre "Valor" e um "Valor Moeda1" diferente de zero mostra que o valor de um lançamento foi mudado depois de a rotina o gerar, em geral num lançamento automático ajustado à mão: isso deve ter documento de aprovação e por isso o I4a é o que se confere. I4c (linha não manual com "Valor Moeda1" zero) não é esperado e fica como alerta. As comparações são exatas, em centavos; "Valor Moeda1" vazio ou ilegível fica fora dos testes (o aviso de valores ilegíveis continua). As severidades podem ser mudadas na Configuração.</p>
@@ -372,6 +376,7 @@
             <li>Sem nenhuma coluna de entidade (centro de custo, item, classe de valor) na extração, toda linha com a mesma conta no débito e no crédito cai em I3b, pois nada permite distinguir uma reclassificação.</li>
             <li>A origem do documento depende do campo "Lcto Manual?": sem a coluna ou sem os códigos esperados, os documentos ficam como Não identificado, e toda linha conta como não manual, de modo que "Valor Moeda1" zero cai em I4c e não em I4b.</li>
             <li>Só as linhas presentes na extração: lançamentos excluídos antes da extração não aparecem (veja o log de auditoria CFGR700).</li>
+            <li>C1 a C5 usam o plano de contas carregado: exporte o plano vigente no período analisado. Contas que não estão no plano não são conferidas (a Reconciliação as lista).</li>
           </ul>
         </section>
         </div>

@@ -19,7 +19,8 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
 
 ## 2. Arquivo de entrada
 
-- `.xlsx` exportado da CT2 pelo Protheus (exportação de planilha da consulta/browse da tabela). Um ou mais arquivos;
+- `.xlsx` exportado da CT2 pelo Protheus (exportação de planilha da consulta/browse da tabela), ou o XML que o sistema
+  grava antes da conversão, puro ou dentro de um `.zip` (seção 2.1). Um ou mais arquivos, de formatos misturados ou não;
   com mais de um, as linhas são unidas numa base só (ex.: meses seguidos) e a duplicidade entre arquivos é coberta
   pelo teste E1.
 - Estrutura observada: uma aba (nome irrelevante, ex. `SCACKST0.XML`); linha 1 com o nome da tabela, linha 2 em
@@ -43,6 +44,43 @@ compensa, documento no limite de linhas, mesma contabilização em mais de um do
   de leitura com o nome do arquivo e da aba.
 - **Reconciliação de leitura (por arquivo):** linhas após o cabeçalho − linhas em branco = linhas de detalhe.
 - SHA-256 do arquivo, CRC32 e tamanho de cada parte do ZIP: mesma rotina do módulo CFGR700.
+
+### 2.1 Formatos aceitos: `.xlsx`, XML do sistema e XML em `.zip` (17/11/2026)
+
+O Protheus grava a extração no formato **XML Spreadsheet 2003** do Excel (o arquivo `.XML` que o sistema gera, sem a
+conversão para `.xlsx`): um único documento XML, `<Workbook>` → `<Worksheet ss:Name>` → `<Table>` → `<Row>` →
+`<Cell>` → `<Data ss:Type>`, com a mesma disposição do `.xlsx` (título na linha 1, linha 2 em branco, títulos na
+linha 3). A ferramenta lê os três formatos; o formato é reconhecido pelo **conteúdo** (ZIP começa por `PK`), nunca
+pela extensão:
+
+| Formato | Como é lido | Integridade conferida |
+|---|---|---|
+| `.xlsx` | como antes (seção 2) | SHA-256; CRC32 e tamanho de cada parte do ZIP |
+| XML do sistema (`.xml`) | em fluxo, decodificado na codificação da declaração (`UTF-8`, `ISO-8859-1`…) | SHA-256; XML bem formado e **completo até `</Workbook>`** |
+| XML dentro de um `.zip` | o único `.xml` do `.zip`, descompactado em fluxo (nada é gravado em disco) | SHA-256 do `.zip`; CRC32 e tamanho de cada entrada; XML completo |
+
+- **Mesma leitura do `.xlsx`.** Cada célula vira o que o Excel gravaria ao converter o arquivo: `String` → texto (texto
+  vazio = célula vazia; quebras de linha `\r\n` lidas como `\n`), `Number` → número como escrito, `DateTime`
+  (`aaaa-mm-ddThh:mm:ss.fff`) → número de série do Excel (dia inteiro à meia-noite; a hora vira fração e a data é
+  rejeitada pelo CI-4, como no `.xlsx`), `Boolean`/`Error` → outro valor. Posição da linha e da célula por `ss:Index`
+  ou pela anterior; `ss:MergeAcross` ocupa as colunas seguintes; CDATA, entidades, texto formatado (marcas dentro de
+  `<Data>`), comentários e o prefixo `ss:` nos elementos são aceitos. `ss:ExpandedRowCount` faz o papel do
+  `<dimension>` (o sistema não o grava).
+- **Arquivo incompleto.** Sem ZIP não há CRC32: o que prova que o XML veio inteiro é o fim do documento. Arquivo que
+  termina antes de `</Workbook>` (transferência interrompida), linha sem `</Row>`, célula sem `</Cell>` ou células fora
+  de ordem são **erro de leitura** com o nome do arquivo; a análise não começa.
+- **Abas.** O XML não tem diretório: a primeira passada (a do SHA-256, no XML puro) lista as abas e guarda as primeiras
+  linhas de cada uma para a escolha automática ou para a aba escolhida na lista de arquivos; a segunda lê as linhas da
+  aba escolhida.
+- **`.zip`.** Deve conter um único `.xml` (pastas e a pasta `__MACOSX/` do Mac são ignoradas); dois ou nenhum é erro.
+  ZIP64 (arquivo compactado com mais de 4 GB) não é suportado, como no `.xlsx`.
+- **Na tela e na planilha.** A Reconciliação mostra o formato de cada arquivo; no XML puro, no lugar da tabela de
+  integridade do ZIP, a frase de que o SHA-256 e o fim do arquivo foram conferidos. A Rastreabilidade ganha a coluna
+  "Formato" e, no XML puro, "Sem ZIP (fim do XML conferido)" em "Partes do ZIP conferidas". O texto do CI-1 diz o que
+  provou cada arquivo inteiro (CRC32 das partes compactadas e/ou o fim do XML).
+- **Tamanho.** O XML não é compactado: cerca de 7 KB por linha (um ano com ~340 mil linhas tem ~2,4 GB). A leitura é
+  em fluxo e a memória não depende do tamanho do arquivo (`docs/MEDICOES.md`, 17/11/2026); o `.zip` reduz o arquivo
+  cerca de 30 vezes para guardar e enviar.
 
 ### Colunas (localizar pelo título; aliases na configuração)
 
@@ -196,6 +234,44 @@ a alteração de um lançamento automático deve ter documento de aprovação.
 | E4 | Linha | Alerta | moeda ≠ esperada (parâmetro) |
 | E5 | Linha | Erro | data fora do período informado (parâmetros data inicial e final) |
 | E6 | Dia | Info | dia não útil (sábado, domingo ou feriado da configuração da plataforma) |
+
+### 6.3.1 Cadastro do plano de contas (C1–C5, a partir de 18/11/2026)
+
+Testes que só rodam quando o **plano de contas** é carregado junto com a extração (mesma lista de arquivos; `.xlsx` ou
+XML do sistema, puro ou em `.zip`). O plano é a exportação da CT1, reconhecida pelo cabeçalho: a linha, entre as
+primeiras da aba, que tem `Conta`, `C. Custo Obrig.` e `Item Obrig.` (ou os nomes de campo `CT1_CONTA`, `CT1_CCOBRG`,
+`CT1_ITOBRG`); opcionais `Aceita C. Custo`, `Aceita Item` e `Aceita Cl. Valor` (`CT1_ACCUST`, `CT1_ACITEM`,
+`CT1_ACCLVL`). Marcas "Sim"/"Não" (ou 1/2), comparadas sem espaços nas pontas e sem distinção de maiúsculas
+(configuração `chart`). O plano fica só na memória da sessão; o SHA-256 dele vai para a Reconciliação e a
+Rastreabilidade.
+
+**Item contábil = filial** (decisão de 18/11/2026): a "filial obrigatória" da conta é o Item Contábil ("Item Obrig."
+do plano, "Item Debito"/"Item Credito" da extração).
+
+Cada **lado** da linha é conferido pela conta dele: lado do débito em Débito e Partida Dobrada, lado do crédito em
+Crédito e Partida Dobrada, nenhum em continuação de histórico. O lado entra quando a conta não está vazia e está no
+plano com a marca conhecida. A linha é exceção uma vez por teste, se um dos lados falhar.
+
+| Código | Nível | Severidade | Regra (por lado) |
+|---|---|---|---|
+| C1 | Linha | Alerta | a conta exige centro de custo (`C. Custo Obrig.` = Sim) e o centro de custo do lado está vazio |
+| C2 | Linha | Alerta | a conta exige item contábil / filial (`Item Obrig.` = Sim) e o item do lado está vazio |
+| C3 | Linha | Alerta | a conta não aceita centro de custo (`Aceita C. Custo` = Não) e o lado tem centro de custo |
+| C4 | Linha | Alerta | a conta não aceita item contábil (`Aceita Item` = Não) e o lado tem item |
+| C5 | Linha | Alerta | a conta não aceita classe de valor (`Aceita Cl. Valor` = Não) e o lado tem classe de valor |
+
+- **Por que:** centro de custo ou filial ausente (ou informado onde a conta não aceita) distorce os saldos por
+  entidade na efetivação; o caso típico é o centro de custo informado no débito e ausente no crédito obrigatório.
+- **Motivo:** `Conta D <conta> exige centro de custo; C Custo Deb vazio`, `Conta C <conta> não aceita centro de custo;
+  C Custo Crd <cc>` e assim por diante (os dois lados juntos por "; ").
+- **Sem plano de contas:** C1–C5 não rodam (estado desligado no quadro) e a tela avisa. Coluna opcional ausente do
+  plano: os testes que dependem dela aparecem "sem a coluna". Coluna de entidade ausente da extração: conta como
+  vazia, como em I3a/I3b; o CI-9 diz quais testes consideram o lado vazio e quais ficaram desligados.
+- **Conta fora do plano:** não é conferida (fora do escopo pedido); a Reconciliação lista as contas da extração que
+  não estão no plano, para nada ficar de fora sem aviso.
+- **Conta repetida no plano:** com as mesmas marcas, vale uma vez; com marcas diferentes, as marcas ficam
+  desconhecidas (nunca adivinhadas) e a conta não é conferida. As duas situações e as marcas que não são Sim/Não são
+  contadas pelo CI-11.
 
 ### 6.4 Perfil (Info)
 
@@ -484,6 +560,28 @@ código, chave.
   limitações da seção 10.
 - `tests/support/xlsxEval.ts` avalia as funções novas; o determinismo byte a byte continua.
 
+### 7.11 Plano de contas e C1–C5 na planilha (18/11/2026, `workpaper.ts`, `workpaperLabels.ts`)
+
+- **Aba PlanoContas** (em inglês, ChartOfAccounts), depois da Criterios, só quando um plano foi carregado: uma linha
+  por conta distinta, na ordem de leitura, com Conta e as colunas de marca lidas, gravadas "Sim", "Não" ou vazio
+  (desconhecida ou com marcas diferentes): exatamente o que o motor usou. Nomes definidos `PC_CONTA`, `PC_CC_ACEITA`,
+  `PC_CC_OBRIG`, `PC_ITEM_ACEITA`, `PC_ITEM_OBRIG`, `PC_CLVL_ACEITA` (só os das colunas lidas).
+- **Base:** duas colunas auxiliares, "Linha da conta D na aba PlanoContas" e a do C:
+  `=IF(AND({Deb}<>"",OR(COUNTIF(P_TIPO_PD,{Tipo})>0,COUNTIF(P_TIPO_DEB,{Tipo})>0)),IFERROR(MATCH({Deb},PC_CONTA,0)+1,""),"")`
+  (vazia quando o lado não vale para o tipo de lançamento ou a conta não está no plano), e uma coluna por teste C
+  ligado: `"Sim"` se um dos lados falha, com `INDEX(PC_<marca>, linha − 1)` = Sim ou Não e a entidade do lado vazia ou
+  preenchida, como no motor; coluna de entidade ausente da extração vale `""`. Sem plano, ou teste desligado, a coluna
+  não é gerada. As colunas entram nas contagens de Documentos e do Resumo e no quadro de testes como os demais testes
+  de linha (fórmula = lista = confirmada = ferramenta).
+- **Excecoes:** "Motivo" por fórmula com o texto do motor (`Conta D … exige centro de custo; C Custo Deb vazio`),
+  montado a partir das colunas de contexto, nunca com `TEXT`.
+- **Criterios:** a descrição de C1–C5, o arquivo do plano e o número de contas; sem plano, C1–C5 aparecem "Sem plano
+  de contas". **Rastreabilidade:** a linha do plano (arquivo, tamanho, aba, linha do cabeçalho, linhas, contas, com
+  marcas diferentes, marcas desconhecidas, formato, partes do ZIP, SHA-256); o CI-11 entre as verificações.
+- **Teto:** continua 600.000 linhas, também com o plano (decisão de 18/11/2026). No LibreOffice, 300 mil linhas com o
+  plano recalculam em 274 s com 13,2 GB de memória (sem o plano, 155 s e 5,8 GB; `docs/MEDICOES.md`); a conferência no
+  Excel com uma extração grande e o plano fica com o usuário.
+
 ## 8. Invariantes (verificados a cada execução)
 
 | Código | Regra | Bloqueia exportação |
@@ -498,9 +596,14 @@ código, chave.
 | CI-8 | Base com até 600.000 linhas (limite da planilha amarrada, seção 7.9), em abas de dias inteiros que cabem numa aba do Excel | sim |
 | CI-9 | Alerta: coluna opcional ausente (lista dos testes desligados por isso; desde a Fase 14 também as colunas de entidade ausentes, com o aviso de que toda mesma conta cai em I3b quando nenhuma está mapeada) | não |
 | CI-10 | Alerta: período informado não cobre todas as datas lidas (as fora do período viram E5) | não |
+| CI-11 | Alerta: plano de contas legível (seção 6.3.1): nenhuma conta repetida com marcas diferentes e nenhuma marca que não seja Sim/Não nas colunas lidas; passa quando não há plano | não |
 
 Exportação com invariante bloqueante falhando: mesma regra do CFGR700 (confirmação explícita registrada no Resumo e
 na Rastreabilidade).
+
+**Versão da configuração (18/11/2026):** `schemaVersion` 4: os testes C1–C5 (ligados, Alerta) e o bloco `chart`
+(títulos das colunas do plano, aliases e valores Sim/Não) entram com os padrões ao migrar das versões 1, 2 e 3; o
+resto é mantido. As cópias de segurança antigas são restauradas pela mesma migração.
 
 **Versão da configuração (Fase 14):** `schemaVersion` 3. A versão 2 (e a 1, que antes já migrava para a 2) é migrada ao
 ler (`readCt2Config`, `src/config/ct2IntegritySchema.ts`): as seis colunas de entidade entram com os padrões; o
@@ -596,6 +699,9 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   Critérios da planilha diz isso e o CI-9 lista as colunas ausentes.
 - **A origem do documento depende de "Lcto Manual?"**: sem a coluna (ou sem código reconhecido) o documento é Não
   identificado e I4b nunca marca (toda linha é não manual e cai em I4c).
+- **MATCH do Excel × motor (C1–C5):** o `MATCH(…, PC_CONTA, 0)` da planilha ignora maiúsculas e minúsculas e aceita os
+  curingas `*` e `?`; o motor compara o texto exato da conta. As contas são códigos de dígitos, então na prática dão o
+  mesmo resultado; o quadro de testes mostra qualquer diferença.
 - **COUNTIF do Excel × motor:** o `COUNTIF(P_COD_MANUAL, …)` da planilha ignora maiúsculas e minúsculas e compara como
   número os códigos só com dígitos (`01` = `1`); o motor compara o texto exato. Códigos de "Lcto Manual?" que só
   diferem nisso podem dar origens diferentes no Excel e no motor; o Resumo mostra a diferença na coluna Conferência.
@@ -603,6 +709,9 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   rotina de documentos pode passar do total de documentos (a de linhas e a de débito não).
 - O módulo não identifica o usuário que fez o lançamento (seção 12, item 4); a análise por usuário é do módulo
   CFGR700.
+- **C1–C5 dependem do plano de contas carregado** e valem para a versão do plano carregada (SHA-256 na
+  Rastreabilidade); o plano exportado hoje pode diferir do vigente na data dos lançamentos. Contas fora do plano não
+  são conferidas (a Reconciliação as lista).
 
 ## 11. Testes da ferramenta
 
@@ -762,3 +871,23 @@ Situação em 20/10/2026 (decisões na seção 13):
     O teto continua em **600.000 linhas** (medições de 11/11/2026 em `docs/MEDICOES.md`).
   - **Fora desta fase:** a conferência automática com os pacotes de lançamento manual assinados (leitura dos nomes dos
     PDFs) fica para a próxima fase; usuário a partir de "Origem" continua fora do escopo (seção 12, item 4).
+- 18/11/2026 — Testes do plano de contas (C1–C5, seção 6.3.1), pedido e respostas do usuário:
+  - **Pedido:** contas que obrigam centro de custo ou filial, e o lançamento com centro de custo no débito e sem ele no
+    crédito obrigatório; trazer isso evita distorções na efetivação dos saldos.
+  - **Filial = Item Contábil** ("Item Obrig." do plano; "Item Debito"/"Item Credito" da extração).
+  - **Plano carregado junto com a extração** em cada análise, reconhecido pelo cabeçalho; nada fica gravado; o SHA-256
+    prova a versão usada.
+  - **Também "entidade informada em conta que não aceita"** (centro de custo, item, classe de valor). Fora: conta
+    inexistente no plano, conta sintética, conta bloqueada.
+  - **Severidade padrão Alerta** para os obrigatórios ausentes; também adotada para C3–C5 (editável).
+  - **Teto da planilha mantido em 600.000 linhas** com o plano: no LibreOffice, 300 mil linhas com o plano usaram
+    13,2 GB para recalcular; o usuário confere no Excel com uma extração grande e, se pesar, o teto com o plano é
+    revisto.
+- 17/11/2026 — Leitura do XML do sistema (versão 2.3.0, seção 2.1), respostas do usuário:
+  - **Escopo:** só a Integridade da CT2; o leitor fica na leitura comum (`readSheet`) e o CFGR700 pode usá-lo depois,
+    numa entrega própria, conferida com um XML real do relatório.
+  - **`.zip`:** aceito, com o XML dentro, lido sem descompactar em disco (um único `.xml` por `.zip`).
+  - **Integridade do XML puro** (proposta aprovada com o plano): sem ZIP não há CRC32; conferidos o SHA-256, o XML bem
+    formado e o fim do documento (`</Workbook>`). Arquivo incompleto é erro de leitura e a análise não começa.
+  - **Conferência:** uma extração real em XML (em `local/`) dá a mesma leitura e a mesma análise que o mesmo arquivo em
+    `.zip` e convertido para `.xlsx`.

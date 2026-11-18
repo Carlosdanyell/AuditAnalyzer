@@ -40,6 +40,16 @@ páginas de linhas para as tabelas virtualizadas.
 - Tratar tags e entidades quebradas entre dois pedaços (guardar o resto do pedaço anterior a partir do último `<`).
 - Não usar regex sobre o arquivo inteiro nem DOMParser.
 - Coluna pela letra do atributo `r` da célula; linha pelo `r` da `<row>` (lacunas = linhas em branco).
+- **XML Spreadsheet 2003** (o XML que o Protheus grava, módulo CT2; `ingest/xmlSpreadsheet.ts` e `ingest/xmlSheet.ts`,
+  desde a 2.3.0): `readSheet` reconhece o formato pelo conteúdo (ZIP começa por `PK`; um `.zip` sem
+  `xl/workbook.xml` com um único `.xml` é o XML compactado) e entrega as linhas no mesmo `ParsedRow`, com os mesmos
+  tipos de célula do `.xlsx` (DateTime vira o número de série). O documento é decodificado em pedaços
+  (`TextDecoder` na codificação da declaração) e só linhas completas são lidas; o resto do pedaço espera o próximo.
+  Duas passadas: a primeira (junto com o SHA-256, no XML puro) lista as abas, guarda as primeiras linhas de cada uma e
+  confere o fim do documento (`</Workbook>`, que substitui o CRC32 que o XML puro não tem); a segunda lê a aba
+  escolhida. Textos de 13 caracteres ou mais são copiados ao sair do pedaço: o motor de JavaScript corta textos longos
+  como visões do pedaço inteiro, e cada histórico distinto guardado no dicionário prenderia o seu pedaço (medido:
+  ~0,9 GB num ano, contra ~90 MB com a cópia; `docs/MEDICOES.md`, 17/11/2026).
 
 ### 1.3 Armazenamento colunar
 - Dicionário global de strings: `Map<string, number>` + `string[]`. A sharedStrings de cada arquivo vira um

@@ -149,12 +149,10 @@ function sheetXml(rows: { r: number; cells: Ct2Value[] | null }[], width: number
   );
 }
 
-export function buildCt2Extraction(o: Ct2ExtractionOptions): Uint8Array {
+/** Rows of the extraction sheet as written: row number and cells (null = a row present without cells). */
+export function ct2SheetRows(o: Ct2ExtractionOptions): { r: number; cells: Ct2Value[] | null }[] {
   const columns = o.columns ?? CT2_COLUMNS;
   const headerRow = o.headerRow ?? 3;
-  const strings = new Strings(o.inlineStrings ?? false);
-  const enc = (s: string) => new TextEncoder().encode(s);
-
   const rows: { r: number; cells: Ct2Value[] | null }[] = [];
   const title = o.title === undefined ? 'CT2 - Lancamentos Contabeis' : o.title;
   if (title !== null && headerRow > 1) rows.push({ r: 1, cells: [title] });
@@ -179,6 +177,14 @@ export function buildCt2Extraction(o: Ct2ExtractionOptions): Uint8Array {
       }),
     });
   }
+  return rows;
+}
+
+export function buildCt2Extraction(o: Ct2ExtractionOptions): Uint8Array {
+  const columns = o.columns ?? CT2_COLUMNS;
+  const strings = new Strings(o.inlineStrings ?? false);
+  const enc = (s: string) => new TextEncoder().encode(s);
+  const rows = ct2SheetRows(o);
 
   const extra = Object.entries(o.extraSheets ?? {});
   const sheets = [...extra.map(([name]) => name), o.sheetName ?? 'SCACKST0.XML'];

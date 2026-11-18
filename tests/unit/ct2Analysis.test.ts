@@ -130,10 +130,12 @@ describe('CT2 analysis: the synthetic cases of section 11', async () => {
       // Document 70 (origins): one more I4a and one more I4b.
       I1: 6, I2: 2, I3a: 2, I3b: 2, I4a: 2, I4b: 2, I4c: 2, I5: 1,
       E1: 1, E2: 2, E3: 1, E4: 2, E5: 0, E6: 2,
+      // Without a chart of accounts the tests against it do not run.
+      C1: 0, C2: 0, C3: 0, C4: 0, C5: 0,
       // P1: groups of segment + routine (1/01 CTBA102, CTBA500 and CTBANFE, 1/02 and 2/01 CTBA102) and of standard entry (4).
       P1: 9, P2: 5, P3: 3, P4: 1,
     });
-    expect(analysis.tests.every((t) => t.state === 'on')).toBe(true);
+    expect(analysis.tests.filter((t) => t.state !== 'on').map((t) => `${t.code} ${t.state}`)).toEqual(['C1 off', 'C2 off', 'C3 off', 'C4 off', 'C5 off']);
     expect(analysis.exceptions.count).toBe(ENGINE_EXCEPTIONS.length);
     expect(test(analysis, 'P3').detail).toBe('1 Seq CTK em mais de um documento; 1 documento com mais de um Seq CTK');
   });

@@ -81,8 +81,11 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 3. **Reconciliação** — por arquivo: SHA-256, integridade do ZIP, parâmetros, reconciliação de linhas, eventos por
    operação e verificações (bloqueantes e alertas); resumo da análise por escopo. Integridade da CT2: linhas após o
    cabeçalho − em branco = detalhe, valores ilegíveis por tipo com as primeiras linhas de origem, colunas encontradas,
-   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4, e a **matriz de amarração** (que antes ficava no fim do Painel). Visões que o módulo não
-   oferece não aparecem no menu.
+   totais por tipo de saldo e moeda (sem somar segmentos) e as verificações CI-1, CI-2 e CI-4, e a **matriz de amarração** (que antes ficava no fim do Painel). Desde 18/11/2026, o cartão
+   **Plano de contas** (arquivo, formato, SHA-256, aba, linha do cabeçalho, contas, repetidas, com marcas diferentes,
+   marcas desconhecidas, colunas ausentes e os avisos), ou a frase de que nenhum plano foi carregado (C1–C5 não
+   aplicados); o formato de cada arquivo (`.xlsx`, XML, XML em `.zip`). Visões que o módulo não oferece não aparecem no
+   menu.
 4. **Painel** (`panel`) — escopo (cada arquivo e Consolidado); período por atalho (inclui os do usuário) ou datas;
    data de corte editável; quadros: categorias por origem (cada número abre a tabela filtrada por categoria,
    período e origem), período × demais dias × log completo, competência (com o indicador de fechamento),

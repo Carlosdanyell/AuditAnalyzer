@@ -39,7 +39,7 @@ describe('CT2: reapplying the tests with other parameters', () => {
     expect(isCt2Summary(e.summary) && e.summary.analysis!.parameters.toleranceCents).toBe(1000);
     expect(occurrences(e, 'B1')).toBe(2);
     // The checks of the reading stay, the ones of the analysis are new: the same list, once each.
-    expect(e.checks.map((c) => c.id)).toEqual(['ct2-reading', 'ct2-order', 'ct2-values', 'ct2-totals', 'ct2-exceptions', 'ct2-counts', 'ct2-optional', 'ct2-period']);
+    expect(e.checks.map((c) => c.id)).toEqual(['ct2-reading', 'ct2-order', 'ct2-values', 'ct2-chart', 'ct2-totals', 'ct2-exceptions', 'ct2-counts', 'ct2-optional', 'ct2-period']);
     expect(e.reconciliation.checks).toEqual(e.checks);
   });
 

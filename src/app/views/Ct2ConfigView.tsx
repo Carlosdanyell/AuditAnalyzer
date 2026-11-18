@@ -248,7 +248,10 @@ export function Ct2ConfigView({ config, onSave, holidays, analysisLoaded, needsR
       </section>
 
       <Section title="Testes" icon="reconciliation" open>
-        <p className={styles.muted}>Erro e Alerta entram na lista de exceções; Info é perfil. O diagnóstico B4 e o perfil (P1 a P4) são sempre Info.</p>
+        <p className={styles.muted}>
+          Erro e Alerta entram na lista de exceções; Info é perfil. O diagnóstico B4 e o perfil (P1 a P4) são sempre Info. C1 a C5 comparam cada lado da linha com o
+          plano de contas e só rodam quando ele é carregado junto com a extração.
+        </p>
         <table className={styles.tests}>
           <thead>
             <tr>
@@ -340,7 +343,10 @@ export function Ct2ConfigView({ config, onSave, holidays, analysisLoaded, needsR
       </Section>
 
       <Section title="Avançado: leitura da extração e JSON completo" icon="sliders">
-        <p className={styles.muted}>Títulos e aliases das colunas, chave do documento, larguras dos códigos e tipos de lançamento: edite-os aqui, no JSON do rascunho.</p>
+        <p className={styles.muted}>
+          Títulos e aliases das colunas, chave do documento, larguras dos códigos, tipos de lançamento e, em <code>chart</code>, as colunas do plano de contas e os
+          valores lidos como Sim e Não: edite-os aqui, no JSON do rascunho.
+        </p>
         {jsonText === null ? (
           <button type="button" className={BUTTON} onClick={() => setJsonText(configToJson(draft))}>
             Editar o JSON do rascunho

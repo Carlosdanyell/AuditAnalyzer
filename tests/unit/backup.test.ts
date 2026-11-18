@@ -114,7 +114,7 @@ describe('backup version 3: the configuration of the other modules (docs/MODULOS
     expect(read.ok && read.modules).toEqual({ ct2Integrity: ct2DefaultConfig() });
   });
 
-  it('restores a backup holding the version 2 CT2 configuration with the version 3 migration (Phase 14)', () => {
+  it('restores a backup holding the version 2 CT2 configuration with the version 3 and 4 migrations (Phase 14)', () => {
     const v2 = ct2ConfigV2();
     const tests = v2.tests as Record<string, { enabled: boolean; severity: string }>;
     tests.I3 = { enabled: true, severity: 'error' };
@@ -124,10 +124,25 @@ describe('backup version 3: the configuration of the other modules (docs/MODULOS
     if (!read.ok) return;
     const ct2 = read.modules.ct2Integrity as ReturnType<typeof ct2DefaultConfig>;
     expect(readCt2Config(ct2)).toEqual({ ok: true, config: ct2 });
-    expect(ct2.schemaVersion).toBe(3);
+    expect(ct2.schemaVersion).toBe(4);
     expect([ct2.tests.I3a, ct2.tests.I3b]).toEqual([{ enabled: true, severity: 'info' }, { enabled: true, severity: 'warning' }]);
     expect([ct2.tests.I4a, ct2.tests.I4b, ct2.tests.I4c].map((t) => t.enabled)).toEqual([false, false, false]);
     expect(ct2.columns.valueClassCredit).toEqual({ title: 'Cl Vlr Cred', aliases: ['CT2_CLVLCR'], required: false });
+    expect(ct2.chart).toEqual(ct2DefaultConfig().chart);
+  });
+
+  it('restores the backup written by version 2.3.0 (CT2 configuration of version 3) with the chart of accounts of version 4', () => {
+    // Kept as a file: every later version must restore it without loss.
+    const read = readBackup(readFileSync('tests/synthetic/backups/backup-v3-ct2-v3.json', 'utf8'), readers);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const expected = ct2DefaultConfig();
+    expected.tests.I5 = { enabled: false, severity: 'error' };
+    expected.parameters.toleranceCents = 5;
+    expect(read.modules).toEqual({ ct2Integrity: expected });
+    const ct2 = read.modules.ct2Integrity as ReturnType<typeof ct2DefaultConfig>;
+    expect([ct2.tests.C1, ct2.tests.C5]).toEqual([{ enabled: true, severity: 'warning' }, { enabled: true, severity: 'warning' }]);
+    expect(read.createdAt).toBe('2026-11-17 10:00:00');
   });
 
   it('reports an invalid configuration of a module by its name', () => {

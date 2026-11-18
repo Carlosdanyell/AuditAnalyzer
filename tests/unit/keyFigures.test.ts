@@ -9,7 +9,7 @@ import { parseDate, parseDateTime } from '../../src/shared/dates';
 const asMap = (figures: { label: string; value: string; tone?: string }[]) => Object.fromEntries(figures.map((f) => [f.label, f.tone ? `${f.value} (${f.tone})` : f.value]));
 
 describe('key figures of the CT2 integrity', () => {
-  const reconciliation = { module: 'ct2Integrity', files: [], consolidated: { detailRows: 1038, alerts: [] }, checks: [], totalMs: 1 } as Ct2Reconciliation;
+  const reconciliation = { module: 'ct2Integrity', files: [], chart: null, consolidated: { detailRows: 1038, alerts: [] }, checks: [], totalMs: 1 } as Ct2Reconciliation;
   const test = (code: Ct2TestResult['code'], occurrences: number, state: Ct2TestResult['state'] = 'on'): Ct2TestResult => ({ code, severity: 'error', state, occurrences, detail: null });
   const summary = (tests: Ct2TestResult[]): Ct2Summary => ({
     module: 'ct2Integrity',

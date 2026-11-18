@@ -7,6 +7,8 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { buildCfgr700 } from '../synthetic/cfgr700';
 import { CT2_COLUMNS, buildCt2Extraction } from '../synthetic/ct2Extraction';
 import { fileA as ct2FileA, fileB as ct2FileB } from '../synthetic/ct2Fixtures';
+import { buildCt2Xml, zipFiles } from '../synthetic/ct2Xml';
+import { CHART_ACCOUNTS, CHART_ROWS, buildCt2Chart } from '../synthetic/ct2Chart';
 import { ENGINE_ROWS } from '../synthetic/ct2EngineFixture';
 import { EVENTS } from '../synthetic/engineFixture';
 import { ct2Line, toReportRows, type LogEvent } from '../synthetic/logBuilder';
@@ -24,13 +26,19 @@ interface Files {
 
 /**
  * Synthetic CT2 extractions (tests/synthetic/ct2Fixtures.ts): A has unreadable values, B is clean; engine has one case
- * per test (ct2EngineFixture.ts); twoSheets is B with a copy of the header on another sheet ("Copia").
+ * per test (ct2EngineFixture.ts); twoSheets is B with a copy of the header on another sheet ("Copia"); xml and xmlZip are
+ * B in the XML the system writes, plain and inside a .zip (tests/synthetic/ct2Xml.ts); chart is a chart of accounts and
+ * chartCases the extraction with one case per test against it (tests/synthetic/ct2Chart.ts).
  */
 interface Ct2Files {
   withProblems: string;
   clean: string;
   engine: string;
   twoSheets: string;
+  xml: string;
+  xmlZip: string;
+  chart: string;
+  chartCases: string;
 }
 
 /** A synthetic extraction large enough (~240 thousand report rows) to cancel while it is being read. */
@@ -62,7 +70,15 @@ export const test = base.extend<{ files: Files; ct2Files: Ct2Files; segregationF
     writeFileSync(engine, buildCt2Extraction({ rows: ENGINE_ROWS }));
     const twoSheets = testInfo.outputPath('ct2-duas-abas.xlsx');
     writeFileSync(twoSheets, buildCt2Extraction(ct2FileB({ extraSheets: { Copia: [[], [], [...CT2_COLUMNS]] } })));
-    await use({ withProblems, clean, engine, twoSheets });
+    const xml = testInfo.outputPath('ct2-b.xml');
+    writeFileSync(xml, buildCt2Xml(ct2FileB()));
+    const xmlZip = testInfo.outputPath('ct2-b.zip');
+    writeFileSync(xmlZip, zipFiles({ 'SCADYFW0.XML': buildCt2Xml(ct2FileB()) }));
+    const chart = testInfo.outputPath('plano-de-contas.xlsx');
+    writeFileSync(chart, buildCt2Chart({ accounts: CHART_ACCOUNTS }));
+    const chartCases = testInfo.outputPath('ct2-plano.xlsx');
+    writeFileSync(chartCases, buildCt2Extraction({ rows: CHART_ROWS }));
+    await use({ withProblems, clean, engine, twoSheets, xml, xmlZip, chart, chartCases });
   },
   // Cases of the segregated analysis by balance type (docs/REGRAS_CFGR700.md, section 13).
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take an object pattern

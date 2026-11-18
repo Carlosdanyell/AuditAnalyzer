@@ -1,9 +1,10 @@
 /**
  * Analysis of the CT2 extraction (docs/REGRAS_CT2_INTEGRIDADE.md, sections 5, 6 and 8): the aglutinação, the tests of
- * the configuration as marks by line, document, batch and day, the list of exceptions (Erro and Alerta), the profile
- * and the invariants CI-3, CI-5, CI-6, CI-9 and CI-10. Pure: the same Base and configuration give the same result.
+ * the configuration as marks by line, document, batch and day (C1-C5 against the chart of accounts loaded with the
+ * extraction), the list of exceptions (Erro and Alerta), the profile and the invariants CI-3, CI-5, CI-6, CI-9 and
+ * CI-10. Pure: the same Base, chart and configuration give the same result.
  */
-import { CT2_ENTITY_PAIRS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { CT2_CHART_TESTS, CT2_ENTITY_PAIRS, CT2_FIELDS, CT2_TESTS, type Ct2Field, type Ct2IntegrityConfig, type Ct2TestCode } from '../../../config/ct2IntegritySchema';
 import { INVALID_TIME, dateParts, lastDayOfMonth } from '../../../shared/dates';
 import {
   CT2_FINDING_GROUPS,
@@ -21,6 +22,7 @@ import type { CheckResult } from '../../../shared/protocol';
 import { ChunkedArray } from '../../store/chunked';
 import { isBusinessDay } from '../../engine/periods';
 import { aggregate, type Ct2Blocks } from './aggregate';
+import { CHART_RULES, lineSides, sideFails, type Ct2ChartTest } from './chart';
 import { analysisChecks } from './checks';
 import type { Ct2Ingested } from './ingest';
 import { BIT, marksOf, type Ct2Marks } from './marks';
@@ -34,6 +36,8 @@ export { hasMark } from './marks';
 
 export interface Ct2Analysis {
   parameters: Ct2RunParameters;
+  /** Titles of the columns in the configuration, for the reasons (C1-C5 name the entity column of the side). */
+  titles: Record<Ct2Field, string>;
   blocks: Ct2Blocks;
   marks: Ct2Marks;
   /** Day number of each day block. */
@@ -84,10 +88,18 @@ export const TEST_COLUMNS: Partial<Record<Ct2TestCode, readonly Ct2Field[]>> = {
   I4a: ['amountCurrency1'],
   I4b: ['amountCurrency1'],
   I4c: ['amountCurrency1'],
+  // C1-C5 read the entity of each side; a side whose column is absent counts as empty, as in I3a/I3b (CI-9 says so).
+  C1: CT2_ENTITY_PAIRS[0],
+  C2: CT2_ENTITY_PAIRS[1],
+  C3: CT2_ENTITY_PAIRS[0],
+  C4: CT2_ENTITY_PAIRS[1],
+  C5: CT2_ENTITY_PAIRS[2],
   P1: ['routine', 'standardEntry'],
   P2: ['manual'],
   P3: ['ctkSequence'],
 };
+
+const isChartTest = (code: Ct2TestCode): code is Ct2ChartTest => (CT2_CHART_TESTS as readonly Ct2TestCode[]).includes(code);
 
 /** Tests of a line, in the order of CT2_TESTS. */
 export const LINE_TESTS = CT2_TESTS.filter((c) => CT2_TEST_INFO[c].level === 'line');
@@ -122,6 +134,11 @@ export function analyzeCt2(
   const present = new Set(reconciliation.files.flatMap((f) => f.header.mapped.map((m) => m.field as Ct2Field)));
   const state = (code: Ct2TestCode): Ct2TestResult['state'] => {
     if (!config.tests[code].enabled) return 'off';
+    // C1-C5 run only with a chart of accounts (decision of 18/11/2026), and only with the flag column they read.
+    if (isChartTest(code)) {
+      if (!base.chart) return 'off';
+      if (!base.chart.columns.includes(CHART_RULES[code].flag)) return 'noColumn';
+    }
     const columns = TEST_COLUMNS[code];
     return columns && !columns.some((c) => present.has(c)) ? 'noColumn' : 'on';
   };
@@ -137,6 +154,8 @@ export function analyzeCt2(
   const manualCodes = new Set(config.manualFlag.manual);
   const automaticCodes = new Set(config.manualFlag.automatic);
   const lineOrigin = new Uint8Array(rows);
+  const chartTests = CT2_CHART_TESTS.filter((c) => lineTests[c]);
+  const accounts = base.chart?.accounts;
   let historyLines = 0;
   for (let pos = 0; pos < rows; pos++) {
     const i = order[pos]!;
@@ -176,6 +195,18 @@ export function analyzeCt2(
       }
     }
     if (lineTests.I5 && textOf(t.history, i) === '') m |= BIT.I5;
+    // C1-C5: each side that the entry type has, with its account in the chart; a line fails when either side does.
+    if (chartTests.length > 0 && accounts) {
+      const sides = lineSides(type);
+      const debitFlags = sides.debit && debitAccount !== '' ? accounts.get(debitAccount) : undefined;
+      const creditFlags = sides.credit && creditAccount !== '' ? accounts.get(creditAccount) : undefined;
+      if (debitFlags || creditFlags) {
+        for (const code of chartTests) {
+          const rule = CHART_RULES[code];
+          if (sideFails(rule, debitFlags, textOf(t[rule.entity[0]], i)) || sideFails(rule, creditFlags, textOf(t[rule.entity[1]], i))) m |= BIT[code];
+        }
+      }
+    }
     if (lineTests.E1 && pos > 0 && firstDifference(keys, order[pos - 1]!, i) === keys.length) m |= BIT.E1;
     if (lineTests.E3 && textOf(t.balanceType, i) !== p.expectedBalanceType) m |= BIT.E3;
     if (lineTests.E4 && textOf(t.currency, i) !== p.expectedCurrency) m |= BIT.E4;
@@ -331,6 +362,7 @@ export function analyzeCt2(
   const checks = analysisChecks({ base, blocks, marks, exceptions, isException, present, state, parameters, config });
   return {
     parameters,
+    titles: Object.fromEntries(CT2_FIELDS.map((f) => [f, config.columns[f].title])) as Record<Ct2Field, string>,
     blocks,
     marks,
     dayNumber,

@@ -1,5 +1,6 @@
 // Presentation-layer formatting (pt-BR). Engine code must not import this module.
 import { INVALID_TIME, dateParts, parseDate, weekday } from './dates';
+import type { InputFormat } from './protocol';
 
 const integer = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const oneDecimal = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -62,3 +63,10 @@ const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export function weekdayName(day: number): string {
   return WEEKDAYS[weekday(day)]!;
 }
+
+/** How an input file is stored (InputFormat), for the screens. */
+export const INPUT_FORMAT_LABEL: Record<InputFormat, string> = {
+  xlsx: 'Planilha .xlsx',
+  xml: 'XML gerado pelo sistema (XML Spreadsheet 2003)',
+  xmlZip: 'XML gerado pelo sistema, dentro de um .zip',
+};

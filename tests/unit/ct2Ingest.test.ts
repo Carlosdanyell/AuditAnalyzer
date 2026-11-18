@@ -136,6 +136,7 @@ describe('CT2 reading: several files and layouts', () => {
     expect(r!.consolidated.detailRows).toBe(13);
     expect(r!.consolidated.alerts.map((a) => a.message)).toEqual([
       'As extrações não têm as mesmas colunas: b.xlsx tem Campo Exclusivo B, que falta em a.xlsx. As colunas foram unidas pelo título.',
+      'Plano de contas não carregado: os testes C1 a C5 não foram aplicados.',
     ]);
     expect(s!.lines).toBe(13);
     expect(s!.segments[1]).toMatchObject({ lines: 11, documents: 7, debitCents: 151456 + 27000, creditCents: 151456 + 27000 });
