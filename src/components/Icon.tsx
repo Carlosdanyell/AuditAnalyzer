@@ -57,6 +57,14 @@ const PATHS = {
   flag: ['M5 21V4', 'M5 4h12l-2.5 4 2.5 4H5'],
   filter: ['M3.5 5h17l-6.5 8v6l-4 1.5V13z'],
   pen: ['M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z', 'M13.5 6.5l4 4'],
+  // Glyphs of the tools on the start of the platform (ModuleIcon).
+  auditLog: [
+    'M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z',
+    'M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16',
+    'M8.5 10.5h7M8.5 13.5h4',
+    'M9 17.2l1.6 1.6 3.4-3.4',
+  ],
+  ledger: ['M12 4v16', 'M8 20h8', 'M5 7h14', 'M5 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z', 'M19 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

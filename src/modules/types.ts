@@ -17,7 +17,14 @@ interface ModuleTexts {
   description: string;
   /** Expected input file, on the card. */
   input: string;
+  /** Glyph of the card on the start of the platform (drawn by components/Icon). */
+  icon: ModuleIcon;
+  /** Two or three short lines on the card: what the tool answers best. */
+  highlights: readonly string[];
 }
+
+/** Glyphs of the tools: the audit log (clipboard checked) and the ledger (balance of debit and credit). */
+export type ModuleIcon = 'auditLog' | 'ledger';
 
 /** Stages of a module, in order; the first `perFile` repeat for each file, the others run once for all files. */
 export interface ProgressSteps {
