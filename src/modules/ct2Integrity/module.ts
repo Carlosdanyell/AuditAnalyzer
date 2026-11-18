@@ -26,6 +26,12 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   shortTitle: 'CT2',
   description: 'Aglutinação dos lançamentos por documento, lote e dia, testes de balanceamento e de integridade, planilha amarrada por fórmulas.',
   input: 'Extração da tabela CT2 (lançamentos), em .xlsx ou no XML gerado pelo Protheus; plano de contas opcional',
+  icon: 'ledger',
+  highlights: [
+    'Débito = crédito por documento, lote e dia',
+    'Centro de custo e filial conferidos com o plano de contas',
+    'Planilha amarrada por fórmulas, até um ano por exportação',
+  ],
   brandSubtitle: 'Integridade da CT2 · Protheus',
   preview: null,
   start: {

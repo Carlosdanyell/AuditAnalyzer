@@ -25,6 +25,12 @@ export const cfgr700Module: AvailableModule<AnalyzerConfig> = {
   shortTitle: 'CFGR700',
   description: 'Exclusões, alterações, desbalanceamentos e postagens dos lançamentos contábeis, por período e origem.',
   input: 'Relatório CFGR700 do Protheus (tabela CT2), em .xlsx',
+  icon: 'auditLog',
+  highlights: [
+    'Exclusões, alterações e postagens por período e origem',
+    'Segregação de funções e justificativas com cobertura',
+    'Reconciliação de linhas e eventos com 15 invariantes',
+  ],
   brandSubtitle: 'CFGR700 · Protheus',
   preview: null,
   start: {

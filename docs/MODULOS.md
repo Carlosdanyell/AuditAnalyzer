@@ -50,6 +50,8 @@ interface ModuleDescriptor {            // tela e worker
   id: 'cfgr700' | 'ct2Integrity';
   title: string;                        // "Log de auditoria (CFGR700)", "Integridade da CT2"
   description: string;                  // uma frase no seletor de análises
+  icon: 'auditLog' | 'ledger';          // ícone do cartão no início (components/Icon)
+  highlights: string[];                 // dois ou três destaques do cartão
   accepts: { extensions: string[]; maxFiles: number };  // CFGR700 ['.xlsx']; CT2 ['.xlsx', '.xml', '.zip'] (2.3.0)
   detect(headerSample: string[][]): 'match' | 'maybe' | 'no';   // aviso de arquivo trocado, nunca bloqueia sozinho
   configSchema: ZodType;                // schema próprio

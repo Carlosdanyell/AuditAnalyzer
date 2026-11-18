@@ -39,9 +39,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 
 ## Telas e comportamentos obrigatórios
 
-0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — uma linha por ferramenta numa lista com
-   colunas (código curto, título e descrição, arquivo esperado, situação, "Abrir" e o link "Manual desta análise"); a
-   linha inteira é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). A última usada (`lastModule`,
+0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — um cartão por ferramenta, lado a lado (um
+   por linha em tela estreita): o ícone da ferramenta (traço branco sobre azul-marinho, com o ponto vermelho da marca),
+   o código curto, as marcas de situação, o título, a descrição, dois ou três destaques do que ela responde (`highlights`
+   do descritor), o arquivo esperado ("Lê …"), o link "Manual desta análise" e o botão visual "Abrir"; o cartão inteiro
+   é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). O
+   cartão sobe levemente ao passar o mouse (sem movimento com `prefers-reduced-motion`); o da análise aberta tem a borda
+   azul e a faixa superior vermelha. A última usada (`lastModule`,
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
    "Voltar à análise". Ferramenta "Em breve" não abre; em prévia tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra

@@ -5,7 +5,7 @@ import { cfgr700Module } from '../../src/modules/cfgr700/module';
 import { MODULES } from '../../src/modules/registry';
 import type { ComingSoonModule } from '../../src/modules/types';
 
-/** Start of the platform (docs/MODULOS.md, section 4): one card per tool. */
+/** Start of the platform (docs/MODULOS.md, section 4): one card per tool, with its icon and highlights. */
 describe('tool cards', () => {
   const render = (props: Partial<Parameters<typeof ToolHome>[0]> = {}) =>
     renderToStaticMarkup(<ToolHome modules={MODULES} lastUsed={null} open={null} onOpen={() => {}} helpBase="/AuditAnalyzer/" {...props} />);
@@ -19,6 +19,19 @@ describe('tool cards', () => {
     expect(html).not.toContain('Prévia');
     const inPreview = render({ modules: MODULES.map((m) => (m.status === 'available' && m.id === 'ct2Integrity' ? { ...m, preview: 'Prévia: em conferência.' } : m)) });
     expect(inPreview.match(/Prévia/g)).toHaveLength(1);
+  });
+
+  it('shows each tool as a card with its own icon and what it does best', () => {
+    const html = render();
+    expect(html).toContain('data-icon="auditLog"');
+    expect(html).toContain('data-icon="ledger"');
+    for (const m of MODULES) {
+      expect(m.highlights.length).toBeGreaterThanOrEqual(2);
+      expect(m.highlights.length).toBeLessThanOrEqual(3);
+      for (const h of m.highlights) expect(html).toContain(h);
+    }
+    // The call to open the tool is visible on every card (the button over the card carries the name).
+    expect(html.match(/>Abrir</g)).toHaveLength(MODULES.length);
   });
 
   it('links each tool to its section of the manual', () => {
@@ -36,7 +49,7 @@ describe('tool cards', () => {
   });
 
   it('shows a tool announced for later as coming soon, not openable and without a manual', () => {
-    const soon: ComingSoonModule = { status: 'comingSoon', id: 'ct2Integrity', title: 'Outra análise', description: 'Em preparo.', input: 'Arquivo .xlsx', helpAnchor: null };
+    const soon: ComingSoonModule = { status: 'comingSoon', id: 'ct2Integrity', title: 'Outra análise', description: 'Em preparo.', input: 'Arquivo .xlsx', icon: 'ledger', highlights: ['Em preparo'], helpAnchor: null };
     const html = render({ modules: [cfgr700Module, soon] });
     expect(html).toMatch(/<button[^>]*aria-label="Outra análise"[^>]*disabled=""/);
     expect(html).toContain('Em breve');

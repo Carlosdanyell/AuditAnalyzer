@@ -4,6 +4,13 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.4.0] — 2026-11-18
+
+### Início da plataforma em cartões
+- Cada ferramenta ganha um cartão com ícone próprio (prancheta de auditoria no CFGR700, balança de débito e crédito na
+  CT2), destaques do que ela responde, o arquivo esperado e o botão "Abrir"; lado a lado na tela larga, um por linha
+  no celular, nos temas claro e escuro.
+
 ## [2.3.0] — 2026-11-18
 
 ### Integridade da CT2: testes contra o plano de contas (C1–C5)
