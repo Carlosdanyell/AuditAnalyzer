@@ -29,7 +29,7 @@ export function identifyReconciliationInput(sheets: readonly SheetSample[], conf
   if (!sheets.some((s) => s.format === 'xml')) return null;
   // The titles of the profile when it has them; otherwise those the Protheus writes.
   const columns = config.profiles.payroll.ledger.columns;
-  const titles = XML_TITLE_FIELDS.map((f) => key(columns?.[f] ?? LEDGER_DEFAULT_TITLES[f]!));
+  const titles = XML_TITLE_FIELDS.map((f) => key(columns?.[f] ?? LEDGER_DEFAULT_TITLES[f]));
   const parameters = sheets.some((s) => key(s.name) === 'PARAMETROS');
   const ledger = sheets.some((s) => s.rows.some((row) => titles.every((t) => row.titles.some((x) => key(x) === t))));
   return parameters && ledger ? { report: 'CTBR400', format: 'xml' } : null;

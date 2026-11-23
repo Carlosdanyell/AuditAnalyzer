@@ -64,3 +64,10 @@ export interface PayrollFileReading {
   period: string | null;
   paymentNumber: string | null;
 }
+
+/** Balance types of a ledger extraction, by its parameter 06 (section 5.7): real and pre-entry. */
+export const LEDGER_BALANCE_TYPES = ['1', '9'] as const;
+export type LedgerBalanceType = (typeof LEDGER_BALANCE_TYPES)[number];
+
+/** Label of a balance type in the screen and the spreadsheet ("Tipo de saldo"). */
+export const LEDGER_BALANCE_TYPE_LABELS: Record<LedgerBalanceType, string> = { '1': 'Real (1)', '9': 'Pré-lançamento (9)' };

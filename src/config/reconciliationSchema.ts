@@ -13,11 +13,16 @@ export const RECONCILIATION_CONFIG_VERSION = 1;
 export const LEDGER_FIELDS = ['date', 'batchKey', 'history', 'counterpart', 'originBranch', 'costCenter', 'ledgerBranch', 'productGroup', 'debit', 'credit', 'balance'] as const;
 export type LedgerField = (typeof LEDGER_FIELDS)[number];
 
-/** Titles of the ledger columns as the Protheus writes them, used when the profile gives none (section 3.1). */
-export const LEDGER_DEFAULT_TITLES: Partial<Record<LedgerField, string>> = {
+/** Titles of the ledger columns as the Protheus writes them in the XML, used when the profile gives none (3.1, 5.3). */
+export const LEDGER_DEFAULT_TITLES: Record<LedgerField, string> = {
   date: 'DATA',
   batchKey: 'LOTE/SUB/DOC/LINHA',
   history: 'HISTORICO',
+  counterpart: 'C/PARTIDA',
+  originBranch: 'FILIAL DE ORIGEM',
+  costCenter: 'C CUSTO',
+  ledgerBranch: 'FILIAL CTB',
+  productGroup: 'GRP PRODUT',
   debit: 'DEBITO',
   credit: 'CREDITO',
   balance: 'SALDO ATUAL',

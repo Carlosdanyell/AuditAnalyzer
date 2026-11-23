@@ -310,6 +310,19 @@ crédito, débito. Formato com ponto de milhar e vírgula decimal. Exemplo inven
 Continuação de histórico (linha sem chave com texto na faixa do histórico): **não observada** nas amostras. Se
 aparecer, é linha `unknown` dentro da conta → falha R-6; pare e peça a amostra.
 
+**Como foi implementado (Fase 15, etapa 3, `reports/ctbr400.ts`, `ledger.ts`, `formats/spreadsheetml.ts`):**
+- As linhas entre duas linhas `****` formam o cabeçalho de página: delas saem só a rotina (`SIGA /CTBR400/`) e o
+  marcador `(Pre-Lancamento)`; empresa, CNPJ, hora e página ficam fora (não começam com `*`).
+- A borda inferior da página de parâmetros vem colada aos espaços da última resposta (espaços seguidos de `****`, sem
+  quebra de linha; observado no arquivo real): é separação e não abre nem fecha cabeçalho.
+- `batchClasses`: prefixo e padrão são testados contra o **lote** (os 6 primeiros dígitos da chave), única leitura
+  em que o padrão `ddmmaa` do lote manual casa.
+- A verba do histórico (`verbaFromHistory`) só é lida nas linhas de classe `integration` (um histórico do Financeiro
+  como "PAG …" não é verba).
+- O total geral é guardado e não entra em nenhuma invariante (somá-lo às contas seria uma invariante nova).
+- No XML, as linhas antes da linha de títulos do razão são ignoradas; linha com data e sem chave é desconhecida dentro
+  da conta (falha R-6, pendência P-3), nunca concatenada.
+
 ### 5.3 XML (SpreadsheetML 2003)
 
 - Arquivo XML único (`<?mso-application progid="Excel.Sheet"?>`), não é ZIP. Abas `Parametros` (coluna 1 = pergunta,
