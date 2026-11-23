@@ -23,6 +23,9 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | 13 — Entrega da versão 2.0 | concluída em 30/10/2026: interface console, logo, ajuda, README, CHANGELOG, versão 2.0.0 e tag `v2.0.0` |
 | Depois da 2.0 — versão 2.1.0 | concluída em 30/10/2026: um ano por exportação da CT2 (até 600.000 linhas, Base em abas de dias inteiros), escolha da aba a analisar; Integridade da CT2 conferida com uma extração real no Excel e fora da prévia |
 | Depois da 2.2 — versão 2.3.0 | concluída em 18/11/2026: a Integridade da CT2 lê o XML que o Protheus grava (XML Spreadsheet 2003), puro ou dentro de um `.zip`, com o mesmo resultado do `.xlsx` (`docs/REGRAS_CT2_INTEGRIDADE.md`, seção 2.1), e confere os lançamentos contra o plano de contas carregado junto (C1–C5, seção 6.3.1) |
+| Depois da 2.3 — versão 2.4.0 | concluída em 18/11/2026: início da plataforma em cartões |
+| 15 — Conciliador: módulo novo e perfil Folha (Padrão A) | em andamento (início em 23/11/2026; `docs/FASE_15_CONCILIADOR_FOLHA.md`, regras em `docs/REGRAS_CONCILIADOR.md`); versão 2.5.0 |
+| 16 — Conciliador: provisões (Padrão B) e leitura de PDF | a fazer (`docs/FASE_16_CONCILIADOR_PROVISOES_PDF.md`); versão 2.6.0 |
 | 14 — CT2: painel de composição, Achados e subtipos de I3/I4 | implementada em 11/11/2026 (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`), versão 2.2.0; pendente no computador do usuário: golden local das contagens novas e conferência no Excel com uma extração real |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,
