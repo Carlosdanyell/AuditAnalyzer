@@ -22,3 +22,45 @@ export interface ReconciliationInput {
   report: ReconciliationReport;
   format: ReconciliationFormat;
 }
+
+/** Levels of the totalization blocks of the GPER040 (section 4.4): "Filial:", "Empresa:", "Grupo de Empresas:". */
+export const PAYROLL_LEVELS = ['branch', 'company', 'groupOfCompanies'] as const;
+export type PayrollLevel = (typeof PAYROLL_LEVELS)[number];
+
+/** Columns of a verba line of the GPER040 (section 4.3): proventos, descontos, bases. */
+export type PayrollColumn = 'P' | 'D' | 'B';
+
+/** A totalization block found in the GPER040: level, company, branch (only `branch`) and contract type, as printed. */
+export interface PayrollScopeFound {
+  level: PayrollLevel;
+  company: string;
+  branch: string | null;
+  contractType: string;
+  /** Line of the file of the block's label ("Filial: …", "Empresa: …", "Grupo de Empresas: …"). */
+  line: number;
+}
+
+/** Reconciliation of the reading of one GPER040 file (Reconciliação de leitura; sections 4.1 to 4.6). */
+export interface PayrollFileReading {
+  report: 'GPER040';
+  format: ReconciliationFormat;
+  /** Decoding used (4.1, step 1). */
+  encoding: 'utf-8' | 'windows-1252';
+  bytes: number;
+  /** Lines after the normalization (FF included): the numbering the messages cite. */
+  lines: number;
+  /** Lines by type of section 4.2. */
+  lineTypes: Record<string, number>;
+  verbaLines: number;
+  /** `unknown` lines outside the blocks (allowed, shown) and the numbers of the first ones. */
+  unknownOutsideBlocks: number;
+  unknownLines: number[];
+  blocks: { employee: number; totalization: number };
+  levels: Record<PayrollLevel, number>;
+  scopes: PayrollScopeFound[];
+  /** Distinct employees (company, branch, registration); the employee blocks are counted in `blocks.employee`. */
+  employees: number;
+  /** Competência `AAAAMM` and payment number of the process headers (null when absent; more than one fails L-7). */
+  period: string | null;
+  paymentNumber: string | null;
+}

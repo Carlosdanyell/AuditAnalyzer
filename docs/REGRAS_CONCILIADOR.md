@@ -250,6 +250,13 @@ Números, na ordem: soma das referências de proventos, **total de proventos**, 
 
 `Total:` do bloco `groupOfCompanies`/`Todos` = número de blocos de funcionário lidos.
 
+**Como foi implementado (Fase 15, etapa 2, `reports/gper040.ts` e `gper040Checks.ts`):** a contagem `Total:` acima é
+conferida junto com L-4. L-1 também falha com linha de verbas ou rodapé fora de bloco, linha de verbas ilegível e bloco
+sem cabeçalho de funcionário nem rótulo de totalização antes. L-3 compara P − D das linhas (não do rodapé): um rodapé
+errado falha só L-2. O arquivo real não imprime o bloco `Empresa`/`Todos` (imprime Filial × três contratos, Empresa ×
+Indeterminado e Determinado e Grupo de Empresas / Todos): L-5 compõe o total da empresa ausente pelos outros contratos
+ou pelas filiais, e um perfil com escopo `company`/`Todos` não encontraria bloco nesse arquivo.
+
 Resultado (`PayrollReport`): por escopo (nível, filial, contrato), mapa `código → { column, amountCents }`; blocos de
 funcionário guardados só para detalhe.
 
