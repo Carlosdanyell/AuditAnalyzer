@@ -49,7 +49,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
    "Voltar à análise". Ferramenta "Em breve" não abre; em prévia tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
-   ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
+   ferramenta encerra a análise aberta (o worker guarda uma por vez). Desde a Fase 15 são três ferramentas: Log de
+   auditoria (CFGR700), Integridade da CT2 e **Conciliador** (`CONC`, ícone de dois lados que se encontram), este em
+   prévia. Arquivo que parece ser de outra ferramenta:
    aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
    nunca impede de analisar. **"Nova análise"** (topo) mantém a ferramenta e os arquivos.
    **Marca:** a logo é o "tique de auditoria" (linhas do razão e o tique vermelho de item conferido): no trilho, sem o
@@ -74,11 +76,15 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    curtas (entradas ≈ 160 ms, só opacidade e sem cascata), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
    decorativo; números nunca são animados (um valor de auditoria não mostra quantias intermediárias); respeitar
    `prefers-reduced-motion`.
-1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo; arquivo
+1. **Arquivos** — soltar ou escolher um ou mais `.xlsx` (ou as extensões da ferramenta; o **Conciliador** aceita
+   qualquer arquivo, sem filtro de extensão, e mostra a dica "TXT do spool, PDF, XML ou XLSX exportados do Protheus":
+   o spool vem como `.##r`/`.__r` e o arquivo é reconhecido pelo conteúdo); a ordem define a ordem das fontes; remover arquivo; arquivo
    com mais de uma aba ganha o seletor **"Aba de <arquivo>"** ("Automática", o padrão, ou uma aba, lida pela sondagem
    do início); se mais de uma aba parece ser da análise na escolha automática, a linha avisa "Mais de uma aba parece
    ser desta análise (…). Escolha a aba a analisar." e **Analisar** espera a escolha;
-   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
+   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Quando a
+   ferramenta ainda precisa de algo da sua configuração (`notReady` do descritor; Conciliador: perfil sem contas),
+   **Analisar** fica desabilitado e a dica aparece ao lado ("Importe o perfil de contas na Configuração"). Mensagens de
    erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e
    **Cancelar** (termina o worker e avisa que os dados lidos foram descartados).
@@ -162,7 +168,15 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 8. **Configuração** — uma aba por análise com regras salvas (abre na da ferramenta aberta; a da CT2 tem o quadro
    de testes com Ligado e Severidade, os parâmetros padrão e os códigos do Lcto Manual?), a cópia de segurança abaixo
    das abas. Em cada aba: seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
-   padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App).
+   padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App). A aba do
+   **Conciliador** (chave `analyzerConfig:reconciliation`) não tem formulário nem editor JSON: o perfil Folha é
+   importado e exportado inteiro, como arquivo, por **Importar perfil (JSON)** (campo "Arquivo do perfil de contas
+   (JSON)"; o arquivo passa pelo mesmo schema, com os erros em português por campo, e nada muda se for inválido) e
+   **Exportar perfil (JSON)** (`{ "schemaVersion": 1, "profile": "payroll", … }`, o perfil salvo); o perfil importado
+   substitui o anterior inteiro no rascunho e vale depois de **Salvar configuração**. Mostra a situação ("Perfil sem
+   contas…" ou "Perfil com N conta(s).") com o SHA-256, as diferenças em relação ao padrão, os avisos do perfil (não
+   impedem salvar), a tabela das contas (tick mark, conta, padrão, natureza, critério), **Restaurar padrão** e
+   **Voltar**.
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
    configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 3, com a configuração de cada análise) e restaurar com confirmação
@@ -184,11 +198,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
+  "Importar perfil (JSON)", "Exportar perfil (JSON)", "Voltar" (Configuração do Conciliador),
   "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
   escuro"/"Usar tema claro", as linhas das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
   opções (radio) "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
-  "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
+  "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança", "Arquivo do perfil de
+  contas (JSON)"; a dica "Importe o perfil de contas na Configuração"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise

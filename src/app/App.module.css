@@ -555,6 +555,26 @@
   gap: 16px;
 }
 
+.analyzeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.analyzeHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.analyzeHint svg {
+  flex: none;
+}
+
 .steps {
   list-style: none;
   margin: 0;

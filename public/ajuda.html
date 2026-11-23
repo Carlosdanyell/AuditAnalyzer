@@ -87,6 +87,10 @@
           <li><a href="#ct2-painel">Painel, Achados e tabelas</a></li>
           <li><a href="#ct2-limitacoes">Limites</a></li>
         </ol>
+        <p class="group">Conciliador (prévia)</p>
+        <ol>
+          <li><a href="#reconciliation-previa">Situação da prévia</a></li>
+        </ol>
         <ul>
           <li><a href="#privacidade">Privacidade e cópias</a></li>
         </ul>
@@ -103,6 +107,7 @@
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
               <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
+              <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040) e razão analítico (CTBR400) do Protheus, com o perfil de contas importado na Configuração</td><td>Prévia</td></tr>
             </tbody>
           </table>
           <ul>
@@ -378,6 +383,20 @@
             <li>Só as linhas presentes na extração: lançamentos excluídos antes da extração não aparecem (veja o log de auditoria CFGR700).</li>
             <li>C1 a C5 usam o plano de contas carregado: exporte o plano vigente no período analisado. Contas que não estão no plano não são conferidas (a Reconciliação as lista).</li>
           </ul>
+        </section>
+        </div>
+
+        <div id="reconciliation">
+        <p class="group">Conciliador (prévia)</p>
+        <section id="reconciliation-previa">
+          <h2>Situação da prévia</h2>
+          <p>
+            O Conciliador confronta os relatórios de origem (a folha de pagamento) com o razão contábil, conta a conta. Está em construção: por
+            enquanto ele guarda o <strong>perfil de contas</strong> (Configuração → Conciliador → <strong>Importar perfil (JSON)</strong>) e reconhece os
+            relatórios do Protheus pelo conteúdo, qualquer que seja a extensão do arquivo (o spool vem como <code>.##r</code> ou <code>.__r</code>).
+            Sem um perfil com contas, o botão Analisar fica desabilitado. A leitura dos relatórios e a conciliação chegam nas próximas versões; o
+            manual completo vem com elas.
+          </p>
         </section>
         </div>
 

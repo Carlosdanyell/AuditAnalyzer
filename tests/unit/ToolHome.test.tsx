@@ -15,16 +15,18 @@ describe('tool cards', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Log de auditoria \(CFGR700\)"/);
     expect(html).toMatch(/<button[^>]*aria-label="Integridade da CT2"/);
     expect(html).toContain('Relatório CFGR700 do Protheus (tabela CT2), em .xlsx');
-    // No tool in preview since the CT2 integrity left it (30/10/2026); a tool in preview gets the mark.
-    expect(html).not.toContain('Prévia');
+    expect(html).toMatch(/<button[^>]*aria-label="Conciliador"/);
+    // Only the Conciliador is in preview (Phase 15); a tool in preview gets the mark.
+    expect(html.match(/>Prévia</g)).toHaveLength(1);
     const inPreview = render({ modules: MODULES.map((m) => (m.status === 'available' && m.id === 'ct2Integrity' ? { ...m, preview: 'Prévia: em conferência.' } : m)) });
-    expect(inPreview.match(/Prévia/g)).toHaveLength(1);
+    expect(inPreview.match(/>Prévia</g)).toHaveLength(2);
   });
 
   it('shows each tool as a card with its own icon and what it does best', () => {
     const html = render();
     expect(html).toContain('data-icon="auditLog"');
     expect(html).toContain('data-icon="ledger"');
+    expect(html).toContain('data-icon="reconcile"');
     for (const m of MODULES) {
       expect(m.highlights.length).toBeGreaterThanOrEqual(2);
       expect(m.highlights.length).toBeLessThanOrEqual(3);
@@ -38,6 +40,7 @@ describe('tool cards', () => {
     const html = render();
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#cfgr700"/);
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#ct2"/);
+    expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#reconciliation"/);
   });
 
   it('marks the tool used last, and the open analysis instead when there is one', () => {

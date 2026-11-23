@@ -5,12 +5,14 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { Workbook } from '../support/xlsxEval';
+import { payrollProfileFile } from '../synthetic/reconciliationProfile';
 import { analyze, chooseModule, expect, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
 const CT2 = 'Integridade da CT2';
+const CONC = 'Conciliador';
 
 /** Reads or writes a key of the store `config` of the tool's IndexedDB, as an older version would. */
 function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
@@ -53,15 +55,19 @@ async function analyzeEngine(page: Page, files: { engine: string }) {
   return nav;
 }
 
-test('início da plataforma: uma linha por ferramenta, as duas disponíveis', async ({ page }) => {
+test('início da plataforma: uma linha por ferramenta, as três disponíveis, o Conciliador em prévia', async ({ page }) => {
   await page.goto('');
   await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
   await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: CT2, exact: true })).toBeEnabled();
-  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: CONC, exact: true })).toBeEnabled();
+  // Only the Conciliador is in preview (Phase 15).
+  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(1);
   const manuals = page.getByRole('link', { name: 'Manual desta análise' });
+  await expect(manuals).toHaveCount(3);
   await expect(manuals.nth(0)).toHaveAttribute('href', /ajuda\.html#cfgr700$/);
   await expect(manuals.nth(1)).toHaveAttribute('href', /ajuda\.html#ct2$/);
+  await expect(manuals.nth(2)).toHaveAttribute('href', /ajuda\.html#reconciliation$/);
   // No file area before a tool is chosen.
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
@@ -443,4 +449,52 @@ test('cópia de segurança restaurada depois de carregar um arquivo (sem anális
   await page.getByRole('button', { name: 'Restaurar', exact: true }).click();
   await expect(page.getByText(/Cópia restaurada/)).toBeVisible();
   await expect(page.getByText('3 diferença(s) em relação ao padrão CT2.')).toBeVisible();
+});
+
+test('Conciliador: aceita qualquer extensão; Analisar desabilitado sem perfil e habilitado depois de importar o perfil na Configuração', async ({ page }, testInfo) => {
+  // A synthetic spool page header (no real data) with an extension of the Protheus spool, and the synthetic profile.
+  const spoolPath = testInfo.outputPath('GPER040.##R');
+  writeFileSync(spoolPath, '\u001b@\u0002*****\r\n* EMPRESA X   SIGA /GPER040/v.12   Pagina: 1 *\r\n*****\r\n\f');
+  const profilePath = testInfo.outputPath('perfil-sintetico.json');
+  writeFileSync(profilePath, JSON.stringify(payrollProfileFile()));
+  const brokenPath = testInfo.outputPath('perfil-invalido.json');
+  const broken = payrollProfileFile();
+  broken.accounts.push({ ...broken.accounts[0]! });
+  writeFileSync(brokenPath, JSON.stringify(broken));
+
+  await page.goto('');
+  await chooseModule(page, CONC);
+  await expect(page.getByText(/^Prévia: o Conciliador/)).toBeVisible();
+  await expect(page.getByText(/TXT do spool, PDF, XML ou XLSX exportados do Protheus/)).toBeVisible();
+  await page.locator('input[type=file]').first().setInputFiles([spoolPath]);
+  await expect(page.getByText('GPER040.##R')).toBeVisible();
+  const analyzeButton = page.getByRole('button', { name: 'Analisar' });
+  await expect(analyzeButton).toBeDisabled();
+  await expect(page.getByText('Importe o perfil de contas na Configuração')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await expect(page.getByRole('tab', { name: CONC })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Perfil sem contas: importe o perfil de contas para analisar.')).toBeVisible();
+  // An invalid profile goes through the same schema: errors in Portuguese, by field; nothing changes.
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(brokenPath);
+  await expect(page.getByText(/não é um perfil válido do Conciliador/)).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'accounts.3.account' })).toContainText('Conta repetida');
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(profilePath);
+  await expect(page.getByText(/carregado no rascunho \(3 conta\(s\)\)/)).toBeVisible();
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
+  await expect(page.getByText('Perfil com 3 conta(s).')).toBeVisible();
+  expect(await idb(page, 'analyzerConfig:reconciliation')).toMatchObject({ schemaVersion: 1, profiles: { payroll: { accounts: [{ tickMark: '#01' }, { tickMark: '#02' }, { tickMark: '#03' }] } } });
+  // The exported profile is the file format of the import: version, profile, then the profile itself.
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar perfil (JSON)' }).click();
+  const exported = JSON.parse(readFileSync(await (await download).path(), 'utf8')) as unknown;
+  expect(exported).toEqual(payrollProfileFile());
+
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await expect(analyzeButton).toBeEnabled();
+  await expect(page.getByText('Importe o perfil de contas na Configuração')).toHaveCount(0);
+  // The platform dispatches to the module, whose reading comes with the next steps of Phase 15.
+  await analyzeButton.click();
+  await expect(page.getByText('Leitura do Conciliador ainda não implementada.')).toBeVisible({ timeout: 60_000 });
 });

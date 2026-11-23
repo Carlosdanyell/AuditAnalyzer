@@ -138,6 +138,11 @@ export interface CheckResult {
 export interface SheetSample {
   name: string;
   rows: { r: number; titles: string[] }[];
+  /**
+   * How the file was read (set by the probe). `text`: a plain-text spool of the system, as one sample without a name
+   * whose rows are its first normalized lines (`r` = line number, the whole line in `titles[0]`).
+   */
+  format?: InputFormat | 'text';
 }
 
 export type Command =

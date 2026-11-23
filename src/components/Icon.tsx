@@ -65,6 +65,8 @@ const PATHS = {
     'M9 17.2l1.6 1.6 3.4-3.4',
   ],
   ledger: ['M12 4v16', 'M8 20h8', 'M5 7h14', 'M5 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z', 'M19 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z'],
+  // Two sides meeting at the line of the reconciliation (origin report and ledger).
+  reconcile: ['M12 3.5v17', 'M3 8.5h6.5', 'M7 5.5l3 3-3 3', 'M21 15.5h-6.5', 'M17 12.5l-3 3 3 3'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

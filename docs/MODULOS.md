@@ -10,6 +10,7 @@ contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca 
 |---|---|---|---|
 | `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | em uso desde a 1.0.0 |
 | `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | em uso desde a 2.1.0 (prévia na 2.0.0; conferida com extração real em 30/10/2026) |
+| `reconciliation` — Conciliador | Relatórios de origem (folha GPER040) e razão analítico (CTBR400), no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração | `docs/REGRAS_CONCILIADOR.md` | prévia (Fase 15, etapa 1: descritor, perfil e identificação dos arquivos; a leitura vem nas etapas 2 a 4) |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
 escopo; outra área = ferramenta própria"). Novas análises entram como módulos desta plataforma, não como ferramentas
@@ -50,7 +51,7 @@ interface ModuleDescriptor {            // tela e worker
   id: 'cfgr700' | 'ct2Integrity';
   title: string;                        // "Log de auditoria (CFGR700)", "Integridade da CT2"
   description: string;                  // uma frase no seletor de análises
-  icon: 'auditLog' | 'ledger';          // ícone do cartão no início (components/Icon)
+  icon: 'auditLog' | 'ledger' | 'reconcile';   // ícone do cartão no início (components/Icon)
   highlights: string[];                 // dois ou três destaques do cartão
   accepts: { extensions: string[]; maxFiles: number };  // CFGR700 ['.xlsx']; CT2 ['.xlsx', '.xml', '.zip'] (2.3.0)
   detect(headerSample: string[][]): 'match' | 'maybe' | 'no';   // aviso de arquivo trocado, nunca bloqueia sozinho
@@ -89,10 +90,12 @@ interface AvailableModule<C> {
   preview: string | null;                               // Fase 9: selo "Prévia" e aviso enquanto o módulo é parcial
   start: { heading; headingDescription; uploadTitle; uploadDescription; dropTitle; guide };   // tela inicial
   progress: { stages: { id: Stage; label }[]; perFile: number };   // etapas do processamento
-  accepts: { extensions: readonly string[]; maxFiles: number };
+  accepts: { extensions: readonly string[]; maxFiles: number }
+         | { extensions: 'any'; hint: string; maxFiles: number };   // Fase 15: qualquer arquivo, decidido pelo conteúdo
   helpAnchor: string;                                   // public/ajuda.html#<anchor>
   features: { panel; findings; tables; justifications; export: boolean };   // visões além da reconciliação (Fase 14: findings)
-  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };
+  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };   // read: ok com warnings? (Fase 15)
+  notReady?(config: C): string | null;                  // Fase 15: o que falta na configuração para Analisar (dica), ou null
   detect(sheets: SheetSample[], config: C): 'match' | 'maybe' | 'no';   // Fase 9; nunca bloqueia
 }
 interface ComingSoonModule { status: 'comingSoon'; id; title; description; input; helpAnchor: null }
@@ -171,6 +174,25 @@ interface ModuleSession {                               // objeto novo a cada in
   Exportação, mostrando só o que `features` oferece (a Reconciliação sempre), nunca pelo id do módulo.
   Como as demais, são opcionais: um módulo que não as oferece recebe o erro "não oferecido" do despacho
   (`src/worker/handler.ts`) e a tela não as chama; o filtro comum e os tipos ficam em `src/shared/modules/ct2Integrity.ts`.
+
+- **Fase 15, etapa 1 (Conciliador):** `MODULE_IDS` ganha `reconciliation` (descritor em `src/modules/reconciliation/`,
+  configuração em `src/config/reconciliationSchema.ts` e `src/config/defaults/reconciliation.json`, módulo do worker em
+  `src/worker/modules/reconciliation/`). Mudanças do contrato, todas opcionais para os outros módulos:
+  - `accepts.extensions: 'any'` com `hint`: a área de arquivos (`FileDrop`) aceita qualquer arquivo e mostra a dica no
+    lugar das extensões (o spool do Protheus vem como `.##r`/`.__r`); quem decide é o conteúdo (`detect`). Os outros
+    módulos continuam filtrando pela extensão.
+  - `notReady(config)`: o que o módulo ainda precisa da sua configuração para analisar (Conciliador: um perfil com
+    contas). Enquanto não for `null`, o botão Analisar fica desabilitado com essa dica; a casca nunca compara ids.
+  - `config.read` pode devolver `warnings` (válido, mas para conferir; no Conciliador, verba em mais de uma conta
+    `verbas`), mostrados na aba de Configuração sem impedir salvar.
+  - `probe`: cada `SheetSample` traz `format` (`xlsx`, `xml`, `xmlZip` ou `text`). Um arquivo que não é ZIP nem XML é
+    lido como **spool de texto** só pelos primeiros 64 KB, normalizados (seção 4.1 de `REGRAS_CONCILIADOR.md`,
+    `src/worker/ingest/spoolText.ts`), e só quando traz o identificador `SIGA /<ROTINA>/` (`src/shared/spool.ts`): uma
+    amostra sem nome, com as primeiras linhas não vazias (`titles[0]` = a linha inteira) e a linha do identificador.
+    Qualquer outro conteúdo segue como antes (resposta `null`).
+  - A área de trabalho (`workspaceOf`) só é pedida com uma análise na tela: um módulo em prévia, ainda sem visões, pode
+    ser aberto e configurado.
+  - Ícone `reconcile` (dois lados que se encontram) no `ModuleIcon`.
 
 ## 4. Tela
 
