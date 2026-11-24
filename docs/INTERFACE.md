@@ -60,7 +60,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    **Estrutura (console):** trilho azul-marinho estreito à esquerda, com ícone e rótulo curto em cada item:
    Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece (Reconciliação, Painel, Achados,
    Tabelas, Justificativas, Exportação; "Achados" é visão da plataforma, oferecida pelos módulos com o recurso
-   `findings`, hoje só a CT2), e no pé Configuração, Ajuda e
+   `findings`: a CT2 e o Conciliador), e no pé Configuração, Ajuda e
    Encerrar sessão; a visão na tela tem fundo claro e uma marca vermelha na borda (o vermelho só marca: visão ativa,
    verificações bloqueantes e achados). Topo com a trilha ("Ferramentas › ferramenta | arquivos") acima do título da
    tela e as ações à direita; a única ação primária é "Exportar planilha". Com a análise pronta, uma faixa de
@@ -185,6 +185,35 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 9. **Tema** — claro (padrão) e escuro, trocados na barra de status (`src/app/themeStore.ts`: `<html data-theme>`,
    preferência no IndexedDB). Cores só por tokens de `src/app/global.css`; os dois temas devem continuar legíveis.
    Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
+9a. **Conciliador** (Fase 15, etapa 5; `src/app/modules/reconciliation/`, regras na seção 9 de
+   `docs/REGRAS_CONCILIADOR.md`) — trilho com Reconciliação, Painel, Achados, Tabelas, Justificativas e Exportação.
+   Indicadores-chave (sete): Contas, Sem diferença, Com diferença, Erros de integração, Verbas sem integração (F1c),
+   Linhas de integração conferidas e Competência. **Reconciliação de leitura**: veredito, "Quadro de invariantes" (L, R e
+   V, T, F2 e CC, cada código com OK/Falha/Alerta), as verificações, e os arquivos lado a lado — "Folha de pagamento
+   (GPER040)" e "Razão analítico (CTBR400)" — com relatório e formato ("GPER040 · TXT do spool", "CTBR400 · XML
+   (SpreadsheetML)"), SHA-256, codificação, linhas, blocos, funcionários, escopos, competência, intervalo, tipo de saldo,
+   contas e parâmetros do razão e as invariantes de cada arquivo; depois o razão por conta (real + pré-lançamento) e os
+   arquivos fora da análise (aviso, nunca bloqueio). **Painel**: tabela "Contas do perfil", uma linha por conta (tick
+   mark, conta, nome, padrão, esperado, saldo real, saldo pré-lançamento quando houver, saldo contábil, diferença,
+   situação sugerida, baixa do saldo anterior, achados); conta não analisada mostra o motivo. Cada número é um botão com o
+   nome "<Esperado|Saldo real|Saldo em pré-lançamento|Saldo contábil|Diferença> da conta <conta>: <valor>", "Baixa do
+   saldo anterior da conta …" e "Achados da conta …: N"; o número abre a tabela cuja soma é ele (a diferença abre o painel
+   lateral com a ponte); "Abrir a conta <conta>" abre o painel lateral. Com verificação bloqueante falhando, Painel e
+   Achados avisam no topo. **Achados**: cartões "Erro · N ocorrência(s)" e "Alerta · …" abertos, "Informativo · …"
+   recolhido; um bloco (`article`) por código com o nome "<código> <título>" (ex.: "F1c Verba da folha sem integração na
+   conta"), o botão "Ver todas as ocorrências de <código>" e, por ocorrência, a conta ("Abrir a conta …"), "Ver as N
+   linhas no razão" e, no F1c, "Ver na tabela de integração"; nenhum filtro por valor. **Tabelas**: Contas, Folha,
+   Integração, Razão e Achados (coluna "Baixa do saldo anterior?" com Sim/Não e "Tipo de saldo" no Razão); o filtro que
+   abriu a tabela vira um chip com o botão "Remover filtro da conciliação"; clicar numa linha de uma conta analisada abre
+   o painel lateral. **Painel lateral da conta**: diálogo "Conta <conta> · <nome>" (foco preso, Esc fecha), com o
+   critério (verbas, colunas, sinais, esperado), a ponte ("A ponte fecha"/"A ponte não fecha", cada parcela recolhida
+   com os seus lançamentos), "Baixa do saldo anterior (F3): <situação>" com os lançamentos, os achados da conta, o "Texto
+   do critério" com o botão "Copiar o texto do critério", "Ver no Razão" e "Fechar os detalhes da conta".
+   **Justificativas**: um cartão por conta com o campo "Justificativa da conta <conta>", a lista "Situação no papel de
+   trabalho da conta <conta>" (só com `workpaperStatuses` no perfil; começa em "— não escolhida —") e, ao lado, só para
+   leitura, a "Situação sugerida pelo módulo"; botão "Salvar a justificativa da conta <conta>" e a mensagem
+   "Justificativa salva neste computador." (IndexedDB, chave `reconciliationJustifications`). **Exportação**: a visão
+   existe e diz "A planilha do Conciliador chega na etapa 6 da Fase 15…", com o botão desabilitado.
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
    `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** na barra de status
@@ -208,6 +237,12 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
+  do Conciliador (Fase 15: títulos "Integridade confirmada", "Quadro de invariantes", "Folha de pagamento (GPER040)",
+  "Razão analítico (CTBR400)"; tabela "Contas do perfil"; botões "Esperado da conta …", "Abrir a conta …", "Remover
+  filtro da conciliação", "Copiar o texto do critério", "Ver todas as ocorrências de F1c", "Salvar a justificativa da
+  conta …"; diálogo "Conta …" com "A ponte fecha"; bloco "F1c Verba da folha sem integração na conta"; campos
+  "Justificativa da conta …" e "Situação no papel de trabalho da conta …"; textos "Justificativa salva neste
+  computador." e "A planilha do Conciliador chega na etapa 6"), a análise
   da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
   trilha "Reconciliação", "Painel", "Achados", "Tabelas" e "Exportação"; título "Matriz de amarração" (Reconciliação);
   região "Filtros", combobox "Segmento", botões "Remover filtro Segmento|Rotina" e "Limpar filtros", a dica "não se

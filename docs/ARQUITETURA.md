@@ -249,6 +249,8 @@ Fase 8 (plataforma de módulos): o banco continua na versão 2; no store `config
 | `analyzerConfig` | a mesma configuração, gravada junto em todo salvamento: chave da versão 1.0.0, mantida como espelho para que uma aba aberta com a versão anterior use as regras atuais |
 | `platformConfig` | `{ schemaVersion: 1, holidays }`: feriados da plataforma, usados por todos os módulos |
 | `analyzerConfig:ct2Integrity` | configuração do módulo Integridade da CT2 (Fase 10; esquema próprio, versão 2) |
+| `analyzerConfig:reconciliation` | configuração do Conciliador (Fase 15; esquema próprio, versão 1, com o perfil Folha importado) |
+| `reconciliationJustifications` | justificativas do Conciliador (Fase 15, etapa 5; `src/app/reconciliationJustificationStore.ts`): `{ schemaVersion: 1, items }`, uma por competência e conta (chave `AAAAMM\|conta`), com o texto livre, a situação do papel de trabalho escolhida pelo usuário entre as `workpaperStatuses` do perfil (ou `null`) e a data da alteração. Fica no store `config`, separada das justificativas do CFGR700 (store `justifications`, chaves de documento do log); valor ilegível é ignorado na leitura e não entra na cópia de segurança (ainda) |
 | `lastModule` | última análise usada (`src/app/moduleStore.ts`) |
 | `uiTheme`, `panelSettings` (antiga, migrada e apagada), metadados das justificativas | como antes |
 

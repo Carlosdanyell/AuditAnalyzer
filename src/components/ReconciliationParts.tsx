@@ -95,7 +95,7 @@ export function Checks({ checks, totalMs }: { checks: CheckResult[]; totalMs: nu
   );
 }
 
-function CheckList({ checks }: { checks: CheckResult[] }) {
+export function CheckList({ checks }: { checks: CheckResult[] }) {
   return (
     <ul className={styles.checks}>
       {checks.map((c) => {

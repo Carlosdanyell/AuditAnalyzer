@@ -4,8 +4,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ReconciliationView } from '../../../components/ReconciliationView';
-import { isCt2Reconciliation, isCt2Summary } from '../../../shared/modules/ct2Integrity';
-import type { TableFilter, TableId } from '../../../shared/protocol';
+import { isLogReconciliation, isLogSummary, type TableFilter, type TableId } from '../../../shared/protocol';
 import { ExportView, cfgr700ExportContent } from '../../views/ExportView';
 import { JustificationsView } from '../../views/JustificationsView';
 import { PanelView, type PanelMode } from '../../views/PanelView';
@@ -36,8 +35,8 @@ export function Cfgr700Workspace({ client, module, view, onView, reconciliation,
     [onView],
   );
 
-  if (isCt2Reconciliation(reconciliation)) return null;
-  const logSummary = summary && !isCt2Summary(summary) ? summary : null;
+  if (!isLogReconciliation(reconciliation)) return null;
+  const logSummary = summary && isLogSummary(summary) ? summary : null;
   const { config } = s;
 
   return (

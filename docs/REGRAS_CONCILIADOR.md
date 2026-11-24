@@ -686,6 +686,35 @@ Painel · Achados · Tabelas · Justificativas · Exportação** (via `features`
 - **Tabelas:** Folha (escopo × verba), Provisões (filial × linha × coluna), Integração (chave × folha/provisão ×
   razão × diferença × situação), Razão (linhas com classe de lote e marca de baixa), Contas.
 
+**Como foi implementado (Fase 15, etapa 5, `worker/modules/reconciliation/ingest.ts`, `panel.ts`, `tables.ts` e
+`src/app/modules/reconciliation/`):**
+- Cada arquivo: SHA-256 e tamanho, depois a identificação pelo conteúdo (a mesma sondagem e o mesmo `detect` da tela
+  inicial). GPER040 e CTBR400 em TXT, CTBR400 em XML são lidos; GPER070/GPER090 são reconhecidos e ficam fora (Fase 16),
+  e um arquivo não reconhecido também — os dois com aviso, sem bloquear. Sem uma folha **e** um razão, ou com um GPER040
+  sem `Periodo` legível, a ingestão para com mensagem; layout do razão fora do documentado (`LedgerLayoutError`) também
+  (parar e perguntar, 5.2). Todo o resto segue o bloqueio da plataforma: a invariante que falha aparece na
+  Reconciliação, o Painel e os Achados avisam no topo, e a exportação (etapa 6) exigirá confirmação.
+- Quadro de invariantes: um item por código (L-1…L-7, R-1…R-6, R-9, R-7, R-8, V-3, T1, T3, F2, CC-1…CC-4), somando os
+  arquivos (passa quando todos passam; a mensagem nomeia o arquivo); cada arquivo mostra também as suas. T1 e T3 entram
+  como alerta (não bloqueiam); T2 fica em Achados.
+- V-3: dois GPER040 na sessão são sempre o mesmo relatório (uma competência por sessão) e precisam dar a mesma leitura
+  (competência, pagamento, blocos de funcionário, cada bloco de totalização e verba); a análise usa o primeiro. Dois
+  razões em formatos diferentes que têm uma conta em comum no mesmo tipo de saldo são o mesmo relatório e são comparados
+  por inteiro (`readingDivergence`, parâmetros incluídos); a mensagem traz a primeira divergência com as linhas dos dois
+  arquivos. No mesmo formato, a comparação continua sendo a da R-7 (por conta).
+- Achados: os da conta vêm do motor (F2 como Alerta); entram também "OUT" (Informativo, lançamentos depois da
+  competência, por conta) e os T das contas do razão fora do perfil. Ordem: severidade, conta do perfil, ordem do motor.
+- Painel = tabela: Esperado abre a Folha da conta (o critério no escopo; Σ Contribuição = esperado); os saldos abrem o
+  Razão com uma linha "Saldo inicial da competência" por tipo de saldo e as linhas da competência (Σ = saldo, por tipo e
+  combinado); a baixa abre os lançamentos da baixa (Σ = − baixa); a diferença abre o painel lateral (Σ das parcelas =
+  saldo contábil). A conta fora do razão mantém o texto do motor ("conta fora da análise — não está no razão (CC-1)").
+- Contrato: comando `account` (índice da conta no perfil) para o painel lateral; filtros das tabelas em `filter.conc`
+  (`ReconciliationTableFilter`, `src/shared/modules/reconciliation.ts`), para não colidir com os campos dos outros
+  módulos. A sessão não oferece `export` até a etapa 6.
+- Justificativas: por competência **e** conta (a mesma conta em outro mês é outra justificativa), no IndexedDB (chave
+  `reconciliationJustifications`, `docs/ARQUITETURA.md`, seção 6); ficam na tela, ainda não vão ao worker nem à cópia de
+  segurança.
+
 ## 10. Planilha exportada (tudo por fórmula)
 
 Gerador próprio (`src/worker/export/`), fontes Aptos/Aptos Display, regras da seção "Planilha exportada" do

@@ -4,8 +4,7 @@ import { FileDrop } from '../components/FileDrop';
 import { ToolHome } from '../components/ToolHome';
 import { StageProgress, type ProgressEvent } from '../components/StageProgress';
 import { defaultConfig, type AnalyzerConfig } from '../config/schema';
-import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings, SheetSample, WorkerEvent } from '../shared/protocol';
-import { isCt2Summary } from '../shared/modules/ct2Integrity';
+import { isLogSummary, type Justification, type ModuleReconciliation, type ModuleSummary, type PanelSettings, type SheetSample, type WorkerEvent } from '../shared/protocol';
 import { buildJsonExport, justificationKey } from '../shared/justifications';
 import { loadJustifications, replaceJustifications, saveJustifications, saveMeta, type JustificationMeta } from './justificationStore';
 import { buildBackup } from '../shared/backup';
@@ -291,7 +290,7 @@ export function App() {
               void clientRef.current?.query({ type: 'settings', settings: settingsFromConfig(configRef.current) }).catch(() => undefined);
             }
             setSummary(event.summary);
-            setScope(isCt2Summary(event.summary) ? 0 : Math.max(0, event.summary.scopes.length - 1));
+            setScope(isLogSummary(event.summary) ? Math.max(0, event.summary.scopes.length - 1) : 0);
             setView('reconciliation');
             setAnalysisId((n) => n + 1);
             setPhase('done');
@@ -535,7 +534,7 @@ export function App() {
   const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
 
   // The views follow the payload of the analysis: CFGR700 (unmarked) or CT2 integrity.
-  const logSummary = summary && !isCt2Summary(summary) ? summary : null;
+  const logSummary = summary && isLogSummary(summary) ? summary : null;
   // Asked only with an analysis on screen: a module still without its views (in preview) can be opened and configured.
   const Workspace = done ? workspaceOf(current) : null;
   /** What the module still needs from its configuration before Analisar (e.g. the profile of the Conciliador). */

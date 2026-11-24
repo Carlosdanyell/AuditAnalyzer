@@ -72,9 +72,14 @@ describe('worker of the Conciliador', () => {
     return events;
   };
 
-  it('is dispatched by the platform and says the reading is not there yet (steps 2 to 4)', async () => {
-    expect(await run(profiled())).toEqual([
-      { type: 'error', stage: 'fileCheck', message: 'Leitura do Conciliador ainda não implementada.', detail: expect.stringContaining('etapas 2 a 4') },
+  it('is dispatched by the platform; a file that is neither payroll nor ledger leaves nothing to reconcile (step 5)', async () => {
+    expect((await run(profiled())).filter((e) => e.type !== 'progress')).toEqual([
+      {
+        type: 'error',
+        stage: 'reconciliation',
+        message: 'A análise precisa de ao menos um razão (CTBR400) e uma folha (GPER040); falta a folha (GPER040) e um razão (CTBR400).',
+        detail: 'SPOOL.##R: não reconhecido',
+      },
     ]);
   });
 

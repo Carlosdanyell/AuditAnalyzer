@@ -112,7 +112,7 @@ export function engineFixture(): EngineFixture {
   const accounts: FixtureAccount[] = [
     {
       code: NET_ACCOUNT,
-      description: 'SALARIOS A PAGAR SINTETICA',
+      description: 'ORDENADOS A PAGAR SINTETICA',
       group: { code: '9.9.1.0.1', description: 'OBRIGACOES SINTETICAS' },
       opening: 400000,
       entries: [

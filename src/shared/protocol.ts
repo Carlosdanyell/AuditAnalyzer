@@ -19,6 +19,7 @@ import type {
   TableId,
 } from './modules/cfgr700';
 import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
+import type { ReconciliationAccountDetail, ReconciliationReconciliation, ReconciliationSummary, ReconciliationTableFilter, ReconciliationTableId } from './modules/reconciliation';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -62,13 +63,22 @@ export type {
   Summary,
 } from './modules/cfgr700';
 
-/** Tables of every module and their filters (each module reads the fields of its own). */
-export type AnyTableId = TableId | Ct2TableId;
-export type AnyTableFilter = TableFilter & Ct2TableFilter;
+/** Tables of every module and their filters (each module reads the fields of its own; the Conciliador's under `conc`). */
+export type AnyTableId = TableId | Ct2TableId | ReconciliationTableId;
+export type AnyTableFilter = TableFilter & Ct2TableFilter & { conc?: ReconciliationTableFilter };
 
 /** Reconciliation and summary of the module of the session (the CFGR700 ones carry no mark). */
-export type ModuleReconciliation = Reconciliation | Ct2Reconciliation;
-export type ModuleSummary = Summary | Ct2Summary;
+export type ModuleReconciliation = Reconciliation | Ct2Reconciliation | ReconciliationReconciliation;
+export type ModuleSummary = Summary | Ct2Summary | ReconciliationSummary;
+
+/** The CFGR700 reconciliation and summary: the only ones without the `module` mark. */
+export function isLogReconciliation(r: ModuleReconciliation): r is Reconciliation {
+  return !('module' in r);
+}
+
+export function isLogSummary(s: ModuleSummary): s is Summary {
+  return !('module' in s);
+}
 
 /** Processing stages of the modules ('sort': integrity of the CT2) plus the query/export stages. */
 export type Stage = PipelineStage | 'sort' | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
@@ -180,7 +190,9 @@ export type Command =
   /** Every line of a document block's key, in each segment (CT2, side panel). */
   | { type: 'document'; requestId: number; index: number }
   /** Reapplies the analysis with the parameters informed (validated by the module), without reading the files again. */
-  | { type: 'analyze'; requestId: number; parameters: unknown };
+  | { type: 'analyze'; requestId: number; parameters: unknown }
+  /** An account of the profile in detail (Conciliador, side panel): criterion, bridge, settlement, text of the criterion. */
+  | { type: 'account'; requestId: number; index: number };
 
 export type WorkerEvent =
   | {
@@ -206,6 +218,7 @@ export type WorkerEvent =
   | { type: 'segmentPanel'; requestId: number; data: Ct2PanelData }
   | { type: 'overview'; requestId: number; data: Ct2Overview }
   | { type: 'document'; requestId: number; data: Ct2DocumentDetail }
+  | { type: 'account'; requestId: number; data: ReconciliationAccountDetail }
   | { type: 'exported'; requestId: number; blob: Blob; fileName: string }
   /** The analysis reapplied: the new summary and checks (also inside the reconciliation). */
   | { type: 'analyzed'; requestId: number; summary: ModuleSummary; checks: CheckResult[]; reconciliation: ModuleReconciliation }

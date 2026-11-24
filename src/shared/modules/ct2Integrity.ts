@@ -272,11 +272,11 @@ export interface Ct2SummaryAnalysis {
   approval: { occurrences: number; mixedDocuments: number };
 }
 
-export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation): r is Ct2Reconciliation {
+export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation | { module: string }): r is Ct2Reconciliation {
   return 'module' in r && r.module === 'ct2Integrity';
 }
 
-export function isCt2Summary(s: Summary | Ct2Summary): s is Ct2Summary {
+export function isCt2Summary(s: Summary | Ct2Summary | { module: string }): s is Ct2Summary {
   return 'module' in s && s.module === 'ct2Integrity';
 }
 

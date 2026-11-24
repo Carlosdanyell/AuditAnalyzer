@@ -5,6 +5,7 @@
  * situation; the situations of the user's workpaper are chosen by the user.
  */
 import { formatCents } from '../../../../../shared/format';
+import type { SuggestedSituation } from '../../../../../shared/modules/reconciliation';
 import type { LedgerFinding } from '../../ledger';
 import type { IntegrationFinding } from './integration';
 import type { SettlementResult } from './settlement';
@@ -22,17 +23,8 @@ export interface AccountFinding {
   lines?: number[];
 }
 
-export const SUGGESTED_SITUATIONS = ['noDifference', 'noDifferenceCheckAlerts', 'differenceExplained', 'differenceToCheck', 'integrationError'] as const;
-export type SuggestedSituation = (typeof SUGGESTED_SITUATIONS)[number];
-
-/** Labels of the table of 7.6. */
-export const SUGGESTED_SITUATION_LABELS: Record<SuggestedSituation, string> = {
-  noDifference: 'Sem diferença',
-  noDifferenceCheckAlerts: 'Sem diferença — conferir alertas',
-  differenceExplained: 'Com diferença — composição identificada',
-  differenceToCheck: 'Com diferença — conferir',
-  integrationError: 'Erro de integração',
-};
+// The situations and their labels are shared with the screen.
+export { SUGGESTED_SITUATIONS, SUGGESTED_SITUATION_LABELS, type SuggestedSituation } from '../../../../../shared/modules/reconciliation';
 
 const SETTLEMENT_TEXT: Partial<Record<SettlementResult['situation'], (s: SettlementResult) => string>> = {
   NAO_IDENTIFICADA: (s) => `Baixa do saldo anterior (${formatCents(s.target)}) não identificada: nenhuma combinação exata dos ${s.candidates.length} lançamento(s) candidatos.`,
