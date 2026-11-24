@@ -212,7 +212,7 @@ A10 SALARIO            30,00       2.000,00 00| B20 DESC X              0,00    
 
 - Coluna em branco = só espaços. Coluna preenchida: o valor é o número que **termina** na posição indicada, no
   formato `-?[\d.]*\d,\d\d`; converter para centavos inteiros sem `parseFloat`.
-- Código: 3 caracteres `[0-9A-Z]` (há códigos alfanuméricos, ex.: `17C`, `84A`). Guardar como texto.
+- Código: 3 caracteres `[0-9A-Z]` (há códigos alfanuméricos, ex.: `7AB`, `X9Z`). Guardar como texto.
 - Um mesmo código nunca aparece em duas colunas (L-6).
 - Num bloco de totalização o mesmo código pode repetir em várias linhas: o valor do bloco é a **soma** das linhas.
 
@@ -472,15 +472,23 @@ Chave = `(filial, código da verba)`. Folha: valor da verba no bloco `branch` da
 conta, das linhas de integração **da competência** com aquela `FILIAL CTB` e verba (pode reunir várias linhas, ex.:
 por centro de custo). **Decisão D-8 (23/11/2026):** a filial do razão é sempre a `FILIAL CTB`.
 
+- **Valores absolutos (D-11):** compara-se |Σ do razão na chave, na natureza da conta| com |valor da verba na filial|.
+  O F1 não julga o lado do lançamento: crédito ou débito no lado contrário aparece na diferença da conta (F2) e na
+  2ª parcela da ponte (7.5).
+- **Toda linha de integração é comparada (D-12):** toda linha de integração da competência numa conta do perfil com
+  verba reconhecível entra numa chave e é comparada com a folha — verbas do critério, de `settlementVerbas` e fora do
+  critério (no `netPay`, também as da coluna B). Todas contam em "linhas de integração conferidas"; só a linha sem
+  verba reconhecível (F1d) fica de fora. Chave só no razão compara com folha zero.
+
 | Código | Severidade | Exceção quando |
 |---|---|---|
-| F1a | Erro | Chave nos dois lados com valores diferentes (`verbas`: razão ≠ sign × folha; `netPay`: razão ≠ +P / −D). |
-| F1b | Alerta | Linha de integração na conta com verba fora do critério e fora de `settlementVerbas`. |
+| F1a | Erro | Chave com linha no razão cujo valor absoluto difere do da folha (qualquer verba, D-11/D-12; no critério, `verbas`: sign × folha; `netPay`: +P / −D). |
+| F1b | Alerta | Linha de integração na conta com verba fora do critério e fora de `settlementVerbas`; fica na parcela própria da ponte e, se o valor absoluto também diferir da folha, é F1a também. |
 | F1c | Alerta | Verba do critério com valor ≠ 0 numa filial, sem integração na conta (`netPay`: qualquer verba P ou D ≠ 0). Típico de verba lançada manualmente. |
 | F1d | Alerta | Linha de integração sem verba reconhecível no histórico. |
-| F1e | Info | `netPay`: verba da coluna B com linha de integração na conta. |
+| F1e | Info | `netPay`: verba da coluna B com linha de integração na conta (comparada com a folha como as demais: valor diferente é F1a também). |
 
-Referência real (golden local): todas as linhas de integração iguais à folha; na conta `netPay`, os F1c apontaram
+Referência real (golden local): todas as linhas de integração iguais à folha em valor absoluto; na conta `netPay`, os F1c apontaram
 exatamente as verbas que o usuário lançou manualmente no mês. O resultado é o mesmo com o razão em TXT, XML e PDF.
 
 ### 7.3 Saldo contábil × esperado (F2)
@@ -511,7 +519,7 @@ Identidade (invariante CC-3):
 
 ```
 saldoContabil = esperado
-              + (integração das verbas do critério − esperado)                    // ≠ 0 só com F1a/F1c
+              + (integração das verbas do critério − esperado)                    // ≠ 0 com F1a/F1c ou lado contrário (D-11)
               + integração de verbas fora do critério, exceto a usada na baixa     // F1b
               + (saldoInicialCompetência − Σ |lançamentos da baixa identificada|)  // 0 quando F3 = IDENTIFICADA
               + Σ demais movimentos da competência fora da baixa, por classe de lote
@@ -527,6 +535,7 @@ saldoContabil = esperado
 | Situação sugerida | Quando |
 |---|---|
 | Sem diferença | diferença = 0 e nenhum achado de Erro ou Alerta |
+| Sem diferença — conferir alertas | diferença = 0, nenhum Erro e ao menos um Alerta (D-13) |
 | Com diferença — composição identificada | diferença ≠ 0, baixa do saldo anterior identificada (A) ou ponte sem parcela "não identificada" (B), e nenhum Erro |
 | Com diferença — conferir | demais casos com diferença ≠ 0 |
 | Erro de integração | qualquer F1a ou B1a |
@@ -704,9 +713,20 @@ toda busca.
 | CC-1 | Toda conta do perfil com fonte carregada existe no razão (senão: aviso e conta fora da análise). |
 | CC-2 | Toda linha da competência de uma conta do perfil está em exatamente uma parcela da ponte. |
 | CC-3 | A identidade da ponte (7.5 ou 8.4) fecha em centavos, conta a conta. |
-| CC-4 | Σ das chaves F1/B1 do lado do razão = movimento de integração considerado; do lado da origem = esperado (A, `verbas`) ou linha da ponte do grupo (B). |
+| CC-4 | Σ das chaves F1/B1 do lado do razão = movimento de integração considerado (A: toda linha de integração com verba reconhecível, D-12); do lado da origem = esperado (A, chaves do critério, com sinal) ou linha da ponte do grupo (B). |
 | CC-5 | Mesma entrada + mesma configuração = mesma saída, qualquer que seja o formato de entrada (V-2). |
 | CC-6 | Planilha recalculada: todas as linhas do Resumo "Confere". |
+
+**Como foi implementado (Fase 15, etapa 4, `profiles/payroll/analyze.ts`):** CC-1 é aviso (a conta fica fora da
+análise); CC-2 a CC-4 bloqueiam. CC-4 (ajustada pela D-12): o lado do razão de todas as chaves soma o mesmo que as
+linhas de integração com verba reconhecível somadas à parte (critério, `settlementVerbas` e fora do critério, na
+natureza, com sinal); o lado da folha soma só as chaves do critério, com sinal, e é igual ao esperado. A comparação de
+cada chave em valor absoluto (D-11) não muda as somas. CC-4 também é conferida nas contas `netPay` (lado da folha =
+Σ +P − D das filiais = líquido do escopo, por L-3 e L-5). CC-5 não é calculada numa execução: é propriedade do motor,
+provada nos testes (duas execuções e razão em TXT × XML). Um quadro a mais, `F2`, bloqueia quando o GPER040 não tem o
+bloco de `payrollReport.scope` (sem ele não há esperado). Na ponte, as linhas de integração de verba fora do critério
+que não entram na baixa (F1b, F1e e `settlementVerbas`) ficam na 3ª parcela; as sem verba reconhecível (F1d), na 5ª,
+classe `integration`. "Linhas de integração conferidas" conta toda linha com verba reconhecível (D-12).
 
 ## 12. Pendências de insumo (o executor não pode preencher)
 
@@ -738,6 +758,16 @@ toda busca.
 - **D-10 (23/11/2026):** o tipo de saldo de um razão é o do parâmetro 06 da extração. Razão real (1) e pré-lançamento
   (9) da mesma conta são combinados (5.7). Saldo anterior do pré-lançamento ≠ 0 é sinalizado sem bloquear (T1), porque
   pode ser saldo antigo.
+- **D-11 (24/11/2026):** o F1 compara valores absolutos: por chave (`FILIAL CTB`, verba), |Σ das linhas de integração
+  na natureza da conta| × |valor da verba na filial|; diferente = F1a. O lado do lançamento não é julgado no F1:
+  aparece na diferença da conta (F2).
+- **D-12 (24/11/2026):** toda linha de integração da competência numa conta do perfil é comparada com a folha por
+  (`FILIAL CTB`, verba), inclusive as de `settlementVerbas` e as de verba fora do critério, e conta em "linhas
+  conferidas". Fora do critério e de `settlementVerbas` continua F1b (parcela própria na ponte) e, com valor diferente,
+  é F1a também; linha de `settlementVerbas` diferente da folha é F1a. Contas `netPay`: verbas P e D como antes, em
+  valor absoluto.
+- **D-13 (24/11/2026):** nova situação sugerida (7.6) "Sem diferença — conferir alertas": diferença = 0, nenhum Erro e
+  ao menos um Alerta.
 
 ## 14. Perfis futuros (não implementar agora)
 
