@@ -1,7 +1,7 @@
 /**
  * Conciliador (docs/REGRAS_CONCILIADOR.md): confronts the reports of origin (payroll today) with the ledger and exports
- * the workpaper tied out by formulas. In preview while Phase 15 is built: the reading, the analysis and the screens are
- * there (steps 1 to 5); the workpaper comes with step 6.
+ * the workpaper tied out by formulas. In preview while Phase 15 is built: the reading, the analysis, the screens (steps 1
+ * to 5) and the workpaper (step 6) are there; the provisions come with Phase 16.
  */
 import { readReconciliationConfig, reconciliationDefaultConfig, reconciliationNotReady, type ReconciliationConfig } from '../../config/reconciliationSchema';
 import { RECONCILIATION_STAGES } from '../../shared/modules/reconciliation';
@@ -31,7 +31,7 @@ export const reconciliationModule: AvailableModule<ReconciliationConfig> = {
   ],
   brandSubtitle: 'Conciliador · Protheus',
   preview:
-    'Prévia: o Conciliador está em construção. Já lê a folha (GPER040) e o razão (CTBR400) em TXT ou XML, reconcilia a leitura, concilia as contas do perfil com a ponte de cada uma e guarda as justificativas; o papel de trabalho em Excel chega na próxima etapa.',
+    'Prévia: o Conciliador está em construção. Já lê a folha (GPER040) e o razão (CTBR400) em TXT ou XML, reconcilia a leitura, concilia as contas do perfil com a ponte de cada uma, guarda as justificativas e exporta o papel de trabalho amarrado por fórmulas; as contas de provisão chegam na Fase 16.',
   start: {
     heading: 'Relatórios da conciliação',
     headingDescription: 'Relatórios de origem e razão analítico exportados do Protheus',

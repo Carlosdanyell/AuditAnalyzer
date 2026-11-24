@@ -33,7 +33,7 @@ import { ledgerViewAccounts, reconciliationSummary } from './panel';
 /** Rows of each sheet the classification reads (the probe of the start screen reads the same). */
 const PROBE_ROWS = 30;
 
-/** Everything the session keeps in the worker (the screens and the export of step 6 query it). */
+/** Everything the session keeps in the worker (the screens and the export of the workpaper query it). */
 export interface ReconciliationIngested {
   reconciliation: ReconciliationReconciliation;
   summary: ReconciliationSummary;

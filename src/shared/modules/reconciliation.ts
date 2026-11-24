@@ -317,6 +317,21 @@ export interface ReconciliationAccountDetail {
   linesShown: number;
 }
 
+/**
+ * The user's justification of an account in the competence of the session, as the Justificativas screen keeps it (free
+ * text and, when the profile has `workpaperStatuses`, the situation chosen by the user): written to the workpaper.
+ */
+export interface ReconciliationExportJustification {
+  account: string;
+  text: string;
+  status: string | null;
+}
+
+/** What the export of the Conciliador takes besides the common options (inside `conc` of ExportOptions). */
+export interface ReconciliationExportOptions {
+  justifications: ReconciliationExportJustification[];
+}
+
 /** Tables of the Conciliador (section 9). */
 export type ReconciliationTableId = 'concAccounts' | 'concPayroll' | 'concIntegration' | 'concLedger' | 'concFindings';
 

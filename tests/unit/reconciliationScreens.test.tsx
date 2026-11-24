@@ -13,7 +13,7 @@ import { ConcFindingsView, findingBlocks } from '../../src/app/modules/reconcili
 import { ConcJustificationsView } from '../../src/app/modules/reconciliation/ConcJustificationsView';
 import { ConcPanelView } from '../../src/app/modules/reconciliation/ConcPanelView';
 import { ConcReconciliationView, invariantBoard } from '../../src/app/modules/reconciliation/ConcReconciliationView';
-import { CONC_EXPORT_PENDING, concFilterText } from '../../src/app/modules/reconciliation/ReconciliationWorkspace';
+import { concExportContent, concExportJustifications, concFilterText } from '../../src/app/modules/reconciliation/ReconciliationWorkspace';
 import { readStoredJustifications, reconciliationJustificationKey, storedJustifications, type ReconciliationJustification } from '../../src/app/reconciliationJustificationStore';
 import { reconciliationModule } from '../../src/modules/reconciliation/module';
 import type { AvailableModule } from '../../src/modules/types';
@@ -173,6 +173,28 @@ describe('rail and key figures', () => {
       ['Linhas de integração conferidas', String(summary.figures.checkedLines)],
       ['Competência', '10/2026'],
     ]);
-    expect(CONC_EXPORT_PENDING).toMatch(/etapa 6/);
+  });
+});
+
+describe('Exportação', () => {
+  it('sends the justifications of the competence of the session, in the order of the profile, and none of another month', async () => {
+    const { summary } = await session();
+    const [net, verbas] = summary.accounts;
+    const item = (period: string, account: string, text: string, status: string | null): [string, ReconciliationJustification] => [reconciliationJustificationKey(period, account), { period, account, text, status, updatedAt: 1 }];
+    const stored = new Map([item(summary.period, verbas!.account, 'B', 'Conciliado'), item('202609', net!.account, 'outro mês', null), item(summary.period, net!.account, 'A', null), item(summary.period, 'fora', 'x', null)]);
+    expect(concExportJustifications(summary, stored)).toEqual([
+      { account: net!.account, text: 'A', status: null },
+      { account: verbas!.account, text: 'B', status: 'Conciliado' },
+    ]);
+    expect(concExportJustifications(summary, new Map([item(summary.period, net!.account, '  ', null)]))).toEqual([]);
+  });
+
+  it('names the tabs of section 10 and no word the e2e tests look for', () => {
+    const content = concExportContent(0, () => {});
+    expect(content.tabs).toEqual(['Resumo', 'Criterios', 'Folha_Escopo', 'Folha_Filial', 'Integracao', 'Razao', 'Ponte']);
+    const html = renderToStaticMarkup(<ul>{content.facts}</ul>);
+    expect(html).toContain('Escrever justificativas');
+    expect(html).not.toMatch(E2E_WORDS);
+    expect(renderToStaticMarkup(<ul>{concExportContent(2, () => {}).facts}</ul>)).not.toContain('Escrever justificativas');
   });
 });

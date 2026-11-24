@@ -693,7 +693,7 @@ Painel · Achados · Tabelas · Justificativas · Exportação** (via `features`
   e um arquivo não reconhecido também — os dois com aviso, sem bloquear. Sem uma folha **e** um razão, ou com um GPER040
   sem `Periodo` legível, a ingestão para com mensagem; layout do razão fora do documentado (`LedgerLayoutError`) também
   (parar e perguntar, 5.2). Todo o resto segue o bloqueio da plataforma: a invariante que falha aparece na
-  Reconciliação, o Painel e os Achados avisam no topo, e a exportação (etapa 6) exigirá confirmação.
+  Reconciliação, o Painel e os Achados avisam no topo, e a exportação exige confirmação (etapa 6, seção 10).
 - Quadro de invariantes: um item por código (L-1…L-7, R-1…R-6, R-9, R-7, R-8, V-3, T1, T3, F2, CC-1…CC-4), somando os
   arquivos (passa quando todos passam; a mensagem nomeia o arquivo); cada arquivo mostra também as suas. T1 e T3 entram
   como alerta (não bloqueiam); T2 fica em Achados.
@@ -710,10 +710,10 @@ Painel · Achados · Tabelas · Justificativas · Exportação** (via `features`
   saldo contábil). A conta fora do razão mantém o texto do motor ("conta fora da análise — não está no razão (CC-1)").
 - Contrato: comando `account` (índice da conta no perfil) para o painel lateral; filtros das tabelas em `filter.conc`
   (`ReconciliationTableFilter`, `src/shared/modules/reconciliation.ts`), para não colidir com os campos dos outros
-  módulos. A sessão não oferece `export` até a etapa 6.
+  módulos. Desde a etapa 6, a sessão oferece `export` (seção 10).
 - Justificativas: por competência **e** conta (a mesma conta em outro mês é outra justificativa), no IndexedDB (chave
-  `reconciliationJustifications`, `docs/ARQUITETURA.md`, seção 6); ficam na tela, ainda não vão ao worker nem à cópia de
-  segurança.
+  `reconciliationJustifications`, `docs/ARQUITETURA.md`, seção 6); vão ao worker só na exportação (as da competência da
+  sessão, para o Resumo; etapa 6) e ainda não à cópia de segurança.
 
 ## 10. Planilha exportada (tudo por fórmula)
 
@@ -734,6 +734,51 @@ Gerador próprio (`src/worker/export/`), fontes Aptos/Aptos Display, regras da s
 
 Valores em número, datas como serial, indicadores Sim/Não, nenhuma mesclagem sobreposta, `IF(INDEX(...)="","",…)` em
 toda busca.
+
+**Como foi implementado (Fase 15, etapa 6, `worker/modules/reconciliation/workpaper.ts` e `workpaperLabels.ts`):**
+- Abas, na ordem: Resumo, Criterios, Folha_Escopo, Folha_Filial, Integracao, Razao, Ponte, Rastreabilidade (Provisoes na
+  Fase 16). Arquivo `Conciliador_Folha_<AAAA-MM>_<data>.xlsx` (em inglês, `Reconciliation_Payroll_…`, com abas e rótulos
+  em inglês; o texto do critério, as mensagens das verificações e as descrições das verbas ficam como o motor as escreve,
+  em português). Folha_Escopo, Folha_Filial, Integracao e Razao são tabelas com o título na linha 1 e filtro.
+- **Valores lidos** entram como número: Folha_Escopo (o bloco de `payrollReport.scope`), Folha_Filial (os blocos de
+  filial do contrato do escopo, uma vez por empresa × filial, como a integração os usa) e Razao. **Tudo o mais é
+  fórmula**: a contribuição de cada verba (Criterios, `sinal × SUMIFS` na Folha_Escopo), o esperado (Σ das
+  contribuições da conta), a folha (`sinal × SUMIFS` na Folha_Filial por filial e verba) e o razão (`SUMIFS` no Razao
+  das linhas conferidas) de cada chave da Integracao, com a situação e o achado (F1a, F1b, F1c, F1e), o valor na natureza
+  de cada linha do Razao (pela natureza, débito e crédito), as parcelas e os saldos da Ponte e o Resumo.
+- **Razao:** por conta analisada e tipo de saldo, uma linha "Saldo inicial da competência" (o saldo no débito ou no
+  crédito, data = 1º dia da competência), depois as linhas da competência; assim "saldo final = saldo inicial + Σ"
+  (R-1) é o `SUMIFS` da conta, por tipo e combinado. Colunas "Parcela" (código), "Parcela da ponte", "Baixa do saldo
+  anterior?" e "Conferida com a folha?" (linha de integração com verba reconhecível, D-12), com Sim/Não.
+- **Ponte:** um bloco por conta; as parcelas têm códigos que o Excel não lê como número nem data: P1 esperado, P2
+  critério − esperado, P3 fora do critério, P4 saldo inicial − baixa (inclui as linhas "Saldo inicial da competência"
+  do Razao) e P5a–P5d demais movimentos por classe de lote (integration, financial, manual, other). Cada parcela é o
+  `SUMIFS` do Razao com o seu código (P2 menos o esperado); colunas de movimento por tipo de saldo (só as linhas). Ao
+  lado de cada parcela, dos saldos por tipo e combinado, do "A ponte fecha (CC-3)?" e da diferença, o **valor do
+  motor** e "Igual ao motor?": a planilha recalculada prova que calcula o que a ferramenta calculou.
+- **Resumo:** por conta, padrão, esperado, saldo real (1), pré-lançamento (9) ("Não carregado" quando o tipo falta),
+  combinado, diferença, situação sugerida e baixa (F3) como o motor as deu (dependem dos achados; não são refeitas por
+  fórmula), valor baixado (`SUMIFS` das linhas da baixa), situação no papel de trabalho e justificativa do usuário
+  (colunas de edição, amarelas) e "Amarração da conta". "Confere" quando: a ponte fecha; nenhuma parcela ou saldo da
+  Ponte difere do motor; a Integracao soma, do lado do razão, as linhas conferidas do Razao (valor e quantidade) e, nas
+  chaves do critério, o esperado (CC-4); nenhuma chave tem situação diferente da do motor; e a folha do escopo amarra
+  (proventos, descontos e líquido = rodapé, verba do líquido = rodapé, Σ das filiais = escopo por verba e no total). As
+  amarrações da Integracao, da Ponte e do Razao como um todo aparecem no quadro "Amarrações da planilha", mas não entram
+  na amarração de cada conta (uma conta errada não marca as outras). Quadro "Indicadores": os do Painel pela planilha ×
+  motor. Conta não analisada: o motivo do motor na situação e "—" na amarração; CC-6 vale para as contas analisadas.
+- Nenhuma busca por linha (INDEX) foi necessária: os valores de outra aba são `SUMIFS`/`COUNTIFS` ou referências a
+  células fixas, sempre preenchidas. Funções usadas: `SUMIFS`, `COUNTIFS`, `COUNTIF`, `COUNTA`, `SUM`, `ROUND`, `ABS`,
+  `IF`, `AND` (todas avaliadas pelo `tests/support/xlsxEval.ts`, sem extensão).
+- **Justificativas:** a tela envia as da competência da sessão em `ExportOptions.conc` (`ReconciliationExportOptions`);
+  o worker ignora conta fora do perfil.
+- **Rastreabilidade:** execução (versão, data, idioma, competência, escopo, SHA-256 da configuração), diferenças da
+  configuração em relação ao padrão (a lista de contas numa linha só, que remete a Criterios), cada arquivo (tamanho,
+  relatório, formato, codificação, linhas, tipo de saldo, intervalo ou competência, papel na análise, SHA-256), todos
+  os parâmetros de cada razão e o quadro de verificações. A versão do leitor de PDF entra com o PDF (Fase 16).
+- Verificação bloqueante que falhou: a exportação exige confirmação, registrada no Resumo e na Rastreabilidade (padrão
+  da plataforma); data anterior a 01/01/1901 na planilha impede a exportação (`export/common/guards.ts`).
+- CC-6 é provada nos testes (`tests/unit/reconciliationWorkpaper.test.ts`, avaliador; e2e da Exportação) e conferida
+  no LibreOffice com a planilha sintética e a real (contas com razão: todas "Confere").
 
 ## 11. Invariantes do motor
 

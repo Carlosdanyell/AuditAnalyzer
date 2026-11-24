@@ -578,7 +578,22 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
     items: { '202610|9.9.1.0.10.01': { period: '202610', account: '9.9.1.0.10.01', text: 'Verba lançada manualmente e compensada no mês.', status: 'Conciliado' } },
   });
 
-  // Exportação: present, the workpaper comes with step 6.
+  // Exportação (step 6): the workpaper tied out by formulas; every account of the Resumo "Confere" in the evaluator, with
+  // the justification just saved.
   await nav.getByRole('button', { name: 'Exportação', exact: true }).click();
-  await expect(page.getByText(/^A planilha do Conciliador chega na etapa 6/)).toBeVisible();
+  await expect(page.getByText('1 conta(s) com justificativa ou situação nesta competência', { exact: false })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /^Gerar planilha/ }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^Conciliador_Folha_2026-10_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const path = testInfo.outputPath('conciliador.xlsx');
+  await file.saveAs(path);
+  const book = await Workbook.read(new Blob([readFileSync(path)]));
+  expect([...book.sheets.keys()]).toEqual(['Resumo', 'Criterios', 'Folha_Escopo', 'Folha_Filial', 'Integracao', 'Razao', 'Ponte', 'Rastreabilidade']);
+  const rows: { account: unknown; status: unknown; justification: unknown }[] = [];
+  for (let r = 7; book.raw('Resumo', `B${r}`)?.v; r++) rows.push({ account: book.value('Resumo', `B${r}`), status: book.value('Resumo', `O${r}`), justification: book.value('Resumo', `N${r}`) });
+  expect(rows.map((x) => x.account)).toEqual(['9.9.1.0.10.01', '9.9.1.0.10.02', '9.9.1.0.20.01']);
+  expect(rows.map((x) => x.status)).toEqual(['Confere', 'Confere', 'Confere']);
+  expect(rows[0]!.justification).toBe('Verba lançada manualmente e compensada no mês.');
+  await expect(page.getByText(/^Planilha gerada em/)).toBeVisible();
 });

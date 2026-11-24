@@ -213,7 +213,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    trabalho da conta <conta>" (só com `workpaperStatuses` no perfil; começa em "— não escolhida —") e, ao lado, só para
    leitura, a "Situação sugerida pelo módulo"; botão "Salvar a justificativa da conta <conta>" e a mensagem
    "Justificativa salva neste computador." (IndexedDB, chave `reconciliationJustifications`). **Exportação**: a visão
-   existe e diz "A planilha do Conciliador chega na etapa 6 da Fase 15…", com o botão desabilitado.
+   comum (idioma, confirmação das verificações bloqueantes, "Gerar planilha") com as abas do Conciliador e o número de
+   contas com justificativa na competência (link "Escrever justificativas" quando não há nenhuma); as justificativas da
+   competência vão para o Resumo da planilha (Fase 15, etapa 6).
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
    `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** na barra de status
@@ -242,7 +244,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   filtro da conciliação", "Copiar o texto do critério", "Ver todas as ocorrências de F1c", "Salvar a justificativa da
   conta …"; diálogo "Conta …" com "A ponte fecha"; bloco "F1c Verba da folha sem integração na conta"; campos
   "Justificativa da conta …" e "Situação no papel de trabalho da conta …"; textos "Justificativa salva neste
-  computador." e "A planilha do Conciliador chega na etapa 6"), a análise
+  computador."; e a Exportação, cujo download tem o Resumo com "Confere" em toda conta no avaliador), a análise
   da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
   trilha "Reconciliação", "Painel", "Achados", "Tabelas" e "Exportação"; título "Matriz de amarração" (Reconciliação);
   região "Filtros", combobox "Segmento", botões "Remover filtro Segmento|Rotina" e "Limpar filtros", a dica "não se

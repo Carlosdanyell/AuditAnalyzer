@@ -19,7 +19,7 @@ import type {
   TableId,
 } from './modules/cfgr700';
 import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
-import type { ReconciliationAccountDetail, ReconciliationReconciliation, ReconciliationSummary, ReconciliationTableFilter, ReconciliationTableId } from './modules/reconciliation';
+import type { ReconciliationAccountDetail, ReconciliationExportOptions, ReconciliationReconciliation, ReconciliationSummary, ReconciliationTableFilter, ReconciliationTableId } from './modules/reconciliation';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -112,6 +112,8 @@ export interface ExportOptions {
   confirmFailures: boolean;
   /** Local date and time of the export (dd/mm/aaaa hh:mm:ss), shown in the workbook. */
   generatedAt: string;
+  /** Conciliador: the justifications of the screen for the competence of the session (the other modules ignore it). */
+  conc?: ReconciliationExportOptions;
 }
 
 /**
