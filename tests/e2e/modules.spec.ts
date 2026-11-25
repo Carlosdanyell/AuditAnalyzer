@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Workbook } from '../support/xlsxEval';
+import { spoolPdf } from '../synthetic/pdfFixture';
 import { payrollProfileFile } from '../synthetic/reconciliationProfile';
 import { profileWithStatuses, screenFixture, sessionFiles } from '../synthetic/reconciliationSession';
 import { analyze, chooseModule, expect, test } from './fixtures';
@@ -659,13 +660,19 @@ test('Conciliador: o modelo do perfil é baixado (sintético, com a nota em port
   await expect(page.getByRole('listitem').filter({ hasText: 'Provisão de férias (exemplo)' })).toBeVisible();
 });
 
-/** Writes the synthetic session of the screens (tests/synthetic/reconciliationSession.ts) and imports its profile. */
-async function concSession(page: Page, testInfo: { outputPath: (name: string) => string }) {
+/**
+ * Writes the synthetic session of the screens (tests/synthetic/reconciliationSession.ts) and imports its profile. With
+ * `pdf`, the GPER040 and the real ledger go as PDF (tests/synthetic/pdfFixture.ts; the ledger spread, as the PDFs of the
+ * provisions are printed), next to the real ledger in TXT.
+ */
+async function concSession(page: Page, testInfo: { outputPath: (name: string) => string }, pdf = false) {
   const { fx, real, preEntry } = screenFixture();
-  const files = sessionFiles(fx, [
+  const session = sessionFiles(fx, [
     { format: 'text', fixture: real, name: 'CTBR400-real.__r' },
     { format: 'xml', fixture: preEntry, name: 'CTBR400-pre.xml' },
-  ]).map((f) => {
+  ]);
+  const asPdf = pdf ? [{ name: 'GPER040.pdf', bytes: spoolPdf(session[0]!.bytes) }, session[1]!, { name: 'CTBR400-real.pdf', bytes: spoolPdf(session[1]!.bytes, { spread: 1.1 }) }, session[2]!] : session;
+  const files = asPdf.map((f) => {
     const path = testInfo.outputPath(f.name);
     writeFileSync(path, f.bytes);
     return path;
@@ -685,6 +692,17 @@ async function concSession(page: Page, testInfo: { outputPath: (name: string) =>
   await expect(nav).toBeVisible({ timeout: 60_000 });
   return nav;
 }
+
+test('Conciliador: lê a folha e o razão em PDF (pdf.js do próprio app, sem rede), iguais ao TXT (V-1, V-3)', async ({ page }, testInfo) => {
+  const nav = await concSession(page, testInfo, true);
+  await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible();
+  await expect(page.getByText('GPER040 · PDF')).toBeVisible();
+  await expect(page.getByText('CTBR400 · PDF')).toBeVisible();
+  await expect(page.getByText('V-1 · PDF: todo caractere monoespaçado na grade')).toBeAttached();
+  await expect(page.getByText(/1 par\(es\) de arquivos do mesmo relatório com leituras iguais/)).toBeAttached();
+  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  await expect(page.getByRole('table', { name: 'Contas do perfil' })).toBeVisible();
+});
 
 test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, ponte no painel lateral, achados e justificativas', async ({ page }, testInfo) => {
   const nav = await concSession(page, testInfo);

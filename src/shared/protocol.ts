@@ -152,9 +152,10 @@ export interface SheetSample {
   rows: { r: number; titles: string[] }[];
   /**
    * How the file was read (set by the probe). `text`: a plain-text spool of the system, as one sample without a name
-   * whose rows are its first normalized lines (`r` = line number, the whole line in `titles[0]`).
+   * whose rows are its first normalized lines (`r` = line number, the whole line in `titles[0]`). `pdf`: a PDF, as one
+   * sample without a name whose rows are the lines of its first page in reading order.
    */
-  format?: InputFormat | 'text';
+  format?: InputFormat | 'text' | 'pdf';
 }
 
 export type Command =

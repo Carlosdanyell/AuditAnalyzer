@@ -1,6 +1,7 @@
 /**
  * Reader of the CTBR400 ledger (S-2; docs/REGRAS_CONCILIADOR.md, section 5). It receives lines, never a file: fixed-width
- * lines of the spool (formats/text.ts; the PDF of Phase 16 gives the same lines) or spreadsheet rows of the XML
+ * lines of the spool (formats/text.ts) or of the PDF (formats/pdf.ts, which also gives the proportional text of each
+ * page: the page header and, on the first page, the parameters) or spreadsheet rows of the XML
  * (formats/spreadsheetml.ts), and both give the same normalized records (5.1): parameters, accounts with their opening
  * balance, lines and closing totals. The checks R-1 to R-6 and R-9 of one reading are here; the session checks (R-7,
  * R-8) and the combined view of the balance types (5.7) are in ../ledger.ts.
@@ -99,7 +100,7 @@ export interface LedgerReading {
   /** Lines (TXT) or rows (XML, all worksheets) read. */
   sourceLines: number;
   parameters: LedgerParameter[];
-  /** TXT: page titles (`SIGA /CTBR400/`) with and without the `(Pre-Lancamento)` marker; null in the XML. */
+  /** TXT and PDF: page titles (`SIGA /CTBR400/`) with and without the `(Pre-Lancamento)` marker; null in the XML. */
   titles: { withMarker: number; withoutMarker: number } | null;
   accounts: LedgerAccount[];
   grandTotal: { debit: number; credit: number; source: number } | null;
@@ -212,8 +213,8 @@ class LedgerBuilder {
   account: LedgerAccount | null = null;
   sourceLines = 0;
 
-  parameter(number: string, label: string, value: string, source: number): void {
-    if (this.parameters.some((p) => p.number === number)) throw new LedgerLayoutError(`Pergunta ${number} repetida nos parâmetros do razão (linha ${source}).`, source);
+  parameter(number: string, label: string, value: string, source: number, where = `linha ${source}`): void {
+    if (this.parameters.some((p) => p.number === number)) throw new LedgerLayoutError(`Pergunta ${number} repetida nos parâmetros do razão (${where}).`, source);
     this.parameters.push({ number, label: label.trim(), value: value.trim() });
   }
 
@@ -261,10 +262,13 @@ class LedgerBuilder {
 /**
  * Fixed-width lines (5.2), in order: `line()` for each normalized line, then `finish()`. The page header of the spool
  * (between a `****` line and the next, with the `SIGA /CTBR400/` line) is identification only: the PDF has none, so
- * nothing but the routine and the title marker is taken from it (3.3).
+ * nothing but the routine and the title marker is taken from it (3.3). From a PDF (`format: 'pdf'`) the same lines come
+ * without the `****` rules, and `pageHeader()` gives, before the lines of each page, its proportional text: the routine,
+ * the title (with the marker) and, on the first page, the parameters (3.3, step 6), which the TXT has in the body.
  */
 export class LedgerTextReader {
   private readonly b = new LedgerBuilder();
+  private readonly format: 'text' | 'pdf';
   /** `body` → `****` → `header` (page header) → `****` → `afterHeader` (DATA and titles, or the parameters) → `****`. */
   private state: 'body' | 'header' | 'afterHeader' = 'body';
   private titlesOfPage = false;
@@ -272,6 +276,34 @@ export class LedgerTextReader {
   private withMarker = 0;
   private withoutMarker = 0;
   private date = INVALID_TIME;
+
+  constructor(options: { format?: 'text' | 'pdf' } = {}) {
+    this.format = options.format ?? 'text';
+  }
+
+  /**
+   * The proportional text of a page of the PDF, in reading order, before its lines. One title per page: the page has
+   * the marker when any of its header lines has it (in the PDF the routine and the title are separate lines).
+   */
+  pageHeader(lines: readonly string[], page: number): void {
+    let routine: string | null = null;
+    let marker = false;
+    for (const text of lines) {
+      const m = PARAMETER_TEXT.exec(text);
+      if (m) {
+        this.b.parameter(m[1]!, m[2]!, m[3]!, page, `página ${page} do PDF`);
+        continue;
+      }
+      if (text.includes(PRE_ENTRY_TITLE_MARKER)) marker = true;
+      const found = spoolRoutine(text);
+      if (found === null) continue;
+      if (found !== 'CTBR400') throw new LedgerLayoutError(`O arquivo não é um razão CTBR400: a página ${page} é de ${found}.`, page);
+      routine = found;
+    }
+    if (routine === null) return;
+    if (marker) this.withMarker++;
+    else this.withoutMarker++;
+  }
 
   line(text: string, n: number): void {
     const b = this.b;
@@ -343,7 +375,7 @@ export class LedgerTextReader {
   }
 
   finish(): LedgerReading {
-    return this.b.reading('text', null, { withMarker: this.withMarker, withoutMarker: this.withoutMarker });
+    return this.b.reading(this.format, null, { withMarker: this.withMarker, withoutMarker: this.withoutMarker });
   }
 
   private rule(): void {
@@ -626,7 +658,7 @@ function cases(list: string[]): string {
  * session. R-7 and R-8 compare the readings of a session (../ledger.ts). Messages name the line of the file.
  */
 export function ledgerReadingChecks(reading: LedgerReading, competence: CompetenceDays): CheckResult[] {
-  const where = (source: number) => (reading.format === 'text' ? `linha ${source}` : `linha ${source} da aba "${reading.sheetName ?? ''}"`);
+  const where = (source: number) => (reading.format === 'xml' ? `linha ${source} da aba "${reading.sheetName ?? ''}"` : reading.format === 'pdf' ? `linha ${source} do texto do PDF` : `linha ${source}`);
   const check = (id: string, label: string, failures: string[], ok: string): CheckResult => ({
     id,
     label,
@@ -674,7 +706,7 @@ export function ledgerReadingChecks(reading: LedgerReading, competence: Competen
   results.push(check('R-4', 'Intervalo do relatório contém a competência', r4, interval ? `De ${formatDay(interval.from)} a ${formatDay(interval.to)}: contém a competência.` : ''));
 
   const r5 = reading.transports.filter((t) => t.value !== t.expected).map((t) => `${where(t.source)}: ${t.kind === 'carried' ? 'A TRANSPORTAR' : 'DE TRANSPORTE'} ${balanceText(t.value)}, saldo corrido ${balanceText(t.expected)}`);
-  results.push(check('R-5', 'Transportes de página = saldo corrido', r5, reading.format === 'text' ? `${reading.transports.length} transporte(s) conferem com o saldo corrido.` : 'Não se aplica ao XML (sem transporte de página).'));
+  results.push(check('R-5', 'Transportes de página = saldo corrido', r5, reading.format !== 'xml' ? `${reading.transports.length} transporte(s) conferem com o saldo corrido.` : 'Não se aplica ao XML (sem transporte de página).'));
 
   const r6 = reading.unknown.filter((u) => u.account !== null).map((u) => `${where(u.source)} (conta ${u.account}): ${u.reason}`);
   results.push(check('R-6', 'Nenhuma linha desconhecida dentro de uma conta', r6, 'Nenhuma linha desconhecida entre a abertura e o fecho das contas.'));

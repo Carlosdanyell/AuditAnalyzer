@@ -145,6 +145,40 @@ página para nada além de identificação, e nenhuma regra depende de texto ace
 
 Fora do escopo: PDF digitalizado (imagem), sem OCR. PDF sem fonte monoespaçada no corpo → rejeitado com mensagem.
 
+**Como foi implementado (Fase 16, etapa 4, `src/worker/ingest/pdfText.ts` e `formats/pdf.ts`):**
+- Dependência `pdfjs-dist` **5.6.205**, versão exata, build *legacy* (roda nos navegadores gerenciados e no Node dos
+  testes; o build moderno exige recursos de JavaScript muito recentes). É a última versão que ainda tem a opção
+  `isEvalSupported`; a partir da 5.7 o pdf.js removeu o código de avaliação de fontes junto com a opção. Carregada sob
+  demanda, só quando há um PDF. O "worker" do pdf.js roda **dentro do worker do app** (`globalThis.pdfjsWorker`, do
+  mesmo pacote): o pdf.js não cria outro worker, não monta URL `blob:` e não busca script. Por isso a CSP de
+  `index.html` ficou como estava (`worker-src 'self' blob:` já existia; nada foi acrescentado). Opções: as de cima e
+  `useWorkerFetch: false`, `isOffscreenCanvasSupported: false`, `isImageDecoderSupported: false`, sem `cMapUrl`,
+  `standardFontDataUrl`, `wasmUrl` nem `iccUrl` (nada a buscar). Licença em `public/licencas/Apache-2.0-pdfjs.txt`.
+- Fonte monoespaçada = estilo do pdf.js com `fontFamily: 'monospace'` (vem do passo fixo da fonte).
+- **Páginas espaçadas (fato novo, PDFs reais do GPER070 e do GPER090):** o Protheus imprime cada caractere numa posição
+  própria, com avanço (4,268 pt) maior que a largura do glifo (3,24 pt); o pdf.js então escreve **um espaço entre cada
+  dois caracteres** do item (`D a t a`) e `width / str.length` não é constante — o passo 2 como está escrito não se
+  aplica a essas páginas (no razão em PDF, avanço = glifo, ele se aplica sem mudança). Regra implementada, **pendente
+  de confirmação do usuário**: uma página é "espaçada" quando todo item monoespaçado de 2+ caracteres alterna um
+  caractere e um espaço; nela os caracteres do item são as posições pares, o passo é a moda da diferença de largura
+  entre itens de n e n + 1 caracteres (largura = (n − 1) × passo + glifo; medido entre itens, erro 5 da Fase 16) e um
+  item é monoespaçado quando (largura − glifo) / (n − 1) fica a até 0,5% do passo. Origem, coluna, tolerância de
+  0,15, linhas e espaços seguem 3, 4 e 5 sem mudança.
+- Item da fonte monoespaçada fora da tolerância de 0,5% e dois caracteres na mesma coluna da mesma linha também
+  rejeitam o PDF (V-1): nada do corpo vai para o texto proporcional nem é descartado.
+- Página a página: cada página é posta na grade ao ser lida, com as colunas contadas do menor x da página, e só as
+  suas linhas ficam guardadas; ao fim, a origem do documento é aplicada (espaços à esquerda), conferindo que a margem
+  da página cai na grade (o mesmo limite de 0,15). Página sem item de 2+ caracteres usa o passo da maioria das páginas.
+- Linhas sem texto (as linhas em branco do spool) não existem no PDF; os leitores já as ignoram.
+- O texto proporcional de cada página, em ordem de leitura (linhas por y, itens por x, unidos como o pdf.js os dá),
+  chega ao leitor antes das linhas da página. O CTBR400 o recebe em `LedgerTextReader.pageHeader()` (formato `pdf`):
+  dele saem os parâmetros (`Pergunta NN : … ? valor`, que no TXT estão no corpo) e o título com ou sem
+  `(Pre-Lancamento)` (R-9; no PDF a rotina e o título são linhas separadas, então o marcador vale para a página). O
+  intervalo de datas vem dos parâmetros 03/04, como no TXT. O GPER040 não usa o texto proporcional.
+- Resultado com os PDFs reais (teste local): GPER070 e GPER090 com as linhas do corpo idênticas às do TXT (sem
+  diferença de acento nesses arquivos), razão da conta de líquido com os mesmos registros do TXT e do XML (V-2) e
+  razão das seis contas de provisão sem V-1 e com R-1 a R-6 passando. Nenhum caractere fora da grade.
+
 ### 3.4 Equivalência entre formatos (invariantes V)
 
 | Código | Regra |
@@ -152,6 +186,13 @@ Fora do escopo: PDF digitalizado (imagem), sem OCR. PDF sem fonte monoespaçada 
 | V-1 | PDF: nenhum caractere monoespaçado fora da grade. |
 | V-2 | Teste local obrigatório: o mesmo relatório em formatos diferentes produz os mesmos registros normalizados (mesmas linhas de verba, de provisão ou de razão, mesmos valores, mesma ordem). |
 | V-3 | Na mesma sessão, o mesmo relatório em dois formatos só é aceito se V-2 valer para os dois arquivos. |
+
+**Como foi implementado (Fase 16, etapa 4, `ingest.ts`):** V-1 rejeita o PDF na leitura: a ingestão para com o nome do
+arquivo, a página e o motivo (as linhas não seriam confiáveis; nada é arredondado). Quando a sessão tem PDF, o quadro
+de invariantes mostra V-1 com os PDFs lidos, as páginas e a versão da biblioteca. V-3 vale também para o PDF: dois
+GPER040 são sempre comparados (qualquer formato); dois razões de formatos diferentes (TXT, PDF, XML), do mesmo tipo de
+saldo e com conta em comum, são comparados por inteiro (parâmetros, contas, lançamentos e fechos). A detecção (3.1)
+reconhece o PDF pelo conteúdo (`%PDF-` no início) e o relatório pelo `SIGA /<ROTINA>/` do texto da 1ª página.
 
 ---
 

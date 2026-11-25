@@ -19,8 +19,8 @@ export type ReconciliationReport = (typeof RECONCILIATION_REPORTS)[number];
 export const PROVISION_REPORT_ROUTINES = { vacation: 'GPER070', thirteenth: 'GPER090' } as const satisfies Record<string, ReconciliationReport>;
 export type ProvisionReportKind = keyof typeof PROVISION_REPORT_ROUTINES;
 
-/** Formats an input arrives in (section 3): the plain-text spool or the XML Spreadsheet 2003 (PDF in Phase 16). */
-export type ReconciliationFormat = 'text' | 'xml';
+/** Formats an input arrives in (section 3): the plain-text spool, the PDF with selectable text (3.3) or the XML Spreadsheet 2003. */
+export type ReconciliationFormat = 'text' | 'pdf' | 'xml';
 
 /** What `detect` found in the beginning of a file (section 3.1). */
 export interface ReconciliationInput {
@@ -49,9 +49,11 @@ export interface PayrollScopeFound {
 export interface PayrollFileReading {
   report: 'GPER040';
   format: ReconciliationFormat;
-  /** Decoding used (4.1, step 1). */
-  encoding: 'utf-8' | 'windows-1252';
+  /** Decoding used (4.1, step 1); for a PDF, the library that read its text ("pdf.js 5.6.205", 3.2). */
+  encoding: 'utf-8' | 'windows-1252' | `pdf.js ${string}`;
   bytes: number;
+  /** Pages of a PDF. */
+  pages?: number;
   /** Lines after the normalization (FF included): the numbering the messages cite. */
   lines: number;
   /** Lines by type of section 4.2. */
@@ -140,9 +142,12 @@ export interface LedgerFileCard extends ReconciliationFileBase {
   kind: 'ledger';
   report: 'CTBR400';
   format: ReconciliationFormat;
+  /** Decoding of the TXT or XML; for a PDF, the library that read its text ("pdf.js 5.6.205", 3.2). */
   encoding: string;
-  /** Lines (TXT) or rows of every worksheet (XML). */
+  /** Lines (TXT), lines of the grid (PDF) or rows of every worksheet (XML). */
   lines: number;
+  /** Pages of a PDF. */
+  pages?: number;
   /** Worksheet of the ledger (XML). */
   sheetName: string | null;
   parameters: { number: string; label: string; value: string }[];
@@ -150,7 +155,7 @@ export interface LedgerFileCard extends ReconciliationFileBase {
   /** Parameter 06 (1 or 9); null when it is neither (R-9). */
   balanceType: LedgerBalanceType | null;
   currency: string | null;
-  /** TXT: page titles with and without the `(Pre-Lancamento)` marker. */
+  /** TXT and PDF: page titles with and without the `(Pre-Lancamento)` marker. */
   titles: { withMarker: number; withoutMarker: number } | null;
   accounts: LedgerAccountCard[];
   entries: number;

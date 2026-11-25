@@ -1,7 +1,9 @@
 /**
  * Ingestion of a session of the Conciliador (docs/REGRAS_CONCILIADOR.md, sections 3, 4, 5, 9 and 11; Phase 15, step 5).
  * Each file is checked (SHA-256 and size) and classified by its content, never by its name (3.1): a GPER040 or a CTBR400
- * in the TXT of the spool, or a CTBR400 in XML; any other file is listed with a warning and left out. Then the readings
+ * in the TXT of the spool or in PDF (formats/pdf.ts, 3.3), or a CTBR400 in XML; any other file is listed with a warning
+ * and left out. A PDF whose text does not lie on the monospaced grid (V-1) or has no monospaced body is rejected: the
+ * ingestion stops with the reason (its lines would be unreliable). Then the readings
  * (reports/), their invariants (L-1 to L-7; R-1 to R-6 and R-9 against the competence of the payroll), the equivalence
  * of the same report read twice (V-3), the combined view of the ledgers and the engine of the payroll profile
  * (profiles/payroll/analyze.ts), whose invariants (R-7, R-8, F2, CC-1 to CC-4) and findings (T1 to T3) join the board.
@@ -20,6 +22,7 @@ import {
   type PayrollFileCard,
   type ProvisionReportKind,
   type ReconciliationFileCard,
+  type ReconciliationInput,
   type ReconciliationReconciliation,
   type ReconciliationSummary,
 } from '../../../shared/modules/reconciliation';
@@ -30,10 +33,11 @@ import { sha256 } from '../../ingest/integrity';
 import type { IngestInput, IngestOptions } from '../../ingest/pipeline';
 import { probeWorkbook } from '../../ingest/probe';
 import { ProgressReporter } from '../../ingest/progress';
+import { PdfGridError, readPdfLines, type PdfReadOptions } from './formats/pdf';
 import { readSpreadsheetRows } from './formats/spreadsheetml';
 import { readSpoolLines } from './formats/text';
 import { readingDivergence, type LedgerFileReading } from './ledger';
-import { readPayrollSpool, type PayrollSource } from './payrollSource';
+import { readPayrollPdf, readPayrollSpool, type PayrollSource } from './payrollSource';
 import { analyzePayroll, type PayrollAnalysis } from './profiles/payroll/analyze';
 import { LedgerLayoutError, LedgerSheetReader, LedgerTextReader, competenceDays, ledgerBalanceType, ledgerInterval, ledgerParameter, ledgerReadingChecks, type CompetenceDays, type LedgerReading } from './reports/ctbr400';
 import type { PayrollReport } from './reports/gper040';
@@ -152,6 +156,21 @@ function equivalenceCheck(payrolls: readonly { name: string; source: PayrollSour
   };
 }
 
+/**
+ * V-1 (3.4) on the board when the session has a PDF: a PDF with a character off the grid never gets here (the ingestion
+ * stops), so the check records which PDFs were read on the grid and by which library (Rastreabilidade, 3.2).
+ */
+function gridCheck(pdfs: readonly { name: string; pages: number; library: string }[]): CheckResult | null {
+  if (pdfs.length === 0) return null;
+  return {
+    id: 'V-1',
+    label: 'V-1 · PDF: todo caractere monoespaçado na grade',
+    severity: 'error',
+    passed: true,
+    message: `${pdfs.map((p) => `${p.name}: ${formatInteger(p.pages)} página(s)`).join(' · ')}; texto lido com ${[...new Set(pdfs.map((p) => p.library))].join(', ')}, nenhum caractere fora da grade.`,
+  };
+}
+
 /** T1 and T3 (5.7) on the board: alerts, never blocking; T2 is information and stays in Achados. */
 function balanceTypeChecks(analysis: PayrollAnalysis): CheckResult[] {
   const of = (code: 'T1' | 'T3') => analysis.ledger.findings.filter((f) => f.code === code);
@@ -185,8 +204,20 @@ function competenceOf(report: PayrollReport, name: string): CompetenceDays & { p
   return { period, ...competenceDays(Number.parseInt(period.slice(0, 4), 10), month) };
 }
 
-async function readLedger(input: IngestInput, format: 'text' | 'xml', profile: PayrollProfileConfig, onBytes: (read: number) => void): Promise<{ reading: LedgerReading; encoding: string; lines: number }> {
+/** A PDF rejected by the grid (3.3, V-1): the ingestion stops, naming the file and the page. */
+function pdfRejected(name: string, e: PdfGridError): IngestError {
+  return fail('rows', `${name}: ${e.message}`, 'PDF rejeitado (seção 3.3 das regras, V-1): a leitura não arredonda posições; exporte o relatório de novo ou use o TXT do spool.');
+}
+
+type LedgerRead = { reading: LedgerReading; encoding: string; lines: number; pages?: number };
+
+async function readLedger(input: IngestInput, format: ReconciliationInput['format'], profile: PayrollProfileConfig, onBytes: (read: number) => void, pdfOptions: PdfReadOptions): Promise<LedgerRead> {
   try {
+    if (format === 'pdf') {
+      const reader = new LedgerTextReader({ format: 'pdf' });
+      const pdf = await readPdfLines(input.blob, { header: (lines, page) => reader.pageHeader(lines, page), line: (line, n) => reader.line(line, n) }, pdfOptions);
+      return { reading: reader.finish(), encoding: pdf.library, lines: pdf.lines, pages: pdf.pages };
+    }
     if (format === 'text') {
       const reader = new LedgerTextReader();
       const spool = await readSpoolLines(input.blob, (line, n) => reader.line(line, n), onBytes);
@@ -196,6 +227,7 @@ async function readLedger(input: IngestInput, format: 'text' | 'xml', profile: P
     const xml = await readSpreadsheetRows(input.blob, (s, name, r, cells) => reader.row(s, name, r, cells), onBytes);
     return { reading: reader.finish(), encoding: xml.encoding, lines: xml.rows };
   } catch (e) {
+    if (e instanceof PdfGridError) throw pdfRejected(input.name, e);
     if (e instanceof LedgerLayoutError) {
       throw fail('rows', `${input.name}: ${e.message}`, 'O layout do razão não é o documentado (seções 5.2 e 5.3 das regras): a leitura parou para não inventar posições.');
     }
@@ -203,7 +235,7 @@ async function readLedger(input: IngestInput, format: 'text' | 'xml', profile: P
   }
 }
 
-function ledgerCard(base: { fileIndex: number; name: string; size: number; sha256: string }, read: { reading: LedgerReading; encoding: string; lines: number }, checks: CheckResult[]): LedgerFileCard {
+function ledgerCard(base: { fileIndex: number; name: string; size: number; sha256: string }, read: LedgerRead, checks: CheckResult[]): LedgerFileCard {
   const r = read.reading;
   return {
     ...base,
@@ -212,6 +244,7 @@ function ledgerCard(base: { fileIndex: number; name: string; size: number; sha25
     format: r.format,
     encoding: read.encoding,
     lines: read.lines,
+    ...(read.pages !== undefined && { pages: read.pages }),
     sheetName: r.sheetName,
     parameters: r.parameters.map((p) => ({ number: p.number, label: p.label, value: p.value })),
     interval: ledgerInterval(r),
@@ -247,7 +280,8 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
 
   const files: ReconciliationFileCard[] = [];
   const payrolls: { name: string; card: PayrollFileCard; source: PayrollSource }[] = [];
-  const ledgers: { name: string; read: Awaited<ReturnType<typeof readLedger>>; base: Parameters<typeof ledgerCard>[0] }[] = [];
+  const ledgers: { name: string; read: LedgerRead; base: Parameters<typeof ledgerCard>[0] }[] = [];
+  const pdfs: { name: string; pages: number; library: string }[] = [];
   // The provision reports recognized in the session: their accounts are held to CC-1 and wait for the reader (Phase 16).
   const provisionReports: ProvisionReportKind[] = [];
   for (const [fileIndex, input] of inputs.entries()) {
@@ -259,14 +293,29 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
 
     progress.begin('rows', fileIndex, blob.size, 'bytes', `Lendo ${name}`);
     const onBytes = (read: number) => progress.update(read);
-    if (found?.report === 'GPER040' && found.format === 'text') {
-      const source = await readPayrollSpool(blob, { netPayCode: profile.payrollReport.netPayCode }, onBytes);
+    // A PDF is read page by page: the progress counts pages once the document is open.
+    const pdfOptions: PdfReadOptions = {
+      onPage: (done, total) => {
+        if (done === 1) progress.begin('rows', fileIndex, total, 'steps', `Lendo ${name} (PDF, página a página)`);
+        progress.update(done);
+      },
+    };
+    if (found?.report === 'GPER040' && found.format !== 'xml') {
+      const options = { netPayCode: profile.payrollReport.netPayCode };
+      let source: PayrollSource;
+      try {
+        source = found.format === 'pdf' ? await readPayrollPdf(blob, options, pdfOptions) : await readPayrollSpool(blob, options, onBytes);
+      } catch (e) {
+        throw e instanceof PdfGridError ? pdfRejected(name, e) : e;
+      }
+      if (source.reading.pages !== undefined) pdfs.push({ name, pages: source.reading.pages, library: source.reading.encoding });
       const card: PayrollFileCard = { ...base, kind: 'payroll', ...source.reading, used: payrolls.length === 0, checks: source.checks.map(withCode) };
       payrolls.push({ name, card, source });
       files.push(card);
     } else if (found?.report === 'CTBR400') {
-      const read = await readLedger(input, found.format, profile, onBytes);
+      const read = await readLedger(input, found.format, profile, onBytes, pdfOptions);
       ledgers.push({ name, base, read });
+      if (read.pages !== undefined) pdfs.push({ name, pages: read.pages, library: read.encoding });
       // Its invariants need the competence of the payroll, known after every file is read.
       files.push(ledgerCard(base, read, []));
     } else {
@@ -274,7 +323,7 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
       if (provision !== undefined && !provisionReports.includes(provision)) provisionReports.push(provision);
       const message =
         found === null
-          ? 'Arquivo não reconhecido como relatório do Conciliador (GPER040 ou CTBR400, no TXT do spool ou, o razão, em XML): fica fora da análise.'
+          ? 'Arquivo não reconhecido como relatório do Conciliador (GPER040 ou CTBR400, no TXT do spool ou em PDF, ou o razão em XML): fica fora da análise.'
           : `${found.report}${provision ? ` (${PROVISION_TITLES[provision]})` : ''} reconhecido: a leitura dos relatórios de provisão ainda não está disponível nesta versão; o arquivo fica fora da análise e as contas de provisão, não analisadas.`;
       const card: OtherFileCard = { ...base, kind: 'other', report: found?.report ?? null, message };
       files.push(card);
@@ -297,6 +346,7 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
     files[l.base.fileIndex] = card;
   }
   const equivalence = equivalenceCheck(payrolls, ledgerFiles);
+  const grid = gridCheck(pdfs);
   progress.update(files.length);
 
   progress.begin('checks', undefined, 1, 'steps', 'Conciliando as contas do perfil');
@@ -306,6 +356,7 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
     ...merged(byKind('payroll')),
     ...merged(byKind('ledger')),
     ...analysis.ledger.checks.map(withCode),
+    ...(grid ? [grid] : []),
     equivalence,
     ...balanceTypeChecks(analysis),
     ...analysis.checks.map(withCode),

@@ -1,8 +1,8 @@
 /**
  * Identification of an input of the Conciliador by its content, never by its name or extension
  * (docs/REGRAS_CONCILIADOR.md, section 3.1), over the beginning of the file read by the probe: the routine of the page
- * header `SIGA /<ROTINA>/` in a plain-text spool, or, in the XML of the ledger, the row of titles together with the
- * `Parametros` sheet. Pure; the worker can use it too.
+ * header `SIGA /<ROTINA>/` in a plain-text spool or in the text of the first page of a PDF, or, in the XML of the
+ * ledger, the row of titles together with the `Parametros` sheet. Pure; the worker can use it too.
  */
 import { LEDGER_DEFAULT_TITLES, type ReconciliationConfig } from '../../config/reconciliationSchema';
 import { RECONCILIATION_REPORTS, type ReconciliationInput, type ReconciliationReport } from '../../shared/modules/reconciliation';
@@ -18,11 +18,11 @@ const isReport = (routine: string | null): routine is ReconciliationReport => ro
 
 /** The report and format of a file probed, or null when it is not an input of the module. */
 export function identifyReconciliationInput(sheets: readonly SheetSample[], config: ReconciliationConfig): ReconciliationInput | null {
-  const text = sheets.length === 1 && sheets[0]!.format === 'text' ? sheets[0]! : null;
-  if (text) {
-    for (const row of text.rows) {
+  const format = sheets.length === 1 ? sheets[0]!.format : undefined;
+  if (format === 'text' || format === 'pdf') {
+    for (const row of sheets[0]!.rows) {
       const routine = spoolRoutine(row.titles[0] ?? '');
-      if (routine !== null) return isReport(routine) ? { report: routine, format: 'text' } : null;
+      if (routine !== null) return isReport(routine) ? { report: routine, format } : null;
     }
     return null;
   }

@@ -3,11 +3,13 @@
  * a file of another analysis. Reads only the beginning of each sheet and of the shared strings, up to the last string
  * those rows use: a few kilobytes even for the largest files. Nothing is checked here (the analysis checks everything).
  * For the XML the system writes (no directory), the worksheets that start in its first megabytes. For a plain-text
- * spool of the system (docs/REGRAS_CONCILIADOR.md, section 3.1), its first lines, normalized, from its first 64 KB.
+ * spool of the system (docs/REGRAS_CONCILIADOR.md, section 3.1), its first lines, normalized, from its first 64 KB. For a
+ * PDF (`%PDF-`), the text of its first page in reading order (pdfText.ts; 3.1: the routine is in the page header).
  */
 import type { InputFormat, SheetSample } from '../../shared/protocol';
 import { spoolRoutine } from '../../shared/spool';
 import type { InflateMode } from './inflate';
+import { isPdfHead, readPdfPages, readingOrderLines } from './pdfText';
 import { CellKind, SheetParser } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath } from './workbook';
@@ -49,6 +51,13 @@ function probeSpool(head: Uint8Array, complete: boolean, rows: number): SheetSam
   return { name: '', rows: out, format: 'text' };
 }
 
+/** A PDF: the lines of its first page in reading order (`r` = line number, the whole line in `titles[0]`). */
+async function probePdf(blob: Blob, rows: number): Promise<SheetSample> {
+  let lines: string[] = [];
+  await readPdfPages(blob, (_page, items) => void (lines = readingOrderLines(items)), { maxPages: 1 });
+  return { name: '', rows: lines.slice(0, Math.max(rows, 1) * 4).map((line, i) => ({ r: i + 1, titles: [line] })), format: 'pdf' };
+}
+
 /** First rows of each worksheet that starts in the first bytes of the XML the system writes (plain or zipped). */
 async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<void>, rows: number, format: InputFormat): Promise<SheetSample[]> {
   const out: SheetSample[] = [];
@@ -81,6 +90,7 @@ export async function probeWorkbook(blob: Blob, rows: number, inflateMode: Infla
   if (start[0] !== 0x50 || start[1] !== 0x4b) {
     // Not an XML: a spool of the system is read as text; anything else goes on as before (the XML reading refuses it).
     const head = new Uint8Array(await blob.slice(0, SPOOL_HEAD_BYTES).arrayBuffer());
+    if (isPdfHead(head)) return [await probePdf(blob, rows)];
     if (firstByte(head) !== 0x3c) {
       const spool = probeSpool(head, blob.size <= SPOOL_HEAD_BYTES, rows);
       if (spool) return [spool];

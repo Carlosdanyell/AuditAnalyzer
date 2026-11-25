@@ -37,6 +37,11 @@ export function formatElapsed(ms: number): string {
   return formatDuration(ms);
 }
 
+/** A measure with up to `digits` decimals: "4,268", "0,2". */
+export function formatDecimal(value: number, digits: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: digits }).format(value);
+}
+
 const money = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Integer cents → "1.234,56". */
