@@ -5,9 +5,7 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { Workbook } from '../support/xlsxEval';
 import { chartCsv, encodeWindows1252, withAccount } from '../synthetic/chartOfAccountsFixture';
 import { payrollProfileFile } from '../synthetic/reconciliationProfile';
@@ -629,9 +627,7 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
 });
 
 test('Plano de contas: lê o CSV, mostra o resumo com erros e alertas e gera a planilha com o período; erro bloqueante impede', async ({ page }, testInfo) => {
-  // A folder without accents: the output folder of this test (named after its title) is not taken by the file picker.
-  const dir = mkdtempSync(join(tmpdir(), 'plano-'));
-  const csv = join(dir, 'plano-sintetico.csv');
+  const csv = testInfo.outputPath('plano-sintetico.csv');
   writeFileSync(csv, encodeWindows1252(chartCsv()));
   await page.goto('');
   await chooseModule(page, CHART);
@@ -667,7 +663,7 @@ test('Plano de contas: lê o CSV, mostra o resumo com erros e alertas e gera a p
   expect(data.sheets[0]!.maxRow).toBe(4 + 39);
 
   // A file with a blocking error: the account and the line on screen, and no workbook.
-  const broken = join(dir, 'plano-com-erro.csv');
+  const broken = testInfo.outputPath('plano-com-erro.csv');
   writeFileSync(broken, encodeWindows1252(chartCsv({ accounts: withAccount('11103', { sup: '119' }) })));
   await page.getByRole('button', { name: 'Nova análise' }).click();
   await page.getByRole('button', { name: /Remover/ }).first().click();
