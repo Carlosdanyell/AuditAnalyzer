@@ -56,7 +56,7 @@
   <body>
     <header>
       <h1>AuditAnalyzer — ajuda</h1>
-      <p>Análises de auditoria dos lançamentos contábeis do Protheus, com papel de trabalho em Excel: log de auditoria (CFGR700); integridade da CT2 em breve.</p>
+      <p>Análises de auditoria dos lançamentos contábeis do Protheus, com papel de trabalho em Excel: log de auditoria (CFGR700); integridade da CT2; conciliador da folha de pagamento (prévia).</p>
     </header>
     <div class="layout">
       <nav aria-label="Conteúdo">
@@ -89,7 +89,14 @@
         </ol>
         <p class="group">Conciliador (prévia)</p>
         <ol>
-          <li><a href="#reconciliation-previa">Situação da prévia</a></li>
+          <li><a href="#rec-para-que-serve">Para que serve</a></li>
+          <li><a href="#rec-perfil">O perfil</a></li>
+          <li><a href="#rec-arquivos">Arquivos</a></li>
+          <li><a href="#rec-leitura">Conferências da leitura</a></li>
+          <li><a href="#rec-motor">O que o motor calcula</a></li>
+          <li><a href="#rec-telas">Telas</a></li>
+          <li><a href="#rec-planilha">A planilha exportada</a></li>
+          <li><a href="#rec-limites">Limites</a></li>
         </ol>
         <ul>
           <li><a href="#privacidade">Privacidade e cópias</a></li>
@@ -107,7 +114,7 @@
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
               <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
-              <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040) e razão analítico (CTBR400) do Protheus, com o perfil de contas importado na Configuração</td><td>Prévia</td></tr>
+              <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040, TXT) e razão analítico (CTBR400, TXT ou XML) do Protheus, com o perfil de contas importado na Configuração</td><td>Prévia</td></tr>
             </tbody>
           </table>
           <ul>
@@ -388,15 +395,93 @@
 
         <div id="reconciliation">
         <p class="group">Conciliador (prévia)</p>
-        <section id="reconciliation-previa">
-          <h2>Situação da prévia</h2>
+        <section id="rec-para-que-serve">
+          <h2>1. Para que serve</h2>
           <p>
-            O Conciliador confronta os relatórios de origem (a folha de pagamento) com o razão contábil, conta a conta. Está em construção: por
-            enquanto ele guarda o <strong>perfil de contas</strong> (Configuração → Conciliador → <strong>Importar perfil (JSON)</strong>) e reconhece os
-            relatórios do Protheus pelo conteúdo, qualquer que seja a extensão do arquivo (o spool vem como <code>.##r</code> ou <code>.__r</code>).
-            Sem um perfil com contas, o botão Analisar fica desabilitado. A leitura dos relatórios e a conciliação chegam nas próximas versões; o
-            manual completo vem com elas.
+            Confronta o relatório de origem da <strong>folha de pagamento</strong> (GPER040) com o <strong>razão analítico</strong> (CTBR400), conta a
+            conta, e responde se a integração contábil da folha bate com o que a folha apurou, quanto do saldo anterior foi baixado e o que explica a
+            diferença entre o saldo contábil e o esperado. O resultado aparece na <strong>Reconciliação</strong>, no <strong>Painel</strong>, em
+            <strong>Achados</strong>, nas <strong>Tabelas</strong> e na <strong>planilha amarrada por fórmulas</strong> (Exportação). Nesta versão só existe
+            o perfil de folha de pagamento (Padrão A: o relatório de origem dá o valor que cada conta deveria ter recebido).
           </p>
+        </section>
+
+        <section id="rec-perfil">
+          <h2>2. O perfil</h2>
+          <ul>
+            <li>O perfil é importado em <strong>Configuração → Conciliador → Importar perfil (JSON)</strong> e fica salvo neste computador, com cópia na cópia de segurança. Sem um perfil com contas, o botão Analisar fica desabilitado, com a dica do que falta. A Configuração mostra os avisos do perfil (por exemplo, uma verba em mais de uma conta) sem impedir de salvar.</li>
+            <li><strong>Conta</strong> do perfil: o código contábil, o padrão e o critério. No critério <strong>verbas</strong>, cada verba traz o sinal (+ ou −) e a coluna da folha; o esperado da conta é a soma dos valores das verbas com o sinal. No critério <strong>netPay</strong> (líquido a pagar), o esperado vem dos proventos e descontos da folha.</li>
+            <li><strong>Marca de conferência:</strong> cada verba do critério e cada linha de integração conferida aparecem marcadas nas tabelas e na planilha ("Conferida com a folha?").</li>
+            <li><strong>Verbas de baixa</strong> (<code>settlementVerbas</code>): verbas cujas linhas de integração são baixas de saldo (por exemplo, o pagamento de férias ou rescisões) e entram na baixa do saldo anterior, não no esperado do mês.</li>
+          </ul>
+        </section>
+
+        <section id="rec-arquivos">
+          <h2>3. Arquivos</h2>
+          <ul>
+            <li><strong>Folha:</strong> o relatório GPER040 em <code>.TXT</code> (o spool do Protheus). Um relatório por análise; se dois arquivos forem carregados, devem ser o mesmo relatório.</li>
+            <li><strong>Razão:</strong> o CTBR400 analítico em TXT ou em XML (o XML Spreadsheet 2003 que o sistema grava, puro ou dentro de um <code>.zip</code>). Razão <strong>real</strong> (tipo de saldo 1) e <strong>pré-lançamento</strong> (9) da mesma conta podem ser carregados juntos e são combinados. Até dois meses seguidos por conta.</li>
+            <li>Os arquivos são <strong>reconhecidos pelo conteúdo</strong>, com qualquer extensão (o spool vem como <code>.##r</code> ou <code>.__r</code>). Relatórios de outros tipos e arquivos não reconhecidos ficam de fora, com aviso.</li>
+            <li>Cada arquivo tem o SHA-256 calculado e conferido, e entra na Rastreabilidade.</li>
+          </ul>
+        </section>
+
+        <section id="rec-leitura">
+          <h2>4. Conferências da leitura</h2>
+          <ul>
+            <li><strong>L</strong> — a leitura da folha: as contagens e os totais lidos conferem com os que o próprio relatório traz.</li>
+            <li><strong>R</strong> — a leitura do razão: saldo inicial + movimentos = saldo final, totais por conta, linhas lidas e competência.</li>
+            <li><strong>T</strong> — tipos de saldo: o tipo do razão vem do parâmetro da extração; saldo anterior do pré-lançamento diferente de zero é sinalizado (alerta).</li>
+            <li><strong>V-3</strong> — dois arquivos da folha na mesma análise precisam dar a mesma leitura.</li>
+          </ul>
+          <p>As falhas aparecem na Reconciliação; com alguma falha bloqueante, a exportação exige confirmação, registrada na planilha. A ingestão para, com mensagem, quando falta uma folha ou um razão, ou quando o layout do razão foge do documentado.</p>
+        </section>
+
+        <section id="rec-motor">
+          <h2>5. O que o motor calcula</h2>
+          <ul>
+            <li><strong>Esperado:</strong> por conta, a soma das verbas do critério na folha.</li>
+            <li><strong>Integração (F1a–F1e):</strong> por filial do lançamento e verba, o valor da integração no razão é comparado com o da folha, em <strong>valores absolutos</strong>. <strong>Toda linha de integração</strong> da competência numa conta do perfil é comparada, inclusive as de verba fora do critério e as verbas de baixa. Os achados: F1a valor diferente do da folha (Erro); F1b verba fora do critério (Alerta); F1c verba da folha sem integração na conta, típica de lançamento manual (Alerta); F1d linha de integração sem verba reconhecível (Alerta); F1e informativo da conta de líquido a pagar.</li>
+            <li><strong>Baixa do saldo anterior (F3):</strong> procura, por combinação exata dos lançamentos do mês, o que baixou o saldo anterior. Situações: identificada, ambígua, não identificada.</li>
+            <li><strong>Ponte:</strong> do esperado ao saldo contábil, por parcela (esperado; critério − esperado; fora do critério; saldo inicial − baixa; demais movimentos por classe de lote). A ponte fecha ou há um achado.</li>
+            <li><strong>Situação sugerida por conta</strong>, por exemplo "Sem diferença", <strong>"Sem diferença — conferir alertas"</strong> (diferença zero com ao menos um alerta) ou com diferença. <strong>Não há limite de materialidade:</strong> qualquer diferença, a partir de R$ 0,01, é sinalizada. As justificativas e a conclusão são do contador.</li>
+          </ul>
+        </section>
+
+        <section id="rec-telas">
+          <h2>6. Telas</h2>
+          <ul>
+            <li><strong>Reconciliação:</strong> um cartão por arquivo (leitura, SHA-256) e o quadro das conferências (L, R, T, V-3, ponte e demais).</li>
+            <li><strong>Painel:</strong> uma linha por conta analisada, com esperado, saldos real, pré-lançamento e combinado, diferença e situação; cada número abre a tabela com as linhas dele.</li>
+            <li><strong>Achados:</strong> o que verificar, em grupos por gravidade (Erro, Alerta, Informativo), com o motivo de cada ocorrência.</li>
+            <li><strong>Tabelas:</strong> Folha (escopo × verba), Integração (chave × folha × razão × diferença × situação), Razão (linhas, com a classe de lote e a marca de baixa) e Contas, com busca, ordenação e filtros.</li>
+            <li><strong>Painel lateral da conta:</strong> ao clicar numa conta, mostra o critério, a ponte com as linhas de cada parcela, a baixa do saldo anterior, o texto do critério (com botão copiar) e os achados. Esc fecha.</li>
+            <li><strong>Justificativas:</strong> o contador registra o motivo de cada diferença ou achado; ficam salvas neste computador, por competência, e vão para a planilha.</li>
+            <li><strong>Exportação:</strong> mostra o conteúdo da planilha e as conferências bloqueantes.</li>
+          </ul>
+        </section>
+
+        <section id="rec-planilha">
+          <h2>7. A planilha exportada</h2>
+          <ul>
+            <li><strong>Resumo:</strong> uma linha por conta, com esperado, saldos, diferença, situação e baixa, e a coluna <strong>Confere</strong> quando a ponte fecha e a integração bate com a folha e o razão, recalculada pelo Excel.</li>
+            <li><strong>Criterios:</strong> as verbas de cada conta com sinal e a contribuição de cada uma, por fórmula sobre Folha_Escopo.</li>
+            <li><strong>Folha_Escopo, Folha_Filial e Razao:</strong> os valores lidos, com o título na linha 1 e filtro. O Razao traz, por conta e tipo de saldo, uma linha "Saldo inicial da competência" e as linhas do mês, com a parcela da ponte, a baixa do saldo anterior e a conferência com a folha.</li>
+            <li><strong>Integracao:</strong> uma linha por chave (filial e verba), com a folha e o razão por fórmula, a diferença, a situação e o achado.</li>
+            <li><strong>Ponte:</strong> um bloco por conta, com as parcelas e os saldos por fórmula, ao lado do valor calculado pela ferramenta e de "Igual ao motor?".</li>
+            <li><strong>Rastreabilidade:</strong> SHA-256 e leitura de cada arquivo, configuração, justificativas e verificações.</li>
+            <li>Português ou inglês; datas como datas do Excel. Todo o resto é fórmula: mudar um valor lido recalcula a análise.</li>
+          </ul>
+        </section>
+
+        <section id="rec-limites">
+          <h2>8. Limites</h2>
+          <ul>
+            <li>Nesta prévia só existe o perfil de folha de pagamento (Padrão A). As <strong>provisões</strong> e a leitura de relatórios em <strong>PDF</strong> chegam na próxima versão.</li>
+            <li>Só as contas com o <strong>razão original</strong> carregado são analisadas; as demais contas do perfil precisam do razão delas.</li>
+            <li>O razão em <code>.xlsx</code> não é lido: use o TXT do spool ou o XML. A cópia do razão colada num papel de trabalho não é um formato de tela.</li>
+            <li>A ferramenta aponta diferenças e indícios; a causa e a conclusão são do contador.</li>
+          </ul>
         </section>
         </div>
 

@@ -10,7 +10,7 @@ Cada ferramenta lê o seu tipo de extração, reconcilia linha a linha, responde
 e gera um papel de trabalho em Excel pronto para revisão.
 
 [![Publicar no GitHub Pages](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml/badge.svg)](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-2.4.0-0f2742)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-2.5.0-0f2742)
 ![Processamento local](https://img.shields.io/badge/dados-100%25%20locais-1d7a46)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-1e6495?logo=typescript&logoColor=white)
 ![React 18](https://img.shields.io/badge/React-18-1e6495?logo=react&logoColor=white)
@@ -36,6 +36,7 @@ e gera um papel de trabalho em Excel pronto para revisão.
 |---|---|---|
 | **Log de auditoria** (`CFGR700`) | Relatório CFGR700 do Protheus (tabela CT2), um ou mais `.xlsx` de até ~1 milhão de linhas | Em uso desde a 1.0.0 |
 | **Integridade da CT2** (`CT2`) | Extração da tabela CT2 (lançamentos), um ou mais `.xlsx` ou o XML que o Protheus gera (também em `.zip`), até um ano por exportação | Em uso desde a 2.1.0 |
+| **Conciliador** (`CONC`) | Relatório de origem da folha (GPER040, TXT do spool) e razão analítico (CTBR400, TXT ou XML), com o perfil de contas importado na Configuração | Prévia na 2.5.0 (folha de pagamento) |
 
 A plataforma recebe outras ferramentas contábeis (por exemplo, conciliações) pelo mesmo contrato
 ([`docs/MODULOS.md`](docs/MODULOS.md)): cada uma traz as próprias regras, telas e planilha e usa a casca, a marca, a
@@ -67,6 +68,17 @@ leitura em fluxo, a rastreabilidade e as verificações comuns.
 | Como se distribuem os lançamentos por rotina, por dia, lançamento padrão e origem? | **Painel** de composição, Perfil (P1–P4) e os 10 maiores documentos |
 | O que precisa ser verificado, e por quê? | **Achados**: cada ocorrência com o motivo e o documento aberto ao lado |
 | A planilha prova os números sozinha? | Papel de trabalho **amarrado por fórmulas**: mudar a tolerância ou o período nos Critérios recalcula testes e status |
+
+**Conciliador (folha de pagamento)**
+
+| Pergunta de auditoria | Onde aparece |
+|---|---|
+| A folha foi lida inteira e o razão também? | Reconciliação: totais da folha (L), razão (R), tipos de saldo (T) e SHA-256 dos arquivos |
+| Quanto cada conta contábil deveria ter recebido da folha? | Esperado por conta, calculado com as verbas do perfil |
+| A integração contábil bate com a folha, filial por filial e verba por verba? | Integração (F1a–F1e): toda linha de integração comparada com a folha, em valores absolutos |
+| Qual parte do saldo anterior foi baixada no mês? | Baixa do saldo anterior (F3), por combinação exata dos lançamentos |
+| O saldo contábil fecha com o esperado? O que explica a diferença? | Ponte por conta e situação sugerida, sem limite de materialidade |
+| A planilha prova os números sozinha? | Papel de trabalho **amarrado por fórmulas**, com "Confere" por conta |
 
 ## Como funciona
 
@@ -152,6 +164,7 @@ npm run build       # build de produção para o GitHub Pages
 | [`docs/MODULOS.md`](docs/MODULOS.md) | Plataforma de análises: contrato dos módulos e o que uma ferramenta nova traz |
 | [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes do log de auditoria |
 | [`docs/REGRAS_CT2_INTEGRIDADE.md`](docs/REGRAS_CT2_INTEGRIDADE.md) | Regras, testes e planilha da Integridade da CT2 |
+| [`docs/REGRAS_CONCILIADOR.md`](docs/REGRAS_CONCILIADOR.md) | Regras, perfil e planilha do Conciliador |
 | [`docs/ROTEIRO.md`](docs/ROTEIRO.md) | Fases de desenvolvimento e situação |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Leitura em fluxo, armazenamento colunar, motor, exportação |
 | [`docs/INTERFACE.md`](docs/INTERFACE.md) | Comportamentos obrigatórios das telas e padrão visual |

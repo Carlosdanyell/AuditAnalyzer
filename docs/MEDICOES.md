@@ -311,3 +311,20 @@ Valores sintéticos; `MEDIR_CONCILIADOR=1 npx vitest run tests/unit/reconciliati
 - Memória transitória da busca com 40 candidatos: cerca de 70 MB em typed arrays (2 × 2^20 somas e máscaras por metade
   e os grupos de somas da primeira metade), liberados ao fim da busca. Medido no Node (mesmo V8 do Chrome); pendente
   medir no worker do navegador quando a etapa 5 ligar o motor à tela.
+
+## 2026-11-24 — Versão 2.5.0 (Conciliador, Fase 15), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Medidas no Node (mesmo V8 do Chrome) com os arquivos reais da folha de outubro, só tempos e memória. A busca da baixa
+do saldo anterior (F3) com 40 candidatos já está registrada em 23/11/2026 (pior caso 106 ms) e não se repete aqui.
+
+| Etapa | Tempo | Memória |
+|---|---|---|
+| Leitura do GPER040 real (TXT) | ~0,1 s | pico de ~28 MB |
+| Leitura do razão CTBR400, TXT | 15 ms | — |
+| Leitura do razão CTBR400, XML | 30 ms | — |
+| Ingestão completa pelo `handler` (sondagem, hash, leitura, motor e verificações) | ~0,2 s | pico do heap de ~38 MB |
+| Geração da planilha (arquivos reais) | ~90 ms | — |
+
+- Bem abaixo das metas (ingestão < 60 s, pico do worker < 400 MB) e dos ~300 ms da regra da baixa (F3).
+- A planilha foi recalculada no LibreOffice, sem erros, com "Confere" em todas as contas.
+- Pendente: medir no worker do navegador, no computador do usuário, e conferir a planilha no Excel.

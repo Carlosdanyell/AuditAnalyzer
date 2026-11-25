@@ -24,7 +24,7 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | Depois da 2.0 — versão 2.1.0 | concluída em 30/10/2026: um ano por exportação da CT2 (até 600.000 linhas, Base em abas de dias inteiros), escolha da aba a analisar; Integridade da CT2 conferida com uma extração real no Excel e fora da prévia |
 | Depois da 2.2 — versão 2.3.0 | concluída em 18/11/2026: a Integridade da CT2 lê o XML que o Protheus grava (XML Spreadsheet 2003), puro ou dentro de um `.zip`, com o mesmo resultado do `.xlsx` (`docs/REGRAS_CT2_INTEGRIDADE.md`, seção 2.1), e confere os lançamentos contra o plano de contas carregado junto (C1–C5, seção 6.3.1) |
 | Depois da 2.3 — versão 2.4.0 | concluída em 18/11/2026: início da plataforma em cartões |
-| 15 — Conciliador: módulo novo e perfil Folha (Padrão A) | em andamento (início em 23/11/2026; `docs/FASE_15_CONCILIADOR_FOLHA.md`, regras em `docs/REGRAS_CONCILIADOR.md`); versão 2.5.0 |
+| 15 — Conciliador: módulo novo e perfil Folha (Padrão A) | concluída em 24/11/2026 (`docs/FASE_15_CONCILIADOR_FOLHA.md`, regras em `docs/REGRAS_CONCILIADOR.md`): folha de pagamento, Padrão A, razão em TXT ou XML, planilha amarrada por fórmulas; todos os números do golden local batem; versão 2.5.0 |
 | 16 — Conciliador: provisões (Padrão B) e leitura de PDF | a fazer (`docs/FASE_16_CONCILIADOR_PROVISOES_PDF.md`); versão 2.6.0 |
 | 14 — CT2: painel de composição, Achados e subtipos de I3/I4 | implementada em 11/11/2026 (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`), versão 2.2.0; pendente no computador do usuário: golden local das contagens novas e conferência no Excel com uma extração real |
 
@@ -300,6 +300,35 @@ navegador (`tests/e2e/modules.spec.ts`). Medições em `docs/MEDICOES.md` (11/11
 de linhas; pico do worker abaixo de 400 MB; planilha de 600 mil linhas recalculada com tudo "OK"/"Confere", com cerca
 de 11 GB de memória no LibreOffice. **Pendente no computador do usuário:** o golden local
 (`local/ct2/golden-ct2-integrity.json`) com as contagens novas da extração real e a conferência da planilha no Excel.
+
+---
+
+## Fase 15 — Conciliador: módulo novo e perfil Folha (Padrão A)
+
+**Prompt:**
+> Leia `docs/FASE_15_CONCILIADOR_FOLHA.md`, `docs/REGRAS_CONCILIADOR.md`, o `CLAUDE.md`, `docs/MODULOS.md` e
+> `docs/INTERFACE.md`. Implemente a Fase 15 na ordem da seção 5, uma etapa por commit, mostrando o plano antes de
+> começar e escrevendo os testes primeiro. Respeite as proibições da seção 4 e pare nas situações da seção 8.
+
+**Pronto quando:**
+- com os arquivos de `local/conciliador/`, todos os números do golden batem;
+- para cada conta: valor do Painel = Resumo da planilha = soma da tabela aberta pelo clique; a ponte fecha (CC-3) na
+  tela e na planilha recalculada ("Confere" em todas as linhas);
+- invariantes L-*, R-*, V-3 e CC-* documentadas e testadas; o gerador sintético cobre os casos da seção 6;
+- e2e, unidade, lint e build passando; nenhum dado real no repositório; memória e tempo medidos e registrados.
+
+Etapas (uma por commit): 1 módulo, configuração e importação do perfil; 2 leitor do GPER040 e invariantes L; 3 leitor do
+razão CTBR400 (TXT e XML); 4 motor do Padrão A (esperado, integração F1, baixa do saldo anterior F3, ponte); 5 ingestão
+no worker e telas; 6 planilha amarrada por fórmulas; 7 documentação e versão.
+
+**Implementada (24/11/2026).** Com os arquivos reais, todos os números do golden local batem: cada número de leitura da
+folha, as linhas de integração conferidas, as divergentes, as verbas F1c da conta de líquido a pagar e, por conta, o
+esperado, o saldo anterior, o saldo contábil, a diferença e a situação da baixa. O razão da conta de líquido a pagar foi
+conferido em TXT e em XML, com o mesmo resultado. Na tela, só as contas com o razão original carregado são analisadas;
+as demais precisam do razão delas (pendência P-2). A planilha recalculada no LibreOffice mostra "Confere" em todas as
+contas. Decisões de 24/11/2026 (`docs/REGRAS_CONCILIADOR.md`, seção 13): **D-11** o F1 compara valores absolutos; **D-12**
+toda linha de integração da competência é comparada com a folha; **D-13** nova situação "Sem diferença — conferir
+alertas". Medições em `docs/MEDICOES.md` (24/11/2026). Provisões (Padrão B) e a leitura de PDF ficam na Fase 16.
 
 ---
 
