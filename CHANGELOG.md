@@ -4,6 +4,21 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Fluxo das ferramentas: Leitura, Visão geral, Análise e Exportação (25/11/2026)
+- As três ferramentas têm as mesmas visões: **Leitura** (antes Reconciliação), **Visão geral** (antes Painel),
+  **Análise** (Achados e Tabelas juntos), **Justificativas** (CFGR700 e Conciliador) e **Exportação**.
+- Leitura: com tudo conferindo, uma linha verde com "Ver detalhes"; com falha, os detalhes abertos. O quadro de testes
+  da CT2 saiu da Leitura (está na Análise).
+- Visão geral: sem repetir a faixa de indicadores-chave (CFGR700: sem os cartões por categoria; CT2: lançamentos,
+  documentos e lotes só com filtro).
+- Análise: à esquerda, os testes (CT2), as sinalizações e os resultados da análise segregada (CFGR700) ou os códigos de
+  achado (Conciliador), em grupos Erro, Alerta, Conferir com aprovação e Informativo, cada um com o número de linhas
+  que abre; os sem ocorrência recolhidos. Clique ou filtro **Teste** filtram a tabela; a regra aparece numa linha. No
+  centro, as tabelas (CT2: Ocorrências, a antiga Exceções, primeiro); à direita, em tela larga, o documento (CT2) ou a
+  conta (Conciliador) da linha escolhida; em tela estreita, por cima.
+- Worker: comando `tests` (CT2) com as linhas de cada tabela por teste sob o filtro comum. Contrato em
+  `docs/MODULOS.md`; comportamentos em `docs/INTERFACE.md`.
+
 ## [2.5.0] — 2026-11-24
 
 ### Tela mais limpa e filtros novos na CT2 (25/11/2026)

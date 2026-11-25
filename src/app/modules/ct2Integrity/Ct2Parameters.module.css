@@ -1,4 +1,4 @@
-/* Parameters of the execution, folded (Achados of the CT2). */
+/* Parameters of the execution, folded (top of the list of tests of the Análise of the CT2). */
 .fold > summary {
   display: flex;
   flex-wrap: wrap;
@@ -56,4 +56,26 @@
 .errorText {
   color: var(--error);
   font-size: 13px;
+}
+
+/* In the list of tests of the Análise: no card of its own, the fields one under the other. */
+.compact {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.compact > summary {
+  gap: 4px 8px;
+}
+
+.compact > summary > .muted,
+.compact > summary > span:last-child {
+  flex-basis: 100%;
+  margin-left: 0;
+  font-size: 12px;
+}
+
+.compact .params {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }

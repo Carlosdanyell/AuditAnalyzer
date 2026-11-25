@@ -1,6 +1,6 @@
 /**
  * Screens of the CT2 after the analysis (Phase 14, section 4): the common filter, the geometry of the Painel charts, the
- * arrangement of the Achados, the side panel of a document and the rail. Pure helpers and static markup, synthetic data.
+ * list of tests of the Análise, the side panel of a document and the rail. Pure helpers and static markup, synthetic data.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -11,9 +11,11 @@ import { railViews } from '../../src/app/rail';
 import { Ct2DocumentDetailView, currency1Differs, documentTitle } from '../../src/app/modules/ct2Integrity/Ct2DocumentPanel';
 import { DEBIT_UNAVAILABLE, dayColumns, manualShare, routineBars, valueSegment } from '../../src/app/modules/ct2Integrity/charts';
 import { NOT_APPLICABLE, accountFrom, activeFilters, amountFrom, commonOf, filterChips, isEmptyFilter, isLineLevel, ownOf, periodFrom, toggleOrigin, withFilter, withoutFilter } from '../../src/app/modules/ct2Integrity/filters';
-import { findingsLayout, occurrencesName, type BoardRow } from '../../src/app/modules/ct2Integrity/findingsLayout';
+import { MIXED_KEY, ct2AnalysisTests, ct2TestTarget } from '../../src/app/modules/ct2Integrity/analysisTests';
+import { testName } from '../../src/components/AnalysisLayout';
+import type { Ct2Severity, Ct2TestCode } from '../../src/config/ct2IntegritySchema';
 import { parseDate } from '../../src/shared/dates';
-import type { Ct2DocumentDetail, Ct2DocumentLine, Ct2Origin, Ct2Overview } from '../../src/shared/modules/ct2Integrity';
+import type { Ct2DocumentDetail, Ct2DocumentLine, Ct2FindingGroup, Ct2Origin, Ct2Overview, Ct2TestEntry, Ct2TestsData } from '../../src/shared/modules/ct2Integrity';
 
 const day = parseDate;
 const origins = (automatic: number, manual: number, mixed: number, unidentified: number): Record<Ct2Origin, number> => ({ automatic, manual, mixed, unidentified });
@@ -163,40 +165,55 @@ describe('geometry of the Painel charts', () => {
   });
 });
 
-const row = (code: BoardRow['code'], severity: BoardRow['severity'], group: BoardRow['group'], occurrences: number, state: BoardRow['state'] = 'on'): BoardRow => ({
-  code,
-  severity,
-  group,
-  occurrences,
-  state,
-  detail: null,
-  link: group ? 'ct2Exceptions' : null,
-  sample: [],
-});
+describe('Análise: the list of tests and the Teste filter (25/11/2026)', () => {
+  const entry = (code: Ct2TestCode, severity: Ct2Severity, group: Ct2FindingGroup | null, occurrences: number, tables: Ct2TestEntry['tables'], state: Ct2TestEntry['state'] = 'on'): Ct2TestEntry => ({
+    code,
+    severity,
+    state,
+    occurrences,
+    detail: code === 'B4' ? '5 compensados pelo documento vizinho, 1 sem compensação' : null,
+    group,
+    tables,
+    rule: `Regra de ${code}.`,
+  });
+  const data: Ct2TestsData = {
+    filter: {},
+    mixedDocuments: 1,
+    tests: [
+      entry('B1', 'error', 'exception', 6, { ct2Exceptions: 6, ct2Documents: 6 }),
+      entry('B2', 'error', 'exception', 0, { ct2Exceptions: 0, ct2Batches: 0 }),
+      entry('B4', 'info', 'info', 6, { ct2Exceptions: 6, ct2Documents: 6 }),
+      entry('E4', 'warning', 'exception', 2, { ct2Exceptions: 2, ct2Base: 2 }),
+      entry('I4a', 'info', 'approval', 2, { ct2Exceptions: 2, ct2Base: 2 }),
+      entry('E6', 'info', 'info', 0, {}, 'off'),
+      entry('P1', 'info', null, 4, {}),
+    ],
+  };
 
-describe('Achados: the board arranged by group', () => {
-  const board = [
-    row('B1', 'error', 'exception', 6),
-    row('B2', 'error', 'exception', 0),
-    row('E4', 'warning', 'exception', 2),
-    row('I4a', 'info', 'approval', 2),
-    row('I1', 'info', 'info', 3),
-    row('I5', 'info', 'info', 14),
-    row('E6', 'info', 'info', 0, 'off'),
-    row('P1', 'info', null, 4),
-  ];
+  it('groups by level with the rows of the table each test opens, the profile left out, the Misto documents with the approval', () => {
+    const tests = ct2AnalysisTests(data, 'ct2Exceptions');
+    expect(tests.map((t) => [t.key, t.level, t.count, t.countText])).toEqual([
+      ['B1', 'error', 6, '6 documentos'],
+      ['B2', 'error', 0, '0 lotes'],
+      ['B4', 'info', 6, '6 documentos'],
+      ['E4', 'warning', 2, '2 linhas'],
+      ['I4a', 'approval', 2, '2 linhas'],
+      ['E6', 'info', 0, 'desligado'],
+      [MIXED_KEY, 'approval', 1, '1 documento'],
+    ]);
+    expect(tests.find((t) => t.key === 'E6')!.note).toBe('desligado');
+    expect(testName(tests[0]!)).toBe('B1 Documento desbalanceado: 6 documentos');
+    // The rule, after the result when the test has one.
+    expect(tests[2]!.description).toBe('5 compensados pelo documento vizinho, 1 sem compensação. Regra de B4.');
+  });
 
-  it('opens the exceptions and the approval group, folds the informative ones and those without occurrence', () => {
-    const layout = findingsLayout(board, 1);
-    expect(layout.exceptions.tests.map((t) => t.code)).toEqual(['B1', 'E4']);
-    expect(layout.exceptions).toMatchObject({ occurrences: 8, open: true, title: 'Exceções — Erro e Alerta · 8 ocorrências' });
-    expect(layout.approval).toMatchObject({ occurrences: 2, open: true, title: 'Conferir com documento de aprovação · 2 ocorrências e 1 documento misto' });
-    expect(layout.info).toMatchObject({ occurrences: 17, open: false, title: 'Informativos · 17 ocorrências em 2 testes' });
-    // The profile is the Painel's; a test turned off is listed with those without occurrence.
-    expect(layout.quiet.tests.map((t) => t.code)).toEqual(['B2', 'E6']);
-    expect(layout.quiet.title).toBe('1 teste(s) sem ocorrência · 1 desligado(s) ou sem a coluna');
-    expect(occurrencesName(board[0]!)).toBe('B1: 6 documentos');
-    expect(occurrencesName(board[2]!)).toBe('E4: 2 linhas');
+  it('opens the table on screen when it lists the test, Ocorrências otherwise', () => {
+    expect(ct2TestTarget(data, 'B1', 'ct2Documents')).toBe('ct2Documents');
+    expect(ct2TestTarget(data, 'B1', 'ct2Base')).toBe('ct2Exceptions');
+    expect(ct2TestTarget(data, 'E4', 'ct2Base')).toBe('ct2Base');
+    const onBase = ct2AnalysisTests(data, 'ct2Base');
+    expect(onBase.find((t) => t.key === 'E4')!.count).toBe(2);
+    expect(onBase.find((t) => t.key === 'B1')!.count).toBe(6);
   });
 });
 
@@ -273,8 +290,8 @@ describe('side panel of a document', () => {
 });
 
 describe('rail of the views', () => {
-  it('offers Achados for the CT2 and not for the CFGR700', () => {
-    expect(railViews(ct2IntegrityModule as unknown as AvailableModule).map((v) => v.label)).toEqual(['Reconciliação', 'Painel', 'Achados', 'Tabelas', 'Exportação']);
-    expect(railViews(cfgr700Module as unknown as AvailableModule).map((v) => v.label)).toEqual(['Reconciliação', 'Painel', 'Tabelas', 'Justificativas', 'Exportação']);
+  it('four views for every tool, Justificativas where the tool takes them (25/11/2026)', () => {
+    expect(railViews(ct2IntegrityModule as unknown as AvailableModule).map((v) => v.label)).toEqual(['Leitura', 'Visão geral', 'Análise', 'Exportação']);
+    expect(railViews(cfgr700Module as unknown as AvailableModule).map((v) => v.label)).toEqual(['Leitura', 'Visão geral', 'Análise', 'Justificativas', 'Exportação']);
   });
 });

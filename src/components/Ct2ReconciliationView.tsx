@@ -1,4 +1,4 @@
-import { CT2_TEST_INFO, type Ct2ChartReconciliation, type Ct2FileReconciliation, type Ct2MatrixRow, type Ct2Reconciliation, type Ct2Summary, type Ct2TestResult, type Ct2Unreadable } from '../shared/modules/ct2Integrity';
+import type { Ct2ChartReconciliation, Ct2FileReconciliation, Ct2MatrixRow, Ct2Reconciliation, Ct2Summary, Ct2Unreadable } from '../shared/modules/ct2Integrity';
 import type { Stage } from '../shared/protocol';
 import { dateParts, formatDay } from '../shared/dates';
 import { INPUT_FORMAT_LABEL, formatBytes, formatCents, formatElapsed, formatInteger } from '../shared/format';
@@ -70,9 +70,8 @@ export function Ct2ReconciliationView({ data, summary, preview, matrix = null }:
         tiles={tiles}
         okText="Arquivos íntegros, linhas reconciliadas, base em ordem e valores legíveis."
         failText="A leitura tem problemas que impedem usar a base como está. Confira os detalhes abaixo."
-      />
+      >
       <Checks checks={data.checks} totalMs={data.totalMs} />
-      {summary?.analysis && <TestBoard analysis={summary.analysis} />}
       {summary && <BaseSummary summary={summary} />}
       {matrix && <Matrix rows={matrix} />}
 
@@ -97,6 +96,7 @@ export function Ct2ReconciliationView({ data, summary, preview, matrix = null }:
       {data.files.map((file) => (
         <FileCard key={file.fileIndex} file={file} />
       ))}
+      </RunStatus>
     </div>
   );
 }
@@ -281,90 +281,6 @@ function Matrix({ rows }: { rows: Ct2MatrixRow[] }) {
       </div>
       <p className={ui.muted}>Cada nível recontado pelos próprios blocos; a planilha refaz a mesma amarração por fórmulas.</p>
     </section>
-  );
-}
-
-const LEVELS = {
-  line: ['linha', 'linhas'],
-  document: ['documento', 'documentos'],
-  batch: ['lote', 'lotes'],
-  day: ['dia', 'dias'],
-  profile: ['grupo', 'grupos'],
-} as const;
-const SEVERITY = { error: { label: 'Erro', tone: ui.error }, warning: { label: 'Alerta', tone: ui.warn }, info: { label: 'Info', tone: ui.neutral } } as const;
-
-/**
- * Board of tests (section 6): occurrences of each test, by its level. Tests with occurrences open; the others folded
- * in one line, with those turned off or without their column.
- */
-function TestBoard({ analysis }: { analysis: NonNullable<Ct2Summary['analysis']> }) {
-  const p = analysis.parameters;
-  const found = analysis.tests.filter((t) => t.state === 'on' && t.occurrences > 0);
-  const quiet = analysis.tests.filter((t) => !(t.state === 'on' && t.occurrences > 0));
-  const period = periodText(p.periodStart, p.periodEnd);
-  return (
-    <section className={ui.card}>
-      <div className={ui.cardHead}>
-        <h2 className={ui.cardTitle}>
-          <span className={ui.cardIcon}>
-            <Icon name="flag" />
-          </span>
-          Quadro de testes
-        </h2>
-        <span className={ui.muted}>{n(analysis.exceptions)} exceção(ões) de Erro ou Alerta</span>
-      </div>
-      <p className={ui.muted}>
-        Período {period} · tipo de saldo {p.expectedBalanceType} · moeda {p.expectedCurrency} (local {p.localCurrency}) · tolerância{' '}
-        {formatCents(p.toleranceCents)} · limite de {n(p.documentLineLimit)} linhas por documento
-      </p>
-      {found.length > 0 && <TestTable tests={found} />}
-      {quiet.length > 0 && (
-        <details className={styles.more}>
-          <summary>
-            <Icon name="chevronRight" size={16} />
-            {found.length === 0 ? `Nenhuma ocorrência nos ${quiet.length} testes` : `${quiet.length} teste(s) sem ocorrência ou desligado(s)`}
-          </summary>
-          <TestTable tests={quiet} />
-        </details>
-      )}
-    </section>
-  );
-}
-
-function TestTable({ tests }: { tests: Ct2TestResult[] }) {
-  return (
-    <div className={styles.scroll}>
-      <table className={cx(styles.table, styles.wide)}>
-        <thead>
-          <tr>
-            <th>Teste</th>
-            <th>Severidade</th>
-            <th>Ocorrências</th>
-            <th>Resultado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tests.map((t) => {
-            const info = CT2_TEST_INFO[t.code];
-            const severity = SEVERITY[t.severity];
-            return (
-              <tr key={t.code}>
-                <th scope="row">
-                  <span className={styles.mono}>{t.code}</span> {info.label}
-                </th>
-                <td>
-                  <span className={cx(ui.pill, severity.tone)}>{severity.label}</span>
-                </td>
-                <td>
-                  {t.state === 'off' ? 'desligado' : t.state === 'noColumn' ? 'sem a coluna' : `${n(t.occurrences)} ${LEVELS[info.level][t.occurrences === 1 ? 0 : 1]}`}
-                </td>
-                <td>{t.detail ?? ''}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 /**
- * Painel of the CT2: the composition of the extraction under the common filter (Phase 14, section 4.3), from the
- * `overview` query. Indicators (each origin number applies the origin filter), lines by routine stacked by origin, lines
+ * Visão geral of the CT2: the composition of the extraction under the common filter (Phase 14, section 4.3; flow
+ * revision of 25/11/2026), from the `overview` query. The key-figure strip is the summary of the whole extraction: here
+ * the lines, documents and batches appear only under a filter (then they differ from it). Indicators (each origin number applies the origin filter), lines by routine stacked by origin, lines
  * by day with the non-business days marked, the batches with manual intervention and the profile (P1/P2), folded.
  * Values are never added across segments: without a segment chosen, the Débito options wait for one.
  */
@@ -13,7 +14,7 @@ import { CT2_ORIGINS, CT2_ORIGIN_LABEL, type Ct2Filter, type Ct2Overview, type C
 import type { WorkerClient } from '../../workerClient';
 import { ChartSwitch, DayColumns, OriginLegend, RoutineBars } from './Ct2Charts';
 import { DEBIT_UNAVAILABLE, dayColumns, manualShare, measureText, routineBars, valueSegment, type DayMeasure, type RoutineMeasure } from './charts';
-import { isLineLevel, withFilter } from './filters';
+import { isEmptyFilter, isLineLevel, withFilter } from './filters';
 import styles from './Ct2Screens.module.css';
 
 const n = formatInteger;
@@ -54,13 +55,15 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
       </p>
     );
   }
-  if (!data) return <p className={ui.muted}>Carregando o painel…</p>;
+  if (!data) return <p className={ui.muted}>Carregando a visão geral…</p>;
 
   const segment = valueSegment(data, filter.segment);
   const label = (s: number) => data.segments.find((x) => x.index === s)?.label ?? '';
   const { counts } = data;
   // Lotes ignores the line-level filters (CT2_FILTER_APPLIES): its total equals the count only without them.
   const batchesOpen = !isLineLevel(filter);
+  // Without a filter, lines, documents and batches are the key-figure strip.
+  const filtered = !isEmptyFilter(filter);
   const effectiveRoutine = segment === null && routineMeasure === 'debit' ? 'lines' : routineMeasure;
   const effectiveDay = segment === null && dayMeasure === 'debit' ? 'lines' : dayMeasure;
   const bars = routineBars(data, effectiveRoutine, segment);
@@ -77,15 +80,19 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
           Composição da extração
         </h2>
         <dl className={styles.stats}>
-          <Stat label="Lançamentos" value={n(counts.entries)} />
+          {filtered && <Stat label="Lançamentos na seleção" value={n(counts.entries)} />}
           <Stat label="Linhas de histórico" value={n(counts.historyLines)} />
-          <Stat
-            label="Documentos"
-            value={n(counts.documents)}
-            onOpen={counts.documents > 0 ? () => onOpenTable('ct2Documents', {}) : undefined}
-            name={`Documentos: ${n(counts.documents)}`}
-          />
-          <Stat label="Lotes" value={n(counts.batches)} onOpen={batchesOpen && counts.batches > 0 ? () => onOpenTable('ct2Batches', {}) : undefined} name={`Lotes: ${n(counts.batches)}`} />
+          {filtered && (
+            <Stat
+              label="Documentos na seleção"
+              value={n(counts.documents)}
+              onOpen={counts.documents > 0 ? () => onOpenTable('ct2Documents', {}) : undefined}
+              name={`Documentos: ${n(counts.documents)}`}
+            />
+          )}
+          {filtered && (
+            <Stat label="Lotes na seleção" value={n(counts.batches)} onOpen={batchesOpen && counts.batches > 0 ? () => onOpenTable('ct2Batches', {}) : undefined} name={`Lotes: ${n(counts.batches)}`} />
+          )}
           <Stat
             label="Lotes com intervenção manual"
             value={n(counts.interventionBatches)}

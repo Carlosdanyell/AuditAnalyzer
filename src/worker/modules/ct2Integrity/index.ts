@@ -14,6 +14,7 @@ import { ingestCt2, type Ct2Ingested } from './ingest';
 import { ct2Document } from './document';
 import { filterIndex, type Ct2FilterIndex } from './filter';
 import { ct2Overview } from './overview';
+import { ct2TestList } from './testList';
 import { ct2Panel } from './panel';
 import { segmentMap, type Ct2SegmentMap } from './segments';
 import { Ct2Tables } from './tables';
@@ -64,6 +65,9 @@ export const ct2IntegrityWorker: WorkerModule = {
         },
         overview(filter) {
           return ct2Overview(base, analysis, index(), filter ?? {}, holidaySet);
+        },
+        tests(filter) {
+          return ct2TestList(base, analysis, tables(), filter ?? {}, segments(), index());
         },
         document(d) {
           return ct2Document(base, analysis, segments(), d);

@@ -57,29 +57,23 @@ describe('CT2 reconciliation screen', () => {
     expect(html).toContain('As extrações não têm as mesmas colunas');
   });
 
-  it('shows the board of tests: the tests with occurrences open, the others folded with those turned off', async () => {
+  it('keeps the Leitura to the reading: the board of tests moved to the Análise (25/11/2026)', async () => {
     const html = await render([{ name: 'a.xlsx', blob: ct2Blob({ rows: ENGINE_ROWS }) }], { holidays: new Set() });
-    expect(html).toContain('Quadro de testes');
-    // Phase 14: two I3b and two I4c instead of one I3 and one I4.
-    expect(html).toContain('28 exceção(ões) de Erro ou Alerta');
+    expect(html).not.toContain('Quadro de testes');
     // The period covers every month read, and the screen says so.
     expect(html).toMatch(/Período da análise<\/dt><dd>01\/09\/2026 a 31\/10\/2026 \(2 meses\)<\/dd>/);
-    expect(html).toContain('Período 01/09/2026 a 31/10/2026 (2 meses) · tipo de saldo 1 · moeda 01 (local 01) · tolerância 0,00 · limite de 1.000 linhas por documento');
-    expect(html).toMatch(/B1<\/span> Documento desbalanceado<\/th><td><span[^>]*>Erro<\/span><\/td><td>6 documentos<\/td>/);
-    expect(html).toContain('5 compensados pelo documento vizinho, 1 sem compensação');
-    // Without holidays only the Saturday is not a business day.
-    expect(html).toMatch(/E6<\/span> Dia não útil<\/th><td><span[^>]*>Info<\/span><\/td><td>1 dia<\/td>/);
-    // Every month read is in the period: E5, the only test without occurrences, is folded with C1-C5 (no chart).
-    expect(html).toContain('6 teste(s) sem ocorrência ou desligado(s)');
     // The new invariants are in the list of checks.
     expect(html).toContain('Débito e crédito iguais em todos os níveis');
-    expect(html).toContain('Período da análise');
   });
 
-  it('folds the tests without occurrences and says which are turned off', async () => {
-    const html = await render([{ name: 'b.xlsx', blob: ct2Blob(fileB()) }], { holidays: new Set() });
-    // Phase 14: 23 tests (I3 and I4 split in five), so more than 20 fold here.
-    expect(html).toMatch(/2\d teste\(s\) sem ocorrência ou desligado\(s\)/);
+  it('a reading that passes is one green line with the details folded; a failure keeps them open', async () => {
+    const clean = await render([{ name: 'b.xlsx', blob: ct2Blob(fileB()) }], { holidays: new Set() });
+    expect(clean).toMatch(/<details class="[^"]*"><summary[^>]*>.*Integridade confirmada/s);
+    expect(clean).toContain('Ver detalhes');
+    expect(clean).toContain('Reconciliação de linhas');
+    const failing = await render([{ name: 'a.xlsx', blob: ct2Blob(fileA()) }], { holidays: new Set() });
+    expect(failing).toContain('bloqueante(s) falhou(aram)');
+    expect(failing).not.toContain('Ver detalhes');
   });
 
   it('shows the chart of accounts loaded with the extraction: file, header, accounts and what could not be used', async () => {
@@ -101,7 +95,6 @@ describe('CT2 reconciliation screen', () => {
     expect(html).toContain('Plano de contas legível');
     // The chart is the second file of the list.
     expect(html).toMatch(/<span class="[^"]*">2<\/span>Plano de contas — plano.xlsx/);
-    expect(html).toMatch(/C1<\/span> Centro de custo obrigatório não informado<\/th><td><span[^>]*>Alerta<\/span><\/td><td>7 linhas<\/td>/);
   });
 
   it('says when no chart of accounts was loaded', async () => {

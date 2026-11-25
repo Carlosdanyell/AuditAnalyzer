@@ -1,5 +1,5 @@
 /**
- * Parameters of one execution of the CT2 tests (docs/REGRAS_CT2_INTEGRIDADE.md, section 6.5), folded on the Achados:
+ * Parameters of one execution of the CT2 tests (docs/REGRAS_CT2_INTEGRIDADE.md, section 6.5), folded at the top of the list of tests of the Análise:
  * changed and reapplied in seconds, without reading the files again; validated on screen before they are sent.
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -17,7 +17,7 @@ const isoOf = (day: number | null) => (day === null ? '' : dayToInput(day));
 const dayOf = inputToDay;
 
 /** Parameters of the execution (section 6.5): changed and reapplied without reading the files again. */
-export function Ct2Parameters({ current, onReapply }: { current: Ct2RunParameters; onReapply: (parameters: Ct2RunParameters) => Promise<void> }) {
+export function Ct2Parameters({ current, onReapply, compact = false }: { current: Ct2RunParameters; onReapply: (parameters: Ct2RunParameters) => Promise<void>; compact?: boolean }) {
   const initial = useMemo(
     () => ({
       start: isoOf(current.periodStart),
@@ -63,13 +63,15 @@ export function Ct2Parameters({ current, onReapply }: { current: Ct2RunParameter
   }
 
   return (
-    <details className={cx(ui.card, styles.fold)} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+    <details className={cx(compact ? styles.compact : ui.card, styles.fold)} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
-        <Icon name="chevronRight" size={18} />
+        <Icon name="chevronRight" size={compact ? 16 : 18} />
         <span className={ui.cardTitle}>
-          <span className={ui.cardIcon}>
-            <Icon name="sliders" />
-          </span>
+          {!compact && (
+            <span className={ui.cardIcon}>
+              <Icon name="sliders" />
+            </span>
+          )}
           Parâmetros da execução
         </span>
         <span className={ui.muted}>
@@ -128,7 +130,7 @@ export function Ct2Parameters({ current, onReapply }: { current: Ct2RunParameter
         )}
       </div>
       <p className={ui.muted}>
-        Os testes são aplicados de novo sobre a mesma base, sem reler os arquivos. O painel, as tabelas e a planilha passam a usar estes parâmetros;
+        Os testes são aplicados de novo sobre a mesma base, sem reler os arquivos. A visão geral, a análise e a planilha passam a usar estes parâmetros;
         os padrões ficam na Configuração.
       </p>
     </details>

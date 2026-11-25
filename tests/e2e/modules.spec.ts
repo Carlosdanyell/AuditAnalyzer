@@ -10,7 +10,7 @@ import { Workbook } from '../support/xlsxEval';
 import { spoolPdf } from '../synthetic/pdfFixture';
 import { payrollProfileFile } from '../synthetic/reconciliationProfile';
 import { profileWithStatuses, screenFixture, sessionFiles } from '../synthetic/reconciliationSession';
-import { analyze, chooseModule, expect, test } from './fixtures';
+import { analyze, chooseModule, expect, showReadingDetails, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
 const CT2 = 'Integridade da CT2';
@@ -45,6 +45,15 @@ function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
 
 /** The number at the end of an accessible name ("CTBANFE: 1.234 linhas" → "1.234"). */
 const numberIn = (name: string | null) => /: ([\d.]+)/.exec(name ?? '')![1]!;
+
+/** The list of tests of the Análise (25/11/2026). */
+const testList = (page: Page) => page.getByRole('complementary', { name: 'Testes' });
+
+/** Sum of the numbers of the tests of a group of the list ("Erro", "Alerta", "Conferir com aprovação"). */
+async function groupSum(page: Page, group: string): Promise<number> {
+  const names = await testList(page).getByRole('region', { name: group }).getByRole('button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label') ?? ''));
+  return names.reduce((sum, name) => sum + Number(numberIn(name).replace(/\./g, '')), 0);
+}
 
 /** Analyzes the CT2 extraction with one case per test (ct2EngineFixture.ts); resolves with the rail of the views. */
 async function analyzeEngine(page: Page, files: { engine: string }) {
@@ -83,17 +92,17 @@ test('Integridade da CT2: lê, reconcilia, aplica os testes e mostra a base; ofe
   await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('navigation', { name: 'Trilha' }).getByText(/^2 arquivo\(s\)/)).toBeVisible();
   await expect(page.getByText('1 verificação(ões) bloqueante(s) falhou(aram)')).toBeVisible();
+  // A reading that fails keeps its details open; the board of tests is the list of the Análise (25/11/2026).
   await expect(page.getByText('Base de lançamentos por tipo de saldo e moeda')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible();
-  await expect(page.getByText(/exceção\(ões\) de Erro ou Alerta$/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toHaveCount(0);
   await expect(page.getByText('Débito e crédito iguais em todos os níveis')).toHaveCount(1);
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toHaveCount(2);
   await expect(page.getByText(/ct2-a\.xlsx: linhas 13, 14, 15/)).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Visões' });
-  await expect(nav.getByRole('button', { name: 'Reconciliação' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Leitura' })).toBeVisible();
   await expect(nav.getByRole('button', { name: 'Justificativas' })).toHaveCount(0);
-  for (const offered of ['Painel', 'Achados', 'Tabelas', 'Exportação']) await expect(nav.getByRole('button', { name: offered })).toBeVisible();
-  // Phase 14: the tie-out matrix closes the reconciliation.
+  for (const offered of ['Visão geral', 'Análise', 'Exportação']) await expect(nav.getByRole('button', { name: offered, exact: true })).toBeVisible();
+  // Phase 14: the tie-out matrix closes the reading.
   await expect(page.getByRole('heading', { name: 'Matriz de amarração' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Exportar planilha' })).toBeVisible();
   expect(await idb(page, 'lastModule')).toBe('ct2Integrity');
@@ -107,6 +116,10 @@ test('Integridade da CT2: lê o XML gerado pelo sistema, puro ou dentro de um .z
   await page.getByRole('button', { name: 'Analisar' }).click();
   await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(/bloqueante\(s\) falhou/)).toHaveCount(0);
+  // Everything passed: one green line, the details folded until asked (25/11/2026).
+  await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible();
+  await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toBeHidden();
+  await showReadingDetails(page);
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toBeVisible();
   await expect(page.getByText(/Arquivo XML sem compactação/)).toBeVisible();
   await expect(page.getByText('XML gerado pelo sistema (XML Spreadsheet 2003)')).toBeAttached();
@@ -115,7 +128,9 @@ test('Integridade da CT2: lê o XML gerado pelo sistema, puro ou dentro de um .z
   await page.getByRole('button', { name: /Remover/ }).first().click();
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.xmlZip]);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByText(/Integridade do ZIP \(1 de 1 entradas conferem\)/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible({ timeout: 60_000 });
+  await showReadingDetails(page);
+  await expect(page.getByText(/Integridade do ZIP \(1 de 1 entradas conferem\)/)).toBeVisible();
   await expect(page.getByText('XML gerado pelo sistema, dentro de um .zip')).toBeAttached();
 });
 
@@ -124,7 +139,7 @@ test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de te
   await chooseModule(page, CT2);
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Exportar planilha' }).click();
   for (const language of ['pt', 'en'] as const) {
     await page.getByLabel(language === 'pt' ? 'Português' : 'English').check();
@@ -148,53 +163,71 @@ test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de te
   }
 });
 
-test('Integridade da CT2: achados por segmento, cada número abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
+test('Integridade da CT2: análise por segmento, cada número da lista abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
   const nav = await analyzeEngine(page, ct2Files);
-  // Phase 14: the board of tests (with the parameters) is under Achados.
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  await expect(page.getByRole('heading', { name: /^Exceções — Erro e Alerta/ })).toBeVisible();
+  // 25/11/2026: the tests are the list of the Análise, beside the tables.
+  await nav.getByRole('button', { name: 'Análise', exact: true }).click();
+  const list = testList(page);
+  const tables = page.getByRole('navigation', { name: 'Tabelas' });
+  await expect(list.getByRole('region', { name: 'Erro' })).toBeVisible();
+  await expect(tables.getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
 
-  // A number of the board opens the table with exactly those rows.
-  await page.getByRole('button', { name: 'B1: 6 documentos' }).click();
-  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Exceções' })).toHaveAttribute('aria-current', 'page');
+  // A number of the list opens the table with exactly those rows; the Teste filter shows the test.
+  await list.getByRole('button', { name: 'B1 Documento desbalanceado: 6 documentos' }).click();
   await expect(page.getByText('6 linha(s)')).toBeVisible();
-  await expect(page.getByText('B1 · Documento desbalanceado')).toBeVisible();
-  await page.getByRole('button', { name: 'Remover filtro do painel' }).click();
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('B1');
+  // Documentos lists B1 too: the test stays and the table has as many rows.
+  await tables.getByRole('button', { name: 'Documentos' }).click();
+  await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('B1');
+  await expect(page.getByText('6 linha(s)')).toBeVisible();
+  await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('');
   // Phase 14: every finding, 28 exceptions, 2 to check against an approval document and 17 informative (without the
   // holiday of the unit tests, E6 has only the Saturday).
+  await tables.getByRole('button', { name: 'Ocorrências' }).click();
   await expect(page.getByText('47 linha(s)')).toBeVisible();
+  // The Teste filter: a test of a line opens Ocorrências from Lotes (Lotes does not list it).
+  await tables.getByRole('button', { name: 'Lotes' }).click();
+  await page.getByRole('combobox', { name: 'Teste' }).selectOption('E4');
+  await expect(tables.getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('2 linha(s)')).toBeVisible();
+  await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
 
   // The Base shows the mapped columns and, on request, every column of the extraction.
-  await page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Base' }).click();
+  await tables.getByRole('button', { name: 'Base' }).click();
   await expect(page.getByText('1.050 linha(s)')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(0);
   await page.getByLabel('Mostrar todas as colunas').check();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
 
-  // One segment (the common filter): every number of the Achados follows it.
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  // The fields of the filter are in the panel opened by the "Filtros" button of the bar.
+  // One segment (the common filter): every number of the list follows it.
+  await tables.getByRole('button', { name: 'Ocorrências' }).click();
   await page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ }).click();
   await page.getByRole('combobox', { name: 'Segmento', exact: true }).selectOption({ label: 'Saldo 1 · Moeda 02' });
-  await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
+  await expect(list.getByRole('button', { name: 'E4 Moeda diferente da esperada: 2 linhas' })).toBeVisible();
+  await expect(list.getByRole('button', { name: /^B1 / })).toHaveCount(0);
   await page.getByRole('button', { name: 'Remover filtro Segmento' }).click();
-  await expect(page.getByRole('button', { name: 'B1: 6 documentos' })).toBeVisible();
+  await expect(list.getByRole('button', { name: 'B1 Documento desbalanceado: 6 documentos' })).toBeVisible();
 
   // Parameters reapplied without reading the files again: a tolerance of R$ 10,00 leaves two unbalanced documents.
   await page.getByText('Parâmetros da execução').click();
   await page.getByLabel('Tolerância (R$)').fill('10,00');
   await page.getByRole('button', { name: 'Reaplicar os testes' }).click();
   await expect(page.getByText('Testes reaplicados com os novos parâmetros.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'B1: 2 documentos' })).toBeVisible();
+  await expect(list.getByRole('button', { name: 'B1 Documento desbalanceado: 2 documentos' })).toBeVisible();
 });
 
-test('Integridade da CT2: painel da composição; clique numa rotina filtra, o chip aparece e as tabelas seguem o filtro', async ({ page, ct2Files }) => {
+test('Integridade da CT2: visão geral da composição; clique numa rotina filtra, o chip aparece e as tabelas seguem o filtro', async ({ page, ct2Files }) => {
   const nav = await analyzeEngine(page, ct2Files);
-  await nav.getByRole('button', { name: 'Painel' }).click();
+  const overview = nav.getByRole('button', { name: 'Visão geral', exact: true });
+  const analysis = nav.getByRole('button', { name: 'Análise', exact: true });
+  await overview.click();
   await expect(page.getByRole('heading', { name: 'Por rotina' })).toBeVisible();
   // Without a segment chosen, values are not added across segments: Débito waits for one.
   await expect(page.getByRole('group', { name: 'Medida por rotina' }).getByRole('button', { name: 'Débito' })).toBeDisabled();
+  // Without a filter, lines, documents and batches are the key-figure strip, not repeated here (25/11/2026).
+  await expect(page.getByRole('button', { name: /^Documentos: [\d.]+$/ })).toHaveCount(0);
 
   const bar = page.getByRole('button', { name: /^CTBANFE: [\d.]+ linhas?$/ });
   const lines = numberIn(await bar.getAttribute('aria-label'));
@@ -202,7 +235,7 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   const chip = page.getByRole('region', { name: 'Filtros' }).locator('span', { has: page.getByRole('button', { name: 'Remover filtro Rotina' }) });
   await expect(chip).toContainText('CTBANFE');
   const tables = page.getByRole('navigation', { name: 'Tabelas' });
-  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await analysis.click();
   await tables.getByRole('button', { name: 'Base' }).click();
   await expect(page.getByText(`${lines} linha(s)`, { exact: true })).toBeVisible();
   // The routine does not apply to the Lotes table: the chip is dimmed with the hint.
@@ -211,35 +244,31 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   await page.getByRole('button', { name: 'Limpar filtros' }).click();
   await expect(page.getByRole('button', { name: 'Remover filtro Rotina' })).toHaveCount(0);
 
-  // Each number of the Painel equals the total of the table it opens.
-  await nav.getByRole('button', { name: 'Painel' }).click();
-  const documents = page.getByRole('button', { name: /^Documentos: [\d.]+$/ });
-  const documentCount = numberIn(await documents.getAttribute('aria-label'));
-  await documents.click();
-  await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByText(`${documentCount} linha(s)`, { exact: true })).toBeVisible();
-
-  await nav.getByRole('button', { name: 'Painel' }).click();
+  // Each number of the Visão geral equals the total of the table it opens.
+  await overview.click();
   const interventions = page.getByRole('button', { name: /^Lotes com intervenção manual: [\d.]+$/ });
   const interventionCount = numberIn(await interventions.getAttribute('aria-label'));
   expect(Number(interventionCount)).toBeGreaterThan(0);
   await interventions.click();
+  await expect(analysis).toHaveAttribute('aria-current', 'page');
   await expect(tables.getByRole('button', { name: 'Lotes' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('Lotes com intervenção manual', { exact: true })).toBeVisible();
   await expect(page.getByText(`${interventionCount} linha(s)`, { exact: true })).toBeVisible();
 
-  // An origin number applies the origin filter; the Documentos table follows it.
-  await nav.getByRole('button', { name: 'Painel' }).click();
+  // An origin number applies the origin filter; under it the documents of the selection open the Documentos table.
+  await overview.click();
   const manual = page.getByRole('button', { name: /^Manual: [\d.]+ documento\(s\)$/ });
   const manualCount = numberIn(await manual.getAttribute('aria-label'));
   await manual.click();
   await expect(page.getByRole('button', { name: 'Remover filtro Origem' })).toBeVisible();
-  await nav.getByRole('button', { name: 'Tabelas' }).click();
-  await tables.getByRole('button', { name: 'Documentos' }).click();
+  const documents = page.getByRole('button', { name: /^Documentos: [\d.]+$/ });
+  expect(numberIn(await documents.getAttribute('aria-label'))).toBe(manualCount);
+  await documents.click();
+  await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText(`${manualCount} linha(s)`, { exact: true })).toBeVisible();
 
   // A day column applies the day filter.
-  await nav.getByRole('button', { name: 'Painel' }).click();
+  await overview.click();
   await page.getByRole('button', { name: /^\d{2}\/\d{2}\/\d{4}: [\d.]+ linhas?/ }).first().click();
   await expect(page.getByRole('button', { name: 'Remover filtro Dia' })).toBeVisible();
 
@@ -257,7 +286,7 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   await page.keyboard.press('Escape');
   await expect(filters).toHaveAttribute('aria-expanded', 'false');
   await expect(filters).toBeFocused();
-  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await analysis.click();
   await tables.getByRole('button', { name: 'Base' }).click();
   await expect(page.getByText('2 linha(s)', { exact: true })).toBeVisible();
   // Account and value look at the lines: the Lotes table ignores them and dims their chips.
@@ -265,70 +294,91 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   await expect(page.getByText('não se aplica a esta tabela')).toHaveCount(2);
 });
 
-test('Integridade da CT2: achados com os grupos do quadro; cada ocorrência abre o painel lateral do documento', async ({ page, ct2Files }) => {
+test('Integridade da CT2: a lista da análise com os grupos; cada linha abre o documento ao lado (tela larga) ou por cima', async ({ page, ct2Files }) => {
   const nav = await analyzeEngine(page, ct2Files);
   const strip = page.getByLabel('Indicadores da análise');
   const figure = async (label: string) => (await strip.locator('div').filter({ has: page.getByText(label, { exact: true }) }).locator('dd').textContent())!;
-  const exceptions = await figure('Exceções');
+  const exceptions = Number(await figure('Exceções'));
   const review = Number(await figure('Para conferência'));
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  await expect(page.getByRole('heading', { name: `Exceções — Erro e Alerta · ${exceptions} ocorrências` })).toBeVisible();
-  const approval = page.getByRole('heading', { name: /^Conferir com documento de aprovação · / });
-  const [, occurrences, mixed] = /· (\d+) ocorrências? e (\d+) documentos? mistos?/.exec((await approval.textContent())!)!;
-  expect(Number(occurrences) + Number(mixed)).toBe(review);
-  await expect(page.getByText(/^Informativos · \d+ ocorrências? em \d+ testes?$/)).toBeVisible();
-  await expect(page.getByText(/^\d+ teste\(s\) sem ocorrência/)).toBeVisible();
+  await nav.getByRole('button', { name: 'Análise', exact: true }).click();
+  const list = testList(page);
+  const tables = page.getByRole('navigation', { name: 'Tabelas' });
+  // The groups of the list add up to the strip: Erro and Alerta to Exceções, Conferir com aprovação (I4a and the
+  // mixed documents) to Para conferência; the tests without occurrence are folded in one group.
+  await expect(list.getByRole('region', { name: 'Informativo' })).toBeVisible();
+  expect((await groupSum(page, 'Erro')) + (await groupSum(page, 'Alerta'))).toBe(exceptions);
+  expect(await groupSum(page, 'Conferir com aprovação')).toBe(review);
+  await expect(list.getByText(/^\d+ teste\(s\) sem ocorrência$/)).toBeVisible();
 
   // I4a and the mixed documents open their tables with as many rows.
-  await page.getByRole('button', { name: `I4a: ${occurrences} linha${occurrences === '1' ? '' : 's'}`, exact: true }).click();
+  const i4a = list.getByRole('button', { name: /^I4a / });
+  const occurrences = numberIn(await i4a.getAttribute('aria-label'));
+  await i4a.click();
   await expect(page.getByText(`${occurrences} linha(s)`, { exact: true })).toBeVisible();
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  await page.getByRole('button', { name: `Documentos mistos: ${mixed}` }).click();
-  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByText(`${mixed} linha(s)`, { exact: true })).toBeVisible();
+  const mixed = list.getByRole('button', { name: /^Documentos mistos/ });
+  const mixedCount = numberIn(await mixed.getAttribute('aria-label'));
+  await mixed.click();
+  await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: 'Remover filtro Origem' })).toBeVisible();
+  await expect(page.getByText(`${mixedCount} linha(s)`, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remover filtro Origem' }).click();
 
-  // The side panel: Esc and the close button give the focus back to the opener.
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  const occurrence = page.getByRole('article', { name: /^B1 / }).getByRole('listitem').first().getByRole('button');
-  await occurrence.click();
+  // The side panel over the screen (narrower than a wide screen): Esc and the close button give the focus back.
+  await list.getByRole('button', { name: /^B1 / }).click();
+  const row = page.locator('[role=row][tabindex="0"]').first();
+  await row.click();
   const dialog = page.getByRole('dialog', { name: /^Documento \d+ · lote / });
   await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
   await expect(dialog.getByText('Por tipo de saldo e moeda')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  await expect(occurrence).toBeFocused();
-  await occurrence.click();
+  await expect(row).toBeFocused();
+  await row.click();
   await expect(dialog).toBeVisible();
   // The focus stays inside the dialog.
   for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
   expect(await dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
   await dialog.getByRole('button', { name: 'Fechar o documento' }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(occurrence).toBeFocused();
+  await expect(row).toBeFocused();
 
   // "Ver na Base": the lines of the document, as many as the panel says.
-  await occurrence.click();
+  await row.click();
   const total = await dialog.locator('dt', { hasText: 'Linhas' }).locator('xpath=following-sibling::dd').textContent();
   await dialog.getByRole('button', { name: 'Ver na Base' }).click();
   await expect(page.getByText('Linhas de um documento')).toBeVisible();
   await expect(page.getByText(`${total} linha(s)`, { exact: true })).toBeVisible();
 
-  // A row of the tables opens its document, by keyboard too.
-  const tables = page.getByRole('navigation', { name: 'Tabelas' });
-  await tables.getByRole('button', { name: 'Exceções' }).click();
+  // The group of Ocorrências; a row opens its document by keyboard too.
+  await tables.getByRole('button', { name: 'Ocorrências' }).click();
   await page.getByRole('combobox', { name: 'Grupo' }).selectOption({ label: 'Conferir com aprovação' });
   await expect(page.getByText(`${occurrences} linha(s)`, { exact: true })).toBeVisible();
-  const row = page.locator('[role=row][tabindex="0"]').first();
   await row.focus();
   await page.keyboard.press('Enter');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/^I4a · Conferir com aprovação/)).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(row).toBeFocused();
+
+  // A wide screen docks the document beside the table: the table stays in sight and another row replaces the document.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await row.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-modal', 'false');
+  await expect(tables).toBeVisible();
+  await expect(list).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  // A phone: the list of tests folds above the table and the document opens over it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText(/^Testes · \d+ com ocorrência$/)).toBeVisible();
+  await row.click();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test('Integridade da CT2: o plano de contas vai na lista com a extração; a Reconciliação o mostra e Achados traz o C1', async ({ page, ct2Files }) => {
+test('Integridade da CT2: o plano de contas vai na lista com a extração; a Leitura o mostra e a Análise traz o C1', async ({ page, ct2Files }) => {
   await page.goto('');
   await chooseModule(page, CT2);
   // The chart first: it is recognized by its header, in any position, without the notice of another analysis.
@@ -338,17 +388,16 @@ test('Integridade da CT2: o plano de contas vai na lista com a extração; a Rec
   await page.getByRole('button', { name: 'Analisar' }).click();
   const nav = page.getByRole('navigation', { name: 'Visões' });
   await expect(nav).toBeVisible({ timeout: 60_000 });
+  await showReadingDetails(page);
   await expect(page.getByRole('heading', { name: 'Plano de contas — plano-de-contas.xlsx' })).toBeVisible();
   await expect(page.getByText('Contas — aba “Plano de Contas”')).toBeVisible();
   await expect(page.getByText('Plano de contas legível')).toBeVisible();
-  await nav.getByRole('button', { name: 'Achados' }).click();
-  const c1 = page.getByRole('article', { name: 'C1 Centro de custo obrigatório não informado' });
-  await expect(c1).toBeVisible();
-  await expect(c1.getByText('Conta C 31101001 exige centro de custo; C Custo Crd vazio', { exact: true })).toBeVisible();
-  // The count opens Exceções with as many rows.
-  await c1.getByRole('button', { name: 'C1: 7 linhas' }).click();
-  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Exceções' })).toHaveAttribute('aria-current', 'page');
+  await nav.getByRole('button', { name: 'Análise', exact: true }).click();
+  // The count opens Ocorrências with as many rows, each with its reason.
+  await testList(page).getByRole('button', { name: 'C1 Centro de custo obrigatório não informado: 7 linhas' }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('7 linha(s)', { exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Conta C 31101001 exige centro de custo; C Custo Crd vazio', exact: true }).first()).toBeAttached();
 });
 
 test('configuração da CT2: aba própria, chave própria no computador e reprocessamento', async ({ page, ct2Files }) => {
@@ -356,7 +405,7 @@ test('configuração da CT2: aba própria, chave própria no computador e reproc
   await chooseModule(page, CT2);
   await page.locator('input[type=file]').first().setInputFiles([ct2Files.clean]);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Análise', exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Configuração' }).click();
   // The tab of the open tool comes selected.
   await expect(page.getByRole('tab', { name: CT2 })).toHaveAttribute('aria-selected', 'true');
@@ -366,7 +415,7 @@ test('configuração da CT2: aba própria, chave própria no computador e reproc
   expect(await idb(page, 'analyzerConfig:ct2Integrity')).toMatchObject({ schemaVersion: 4, tests: { I5: { enabled: false } } });
   await expect(page.getByText('1 diferença(s) em relação ao padrão.')).toBeVisible();
   await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Análise', exact: true })).toBeVisible({ timeout: 60_000 });
   // The other tab keeps the CFGR700 rules, untouched.
   await page.getByRole('button', { name: 'Configuração' }).click();
   await page.getByRole('tab', { name: CFGR700 }).click();
@@ -388,7 +437,8 @@ test('arquivo com mais de uma aba: escolha da aba na lista; com duas abas da an�
   await select.selectOption('SCACKST0.XML');
   await expect(page.getByText(/Mais de uma aba parece ser/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByRole('heading', { name: 'Quadro de testes' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Análise', exact: true })).toBeVisible({ timeout: 60_000 });
+  await showReadingDetails(page);
   await expect(page.getByText('Reconciliação de linhas — aba “SCACKST0.XML”')).toBeVisible();
 });
 
@@ -696,18 +746,20 @@ async function concSession(page: Page, testInfo: { outputPath: (name: string) =>
 test('Conciliador: lê a folha e o razão em PDF (pdf.js do próprio app, sem rede), iguais ao TXT (V-1, V-3)', async ({ page }, testInfo) => {
   const nav = await concSession(page, testInfo, true);
   await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible();
+  await showReadingDetails(page);
   await expect(page.getByText('GPER040 · PDF')).toBeVisible();
   await expect(page.getByText('CTBR400 · PDF')).toBeVisible();
   await expect(page.getByText('V-1 · PDF: todo caractere monoespaçado na grade')).toBeAttached();
   await expect(page.getByText(/1 par\(es\) de arquivos do mesmo relatório com leituras iguais/)).toBeAttached();
-  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  await nav.getByRole('button', { name: 'Visão geral', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Contas do perfil' })).toBeVisible();
 });
 
-test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, ponte no painel lateral, achados e justificativas', async ({ page }, testInfo) => {
+test('Conciliador: lê folha e razão, reconcilia a leitura, visão geral por conta, ponte no painel lateral, análise e justificativas', async ({ page }, testInfo) => {
   const nav = await concSession(page, testInfo);
-  // Reconciliação de leitura: the two kinds of file side by side and the board of invariants.
+  // Leitura: one green line; its details have the two kinds of file side by side and the board of invariants.
   await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible();
+  await showReadingDetails(page);
   await expect(page.getByRole('heading', { name: 'Quadro de invariantes' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Folha de pagamento (GPER040)' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Razão analítico (CTBR400)' })).toBeVisible();
@@ -716,8 +768,8 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
   await expect(figures).toContainText('Verbas sem integração (F1c)');
   await expect(figures).toContainText('10/2026');
 
-  // Painel: a number opens the table behind it (the criterion of the account: two verbas).
-  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  // Visão geral: a number opens the table behind it in the Análise (the criterion of the account: two verbas).
+  await nav.getByRole('button', { name: 'Visão geral', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Contas do perfil' })).toBeVisible();
   await page.getByRole('button', { name: /^Esperado da conta 9\.9\.1\.0\.10\.02: / }).click();
   await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Folha' })).toHaveAttribute('aria-current', 'page');
@@ -726,7 +778,7 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
   await page.getByRole('button', { name: 'Remover filtro da conciliação' }).click();
 
   // Side panel of an account: the bridge closes, the settlement was identified, the text of the criterion.
-  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  await nav.getByRole('button', { name: 'Visão geral', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir a conta 9.9.1.0.10.02' }).click();
   const dialog = page.getByRole('dialog', { name: /^Conta 9\.9\.1\.0\.10\.02 · / });
   await expect(dialog).toBeVisible();
@@ -736,13 +788,20 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
-  // Achados: the F1c of the net pay account (the provento posted by hand).
-  await nav.getByRole('button', { name: 'Achados', exact: true }).click();
-  const f1c = page.getByRole('article', { name: 'F1c Verba da folha sem integração na conta' });
-  await expect(f1c).toBeVisible();
-  await expect(f1c).toContainText('9.9.1.0.10.01');
-  await f1c.getByRole('button', { name: 'Ver todas as ocorrências de F1c' }).click();
+  // Análise: the F1c of the net pay account (the provento posted by hand), in the list and in the Teste filter.
+  await nav.getByRole('button', { name: 'Análise', exact: true }).click();
+  const f1c = testList(page).getByRole('button', { name: 'F1c Verba da folha sem integração na conta: 1 ocorrência' });
+  await f1c.click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Achados' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('F1c');
   await expect(page.getByText('1 linha(s)')).toBeVisible();
+  // The row opens its account, with the way to the keys without integration.
+  await page.locator('[role=row][tabindex="0"]').first().click();
+  const account = page.getByRole('dialog', { name: /^Conta 9\.9\.1\.0\.10\.01 · / });
+  await expect(account).toBeVisible();
+  await account.getByRole('button', { name: 'Ver na tabela de integração' }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Integração' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('conta 9.9.1.0.10.01 · sem integração', { exact: true })).toBeVisible();
 
   // Justificativas: free text and the situation of the user's workpaper, saved on this computer.
   await nav.getByRole('button', { name: 'Justificativas', exact: true }).click();

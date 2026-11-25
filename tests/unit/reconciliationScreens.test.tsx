@@ -1,15 +1,16 @@
 /**
  * Screens of the Conciliador after the analysis (Phase 15, step 5; section 9 of docs/REGRAS_CONCILIADOR.md): the
- * Reconciliação de leitura, the Painel, Achados, the side panel of an account, Justificativas, the key figures and the
+ * Leitura, the Visão geral, the list of the Análise, the side panel of an account, Justificativas, the key figures and the
  * rail, rendered as static markup over a synthetic session (tests/synthetic/reconciliationSession.ts), and the pure
- * helpers (board of invariants, blocks of findings, chip of the table, stored justifications).
+ * helpers (board of invariants, codes of the Análise, chip of the table, stored justifications).
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { railViews } from '../../src/app/rail';
 import { reconciliationFigures } from '../../src/app/modules/reconciliation/figures';
 import { ConcAccountDetailView, accountTitle } from '../../src/app/modules/reconciliation/ConcAccountPanel';
-import { ConcFindingsView, findingBlocks } from '../../src/app/modules/reconciliation/ConcFindingsView';
+import { concAnalysisTests } from '../../src/app/modules/reconciliation/analysisTests';
+import { AnalysisLayout, testName } from '../../src/components/AnalysisLayout';
 import { ConcJustificationsView } from '../../src/app/modules/reconciliation/ConcJustificationsView';
 import { ConcPanelView } from '../../src/app/modules/reconciliation/ConcPanelView';
 import { ConcReconciliationView, invariantBoard } from '../../src/app/modules/reconciliation/ConcReconciliationView';
@@ -72,7 +73,7 @@ describe('Reconciliação de leitura', () => {
   });
 });
 
-describe('Painel and Achados', () => {
+describe('Visão geral and Análise', () => {
   it('one row per account; each number is a button that names the account', async () => {
     const { summary } = await session();
     const html = renderToStaticMarkup(<ConcPanelView summary={summary} onOpenTable={noop} onOpenAccount={noop} />);
@@ -90,16 +91,24 @@ describe('Painel and Achados', () => {
     for (const b of names) expect(b).not.toMatch(E2E_WORDS);
   });
 
-  it('Achados: Erro, Alerta and Informativo, a block per code, the F1c with its account', async () => {
+  it('Análise: a code per finding with its occurrences (the rows of Achados), by severity; the known codes without occurrence folded', async () => {
     const { summary } = await session();
-    const html = renderToStaticMarkup(<ConcFindingsView summary={summary} onOpenTable={noop} onOpenAccount={noop} />);
-    expect(html).toMatch(/Erro · 0 ocorrência/);
-    expect(html).toContain('Nenhum erro de integração.');
-    expect(html).toContain('F1c</code> Verba da folha sem integração na conta');
-    expect(html).toContain('F2</code> Diferença entre o esperado e o saldo contábil');
-    expect(buttons(html)).toContain('Ver todas as ocorrências de F1c');
-    expect(findingBlocks(summary.findings, 'warning').map((b) => b.code)).toEqual(expect.arrayContaining(['F1c', 'F2']));
-    expect(findingBlocks(summary.findings, 'info').map((b) => b.code)).toContain('T2');
+    const tests = concAnalysisTests(summary);
+    const f1c = tests.find((t) => t.key === 'F1c')!;
+    expect(f1c).toMatchObject({ level: 'warning', count: summary.findings.filter((f) => f.code === 'F1c').length, label: 'Verba da folha sem integração na conta' });
+    expect(testName(f1c)).toBe(`F1c Verba da folha sem integração na conta: ${f1c.countText}`);
+    expect(tests.find((t) => t.key === 'F2')!.level).toBe('warning');
+    expect(tests.find((t) => t.key === 'T2')!.level).toBe('info');
+    expect(tests.find((t) => t.key === 'F1a')!.count).toBe(0);
+    for (const t of tests) expect(t.count).toBe(summary.findings.filter((f) => f.code === t.key).length);
+    const html = renderToStaticMarkup(
+      <AnalysisLayout tests={tests} selected="F1c" onSelect={noop}>
+        <p>tabela</p>
+      </AnalysisLayout>,
+    );
+    expect(html).toContain('aria-label="Testes"');
+    expect(html).toMatch(/aria-pressed="true" aria-label="F1c Verba da folha sem integração na conta/);
+    expect(html).toMatch(/\d+ teste\(s\) sem ocorrência/);
     for (const b of buttons(html)) expect(b).not.toMatch(E2E_WORDS);
   });
 
@@ -161,7 +170,7 @@ describe('Justificativas', () => {
 
 describe('rail and key figures', () => {
   it('every view of the platform; seven key figures', async () => {
-    expect(railViews(reconciliationModule as unknown as AvailableModule).map((v) => v.id)).toEqual(['reconciliation', 'panel', 'findings', 'tables', 'justifications', 'export']);
+    expect(railViews(reconciliationModule as unknown as AvailableModule).map((v) => v.id)).toEqual(['reading', 'overview', 'analysis', 'justifications', 'export']);
     const { reconciliation, summary } = await session();
     const figures = reconciliationFigures(reconciliation, summary, 0);
     expect(figures.map((f) => [f.label, f.value])).toEqual([

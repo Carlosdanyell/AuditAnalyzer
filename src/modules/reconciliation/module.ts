@@ -46,7 +46,7 @@ export const reconciliationModule: AvailableModule<ReconciliationConfig> = {
   // The spool has no fixed extension: any file is listed and recognized by its content (section 3.2).
   accepts: { extensions: 'any', hint: 'TXT do spool, PDF, XML ou XLSX exportados do Protheus', maxFiles: 255 },
   helpAnchor: 'reconciliation',
-  features: { panel: true, findings: true, tables: true, justifications: true, export: true },
+  features: { overview: true, analysis: true, justifications: true, export: true },
   config: { defaults: reconciliationDefaultConfig, read: readReconciliationConfig, saved: true },
   notReady: reconciliationNotReady,
   detect(sheets, config) {

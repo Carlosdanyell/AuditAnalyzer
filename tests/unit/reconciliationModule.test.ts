@@ -22,7 +22,7 @@ describe('descriptor of the Conciliador', () => {
     const m = reconciliationModule;
     expect(m).toMatchObject({ status: 'available', id: 'reconciliation', title: 'Conciliador', shortTitle: 'CONC', helpAnchor: 'reconciliation', icon: 'reconcile' });
     expect(m.preview).toMatch(/^Prévia/);
-    expect(m.features).toEqual({ panel: true, findings: true, tables: true, justifications: true, export: true });
+    expect(m.features).toEqual({ overview: true, analysis: true, justifications: true, export: true });
     expect(m.highlights.length).toBeGreaterThanOrEqual(2);
     expect(m.highlights.length).toBeLessThanOrEqual(3);
     expect(m.config.saved).toBe(true);

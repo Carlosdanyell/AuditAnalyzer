@@ -1,10 +1,13 @@
 /**
- * Workspace of the Conciliador after the analysis (docs/REGRAS_CONCILIADOR.md, section 9; Phase 15, step 5):
- * Reconciliação de leitura, Painel by account, Achados, Tabelas (Contas, Folha, Integração, Razão, Achados), the side
- * panel of an account, Justificativas and Exportação (the workpaper, with the justifications of the competence). The table, its filter, the side
- * panel and the justifications live here; the shell (App.tsx) owns the files, the processing and the view chosen.
+ * Workspace of the Conciliador after the analysis (docs/REGRAS_CONCILIADOR.md, section 9; flow revision of 25/11/2026):
+ * Leitura, Visão geral (the accounts of the profile), Análise (the codes of finding on the left, the tables Contas,
+ * Folha, Integração, Razão and Achados in the center with the Teste filter, the account of the selected row on the
+ * right), Justificativas and Exportação (the workpaper, with the justifications of the competence). The table, its
+ * filter, the side panel and the justifications live here; the shell (App.tsx) owns the files, the processing and the
+ * view chosen.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { AnalysisLayout, TestNote, TestSelect, WIDE_QUERY, useMedia } from '../../../components/AnalysisLayout';
 import { Icon } from '../../../components/Icon';
 import ui from '../../../components/ui.module.css';
 import { formatInteger } from '../../../shared/format';
@@ -14,6 +17,7 @@ import {
   isReconciliationReconciliation,
   isReconciliationSummary,
   type ReconciliationExportJustification,
+  type ReconciliationFinding,
   type ReconciliationSummary,
   type ReconciliationTableFilter,
   type ReconciliationTableId,
@@ -23,10 +27,10 @@ import { ExportView, type ExportContent } from '../../views/ExportView';
 import { TablesView, type TableRequest } from '../../views/TablesView';
 import type { WorkspaceProps } from '../workspace';
 import { ConcAccountDialog } from './ConcAccountPanel';
-import { ConcFindingsView } from './ConcFindingsView';
 import { ConcJustificationsView } from './ConcJustificationsView';
-import { ConcPanelView } from './ConcPanelView';
+import { BlockingNotice, ConcPanelView } from './ConcPanelView';
 import { ConcReconciliationView } from './ConcReconciliationView';
+import { concAnalysisTests } from './analysisTests';
 import { findingTitle } from './labels';
 import styles from './ConcScreens.module.css';
 
@@ -99,14 +103,15 @@ export function concFilterText(filter: ReconciliationTableFilter, summary: Recon
 }
 
 export function ReconciliationWorkspace({ viewClassName, client, module, view, onView, reconciliation: anyReconciliation, summary: anySummary, analysisId }: WorkspaceProps) {
-  const [request, setRequest] = useState<TableRequest>({ table: 'concAccounts', filter: {} });
+  const [request, setRequest] = useState<TableRequest>({ table: 'concFindings', filter: {} });
   const [opened, setOpened] = useState<number | null>(null);
   const [justifications, setJustifications] = useState<Map<string, ReconciliationJustification>>(new Map());
   const [loaded, setLoaded] = useState(true);
+  const wide = useMedia(WIDE_QUERY);
 
   // A new analysis starts the tables and the side panel over.
   useEffect(() => {
-    setRequest({ table: 'concAccounts', filter: {} });
+    setRequest({ table: 'concFindings', filter: {} });
     setOpened(null);
   }, [analysisId]);
 
@@ -125,8 +130,8 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
   const openTable = useCallback(
     (table: ReconciliationTableId, conc: ReconciliationTableFilter) => {
       setOpened(null);
-      setRequest({ table, filter: { conc } });
-      onView('tables');
+      setRequest((before) => ({ table, filter: { conc, ...(before.filter.search && { search: before.filter.search }) } }));
+      onView('analysis');
     },
     [onView],
   );
@@ -139,47 +144,70 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
   if (!isReconciliationReconciliation(anyReconciliation)) return null;
   const reconciliation = anyReconciliation;
   const summary = anySummary && isReconciliationSummary(anySummary) ? anySummary : null;
+  const docked = view === 'analysis' && wide;
+  const onFinding = (f: ReconciliationFinding, what: 'lines' | 'integration') => {
+    if (!summary) return;
+    if (what === 'integration' && f.accountIndex !== null) return openTable('concIntegration', { account: f.accountIndex, keyStatus: 'missing' });
+    const position = summary.findings.findIndex((x) => x.code === f.code && x.accountIndex === f.accountIndex && x.branch === f.branch && x.verba === f.verba && x.message === f.message);
+    if (position >= 0) openTable('concLedger', { finding: position });
+  };
+  const dialog =
+    opened !== null ? (
+      <ConcAccountDialog client={client} index={opened} docked={docked} onClose={() => setOpened(null)} onLedger={(index) => openTable('concLedger', { account: index })} onFinding={onFinding} />
+    ) : null;
 
   return (
     <>
       <div className={viewClassName} key={view}>
         {content()}
       </div>
-      {opened !== null && <ConcAccountDialog client={client} index={opened} onClose={() => setOpened(null)} onLedger={(index) => openTable('concLedger', { account: index })} />}
+      {!docked && dialog}
     </>
   );
 
   function content() {
-    if (summary && view === 'panel') return <ConcPanelView summary={summary} onOpenTable={openTable} onOpenAccount={setOpened} />;
-    if (summary && view === 'findings') return <ConcFindingsView summary={summary} onOpenTable={openTable} onOpenAccount={setOpened} />;
+    if (summary && view === 'overview') return <ConcPanelView summary={summary} onOpenTable={openTable} onOpenAccount={setOpened} />;
     if (summary && view === 'justifications') {
       return <ConcJustificationsView summary={summary} justifications={justifications} loaded={loaded} onSave={saveJustification} onOpenAccount={setOpened} />;
     }
-    if (summary && view === 'tables') {
+    if (summary && view === 'analysis') {
       const conc = request.filter.conc ?? {};
-      const chip = concFilterText(conc, summary);
+      const selectedKey = request.table === 'concFindings' && conc.code ? conc.code : null;
+      // The code is shown by the list and the Teste filter; the chip names the rest of the filter.
+      const { code: _code, ...others } = conc;
+      void _code;
+      const chip = concFilterText(selectedKey ? others : conc, summary);
+      const tests = concAnalysisTests(summary);
+      const select = (key: string | null) =>
+        setRequest((before) => ({ table: 'concFindings', filter: { ...(key !== null && { conc: { code: key } }), ...(before.filter.search && { search: before.filter.search }) } }));
       return (
-        <TablesView
-          client={client}
-          scope={0}
-          request={request}
-          onRequest={setRequest}
-          tabs={RECONCILIATION_TABLES}
-          originFilters={false}
-          emptyHint="Ajuste a busca ou remova o filtro."
-          onRowClick={(_row, account) => account !== null && summary.accounts[account]?.status === 'analyzed' && setOpened(account)}
-          toolbar={
-            chip && (
-              <span className={styles.chip}>
-                <Icon name="filter" size={13} />
-                {chip}
-                <button type="button" aria-label="Remover filtro da conciliação" onClick={() => setRequest({ ...request, filter: request.filter.search ? { search: request.filter.search } : {} })}>
-                  <Icon name="x" size={13} strokeWidth={2.4} />
-                </button>
-              </span>
-            )
-          }
-        />
+        <AnalysisLayout tests={tests} selected={selectedKey} onSelect={select} top={<BlockingNotice blocking={summary.blocking} />} detail={docked ? dialog : null}>
+          <TestNote test={tests.find((t) => t.key === selectedKey) ?? null} onClear={() => select(null)} />
+          <TablesView
+            client={client}
+            scope={0}
+            request={request}
+            onRequest={setRequest}
+            tabs={RECONCILIATION_TABLES}
+            originFilters={false}
+            emptyHint="Ajuste a busca, o teste ou remova o filtro."
+            onRowClick={(_row, account) => account !== null && summary.accounts[account]?.status === 'analyzed' && setOpened(account)}
+            toolbar={
+              <>
+                <TestSelect tests={tests} selected={selectedKey} onSelect={select} />
+                {chip && (
+                  <span className={styles.chip}>
+                    <Icon name="filter" size={13} />
+                    {chip}
+                    <button type="button" aria-label="Remover filtro da conciliação" onClick={() => setRequest({ ...request, filter: { ...(request.filter.search && { search: request.filter.search }), ...(selectedKey && { conc: { code: selectedKey } }) } })}>
+                      <Icon name="x" size={13} strokeWidth={2.4} />
+                    </button>
+                  </span>
+                )}
+              </>
+            }
+          />
+        </AnalysisLayout>
       );
     }
     if (view === 'export') {
@@ -200,7 +228,7 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
     return (
       <>
         <ConcReconciliationView data={reconciliation} summary={summary} preview={module.preview} />
-        {view !== 'reconciliation' && !summary && <p className={ui.muted}>Análise sem resumo.</p>}
+        {view !== 'reading' && !summary && <p className={ui.muted}>Análise sem resumo.</p>}
       </>
     );
   }

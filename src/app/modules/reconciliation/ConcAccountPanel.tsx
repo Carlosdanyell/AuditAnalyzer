@@ -4,7 +4,8 @@
  * balance (7.5) with the lines of each parcel, the settlement of the opening balance (F3) and the text of the criterion
  * (7.7) with a copy button. Focus is trapped inside and given back to the element that opened it; Esc closes.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { DetailPane } from '../../../components/DetailPane';
 import { Icon } from '../../../components/Icon';
 import { cx } from '../../../components/cx';
 import ui from '../../../components/ui.module.css';
@@ -15,6 +16,7 @@ import {
   SETTLEMENT_SITUATION_LABELS,
   SUGGESTED_SITUATION_LABELS,
   type ReconciliationAccountDetail,
+  type ReconciliationFinding,
   type ReconciliationLineView,
 } from '../../../shared/modules/reconciliation';
 import type { WorkerClient } from '../../workerClient';
@@ -63,7 +65,10 @@ function LinesTable({ lines, caption }: { lines: readonly ReconciliationLineView
 }
 
 /** The content of the panel, without effects (rendered by the tests as static markup). */
-export function ConcAccountDetailView({ detail, titleId, onCopy, copied }: { detail: ReconciliationAccountDetail; titleId: string; onCopy?: () => void; copied?: boolean }) {
+/** What a finding of the account opens: its lines in the Razão, or (F1c) the keys without integration. */
+export type OnFinding = (finding: ReconciliationFinding, what: 'lines' | 'integration') => void;
+
+export function ConcAccountDetailView({ detail, titleId, onCopy, copied, onFinding }: { detail: ReconciliationAccountDetail; titleId: string; onCopy?: () => void; copied?: boolean; onFinding?: OnFinding }) {
   const { row, criterion, bridge, settlement } = detail;
   return (
     <>
@@ -209,6 +214,16 @@ export function ConcAccountDetailView({ detail, titleId, onCopy, copied }: { det
                   {f.code} · {RECONCILIATION_SEVERITY_LABELS[f.severity]}
                 </span>
                 <span className={styles.sampleWhy}>{f.message}</span>
+                {onFinding && f.lines > 0 && (
+                  <button type="button" className={ui.link} onClick={() => onFinding(f, 'lines')}>
+                    Ver {f.lines === 1 ? 'a linha' : `as ${formatInteger(f.lines)} linhas`} no razão
+                  </button>
+                )}
+                {onFinding && f.code === 'F1c' && f.accountIndex !== null && (
+                  <button type="button" className={ui.link} onClick={() => onFinding(f, 'integration')}>
+                    Ver na tabela de integração
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -236,24 +251,25 @@ export function ConcAccountDetailView({ detail, titleId, onCopy, copied }: { det
   );
 }
 
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
-
-/** The dialog: asks the worker for the account, traps the focus and gives it back on close. */
-export function ConcAccountDialog({ client, index, onClose, onLedger }: { client: WorkerClient; index: number; onClose: () => void; onLedger: (index: number) => void }) {
+/** The detail of an account: asks the worker for it; docked beside the table or over the screen (DetailPane). */
+export function ConcAccountDialog({
+  client,
+  index,
+  onClose,
+  onLedger,
+  onFinding,
+  docked = false,
+}: {
+  client: WorkerClient;
+  index: number;
+  onClose: () => void;
+  onLedger: (index: number) => void;
+  onFinding?: OnFinding;
+  docked?: boolean;
+}) {
   const [detail, setDetail] = useState<ReconciliationAccountDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const panel = useRef<HTMLDivElement>(null);
-  const opener = useRef<Element | null>(null);
-
-  useEffect(() => {
-    opener.current = document.activeElement;
-    panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-    return () => {
-      const back = opener.current;
-      if (back instanceof HTMLElement && back.isConnected) back.focus();
-    };
-  }, []);
 
   useEffect(() => {
     let current = true;
@@ -276,56 +292,33 @@ export function ConcAccountDialog({ client, index, onClose, onLedger }: { client
       .catch(() => setCopied(false));
   };
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-    if (e.key !== 'Tab' || !panel.current) return;
-    const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
-    if (items.length === 0) return;
-    const first = items[0]!;
-    const last = items[items.length - 1]!;
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
-
   return (
-    <div className={styles.overlay} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="conc-account-title" onKeyDown={onKeyDown}>
-        <div className={styles.drawerBar}>
-          <span className={ui.muted}>Conta</span>
-          <span className={styles.drawerActions}>
-            <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onLedger(index)}>
-              <Icon name="table" size={15} />
-              Ver no Razão
-            </button>
-            <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, ui.iconBtn)} aria-label="Fechar os detalhes da conta" data-autofocus onClick={onClose}>
-              <Icon name="x" size={16} />
-            </button>
-          </span>
-        </div>
-        <div className={styles.drawerBody}>
-          {error ? (
-            <p className={cx(ui.alert, ui.error)} role="alert">
-              <Icon name="xCircle" />
-              <span>{error}</span>
-            </p>
-          ) : detail ? (
-            <ConcAccountDetailView detail={detail} titleId="conc-account-title" onCopy={copy} copied={copied} />
-          ) : (
-            <p className={ui.muted} id="conc-account-title">
-              Carregando a conta…
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+    <DetailPane
+      docked={docked}
+      labelledBy="conc-account-title"
+      kind="Conta"
+      closeLabel="Fechar os detalhes da conta"
+      onClose={onClose}
+      classes={{ overlay: styles.overlay, drawer: styles.drawer, bar: styles.drawerBar, actions: styles.drawerActions, body: styles.drawerBody }}
+      actions={
+        <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onLedger(index)}>
+          <Icon name="table" size={15} />
+          Ver no Razão
+        </button>
+      }
+    >
+      {error ? (
+        <p className={cx(ui.alert, ui.error)} role="alert">
+          <Icon name="xCircle" />
+          <span>{error}</span>
+        </p>
+      ) : detail ? (
+        <ConcAccountDetailView detail={detail} titleId="conc-account-title" onCopy={copy} copied={copied} {...(onFinding && { onFinding })} />
+      ) : (
+        <p className={ui.muted} id="conc-account-title">
+          Carregando a conta…
+        </p>
+      )}
+    </DetailPane>
   );
 }

@@ -141,165 +141,10 @@
 
 /* ── KPI tiles ── */
 
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.kpi {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 18px 18px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  transition:
-    transform 200ms var(--ease),
-    box-shadow 200ms var(--ease),
-    border-color 200ms var(--ease);
-}
-
-.kpi::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--series);
-}
-
-.kpi:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--series) 45%, var(--border));
-}
-
-.kpiHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.kpiIcon {
-  display: grid;
-  color: var(--series);
-}
-
-.kpiIcon svg {
-  color: var(--series);
-}
-
-.kpiLabel {
-  flex: 1;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--text-muted);
-}
-
-.kpiArrow {
-  color: var(--text-subtle);
-  opacity: 0;
-  transform: translateX(-6px);
-  transition:
-    opacity 200ms var(--ease),
-    transform 200ms var(--ease);
-}
-
-.kpi:hover .kpiArrow,
-.kpi:focus-visible .kpiArrow {
-  opacity: 1;
-  transform: none;
-}
-
-.kpiValue {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 4px;
-  font-family: var(--font-display);
-  font-size: 34px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.kpiValue span {
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0;
-  color: var(--text-muted);
-}
-
-.kpiMeta {
-  color: var(--text-muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.kpiSplit {
-  display: flex;
-  gap: 2px;
-  height: 6px;
-  margin-top: 8px;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.kpiSplit span {
-  flex-basis: 0;
-  animation: split-in 400ms var(--ease) both;
-  transform-origin: left;
-}
-
 @keyframes split-in {
   from {
     transform: scaleX(0);
   }
-}
-
-.splitManual {
-  background: var(--series);
-}
-
-.splitAuto {
-  background: color-mix(in srgb, var(--series) 55%, var(--surface));
-}
-
-.splitMixed {
-  background: color-mix(in srgb, var(--series) 25%, var(--surface));
-}
-
-.splitEmpty {
-  flex: 1;
-  background: var(--surface-sunken);
-}
-
-.kpiLegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  color: var(--text-subtle);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.kpiLegend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.kpiLegend i {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
 }
 
 /* ── Matrices ── */
@@ -360,90 +205,6 @@ thead .totalCol {
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 20px;
   align-items: start;
-}
-
-.signalSummary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.signals {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13.5px;
-}
-
-.signals li {
-  display: flex;
-  gap: 11px;
-  align-items: flex-start;
-  padding: 9px 12px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  line-height: 1.45;
-  transition: background-color 150ms;
-}
-
-.signals li:hover {
-  background: var(--surface-muted);
-}
-
-.signals li.action {
-  background: var(--warn-soft);
-  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
-}
-
-.signalText {
-  min-width: 0;
-}
-
-.signalIcon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-}
-
-.action .signalIcon {
-  color: var(--warn);
-}
-
-.info .signalIcon {
-  color: var(--accent);
-}
-
-.clear .signalIcon {
-  color: var(--ok);
-}
-
-.signalBadge {
-  margin-right: 6px;
-  padding: 0 7px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  vertical-align: 1px;
-}
-
-.action .signalBadge {
-  background: color-mix(in srgb, var(--warn) 18%, transparent);
-  color: var(--warn);
-}
-
-.info .signalBadge {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.clear .signalBadge {
-  background: var(--ok-soft);
-  color: var(--ok);
 }
 
 .hint {
@@ -841,20 +602,12 @@ thead .totalCol {
 }
 
 @media (width < 1200px) {
-  .kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .split {
     grid-template-columns: 1fr;
   }
 }
 
 @media (width < 600px) {
-  .kpis {
-    grid-template-columns: 1fr;
-  }
-
   .coverageStats {
     grid-template-columns: 1fr;
   }
@@ -869,41 +622,6 @@ thead .totalCol {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
-}
-
-.exceptions {
-  border-left-width: 4px;
-}
-
-.exceptionsFound {
-  border-left-color: var(--warn);
-  background: var(--warn-soft);
-}
-
-.exceptionsClear {
-  border-left-color: var(--ok);
-}
-
-.exceptionList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 8px;
-}
-
-.exceptionList li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--border));
-  background: var(--surface);
-  font-size: 13.5px;
-  font-weight: 600;
 }
 
 .phaseGroup + .phaseGroup .phaseCategory th {
@@ -967,8 +685,7 @@ thead .totalCol {
 }
 
 /* Sections folded by default: the title (and its status) stays visible. */
-.fold > summary,
-.foldInline > summary {
+.fold > summary {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -976,20 +693,17 @@ thead .totalCol {
   cursor: pointer;
 }
 
-.fold > summary::-webkit-details-marker,
-.foldInline > summary::-webkit-details-marker {
+.fold > summary::-webkit-details-marker {
   display: none;
 }
 
-.fold > summary > svg,
-.foldInline > summary > svg {
+.fold > summary > svg {
   flex: none;
   color: var(--text-subtle);
   transition: transform 160ms var(--ease);
 }
 
-.fold[open] > summary > svg,
-.foldInline[open] > summary > svg {
+.fold[open] > summary > svg {
   transform: rotate(90deg);
 }
 
@@ -1002,15 +716,11 @@ thead .totalCol {
   margin-bottom: 16px;
 }
 
-.foldInline {
-  margin-top: 10px;
-}
-
-.foldInline > summary {
-  font-size: 13.5px;
-  color: var(--text-muted);
-}
-
-.foldInline[open] > summary {
-  margin-bottom: 10px;
+/* The period in the list of tests of the Análise (narrow column): one field under the other. */
+.periodCompact,
+.periodField.periodCompact {
+  flex: none;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
 }

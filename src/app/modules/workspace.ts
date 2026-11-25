@@ -9,7 +9,8 @@ import type { Justification, ModuleReconciliation, ModuleSummary, PanelSettings 
 import type { JustificationMeta } from '../justificationStore';
 import type { WorkerClient } from '../workerClient';
 
-export type View = 'reconciliation' | 'panel' | 'findings' | 'tables' | 'justifications' | 'export';
+/** The views of a tool (flow revision of 25/11/2026): Leitura, Visão geral, Análise, Justificativas and Exportação. */
+export type View = 'reading' | 'overview' | 'analysis' | 'justifications' | 'export';
 
 /** Justifications and rules kept by the platform (IndexedDB, backup) that the CFGR700 workspace uses. */
 export interface Cfgr700Services {

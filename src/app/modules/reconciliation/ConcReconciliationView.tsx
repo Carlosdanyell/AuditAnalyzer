@@ -72,8 +72,8 @@ export function ConcReconciliationView({ data, summary, preview }: { data: Recon
         checks={data.checks}
         tiles={tiles}
         okText="Folha e razão lidos por inteiro, leitura reconciliada e ponte de cada conta fechada."
-        failText="A leitura tem problemas que impedem usar os números como estão. Confira os detalhes abaixo antes do Painel e dos Achados."
-      />
+        failText="A leitura tem problemas que impedem usar os números como estão. Confira os detalhes abaixo antes da Visão geral e da Análise."
+      >
       <Alerts alerts={data.alerts} />
       <InvariantBoard checks={data.checks} />
       <Checks checks={data.checks} totalMs={data.totalMs} />
@@ -115,6 +115,7 @@ export function ConcReconciliationView({ data, summary, preview }: { data: Recon
           ))}
         </section>
       )}
+      </RunStatus>
     </div>
   );
 }

@@ -39,7 +39,7 @@ CFGR700 ler outras tabelas.
 | Leitura | ZIP com acesso aleatório, inflate, CRC32, SHA-256, sharedStrings, leitura da aba em fluxo (`.xlsx`, ou o XML Spreadsheet 2003 do sistema, puro ou em `.zip`, reconhecido pelo conteúdo), dicionário, colunas | `src/worker/ingest/`, `src/worker/store/` |
 | Exportação | gerador XLSX em fluxo, tema, mesclagens validadas, nomes definidos, formatação condicional, aba Rastreabilidade | `src/worker/export/` |
 | Utilitários | datas sem fuso, centavos, formatação pt-BR, hash da configuração | `src/shared/` |
-| Tela | Arquivos, Processamento (etapas), Reconciliação de leitura, tabelas virtualizadas, Exportação, Configuração, tema, ajuda, cópia de segurança | `src/app/`, `src/components/` |
+| Tela | Arquivos, Processamento (etapas), Leitura, Análise (lista de testes, filtro Teste, detalhe da linha: `AnalysisLayout`, `DetailPane`), tabelas virtualizadas, Exportação, Configuração, tema, ajuda, cópia de segurança | `src/app/`, `src/components/` |
 
 ## 3. Contrato de um módulo
 
@@ -94,7 +94,7 @@ interface AvailableModule<C> {
   accepts: { extensions: readonly string[]; maxFiles: number }
          | { extensions: 'any'; hint: string; maxFiles: number };   // Fase 15: qualquer arquivo, decidido pelo conteúdo
   helpAnchor: string;                                   // public/ajuda.html#<anchor>
-  features: { panel; findings; tables; justifications; export: boolean };   // visões além da reconciliação (Fase 14: findings)
+  features: { overview; analysis; justifications; export: boolean };   // visões além da Leitura (revisão de 25/11/2026)
   config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };   // read: ok com warnings? (Fase 15)
   notReady?(config: C): string | null;                  // Fase 15: o que falta na configuração para Analisar (dica), ou null
   detect(sheets: SheetSample[], config: C): 'match' | 'maybe' | 'no';   // Fase 9; nunca bloqueia
@@ -203,6 +203,32 @@ interface ModuleSession {                               // objeto novo a cada in
   - Guardas de tipo compartilhadas `isLogSummary` e `isLogReconciliation` (`src/shared/protocol.ts`): o código comum
     estreita o resumo e a reconciliação do CFGR700 pelo formato do objeto, nunca pelo id do módulo.
 
+- **Revisão do fluxo e do layout (decisões do usuário de 25/11/2026):** as três ferramentas têm as mesmas visões —
+  **Leitura · Visão geral · Análise · (Justificativas) · Exportação**. Mudanças do contrato:
+  - `View` (`src/app/modules/workspace.ts`) passa a `'reading' | 'overview' | 'analysis' | 'justifications' | 'export'`,
+    e `features` do descritor a `{ overview, analysis, justifications, export }` (`panel`, `findings` e `tables` saem:
+    Achados e Tabelas viraram a Análise). O trilho (`src/app/rail.ts`) segue `features`, nunca o id do módulo; a Leitura
+    é de todos.
+  - **Leitura:** `RunStatus` (`src/components/ReconciliationParts.tsx`) recebe o resto da tela como filhos: com todas as
+    verificações OK, uma linha verde ("Integridade confirmada · N/N verificações OK") que abre os detalhes ("Ver
+    detalhes"); com falha ou alerta, o veredito e os detalhes abertos, como antes.
+  - **Análise:** `AnalysisLayout` (`src/components/AnalysisLayout.tsx`) é comum: recebe a lista de testes do módulo
+    (`AnalysisTest`: chave, código, nome, nível Erro/Alerta/Conferir com aprovação/Informativo, número de linhas que o
+    clique abre, texto do número, regra), o selecionado e o que o clique faz; desenha a lista agrupada (os sem
+    ocorrência recolhidos), a tabela no centro e o detalhe à direita. `TestSelect` é o filtro **Teste** da barra e
+    `TestNote` a linha com a regra do teste escolhido. Cada módulo monta a sua lista com uma função pura
+    (`src/app/modules/<id>/analysisTests.ts`): CT2, os testes do quadro; CFGR700, as sinalizações e os resultados da
+    análise segregada do período; Conciliador, os códigos de achado do resumo.
+  - **Detalhe da linha:** `DetailPane` (`src/components/DetailPane.tsx`) é o diálogo do documento (CT2) e da conta
+    (Conciliador): ao lado da tabela em tela larga (`WIDE_QUERY`, 1360 px; diálogo não modal) e por cima em tela estreita
+    (modal, foco preso); nos dois, o foco vai ao botão de fechar, Esc fecha e o foco volta a quem abriu.
+  - **Comando `tests`** (opcional, só a CT2; `ModuleSession.tests(filter)`, resposta `tests` com `Ct2TestsData`): os
+    testes do quadro com, sob o filtro comum, as ocorrências e as linhas de cada tabela que os lista
+    (`Ct2TestEntry.tables`: Ocorrências e a tabela do nível), a regra (`CT2_RULES`) e os documentos mistos. É o que a
+    lista e o filtro Teste mostram; um módulo que não o oferece recebe "não oferecido" do despacho. O CFGR700 e o
+    Conciliador montam a lista com o que já recebem (`panel` e o resumo).
+  - A tabela "Exceções" da CT2 aparece na tela como **Ocorrências** (o id `ct2Exceptions` e a planilha não mudam).
+
 ## 4. Tela
 
 - **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: ícone, código curto,
@@ -210,8 +236,8 @@ interface ModuleSession {                               // objeto novo a cada in
   link para a ajuda e "Abrir"); o cartão abre o espaço de trabalho do módulo. O acento do cartão vem do descritor
   (`accent`, uma das cores da plataforma, nunca vermelho), sem comparar ids de módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
   a análise aberta são marcadas na linha. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
-- No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
-  oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
+- No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Leitura → (visões que o módulo
+  oferece: Visão geral, Análise, Justificativas, Exportação). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
   oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
   `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
 - **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para

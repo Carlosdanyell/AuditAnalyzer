@@ -2,9 +2,10 @@
  * Side panel of a CT2 document (Phase 14, section 4.6): a dialog over the screen with the answer of the `document`
  * query. Header (key, date, origin, routines, debit and credit by segment, B1/B4) and the lines, with a discreet mark on
  * manual lines and the finding mark, with its reason, on lines with findings; "Valor Moeda1" only where it differs from
- * "Valor". Focus is trapped inside and given back to the element that opened it; Esc closes.
+ * "Valor". Docked beside the table of the Análise on wide screens, over the screen otherwise (DetailPane).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { DetailPane } from '../../../components/DetailPane';
 import { Icon } from '../../../components/Icon';
 import { cx } from '../../../components/cx';
 import ui from '../../../components/ui.module.css';
@@ -170,23 +171,24 @@ function LineRows({ line, detail, segments, several, showCurrency1 }: { line: Ct
   );
 }
 
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** The dialog: asks the worker for the document, traps the focus and gives it back on close. */
-export function Ct2DocumentDialog({ client, index, segments, onClose, onBase }: { client: WorkerClient; index: number; segments: readonly string[]; onClose: () => void; onBase: (index: number) => void }) {
+/** The detail of a document: asks the worker for it; docked beside the table or over the screen (DetailPane). */
+export function Ct2DocumentDialog({
+  client,
+  index,
+  segments,
+  onClose,
+  onBase,
+  docked = false,
+}: {
+  client: WorkerClient;
+  index: number;
+  segments: readonly string[];
+  onClose: () => void;
+  onBase: (index: number) => void;
+  docked?: boolean;
+}) {
   const [detail, setDetail] = useState<Ct2DocumentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const opener = useRef<Element | null>(null);
-
-  useEffect(() => {
-    opener.current = document.activeElement;
-    panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-    return () => {
-      const back = opener.current;
-      if (back instanceof HTMLElement && back.isConnected) back.focus();
-    };
-  }, []);
 
   useEffect(() => {
     let current = true;
@@ -200,56 +202,33 @@ export function Ct2DocumentDialog({ client, index, segments, onClose, onBase }: 
     };
   }, [client, index]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-    if (e.key !== 'Tab' || !panel.current) return;
-    const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
-    if (items.length === 0) return;
-    const first = items[0]!;
-    const last = items[items.length - 1]!;
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
-
   return (
-    <div className={styles.overlay} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="ct2-document-title" onKeyDown={onKeyDown}>
-        <div className={styles.drawerBar}>
-          <span className={ui.muted}>Documento</span>
-          <span className={styles.drawerActions}>
-            <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onBase(index)}>
-              <Icon name="table" size={15} />
-              Ver na Base
-            </button>
-            <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, ui.iconBtn)} aria-label="Fechar o documento" data-autofocus onClick={onClose}>
-              <Icon name="x" size={16} />
-            </button>
-          </span>
-        </div>
-        <div className={styles.drawerBody}>
-          {error ? (
-            <p className={cx(ui.alert, ui.error)} role="alert">
-              <Icon name="xCircle" />
-              <span>{error}</span>
-            </p>
-          ) : detail ? (
-            <Ct2DocumentDetailView detail={detail} segments={segments} titleId="ct2-document-title" />
-          ) : (
-            <p className={ui.muted} id="ct2-document-title">
-              Carregando o documento…
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+    <DetailPane
+      docked={docked}
+      labelledBy="ct2-document-title"
+      kind="Documento"
+      closeLabel="Fechar o documento"
+      onClose={onClose}
+      classes={{ overlay: styles.overlay, drawer: styles.drawer, bar: styles.drawerBar, actions: styles.drawerActions, body: styles.drawerBody }}
+      actions={
+        <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onBase(index)}>
+          <Icon name="table" size={15} />
+          Ver na Base
+        </button>
+      }
+    >
+      {error ? (
+        <p className={cx(ui.alert, ui.error)} role="alert">
+          <Icon name="xCircle" />
+          <span>{error}</span>
+        </p>
+      ) : detail ? (
+        <Ct2DocumentDetailView detail={detail} segments={segments} titleId="ct2-document-title" />
+      ) : (
+        <p className={ui.muted} id="ct2-document-title">
+          Carregando o documento…
+        </p>
+      )}
+    </DetailPane>
   );
 }
