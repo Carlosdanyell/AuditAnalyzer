@@ -1,0 +1,51 @@
+{
+  "$comment": "Modelo do perfil Folha do Conciliador, com contas, verbas e lotes inventados (troque pelos da sua empresa). Em \"accounts\" vai uma linha por conta do razão a conciliar, num destes modos: \"netPay\" (salários a pagar: verba do líquido da folha), \"verbas\" (soma de verbas da folha GPER040, com sinal + ou -) e \"provision\" (provisão de férias ou 13º, pelos relatórios GPER070 e GPER090). \"ledger.batchClasses\" diz como reconhecer os lotes da integração da folha no razão; \"provisionReports\" traz os títulos das colunas e os textos dos relatórios de provisão. O mais simples é editar na tela Configuração do Conciliador, que confere cada campo; depois de salvar, o perfil pode ser exportado e importado de novo.",
+  "schemaVersion": 1,
+  "profile": "payroll",
+  "payrollReport": {
+    "scope": { "level": "groupOfCompanies", "contractType": "Todos" },
+    "netPayCode": "X99"
+  },
+  "provisionReports": {
+    "scope": "groupOfCompanies",
+    "reversalMarker": " NEG ",
+    "endMarker": "FIM DO RELATORIO DE EXEMPLO",
+    "vacation": { "columns": ["VALOR", "ADICIONAIS", "1/3 CONSTIT.", "TOTAL FERIAS", "I.N.S.S.", "F.G.T.S", "TOT.ENCARGOS", "TOTAL GERAL"] },
+    "thirteenth": { "columns": ["VALOR", "ADICIONAIS", "1o PARCELA", "TOTAL 13o", "I.N.S.S.", "F.G.T.S", "TOT.ENCARGOS", "TOTAL GERAL"] }
+  },
+  "ledger": {
+    "batchClasses": [
+      { "id": "integration", "label": "Integração da folha", "match": { "prefix": "000777" } },
+      { "id": "financial", "label": "Financeiro", "match": { "prefix": "000888" } },
+      { "id": "manual", "label": "Manual", "match": { "pattern": "^\\d{6}" } }
+    ],
+    "verbaFromHistory": "^(?<code>[0-9A-Z]{3}) "
+  },
+  "settlementSearch": { "maxCandidates": 40 },
+  "workpaperStatuses": ["Conciliado", "Em análise", "Pendente"],
+  "accounts": [
+    { "account": "9.9.1.0.10.01", "name": "Salários a pagar (exemplo)", "naturalSide": "C", "tickMark": "#01", "mode": "netPay", "netPayCode": "X99" },
+    {
+      "account": "9.9.1.0.20.01",
+      "name": "Adiantamento a colaboradores (exemplo)",
+      "naturalSide": "D",
+      "tickMark": "#02",
+      "mode": "verbas",
+      "verbas": [
+        { "code": "A10", "sign": 1, "column": "P" },
+        { "code": "A12", "sign": -1, "column": "D" }
+      ],
+      "settlementVerbas": ["C31"]
+    },
+    {
+      "account": "9.9.1.0.30.01",
+      "name": "Provisão de férias (exemplo)",
+      "naturalSide": "C",
+      "tickMark": "#03",
+      "mode": "provision",
+      "report": "vacation",
+      "column": "TOTAL FERIAS",
+      "verbas": { "accrual": ["P01", "P02"], "vacationRelease": ["P11"], "terminationRelease": ["P21"] }
+    }
+  ]
+}

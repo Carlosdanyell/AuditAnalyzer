@@ -15,6 +15,10 @@ export const RECONCILIATION_STAGES = ['fileCheck', 'rows', 'reconciliation', 'ch
 export const RECONCILIATION_REPORTS = ['GPER040', 'CTBR400', 'GPER070', 'GPER090'] as const;
 export type ReconciliationReport = (typeof RECONCILIATION_REPORTS)[number];
 
+/** The provision reports by the key of the profile (`report` of a Padrão B account; sections 3 and 8.1). */
+export const PROVISION_REPORT_ROUTINES = { vacation: 'GPER070', thirteenth: 'GPER090' } as const satisfies Record<string, ReconciliationReport>;
+export type ProvisionReportKind = keyof typeof PROVISION_REPORT_ROUTINES;
+
 /** Formats an input arrives in (section 3): the plain-text spool or the XML Spreadsheet 2003 (PDF in Phase 16). */
 export type ReconciliationFormat = 'text' | 'xml';
 

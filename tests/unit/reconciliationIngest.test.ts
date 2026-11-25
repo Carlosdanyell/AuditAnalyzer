@@ -6,6 +6,7 @@ import type { Command, WorkerEvent } from '../../src/shared/protocol';
 import { payrollSpool } from '../synthetic/payrollFixture';
 import { ledgerSpool } from '../synthetic/ledgerFixture';
 import { ASSET_ACCOUNT, NET_ACCOUNT, VERBAS_ACCOUNT, engineFixture } from '../synthetic/payrollLedgerFixture';
+import { provisionProfileFile } from '../synthetic/reconciliationProfile';
 import { configOf, screenFixture, sessionFiles, type SessionFile } from '../synthetic/reconciliationSession';
 
 /**
@@ -161,7 +162,23 @@ describe('ingestion of the Conciliador (worker)', () => {
     const provision = { name: 'GPER070.##R', bytes: new TextEncoder().encode('*****\r\n* EMPRESA X   SIGA /GPER070/v.12   Pagina: 1 *\r\n*****\r\n') };
     const r = await ingest([payroll!, ledger!, provision], configOf(fx.profile));
     expect(r.reconciliation!.files[2]).toMatchObject({ kind: 'other', report: 'GPER070' });
-    expect(r.reconciliation!.alerts[0]!.message).toMatch(/^GPER070\.##R: GPER070 reconhecido: a leitura das provisões entra na Fase 16/);
+    expect(r.reconciliation!.alerts[0]!.message).toBe(
+      'GPER070.##R: GPER070 (provisão de férias) reconhecido: a leitura dos relatórios de provisão ainda não está disponível nesta versão; o arquivo fica fora da análise e as contas de provisão, não analisadas.',
+    );
+  });
+
+  it('a provision account is "não analisada — falta <relatório>" without its report, and waits for the reader with it', async () => {
+    const fx = engineFixture();
+    const [payroll, ledger] = sessionFiles(fx);
+    const profile = provisionProfileFile();
+    const without = await ingest([payroll!, ledger!], configOf(profile));
+    expect(without.summary!.accounts[3]).toMatchObject({ account: '9.9.1.0.30.01', status: 'notAnalyzed', reason: 'não analisada — falta GPER070' });
+    const provision = { name: 'ferias.__r', bytes: new TextEncoder().encode('*****\r\n* EMPRESA X   SIGA /GPER070/v.12   Pagina: 1 *\r\n*****\r\n') };
+    const other = { name: '13o.__r', bytes: new TextEncoder().encode('*****\r\n* EMPRESA X   SIGA /GPER090/v.12   Pagina: 1 *\r\n*****\r\n') };
+    // With the GPER070 (and a GPER090 the profile does not use), the account is held to CC-1: it is not in the ledger.
+    const withReport = await ingest([payroll!, ledger!, provision, other], configOf(profile));
+    expect(withReport.summary!.accounts[3]).toMatchObject({ status: 'notInLedger' });
+    expect(withReport.reconciliation!.alerts.map((a) => a.message.split(' reconhecido:')[0])).toEqual(['ferias.__r: GPER070 (provisão de férias)', '13o.__r: GPER090 (provisão de 13º salário)']);
   });
 
   it('stops on a ledger whose layout is not the documented one (title out of position)', async () => {

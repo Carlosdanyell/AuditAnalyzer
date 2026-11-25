@@ -35,7 +35,7 @@ describe('descriptor of the Conciliador', () => {
   });
 
   it('is not ready to analyze without a profile with accounts', () => {
-    expect(reconciliationModule.notReady!(reconciliationDefaultConfig())).toBe('Importe o perfil de contas na Configuração');
+    expect(reconciliationModule.notReady!(reconciliationDefaultConfig())).toBe('Monte ou importe o perfil de contas na Configuração');
     expect(reconciliationModule.notReady!(profiled())).toBeNull();
   });
 });

@@ -13,7 +13,16 @@
 import type { PayrollProfileConfig, ReconciliationConfig } from '../../../config/reconciliationSchema';
 import { formatDay } from '../../../shared/dates';
 import { formatCents, formatInteger } from '../../../shared/format';
-import type { LedgerFileCard, OtherFileCard, PayrollFileCard, ReconciliationFileCard, ReconciliationReconciliation, ReconciliationSummary } from '../../../shared/modules/reconciliation';
+import {
+  PROVISION_REPORT_ROUTINES,
+  type LedgerFileCard,
+  type OtherFileCard,
+  type PayrollFileCard,
+  type ProvisionReportKind,
+  type ReconciliationFileCard,
+  type ReconciliationReconciliation,
+  type ReconciliationSummary,
+} from '../../../shared/modules/reconciliation';
 import type { Alert, CheckResult, WorkerEvent } from '../../../shared/protocol';
 import { identifyReconciliationInput } from '../../../modules/reconciliation/detect';
 import { IngestError } from '../../ingest/errors';
@@ -32,6 +41,9 @@ import { ledgerViewAccounts, reconciliationSummary } from './panel';
 
 /** Rows of each sheet the classification reads (the probe of the start screen reads the same). */
 const PROBE_ROWS = 30;
+
+const PROVISION_KINDS = Object.keys(PROVISION_REPORT_ROUTINES) as ProvisionReportKind[];
+const PROVISION_TITLES: Record<ProvisionReportKind, string> = { vacation: 'provisão de férias', thirteenth: 'provisão de 13º salário' };
 
 /** Everything the session keeps in the worker (the screens and the export of the workpaper query it). */
 export interface ReconciliationIngested {
@@ -236,6 +248,8 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
   const files: ReconciliationFileCard[] = [];
   const payrolls: { name: string; card: PayrollFileCard; source: PayrollSource }[] = [];
   const ledgers: { name: string; read: Awaited<ReturnType<typeof readLedger>>; base: Parameters<typeof ledgerCard>[0] }[] = [];
+  // The provision reports recognized in the session: their accounts are held to CC-1 and wait for the reader (Phase 16).
+  const provisionReports: ProvisionReportKind[] = [];
   for (const [fileIndex, input] of inputs.entries()) {
     const { name, blob } = input;
     progress.begin('fileCheck', fileIndex, blob.size, 'bytes', `Conferindo ${name} (SHA-256)`);
@@ -256,10 +270,12 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
       // Its invariants need the competence of the payroll, known after every file is read.
       files.push(ledgerCard(base, read, []));
     } else {
+      const provision = PROVISION_KINDS.find((k) => PROVISION_REPORT_ROUTINES[k] === found?.report);
+      if (provision !== undefined && !provisionReports.includes(provision)) provisionReports.push(provision);
       const message =
         found === null
           ? 'Arquivo não reconhecido como relatório do Conciliador (GPER040 ou CTBR400, no TXT do spool ou, o razão, em XML): fica fora da análise.'
-          : `${found.report} reconhecido: a leitura das provisões entra na Fase 16; o arquivo fica fora da análise e as contas de provisão, não analisadas.`;
+          : `${found.report}${provision ? ` (${PROVISION_TITLES[provision]})` : ''} reconhecido: a leitura dos relatórios de provisão ainda não está disponível nesta versão; o arquivo fica fora da análise e as contas de provisão, não analisadas.`;
       const card: OtherFileCard = { ...base, kind: 'other', report: found?.report ?? null, message };
       files.push(card);
     }
@@ -284,7 +300,7 @@ export async function ingestReconciliation(inputs: IngestInput[], config: Reconc
   progress.update(files.length);
 
   progress.begin('checks', undefined, 1, 'steps', 'Conciliando as contas do perfil');
-  const analysis = analyzePayroll({ payroll: payroll.source.report, ledgers: ledgerFiles, profile });
+  const analysis = analyzePayroll({ payroll: payroll.source.report, ledgers: ledgerFiles, profile, provisionReports });
   const byKind = (kind: 'payroll' | 'ledger') => files.filter((f): f is PayrollFileCard | LedgerFileCard => f.kind === kind);
   const checks: CheckResult[] = [
     ...merged(byKind('payroll')),

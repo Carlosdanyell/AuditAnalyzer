@@ -30,7 +30,20 @@ export function Section({ title, icon, open, children }: { title: string; icon: 
   );
 }
 
-export function Field({ label, hint, issues, children }: { label: string; hint?: string | undefined; issues: ConfigIssue[]; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  issues,
+  warnings = [],
+  children,
+}: {
+  label: string;
+  hint?: string | undefined;
+  issues: ConfigIssue[];
+  /** What is valid but deserves a look (shown under the field, without marking it invalid). */
+  warnings?: ConfigIssue[];
+  children: ReactNode;
+}) {
   return (
     <label className={`${styles.field} ${issues.length ? styles.invalid : ''}`}>
       <span className={styles.label}>{label}</span>
@@ -38,6 +51,11 @@ export function Field({ label, hint, issues, children }: { label: string; hint?:
       {hint && <span className={styles.hint}>{hint}</span>}
       {issues.map((i) => (
         <span key={`${i.path}|${i.message}`} className={styles.fieldError}>
+          {i.message}
+        </span>
+      ))}
+      {warnings.map((i) => (
+        <span key={`${i.path}|${i.message}`} className={styles.fieldWarning}>
           {i.message}
         </span>
       ))}
@@ -57,12 +75,36 @@ export function IssueList({ issues }: { issues: ConfigIssue[] }) {
   );
 }
 
-/** Items one per line; the typed text is kept while editing and read on leaving the field. */
-export function ListInput({ value, rows, onChange }: { value: string[]; rows: number; onChange: (items: string[]) => void }) {
+/**
+ * Items one per line; the typed text is kept while editing and read on leaving the field. `normalize` changes what is
+ * typed (e.g. verba codes in capitals); `invalid` marks the field for assistive technology.
+ */
+export function ListInput({
+  value,
+  rows,
+  onChange,
+  normalize,
+  invalid,
+}: {
+  value: string[];
+  rows: number;
+  onChange: (items: string[]) => void;
+  normalize?: (text: string) => string;
+  invalid?: boolean;
+}) {
   const [textValue, setTextValue] = useState(formatList(value));
   const joined = formatList(value);
   useEffect(() => setTextValue(joined), [joined]);
-  return <textarea className={cx(ui.input, styles.input)} rows={rows} value={textValue} onChange={(e) => setTextValue(e.target.value)} onBlur={() => onChange(parseList(textValue))} />;
+  return (
+    <textarea
+      className={cx(ui.input, styles.input)}
+      rows={rows}
+      value={textValue}
+      aria-invalid={invalid || undefined}
+      onChange={(e) => setTextValue(normalize ? normalize(e.target.value) : e.target.value)}
+      onBlur={() => onChange(parseList(textValue))}
+    />
+  );
 }
 
 export function MoneyInput({ cents, onChange }: { cents: number; onChange: (cents: number) => void }) {

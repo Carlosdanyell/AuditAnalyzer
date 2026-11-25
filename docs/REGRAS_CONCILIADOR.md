@@ -418,6 +418,7 @@ interface PayrollProfileConfig {
   provisionReports: {
     scope: 'groupOfCompanies';
     reversalMarker: string;             // texto do histórico que marca estorno de provisão (no real " NEG ")
+    endMarker?: string;                 // começo da linha de fim do GPER070/GPER090 (8.1); o texto real fica no perfil local
     vacation:   { columns: string[] };  // títulos das 8 colunas do GPER070, na ordem
     thirteenth: { columns: string[] };  // idem GPER090
   };
@@ -453,6 +454,28 @@ type PayrollAccount = {
   `settlementVerbas` sem interseção com `verbas`; em `provision`, `column` existente nas colunas do relatório e as três
   listas de verbas sem interseção.
 - Conta cujo relatório de origem não foi carregado na sessão: "não analisada — falta <relatório>" (não é erro).
+- `provisionReports.endMarker`: texto com que começa a linha de fim dos relatórios de provisão (8.1), comparado como
+  escrito (sem aparar). O texto real fica só no perfil local; o modelo do perfil e os testes usam um texto inventado
+  (`FIM DO RELATORIO DE EXEMPLO`). Conta de provisão sem ele: aviso no campo, e a conta fica "não analisada — falta o
+  texto de fim dos relatórios de provisão no perfil (provisionReports.endMarker)".
+
+**Como foi implementado (Fase 16, etapa 1, `src/config/reconciliationSchema.ts`, `profiles/payroll/analyze.ts`,
+`ingest.ts`):**
+- `schemaVersion` continua **1**, sem migração: `provisionReports` já era opcional na Fase 15 (obrigatório só com conta
+  `provision`) e `endMarker` entrou **opcional** no objeto. Assim todo perfil salvo ou exportado pela versão 2.5.0 —
+  com ou sem `provisionReports` — continua válido; uma migração não teria como preencher o texto real de fim.
+  A falta dele com conta de provisão é **aviso** (não impede salvar), no campo `provisionReports.endMarker`.
+- Validações da seção 6 com mensagens pelo nome do campo na tela (ex.: "A verba P02 está na provisão do mês (accrual)
+  e na baixa por férias (vacationRelease)."); colunas do relatório: exatamente 8 títulos, cada um não vazio.
+- Conta `provision`, nesta ordem: relatório (GPER070 para `vacation`, GPER090 para `thirteenth`) fora da sessão →
+  "não analisada — falta <relatório>" (antes da CC-1); sem `endMarker` → "não analisada — falta o texto de fim…"; fora
+  do razão → CC-1 ("conta fora da análise"); senão, até as etapas 2 e 3, "não analisada — a leitura do <relatório>
+  ainda não está disponível nesta versão". A ingestão passa ao motor os relatórios de provisão reconhecidos (aviso
+  "GPER070 (provisão de férias) reconhecido: a leitura … ainda não está disponível nesta versão…").
+- Modelo do perfil (`src/config/templates/reconciliation-payroll.json`, botão "Baixar modelo do perfil"): códigos
+  inventados, uma conta de cada modo, `provisionReports` completo e um `"$comment"` em português; importa sem erro nem
+  aviso (testado). Os títulos das colunas e o marcador de estorno que o editor da tela usa ao criar a primeira conta de
+  provisão vêm dele (sem o `endMarker`, que o usuário informa).
 
 ---
 

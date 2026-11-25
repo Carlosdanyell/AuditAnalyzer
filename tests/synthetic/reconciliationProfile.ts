@@ -45,6 +45,9 @@ export function payrollProfileFile(): PayrollProfileFile {
   };
 }
 
+/** End text of the synthetic provision reports (provisionReports.endMarker): invented; the real one stays in the local profile. */
+export const SYNTHETIC_END_MARKER = 'FIM DO RELATORIO DE EXEMPLO';
+
 /** The same profile with a Padrão B account (Phase 16) and the provision reports it needs. */
 export function provisionProfileFile(): PayrollProfileFile {
   const file = payrollProfileFile();
@@ -53,6 +56,7 @@ export function provisionProfileFile(): PayrollProfileFile {
     provisionReports: {
       scope: 'groupOfCompanies',
       reversalMarker: ' NEG ',
+      endMarker: SYNTHETIC_END_MARKER,
       vacation: { columns: ['VALOR', 'ADICIONAIS', '1/3 CONSTIT.', 'TOTAL FERIAS', 'I.N.S.S.', 'F.G.T.S', 'TOT.ENCARGOS', 'TOTAL GERAL'] },
       thirteenth: { columns: ['VALOR', 'ADICIONAIS', '1o PARCELA', 'TOTAL 13o', 'I.N.S.S.', 'F.G.T.S', 'TOT.ENCARGOS', 'TOTAL GERAL'] },
     },

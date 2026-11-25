@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { issueMessage, type ConfigIssue } from '../shared/configTools';
 import reconciliationDefaults from './defaults/reconciliation.json' with { type: 'json' };
+import payrollTemplate from './templates/reconciliation-payroll.json' with { type: 'json' };
 
 /**
  * Configuration of the Conciliador (docs/REGRAS_CONCILIADOR.md, section 6): one entry per reconciliation profile, today
@@ -84,9 +85,23 @@ const provisionAccountSchema = z
   .strict();
 
 /** Titles of the 8 columns of a provision report, in order (section 8.1). */
-const provisionColumns = z.object({ columns: z.array(exact).length(8) }).strict();
+const provisionColumns = z
+  .object({
+    columns: z.array(exact).superRefine((c, ctx) => {
+      if (c.length !== 8) ctx.addIssue({ code: 'custom', message: `São 8 títulos de coluna, na ordem do cabeçalho do relatório (encontrados: ${c.length}).` });
+    }),
+  })
+  .strict();
 
 const PROVISION_LISTS = ['accrual', 'vacationRelease', 'terminationRelease'] as const;
+/** The lists of verbas of a provision account as the screen names them, with the key of the file. */
+const PROVISION_LIST_NAMES: Record<(typeof PROVISION_LISTS)[number], string> = {
+  accrual: 'provisão do mês (accrual)',
+  vacationRelease: 'baixa por férias (vacationRelease)',
+  terminationRelease: 'baixa por rescisão (terminationRelease)',
+};
+/** The provision reports by the key of the profile (sections 3 and 8.1). */
+const PROVISION_REPORT_NAMES = { vacation: 'férias (GPER070)', thirteenth: '13º salário (GPER090)' } as const;
 
 /** Fields of the payroll profile (section 6), without the checks across fields. */
 const payrollProfileShape = {
@@ -96,9 +111,13 @@ const payrollProfileShape = {
       netPayCode: verbaCode,
     })
     .strict(),
-  /** Padrão B (section 8). Required only when an account is in `provision` mode (Phase 16 reads the reports). */
+  /**
+   * Padrão B (section 8). Required only when an account is in `provision` mode. `endMarker` (start of the end line of
+   * the reports, 8.1; the real text stays in the local profile) came in Phase 16 and is optional in the object, so every
+   * profile saved by version 2.5.0 stays valid in schemaVersion 1: without it, a provision account is not analyzed (warning).
+   */
   provisionReports: z
-    .object({ scope: z.literal('groupOfCompanies'), reversalMarker: exact, vacation: provisionColumns, thirteenth: provisionColumns })
+    .object({ scope: z.literal('groupOfCompanies'), reversalMarker: exact, endMarker: exact.optional(), vacation: provisionColumns, thirteenth: provisionColumns })
     .strict()
     .optional(),
   ledger: z
@@ -150,19 +169,24 @@ function checkProfile(p: z.infer<z.ZodObject<typeof payrollProfileShape>>, ctx: 
     if (a.mode === 'provision') {
       const report = p.provisionReports?.[a.report];
       if (report && !report.columns.includes(a.column)) {
-        ctx.addIssue({ code: 'custom', message: `Coluna "${a.column}" não está nas colunas do relatório ${a.report} (provisionReports.${a.report}.columns).`, path: ['accounts', i, 'column'] });
+        ctx.addIssue({
+          code: 'custom',
+          message: `A coluna "${a.column}" não está entre as colunas do relatório de ${PROVISION_REPORT_NAMES[a.report]} (provisionReports.${a.report}.columns).`,
+          path: ['accounts', i, 'column'],
+        });
       }
       if (a.report !== 'vacation' && a.verbas.vacationRelease !== undefined) {
-        ctx.addIssue({ code: 'custom', message: 'vacationRelease só existe em conta de férias (report "vacation").', path: ['accounts', i, 'verbas', 'vacationRelease'] });
+        ctx.addIssue({ code: 'custom', message: 'A baixa por férias (vacationRelease) só existe em conta de férias (report "vacation").', path: ['accounts', i, 'verbas', 'vacationRelease'] });
       }
-      const listOf = new Map<string, string>();
+      const listOf = new Map<string, (typeof PROVISION_LISTS)[number]>();
       for (const list of PROVISION_LISTS) {
         const codes = a.verbas[list] ?? [];
         repeated(codes, ['verbas', list]);
         codes.forEach((code, k) => {
           const other = listOf.get(code);
-          if (other !== undefined && other !== list) ctx.addIssue({ code: 'custom', message: `A verba ${code} está em ${other} e em ${list}.`, path: ['accounts', i, 'verbas', list, k] });
-          else listOf.set(code, list);
+          if (other !== undefined && other !== list) {
+            ctx.addIssue({ code: 'custom', message: `A verba ${code} está na ${PROVISION_LIST_NAMES[other]} e na ${PROVISION_LIST_NAMES[list]}.`, path: ['accounts', i, 'verbas', list, k] });
+          } else listOf.set(code, list);
         });
       }
     }
@@ -185,12 +209,15 @@ export type ReconciliationConfig = z.infer<typeof reconciliationConfigSchema>;
 export type PayrollProfileFile = { schemaVersion: typeof RECONCILIATION_CONFIG_VERSION; profile: 'payroll' } & PayrollProfileConfig;
 
 /**
- * What is valid but deserves a look (section 6): a verba in more than one account in `verbas` mode. Paths relative to
- * the profile.
+ * What is valid but deserves a look (section 6): a verba in more than one account in `verbas` mode; a provision account
+ * without the end text of the reports (`provisionReports.endMarker`, Phase 16). Paths relative to the profile.
  */
 export function payrollProfileWarnings(p: PayrollProfileConfig): ConfigIssue[] {
   const owner = new Map<string, string>();
   const out: ConfigIssue[] = [];
+  if (p.provisionReports && p.provisionReports.endMarker === undefined && p.accounts.some((a) => a.mode === 'provision')) {
+    out.push({ path: 'provisionReports.endMarker', message: 'Informe o texto de fim dos relatórios de provisão: sem ele, as contas de provisão não são analisadas.' });
+  }
   p.accounts.forEach((a, i) => {
     if (a.mode !== 'verbas') return;
     a.verbas.forEach((v, k) => {
@@ -248,7 +275,15 @@ export function reconciliationDefaultConfig(): ReconciliationConfig {
   return reconciliationConfigSchema.parse(structuredClone(reconciliationDefaults));
 }
 
+/**
+ * The template of a payroll profile file (Baixar modelo do perfil): invented codes, one account of each mode, the
+ * provision reports and a "$comment" in Portuguese; imports cleanly (tested).
+ */
+export function payrollProfileTemplate(): Record<string, unknown> {
+  return structuredClone(payrollTemplate) as Record<string, unknown>;
+}
+
 /** What the module still needs from its configuration before it can analyze (the hint by Analisar), or null. */
 export function reconciliationNotReady(config: ReconciliationConfig): string | null {
-  return config.profiles.payroll.accounts.length === 0 ? 'Importe o perfil de contas na Configuração' : null;
+  return config.profiles.payroll.accounts.length === 0 ? 'Monte ou importe o perfil de contas na Configuração' : null;
 }

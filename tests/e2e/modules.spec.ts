@@ -494,11 +494,11 @@ test('Conciliador: aceita qualquer extensão; Analisar desabilitado sem perfil e
   await expect(page.getByText('GPER040.##R')).toBeVisible();
   const analyzeButton = page.getByRole('button', { name: 'Analisar' });
   await expect(analyzeButton).toBeDisabled();
-  await expect(page.getByText('Importe o perfil de contas na Configuração')).toBeVisible();
+  await expect(page.getByText('Monte ou importe o perfil de contas na Configuração')).toBeVisible();
 
   await page.getByRole('button', { name: 'Configuração' }).click();
   await expect(page.getByRole('tab', { name: CONC })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Perfil sem contas: importe o perfil de contas para analisar.')).toBeVisible();
+  await expect(page.getByText('Perfil sem contas: monte o perfil abaixo ou importe o arquivo JSON para analisar.')).toBeVisible();
   // An invalid profile goes through the same schema: errors in Portuguese, by field; nothing changes.
   await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(brokenPath);
   await expect(page.getByText(/não é um perfil válido do Conciliador/)).toBeVisible();
@@ -517,10 +517,146 @@ test('Conciliador: aceita qualquer extensão; Analisar desabilitado sem perfil e
 
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
   await expect(analyzeButton).toBeEnabled();
-  await expect(page.getByText('Importe o perfil de contas na Configuração')).toHaveCount(0);
+  await expect(page.getByText('Monte ou importe o perfil de contas na Configuração')).toHaveCount(0);
   // The platform dispatches to the module: a GPER040 without a ledger leaves nothing to reconcile.
   await analyzeButton.click();
   await expect(page.getByText(/^A análise precisa de ao menos um razão \(CTBR400\) e uma folha \(GPER040\)/)).toBeVisible({ timeout: 60_000 });
+});
+
+test('Conciliador: o perfil montado na Configuração, campo a campo, sem JSON; salvo, habilita Analisar', async ({ page }, testInfo) => {
+  const spoolPath = testInfo.outputPath('GPER040.##R');
+  writeFileSync(spoolPath, '\u001b@\u0002*****\r\n* EMPRESA X   SIGA /GPER040/v.12   Pagina: 1 *\r\n*****\r\n\f');
+  await page.goto('');
+  await chooseModule(page, CONC);
+  await page.locator('input[type=file]').first().setInputFiles([spoolPath]);
+  await expect(page.getByRole('button', { name: 'Analisar' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await expect(page.getByText('Nenhuma conta no perfil.')).toBeVisible();
+  const save = page.getByRole('button', { name: 'Salvar configuração' });
+
+  // 1. An account of verbas: the new account opens with the focus on its code; what is missing shows by field.
+  await page.getByRole('button', { name: 'Adicionar conta' }).click();
+  let account = page.getByRole('group', { name: 'Dados da conta 1 (sem código)' });
+  await expect(account.getByLabel(/^Código da conta/)).toBeFocused();
+  await expect(account.getByText('Não pode ficar vazio.').first()).toBeVisible();
+  await expect(page.getByText(/problema\(s\) no perfil; corrija para salvar/)).toBeVisible();
+  await expect(save).toBeDisabled();
+  await page.keyboard.type('9.9.1.0.10.02');
+  account = page.getByRole('group', { name: 'Dados da conta 9.9.1.0.10.02' });
+  await account.getByLabel(/^Nome da conta/).fill('Contribuição a recolher (sintética)');
+  await account.getByLabel('Código da verba 1').fill('b20');
+  await expect(account.getByLabel('Código da verba 1')).toHaveValue('B20');
+  await account.getByLabel('Coluna na folha da verba 1').selectOption('D');
+  await account.getByRole('button', { name: 'Adicionar verba' }).click();
+  await expect(account.getByLabel('Código da verba 2')).toBeFocused();
+  await page.keyboard.type('7AB');
+  await account.getByLabel('Sinal da verba 2').selectOption({ label: '− subtrai' });
+  await expect(page.getByText(/problema\(s\) no perfil/)).toHaveCount(0);
+
+  // 2. The net-pay account, by mode: its verba in capitals.
+  await page.getByLabel('Modo da nova conta').selectOption({ label: 'Padrão A — líquido da folha (salários a pagar)' });
+  await page.getByRole('button', { name: 'Adicionar conta' }).click();
+  await page.keyboard.type('9.9.1.0.10.01');
+  account = page.getByRole('group', { name: 'Dados da conta 9.9.1.0.10.01' });
+  await account.getByLabel(/^Nome da conta/).fill('Salários a pagar (sintética)');
+  await account.getByRole('textbox', { name: /^Verba do líquido/ }).fill('x99');
+
+  // 3. A duplicate comes without the code (another account) and is removed again.
+  await page.getByRole('button', { name: 'Duplicar a conta 9.9.1.0.10.01' }).click();
+  await expect(page.getByRole('group', { name: 'Dados da conta 3 (sem código)' }).getByLabel(/^Código da conta/)).toBeFocused();
+  await page.getByRole('button', { name: 'Remover a conta 3 (sem código)' }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar conta' })).toBeFocused();
+
+  // 4. A provision account brings the provision reports; without the end text, a warning by field.
+  await page.getByLabel('Modo da nova conta').selectOption({ label: 'Padrão B — provisão de férias ou 13º' });
+  await page.getByRole('button', { name: 'Adicionar conta' }).click();
+  await page.keyboard.type('9.9.1.0.30.01');
+  account = page.getByRole('group', { name: 'Dados da conta 9.9.1.0.30.01' });
+  await account.getByLabel(/^Nome da conta/).fill('Provisão de férias (sintética)');
+  await account.getByLabel(/^Coluna do relatório/).selectOption('TOTAL FERIAS');
+  await account.getByLabel(/^Verbas da provisão do mês/).fill('p01\np02');
+  await account.getByLabel(/^Verbas da baixa por férias/).fill('P11');
+  await account.getByLabel(/^Verbas da baixa por rescisão/).fill('P21');
+  await account.getByLabel(/^Verbas da baixa por rescisão/).blur();
+  await expect(page.getByText('Relatórios de provisão › Texto de fim dos relatórios:')).toBeVisible();
+  await page.locator('summary', { hasText: 'Relatórios de provisão' }).click();
+  await page.getByLabel(/^Texto de fim dos relatórios/).fill('FIM DO RELATORIO DE EXEMPLO');
+  await expect(page.getByText('Relatórios de provisão › Texto de fim dos relatórios:')).toHaveCount(0);
+
+  // 5. The ledger: the batch of the payroll integration by the start of its key.
+  await page.locator('summary', { hasText: 'Razão (CTBR400)' }).click();
+  await page.getByRole('button', { name: 'Adicionar classe de lote' }).click();
+  await expect(page.getByLabel('Classe do lote 1')).toBeFocused();
+  await expect(page.getByText(/Razão \(CTBR400\) · 1 problema/)).toBeVisible();
+  await page.getByLabel('Começo da chave do lote 1').fill('000777');
+
+  await save.click();
+  await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
+  await expect(page.getByText('Perfil com 3 conta(s).')).toBeVisible();
+  expect(await idb(page, 'analyzerConfig:reconciliation')).toEqual({
+    schemaVersion: 1,
+    profiles: {
+      payroll: {
+        payrollReport: { scope: { level: 'groupOfCompanies', contractType: 'Todos' }, netPayCode: 'ZZZ' },
+        provisionReports: {
+          scope: 'groupOfCompanies',
+          reversalMarker: ' NEG ',
+          endMarker: 'FIM DO RELATORIO DE EXEMPLO',
+          vacation: { columns: ['VALOR', 'ADICIONAIS', '1/3 CONSTIT.', 'TOTAL FERIAS', 'I.N.S.S.', 'F.G.T.S', 'TOT.ENCARGOS', 'TOTAL GERAL'] },
+          thirteenth: { columns: ['VALOR', 'ADICIONAIS', '1o PARCELA', 'TOTAL 13o', 'I.N.S.S.', 'F.G.T.S', 'TOT.ENCARGOS', 'TOTAL GERAL'] },
+        },
+        ledger: { batchClasses: [{ id: 'integration', label: 'Integração da folha', match: { prefix: '000777' } }], verbaFromHistory: '^(?<code>[0-9A-Z]{3}) ' },
+        settlementSearch: { maxCandidates: 40 },
+        accounts: [
+          {
+            account: '9.9.1.0.10.02',
+            name: 'Contribuição a recolher (sintética)',
+            naturalSide: 'C',
+            tickMark: '#01',
+            mode: 'verbas',
+            verbas: [
+              { code: 'B20', sign: 1, column: 'D' },
+              { code: '7AB', sign: -1 },
+            ],
+          },
+          { account: '9.9.1.0.10.01', name: 'Salários a pagar (sintética)', naturalSide: 'C', tickMark: '#02', mode: 'netPay', netPayCode: 'X99' },
+          {
+            account: '9.9.1.0.30.01',
+            name: 'Provisão de férias (sintética)',
+            naturalSide: 'C',
+            tickMark: '#03',
+            mode: 'provision',
+            report: 'vacation',
+            column: 'TOTAL FERIAS',
+            verbas: { accrual: ['P01', 'P02'], vacationRelease: ['P11'], terminationRelease: ['P21'] },
+          },
+        ],
+      },
+    },
+  });
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analisar' })).toBeEnabled();
+});
+
+test('Conciliador: o modelo do perfil é baixado (sintético, com a nota em português) e importado de volta sem problemas', async ({ page }) => {
+  await page.goto('');
+  await chooseModule(page, CONC);
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Baixar modelo do perfil' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('modelo-perfil-conciliador-folha.json');
+  const path = await file.path();
+  const template = JSON.parse(readFileSync(path, 'utf8')) as { $comment: string; schemaVersion: number; accounts: { mode: string }[] };
+  expect(template.$comment).toMatch(/^Modelo do perfil Folha do Conciliador/);
+  expect(template.schemaVersion).toBe(1);
+  expect(template.accounts.map((a) => a.mode)).toEqual(['netPay', 'verbas', 'provision']);
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(path);
+  await expect(page.getByText(/carregado no rascunho \(3 conta\(s\)\)/)).toBeVisible();
+  await expect(page.getByText(/^Avisos? do perfil/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Perfil com 3 conta(s).')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Provisão de férias (exemplo)' })).toBeVisible();
 });
 
 /** Writes the synthetic session of the screens (tests/synthetic/reconciliationSession.ts) and imports its profile. */

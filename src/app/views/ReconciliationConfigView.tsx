@@ -1,16 +1,18 @@
 /**
  * Configuration of the Conciliador (docs/REGRAS_CONCILIADOR.md, section 6): the payroll profile (accounts, verbas and
- * rules of the ledger) is imported from and exported to a JSON file, validated by the same schema; the default has no
- * accounts. Saved on this computer (key analyzerConfig:reconciliation).
+ * rules of the ledger and of the provision reports), built in the editor of the screen (PayrollProfileEditor) or
+ * imported from a JSON file, validated by the same schema either way; exported as a file, and a synthetic template
+ * of the file to download. The default has no accounts. Saved on this computer (key analyzerConfig:reconciliation).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   payrollProfileFile,
+  payrollProfileTemplate,
   readPayrollProfileFile,
   readReconciliationConfig,
   reconciliationDefaultConfig,
   withPayrollProfile,
-  type PayrollAccount,
+  type PayrollProfileConfig,
   type ReconciliationConfig,
 } from '../../config/reconciliationSchema';
 import { configDiff, configHash, configToJson, type ConfigIssue } from '../../shared/configTools';
@@ -19,24 +21,19 @@ import { downloadBlob } from '../download';
 import { Icon } from '../../components/Icon';
 import { cx } from '../../components/cx';
 import ui from '../../components/ui.module.css';
-import { BUTTON, IssueList, PRIMARY, Section, shown } from './configParts';
+import { BUTTON, PRIMARY, shown } from './configParts';
+import { issuePlace } from '../payrollProfileDraft';
+import { PayrollProfileEditor, ProfileIssueList } from './PayrollProfileEditor';
 import type { ModuleConfigViewProps } from '../moduleViews';
 import styles from './ConfigView.module.css';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const today = () => new Intl.DateTimeFormat('sv-SE').format(Date.now());
+const PROFILE = 'profiles.payroll';
 
-const MODES: Record<PayrollAccount['mode'], string> = { verbas: 'A — verbas', netPay: 'A — líquido', provision: 'B — provisão' };
-const SIDES = { D: 'Devedora', C: 'Credora' } as const;
-const LEVELS = { groupOfCompanies: 'Grupo de Empresas', company: 'Empresa' } as const;
-
-/** What the account takes from the reports, in short. */
-function criterion(a: PayrollAccount): string {
-  if (a.mode === 'netPay') return `verba do líquido ${a.netPayCode}`;
-  if (a.mode === 'provision') return `${a.report === 'vacation' ? 'férias' : '13º'}, coluna ${a.column}`;
-  const verbas = a.verbas.map((v) => `${v.sign < 0 ? '−' : ''}${v.code}`).join(', ');
-  return a.settlementVerbas?.length ? `${verbas}; baixa: ${a.settlementVerbas.join(', ')}` : verbas;
-}
+/** The issues of the profile with paths relative to it (the editor names the fields by them). */
+const ofProfile = (issues: readonly ConfigIssue[]) =>
+  issues.flatMap((i) => (i.path === PROFILE ? [{ ...i, path: '' }] : i.path.startsWith(`${PROFILE}.`) ? [{ ...i, path: i.path.slice(PROFILE.length + 1) }] : []));
 
 export function ReconciliationConfigView({ config, onSave, analysisLoaded, needsReprocess, canReprocess, onReprocess, onClose }: ModuleConfigViewProps<ReconciliationConfig>) {
   const [draft, setDraft] = useState<ReconciliationConfig>(() => structuredClone(config));
@@ -56,10 +53,13 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
 
   const read = useMemo(() => readReconciliationConfig(draft), [draft]);
   const issues = read.ok ? [] : read.errors;
-  const warnings = read.ok ? read.warnings : [];
-  const dirty = !same(draft, config);
+    const dirty = !same(draft, config);
   const differences = useMemo(() => configDiff(config, defaults), [config, defaults]);
   const profile = draft.profiles.payroll;
+  const profileIssues = useMemo(() => ofProfile(read.ok ? [] : read.errors), [read]);
+  const profileWarnings = useMemo(() => ofProfile(read.ok ? read.warnings : []), [read]);
+  const otherIssues = issues.filter((i) => i.path !== PROFILE && !i.path.startsWith(`${PROFILE}.`));
+  const setProfile = (p: PayrollProfileConfig) => setDraft((d) => ({ ...d, profiles: { ...d.profiles, payroll: p } }));
 
   async function importFile(file: File) {
     setImportIssues([]);
@@ -107,8 +107,9 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
           <div className={styles.headText}>
             <h2 id="config-title">Configuração da análise</h2>
             <p className={styles.muted}>
-              Perfil Folha do Conciliador: as contas, as verbas de cada uma e as regras do razão. O padrão não tem contas: importe o perfil de contas
-              (JSON), que fica salvo neste computador e entra na Rastreabilidade da planilha.
+              Perfil Folha do Conciliador: as contas a conciliar, as verbas de cada uma e as regras do razão e dos relatórios de provisão. Monte o
+              perfil abaixo, campo a campo, ou importe um arquivo JSON; o modelo do perfil traz um exemplo de cada tipo de conta. O perfil fica salvo
+              neste computador e entra na Rastreabilidade da planilha.
             </p>
           </div>
           <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, styles.back)} onClick={onClose}>
@@ -120,7 +121,7 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
           {config.profiles.payroll.accounts.length === 0 ? (
             <strong className={cx(ui.pill, styles.statusChanged)}>
               <Icon name="info" size={15} />
-              Perfil sem contas: importe o perfil de contas para analisar.
+              Perfil sem contas: monte o perfil abaixo ou importe o arquivo JSON para analisar.
             </strong>
           ) : (
             <strong className={cx(ui.pill, styles.statusDefault)}>
@@ -190,6 +191,17 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
             type="button"
             className={BUTTON}
             onClick={() => {
+              downloadBlob(new Blob([configToJson(payrollProfileTemplate())], { type: 'application/json' }), 'modelo-perfil-conciliador-folha.json');
+              setMessage({ kind: 'ok', text: 'Modelo do perfil baixado: um exemplo com códigos inventados, uma conta de cada modo. Pode ser importado como ponto de partida.' })
+            }}
+          >
+            <Icon name="file" size={15} />
+            Baixar modelo do perfil
+          </button>
+          <button
+            type="button"
+            className={BUTTON}
+            onClick={() => {
               setDraft(reconciliationDefaultConfig());
               setImportIssues([]);
               setMessage({ kind: 'info', text: 'Padrão (sem contas) carregado no rascunho. Clique em Salvar configuração para usá-lo.' });
@@ -205,16 +217,16 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
             <span>{message.text}</span>
           </p>
         )}
-        {importIssues.length > 0 && <IssueList issues={importIssues} />}
-        {warnings.length > 0 && (
+        {importIssues.length > 0 && <ProfileIssueList issues={importIssues} profile={null} />}
+        {profileWarnings.length > 0 && (
           <div className={cx(ui.alert, ui.warn)} role="status">
             <Icon name="alert" size={17} />
             <div>
-              <strong>Aviso{warnings.length > 1 ? 's' : ''} do perfil (não impedem salvar)</strong>
+              <strong>Aviso{profileWarnings.length > 1 ? 's' : ''} do perfil (não impedem salvar)</strong>
               <ul className={styles.issues}>
-                {warnings.map((w) => (
+                {profileWarnings.map((w) => (
                   <li key={`${w.path}|${w.message}`}>
-                    <code>{w.path}</code> {w.message}
+                    <strong>{issuePlace(w.path, profile)}:</strong> {w.message} <code>{w.path}</code>
                   </li>
                 ))}
               </ul>
@@ -232,46 +244,18 @@ export function ReconciliationConfigView({ config, onSave, analysisLoaded, needs
         )}
       </section>
 
-      <Section title={`Contas do perfil (${formatInteger(profile.accounts.length)})`} icon="table" open>
-        <p className={styles.muted}>
-          Escopo da folha: {LEVELS[profile.payrollReport.scope.level]} / {profile.payrollReport.scope.contractType}; verba do líquido {profile.payrollReport.netPayCode};
-          baixa do saldo anterior pesquisada com até {formatInteger(profile.settlementSearch.maxCandidates)} lançamentos. Para mudar o perfil, edite o JSON e
-          importe-o de novo.
-        </p>
-        {profile.accounts.length === 0 ? (
-          <p className={styles.muted}>Nenhuma conta no rascunho.</p>
-        ) : (
-          <table className={styles.tests}>
-            <thead>
-              <tr>
-                <th>Tick</th>
-                <th>Conta</th>
-                <th>Padrão</th>
-                <th>Natureza</th>
-                <th>Critério</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profile.accounts.map((a) => (
-                <tr key={a.account}>
-                  <td className={styles.code}>{a.tickMark}</td>
-                  <th scope="row">
-                    <span className={styles.code}>{a.account}</span> {a.name}
-                  </th>
-                  <td>{MODES[a.mode]}</td>
-                  <td>{SIDES[a.naturalSide]}</td>
-                  <td className={styles.code}>{criterion(a)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Section>
+      <PayrollProfileEditor profile={profile} issues={profileIssues} warnings={profileWarnings} onChange={setProfile} />
 
       {/* Floats at the bottom of the window only while there is something to save. */}
       <div className={styles.footer} data-floating={dirty || issues.length > 0 ? '' : undefined}>
         {issues.length > 0 ? (
-          <IssueList issues={issues} />
+          <div>
+            <strong className={styles.fieldError}>
+              {formatInteger(issues.length)} problema(s) no perfil; corrija para salvar:
+            </strong>
+            <ProfileIssueList issues={profileIssues} profile={profile} />
+            {otherIssues.length > 0 && <ProfileIssueList issues={otherIssues} profile={null} />}
+          </div>
         ) : dirty ? (
           <span className={styles.dirty}>
             <span className={styles.dirtyDot} aria-hidden="true" />

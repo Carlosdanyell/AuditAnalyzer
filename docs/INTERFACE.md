@@ -87,7 +87,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    ser desta análise (…). Escolha a aba a analisar." e **Analisar** espera a escolha;
    Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Quando a
    ferramenta ainda precisa de algo da sua configuração (`notReady` do descritor; Conciliador: perfil sem contas),
-   **Analisar** fica desabilitado e a dica aparece ao lado ("Importe o perfil de contas na Configuração"). Mensagens de
+   **Analisar** fica desabilitado e a dica aparece ao lado ("Monte ou importe o perfil de contas na Configuração"). Mensagens de
    erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e
    **Cancelar** (termina o worker e avisa que os dados lidos foram descartados).
@@ -187,13 +187,33 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    de testes com Ligado e Severidade, os parâmetros padrão e os códigos do Lcto Manual?), a cópia de segurança abaixo
    das abas. Em cada aba: seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
    padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App). A aba do
-   **Conciliador** (chave `analyzerConfig:reconciliation`) não tem formulário nem editor JSON: o perfil Folha é
-   importado e exportado inteiro, como arquivo, por **Importar perfil (JSON)** (campo "Arquivo do perfil de contas
-   (JSON)"; o arquivo passa pelo mesmo schema, com os erros em português por campo, e nada muda se for inválido) e
-   **Exportar perfil (JSON)** (`{ "schemaVersion": 1, "profile": "payroll", … }`, o perfil salvo); o perfil importado
-   substitui o anterior inteiro no rascunho e vale depois de **Salvar configuração**. Mostra a situação ("Perfil sem
-   contas…" ou "Perfil com N conta(s).") com o SHA-256, as diferenças em relação ao padrão, os avisos do perfil (não
-   impedem salvar), a tabela das contas (tick mark, conta, padrão, natureza, critério), **Restaurar padrão** e
+   **Conciliador** (chave `analyzerConfig:reconciliation`) tem o **editor do perfil Folha** (Fase 16,
+   `src/app/views/PayrollProfileEditor.tsx`; passos puros em `src/app/payrollProfileDraft.ts`), para montar o perfil sem
+   escrever JSON: seção "Contas do perfil (N)" com um cartão por conta (tick mark, conta, nome, modo, natureza e
+   critério; contagem de problemas e avisos) e os botões "Editar"/"Fechar edição" (`aria-expanded`), "Duplicar" e
+   "Remover", com os nomes acessíveis "Editar a conta <conta>", "Duplicar a conta <conta>", "Remover a conta <conta>"
+   (conta sem código: "<n> (sem código)"); o formulário da conta (grupo "Dados da conta <conta>") tem "Código da conta",
+   "Nome da conta", "Natureza", "Tick mark", "Modo da conta" e os campos do modo — verbas: tabela "Verbas da conta"
+   (por linha, "Código da verba N", "Sinal da verba N" com "+ soma"/"− subtrai", "Coluna na folha da verba N" com
+   P/D/B ou "— não conferir —", botão "Remover a verba N") e "Adicionar verba", e "Verbas da baixa do saldo anterior
+   (opcional)"; líquido: "Verba do líquido"; provisão: "Relatório de provisão", "Coluna do relatório" (as colunas do
+   relatório no perfil), "Verbas da provisão do mês", "Verbas da baixa por férias" (só férias) e "Verbas da baixa por
+   rescisão" (listas uma por linha; códigos em maiúsculas ao digitar). "Modo da nova conta" e **Adicionar conta** (a
+   conta nova abre com o foco no código; a primeira conta de provisão inclui os relatórios de provisão). Seções
+   recolhidas, com "· N problema(s)" no título: "Folha (GPER040)" (nível do escopo, tipo de contrato, verba do líquido
+   da folha), "Razão (CTBR400)" (tabela "Classes de lote": classe, nome, "Começo da chave do lote N" ou "Expressão
+   regular do lote N", "Adicionar classe de lote"; "Verba no histórico"), "Relatórios de provisão (GPER070 e GPER090)"
+   ("Incluir os relatórios de provisão"; "Marcador de estorno", "Texto de fim dos relatórios", as 8 colunas de cada
+   relatório; "Retirar os relatórios de provisão" só sem conta de provisão), "Baixa do saldo anterior" (máximo de
+   lançamentos pesquisados) e "Situações do papel de trabalho (opcional)". Cada mudança passa pelo mesmo schema: o erro
+   aparece em vermelho sob o campo, o aviso em âmbar; o rodapé lista os problemas com o lugar em palavras ("Conta 2
+   (…) › Verbas da conta › verba 1 › Código") e o caminho no arquivo, e "Salvar configuração" só habilita sem erro.
+   Ficam também **Importar perfil (JSON)** (campo "Arquivo do perfil de contas (JSON)"; mesmo schema, erros em
+   português por campo, nada muda se for inválido; o perfil importado substitui o anterior inteiro no rascunho),
+   **Exportar perfil (JSON)** (`{ "schemaVersion": 1, "profile": "payroll", … }`, o perfil salvo) e **Baixar modelo
+   do perfil** (`modelo-perfil-conciliador-folha.json`: exemplo sintético, uma conta de cada modo, com `"$comment"` em
+   português, que importa sem problemas). Mostra a situação ("Perfil sem contas…" ou "Perfil com N conta(s).") com o
+   SHA-256, as diferenças em relação ao padrão, os avisos do perfil (não impedem salvar), **Restaurar padrão** e
    **Voltar**.
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
@@ -247,13 +267,16 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
-  "Importar perfil (JSON)", "Exportar perfil (JSON)", "Voltar" (Configuração do Conciliador),
+  "Importar perfil (JSON)", "Exportar perfil (JSON)", "Baixar modelo do perfil", "Adicionar conta", "Editar a conta …",
+  "Duplicar a conta …", "Remover a conta …", "Adicionar verba", "Adicionar classe de lote", "Voltar" (Configuração do
+  Conciliador), grupo "Dados da conta …" e campos "Código da verba N", "Coluna na folha da verba N", "Classe do lote N",
+  "Começo da chave do lote N", "Modo da nova conta",
   "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
   escuro"/"Usar tema claro", as linhas das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
   opções (radio) "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança", "Arquivo do perfil de
-  contas (JSON)"; a dica "Importe o perfil de contas na Configuração"; e as mensagens
+  contas (JSON)"; a dica "Monte ou importe o perfil de contas na Configuração"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise

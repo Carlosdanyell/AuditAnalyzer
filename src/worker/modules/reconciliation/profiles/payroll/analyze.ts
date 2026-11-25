@@ -12,7 +12,7 @@
  */
 import type { PayrollProfileConfig } from '../../../../../config/reconciliationSchema';
 import { formatCents } from '../../../../../shared/format';
-import type { LedgerBalanceType } from '../../../../../shared/modules/reconciliation';
+import { PROVISION_REPORT_ROUTINES, type LedgerBalanceType, type ProvisionReportKind } from '../../../../../shared/modules/reconciliation';
 import type { CheckResult } from '../../../../../shared/protocol';
 import { buildBridge } from '../../bridge';
 import { combineLedgers, type BatchClassId, type CombinedLedger, type CombinedLedgerLine, type LedgerFileReading } from '../../ledger';
@@ -29,6 +29,8 @@ export interface PayrollAnalysisInput {
   payroll: PayrollReport;
   ledgers: readonly LedgerFileReading[];
   profile: PayrollProfileConfig;
+  /** The provision reports in the session (GPER070, GPER090); a Padrão B account without its report is not analyzed. */
+  provisionReports?: readonly ProvisionReportKind[];
 }
 
 export const BATCH_CLASS_ORDER: readonly BatchClassId[] = ['integration', 'financial', 'manual', 'other'];
@@ -160,15 +162,26 @@ export function analyzePayroll(input: PayrollAnalysisInput): PayrollAnalysis {
   const scopes = payrollScopes(payroll, scopeConfig);
   const classLabel = (id: BatchClassId) => profile.ledger.batchClasses.find((c) => c.id === id)?.label ?? (id === 'other' ? 'Outros' : id);
 
+  const provisionReports = new Set(input.provisionReports ?? []);
   const accounts: PayrollAccountResult[] = [];
   for (const a of profile.accounts) {
-    if (a.mode === 'provision') {
-      accounts.push(emptyResult(a, 'notAnalyzed', `não analisada — falta ${a.report === 'vacation' ? 'GPER070' : 'GPER090'}`));
+    // Section 6: an account whose source report is not in the session is not analyzed (not an error), before CC-1.
+    if (a.mode === 'provision' && !provisionReports.has(a.report)) {
+      accounts.push(emptyResult(a, 'notAnalyzed', `não analisada — falta ${PROVISION_REPORT_ROUTINES[a.report]}`));
+      continue;
+    }
+    if (a.mode === 'provision' && profile.provisionReports?.endMarker === undefined) {
+      accounts.push(emptyResult(a, 'notAnalyzed', 'não analisada — falta o texto de fim dos relatórios de provisão no perfil (provisionReports.endMarker)'));
       continue;
     }
     const view = ledger.accounts.find((x) => x.account === a.account);
     if (!view) {
       accounts.push(emptyResult(a, 'notInLedger', 'conta fora da análise — não está no razão (CC-1)'));
+      continue;
+    }
+    if (a.mode === 'provision') {
+      // The reader of the provisions (sections 8.1 to 8.4) comes in steps 2 and 3 of Phase 16.
+      accounts.push(emptyResult(a, 'notAnalyzed', `não analisada — a leitura do ${PROVISION_REPORT_ROUTINES[a.report]} ainda não está disponível nesta versão`));
       continue;
     }
     if (!scopes.scope) {

@@ -9,6 +9,7 @@ import {
   withPayrollProfile,
   type PayrollProfileFile,
 } from '../../src/config/reconciliationSchema';
+import template from '../../src/config/templates/reconciliation-payroll.json' with { type: 'json' };
 import { payrollProfileFile, provisionProfileFile } from '../synthetic/reconciliationProfile';
 
 /** Configuration of the Conciliador and the payroll profile (docs/REGRAS_CONCILIADOR.md, section 6). */
@@ -142,6 +143,30 @@ describe('profile file (import and export)', () => {
   });
 });
 
+describe('template of the profile (Baixar modelo do perfil)', () => {
+  it('is a synthetic profile file with a "$comment" in Portuguese that imports cleanly, without warnings', () => {
+    expect(typeof template.$comment).toBe('string');
+    expect(template.$comment).toMatch(/Modelo do perfil Folha do Conciliador/);
+    expect(template.$comment).toMatch(/inventados/);
+    expect(template.schemaVersion).toBe(RECONCILIATION_CONFIG_VERSION);
+    const read = readPayrollProfileFile(template);
+    expect(read).toMatchObject({ ok: true, warnings: [] });
+  });
+
+  it('has one account of each mode, the provision reports with an invented end text, and every optional section', () => {
+    const read = readPayrollProfileFile(template);
+    if (!read.ok) throw new Error('invalid');
+    const p = read.profile;
+    expect(p.accounts.map((a) => a.mode)).toEqual(['netPay', 'verbas', 'provision']);
+    expect(p.provisionReports?.endMarker).toBe('FIM DO RELATORIO DE EXEMPLO');
+    expect(p.ledger.batchClasses.map((c) => c.id)).toEqual(['integration', 'financial', 'manual']);
+    expect(p.workpaperStatuses?.length).toBeGreaterThan(0);
+    // Invented codes only: account codes under 9.9, the batch prefixes of the synthetic tests.
+    expect(p.accounts.every((a) => a.account.startsWith('9.9.'))).toBe(true);
+    expect(p.ledger.batchClasses.flatMap((c) => (c.match.prefix ? [c.match.prefix] : []))).toEqual(['000777', '000888']);
+  });
+});
+
 describe('validations of section 6', () => {
   it('repeated account', () => {
     const errors = errorsOf(file((f) => void (f.accounts[2]!.account = '9.9.1.0.10.01')));
@@ -175,7 +200,7 @@ describe('validations of section 6', () => {
   it('provision: the column exists in the columns of its report', () => {
     const errors = errorsOf(provision((f) => void (f.accounts[3]!.column = 'TOTAL 13o')));
     expect(errors.map((e) => e.path)).toEqual(['accounts.3.column']);
-    expect(errors[0]!.message).toBe('Coluna "TOTAL 13o" não está nas colunas do relatório vacation (provisionReports.vacation.columns).');
+    expect(errors[0]!.message).toBe('A coluna "TOTAL 13o" não está entre as colunas do relatório de férias (GPER070) (provisionReports.vacation.columns).');
     expect(paths(provision((f) => void ((f.provisionReports as { vacation: { columns: string[] } }).vacation.columns = ['VALOR'])))).toEqual([
       'provisionReports.vacation.columns',
       'accounts.3.column',
@@ -187,13 +212,53 @@ describe('validations of section 6', () => {
     expect(paths(provision((f) => void (lists(f).terminationRelease = ['P21', 'P01'])))).toEqual(['accounts.3.verbas.terminationRelease.1']);
     expect(paths(provision((f) => void (lists(f).vacationRelease = ['P02'])))).toEqual(['accounts.3.verbas.vacationRelease.0']);
     expect(paths(provision((f) => void (lists(f).accrual = ['P01', 'P01'])))).toEqual(['accounts.3.verbas.accrual.1']);
-    expect(errorsOf(provision((f) => void (lists(f).vacationRelease = ['P02'])))[0]!.message).toBe('A verba P02 está em accrual e em vacationRelease.');
+    expect(errorsOf(provision((f) => void (lists(f).vacationRelease = ['P02'])))[0]!.message).toBe('A verba P02 está na provisão do mês (accrual) e na baixa por férias (vacationRelease).');
   });
 
   it('provision: vacationRelease only in vacation accounts, and the reports are required with a provision account', () => {
     expect(paths(provision((f) => Object.assign(f.accounts[3]!, { report: 'thirteenth', column: 'TOTAL 13o' })))).toEqual(['accounts.3.verbas.vacationRelease']);
     expect(paths(provision((f) => void delete f.provisionReports))).toEqual(['provisionReports']);
     expect(errorsOf(provision((f) => void delete f.provisionReports))[0]!.message).toBe('Obrigatório quando o perfil tem conta de provisão (mode "provision").');
+    expect(errorsOf(provision((f) => Object.assign(f.accounts[3]!, { report: 'thirteenth', column: 'TOTAL 13o' })))[0]!.message).toBe(
+      'A baixa por férias (vacationRelease) só existe em conta de férias (report "vacation").',
+    );
+  });
+
+  it('provision reports: 8 column titles per report, in order', () => {
+    const columns = (f: Mutable) => (f.provisionReports as { thirteenth: { columns: string[] } }).thirteenth;
+    const errors = errorsOf(provision((f) => void columns(f).columns.pop()));
+    expect(errors.map((e) => e.path)).toEqual(['provisionReports.thirteenth.columns']);
+    expect(errors[0]!.message).toBe('São 8 títulos de coluna, na ordem do cabeçalho do relatório (encontrados: 7).');
+    expect(paths(provision((f) => void columns(f).columns.push('EXTRA')))).toEqual(['provisionReports.thirteenth.columns']);
+    expect(paths(provision((f) => void (columns(f).columns[2] = '')))).toEqual(['provisionReports.thirteenth.columns.2']);
+  });
+
+  it('provision reports: the end text of the reports (endMarker) is kept as written; empty is an error', () => {
+    const reports = (f: Mutable) => f.provisionReports as Record<string, unknown>;
+    const read = readPayrollProfileFile(provision((f) => void (reports(f).endMarker = '  Fim  ')));
+    expect(read.ok && read.profile.provisionReports?.endMarker).toBe('  Fim  ');
+    expect(paths(provision((f) => void (reports(f).endMarker = '')))).toEqual(['provisionReports.endMarker']);
+    expect(paths(provision((f) => void (reports(f).endMarker = 7)))).toEqual(['provisionReports.endMarker']);
+  });
+
+  it('a profile saved by version 2.5.0 (provision reports without endMarker) stays valid, schemaVersion 1, with a warning by field', () => {
+    // Phase 15 accepted provisionReports without the end text: no migration, the field is optional in the object.
+    const saved = provision((f) => void delete (f.provisionReports as Record<string, unknown>).endMarker);
+    const read = readPayrollProfileFile(saved);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.warnings).toEqual([
+      { path: 'provisionReports.endMarker', message: 'Informe o texto de fim dos relatórios de provisão: sem ele, as contas de provisão não são analisadas.' },
+    ]);
+    const config = readReconciliationConfig(withPayrollProfile(reconciliationDefaultConfig(), read.profile));
+    expect(config.ok && config.config.schemaVersion).toBe(1);
+    expect(config.ok && config.warnings.map((w) => w.path)).toEqual(['profiles.payroll.provisionReports.endMarker']);
+    // Without a provision account, the end text is not needed: no warning.
+    const noAccount = provision((f) => {
+      delete (f.provisionReports as Record<string, unknown>).endMarker;
+      f.accounts = f.accounts.filter((a) => a.mode !== 'provision');
+    });
+    expect(readPayrollProfileFile(noAccount)).toMatchObject({ ok: true, warnings: [] });
   });
 
   it('reports errors of the module configuration under profiles.payroll', () => {
