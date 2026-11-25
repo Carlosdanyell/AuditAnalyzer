@@ -30,4 +30,12 @@ describe('file area of a tool', () => {
     expect(html).toContain('accept=".xlsx"');
     expect(html).toContain('multiple');
   });
+
+  it('accepts any file when the module decides by the content, with its hint instead of the extensions', () => {
+    const html = renderToStaticMarkup(<FileDrop onFiles={() => {}} extensions="any" hint="TXT do spool, PDF, XML ou XLSX exportados do Protheus" />);
+    expect(html).toMatch(/<input[^>]*type="file"[^>]*>/);
+    expect(html).not.toContain('accept=');
+    expect(html).toContain('um ou mais arquivos: TXT do spool, PDF, XML ou XLSX exportados do Protheus');
+    expect(html).not.toContain('até ~1 milhão de linhas por arquivo');
+  });
 });

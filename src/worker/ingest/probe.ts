@@ -2,15 +2,18 @@
  * First rows of every sheet of a workbook (docs/MODULOS.md, section 3.1), for the warning of the start screen about
  * a file of another analysis. Reads only the beginning of each sheet and of the shared strings, up to the last string
  * those rows use: a few kilobytes even for the largest files. Nothing is checked here (the analysis checks everything).
- * For the XML the system writes (no directory), the worksheets that start in its first megabytes.
+ * For the XML the system writes (no directory), the worksheets that start in its first megabytes. For a plain-text
+ * spool of the system (docs/REGRAS_CONCILIADOR.md, section 3.1), its first lines, normalized, from its first 64 KB.
  */
-import type { SheetSample } from '../../shared/protocol';
+import type { InputFormat, SheetSample } from '../../shared/protocol';
+import { spoolRoutine } from '../../shared/spool';
 import type { InflateMode } from './inflate';
 import { CellKind, SheetParser } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
 import { parseRelationships, parseWorkbookSheets, resolvePartPath } from './workbook';
 import { xmlEntryOf } from './xmlSheet';
 import { XmlSpreadsheetParser, xmlDeclaredEncoding } from './xmlSpreadsheet';
+import { spoolLines } from './spoolText';
 import { readEntryBytes, readEntryHead, readZipDirectory } from './zip';
 
 /** Columns read per row. */
@@ -21,12 +24,37 @@ type RawCell = number | string;
 /** Text read from the beginning of an XML file for its first rows (the first worksheets of the file). */
 const XML_HEAD_BYTES = 4 * 1024 * 1024;
 
+/** Bytes read from the beginning of a file that is not a ZIP, to tell a plain-text spool from an XML. */
+const SPOOL_HEAD_BYTES = 64 * 1024;
+
+/** The first byte of a text after a UTF-8 BOM and white space ("<" for an XML). */
+function firstByte(head: Uint8Array): number | undefined {
+  let i = head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf ? 3 : 0;
+  while (i < head.length && (head[i] === 0x20 || head[i] === 0x09 || head[i] === 0x0a || head[i] === 0x0d)) i++;
+  return head[i];
+}
+
+/**
+ * A plain-text spool: the first `rows` non-blank lines of its first 64 KB, normalized (section 4.1), plus the line of
+ * the page header with `SIGA /<ROTINA>/` when it comes later. Null when no such line is there: only a spool of the
+ * system is read as text.
+ */
+function probeSpool(head: Uint8Array, complete: boolean, rows: number): SheetSample | null {
+  const { lines } = spoolLines(head, complete);
+  const id = lines.findIndex((line) => spoolRoutine(line) !== null);
+  if (id < 0) return null;
+  const out: SheetSample['rows'] = [];
+  for (let i = 0; i < lines.length && out.length < rows; i++) if (lines[i]!.trim() !== '') out.push({ r: i + 1, titles: [lines[i]!] });
+  if (!out.some((row) => row.r === id + 1)) out.push({ r: id + 1, titles: [lines[id]!] });
+  return { name: '', rows: out, format: 'text' };
+}
+
 /** First rows of each worksheet that starts in the first bytes of the XML the system writes (plain or zipped). */
-async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<void>, rows: number): Promise<SheetSample[]> {
+async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<void>, rows: number, format: InputFormat): Promise<SheetSample[]> {
   const out: SheetSample[] = [];
   const parser = new XmlSpreadsheetParser(
     {
-      onSheet: (s) => out.push({ name: s.name, rows: [] }),
+      onSheet: (s) => out.push({ name: s.name, rows: [], format }),
       onRow: (sheet, r, row) => {
         const titles = Array.from({ length: row.width }, (_, c) => (row.kind[c] === CellKind.Empty ? '' : row.text[c]!));
         while (titles.length > 0 && titles[titles.length - 1] === '') titles.pop();
@@ -51,13 +79,19 @@ async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<v
 export async function probeWorkbook(blob: Blob, rows: number, inflateMode: InflateMode = 'auto'): Promise<SheetSample[]> {
   const start = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
   if (start[0] !== 0x50 || start[1] !== 0x4b) {
-    return probeXml(async (onChunk) => void onChunk(new Uint8Array(await blob.slice(0, XML_HEAD_BYTES).arrayBuffer())), rows);
+    // Not an XML: a spool of the system is read as text; anything else goes on as before (the XML reading refuses it).
+    const head = new Uint8Array(await blob.slice(0, SPOOL_HEAD_BYTES).arrayBuffer());
+    if (firstByte(head) !== 0x3c) {
+      const spool = probeSpool(head, blob.size <= SPOOL_HEAD_BYTES, rows);
+      if (spool) return [spool];
+    }
+    return probeXml(async (onChunk) => void onChunk(new Uint8Array(await blob.slice(0, XML_HEAD_BYTES).arrayBuffer())), rows, 'xml');
   }
   const entries = await readZipDirectory(blob);
   const byName = new Map(entries.map((e) => [e.name, e]));
   if (!byName.has('xl/workbook.xml')) {
     const entry = xmlEntryOf('', entries);
-    return probeXml((onChunk) => readEntryHead(blob, entry, onChunk, inflateMode), rows);
+    return probeXml((onChunk) => readEntryHead(blob, entry, onChunk, inflateMode), rows, 'xmlZip');
   }
   const text = async (name: string) => {
     const entry = byName.get(name);
@@ -116,5 +150,6 @@ export async function probeWorkbook(blob: Blob, rows: number, inflateMode: Infla
       while (titles.length > 0 && titles[titles.length - 1] === '') titles.pop();
       return { r, titles };
     }),
+    format: 'xlsx' as const,
   }));
 }

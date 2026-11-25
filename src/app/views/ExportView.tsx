@@ -27,6 +27,8 @@ interface Props {
   content: ExportContent;
   /** Why this analysis cannot be exported (e.g. too large); the button stays disabled. */
   unavailable?: string | null;
+  /** What the module's export takes besides the common options (Conciliador: the justifications of the screen). */
+  extraOptions?: Pick<ExportOptions, 'conc'>;
 }
 
 type Status =
@@ -82,7 +84,7 @@ export function cfgr700ExportContent(justificationCount: number, onOpenJustifica
   };
 }
 
-export function ExportView({ client, scopes, scope, onScopeChange, failures, content, unavailable = null }: Props) {
+export function ExportView({ client, scopes, scope, onScopeChange, failures, content, unavailable = null, extraOptions }: Props) {
   const [language, setLanguage] = useState<ExportOptions['language']>('pt');
   const [confirm, setConfirm] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -104,7 +106,7 @@ export function ExportView({ client, scopes, scope, onScopeChange, failures, con
     const startedAt = performance.now();
     setStatus({ kind: 'running', done: 0, total: 1, startedAt });
     try {
-      const answer = await client.query({ type: 'export', options: { scope, language, confirmFailures: confirm, generatedAt: nowText() } });
+      const answer = await client.query({ type: 'export', options: { scope, language, confirmFailures: confirm, generatedAt: nowText(), ...extraOptions } });
       if (answer.type === 'exportBlocked') {
         setStatus({ kind: 'error', message: `Exportação bloqueada: ${answer.failures.map((f) => f.label).join('; ')}.` });
         return;

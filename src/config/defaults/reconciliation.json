@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "payroll": {
+      "payrollReport": {
+        "scope": { "level": "groupOfCompanies", "contractType": "Todos" },
+        "netPayCode": "ZZZ"
+      },
+      "ledger": {
+        "batchClasses": [],
+        "verbaFromHistory": "^(?<code>[0-9A-Z]{3}) "
+      },
+      "settlementSearch": { "maxCandidates": 40 },
+      "accounts": []
+    }
+  }
+}

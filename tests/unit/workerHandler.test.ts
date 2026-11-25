@@ -3,7 +3,7 @@ import { createCommandHandler } from '../../src/worker/handler';
 import { cfgr700Worker } from '../../src/worker/modules/cfgr700';
 import type { WorkerModules } from '../../src/worker/modules/registry';
 import type { WorkerModule } from '../../src/worker/modules/types';
-import type { WorkerEvent } from '../../src/shared/protocol';
+import { isLogReconciliation, type WorkerEvent } from '../../src/shared/protocol';
 import { defaultConfig } from '../../src/config/schema';
 import { buildCfgr700 } from '../synthetic/cfgr700';
 import { fileA } from '../synthetic/fixtures';
@@ -23,7 +23,7 @@ describe('worker command handler', () => {
     const types = events.map((e) => e.type);
     expect(types.filter((t) => t !== 'progress')).toEqual(['reconciliation', 'ready']);
     const recon = events.find((e) => e.type === 'reconciliation');
-    expect(recon?.type === 'reconciliation' && recon.data.files[0]!.rows.detailRows).toBe(9);
+    expect(recon?.type === 'reconciliation' && isLogReconciliation(recon.data) && recon.data.files[0]!.rows.detailRows).toBe(9);
   });
 
   it('answers an empty ingest with a Portuguese error', async () => {

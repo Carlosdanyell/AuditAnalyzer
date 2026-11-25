@@ -32,7 +32,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 - Thread principal abaixo de 150 MB e sem travar: nada de processamento pesado na tela.
 - Nenhum dado do log em `localStorage`, `sessionStorage`, Cache Storage ou service worker. IndexedDB só para
   configuração e justificativas (as preferências de tema claro/escuro e da última análise usada ficam no mesmo store
-  `config`, chaves `uiTheme` e `lastModule`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
+  `config`, chaves `uiTheme` e `lastModule`, e a densidade das tabelas, chave `uiTableDensity`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
 - Textos em português; fontes do próprio app (`src/assets/fonts`, SIL OFL): Sora nos títulos, Geist no texto e
   Geist Mono nos números e códigos, com `Aptos, "Segoe UI", system-ui` de reserva; nada é baixado de fora.
 - Aviso permanente: "Os arquivos são processados neste computador e não são enviados para nenhum servidor."
@@ -41,15 +41,20 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 
 0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — um cartão por ferramenta, lado a lado (um
    por linha em tela estreita): o ícone da ferramenta (traço branco sobre azul-marinho, com o ponto vermelho da marca),
-   o código curto, as marcas de situação, o título, a descrição, dois ou três destaques do que ela responde (`highlights`
-   do descritor), o arquivo esperado ("Lê …"), o link "Manual desta análise" e o botão visual "Abrir"; o cartão inteiro
+   o código curto, as marcas de situação (discretas, contornadas), o título, a descrição (uma frase), dois ou três
+   destaques curtos do que ela responde (`highlights` do descritor), o arquivo esperado numa linha compacta ("Lê …"),
+   o link "Manual desta análise" e o botão visual "Abrir"; três cartões lado a lado em tela larga, um por linha a 390 px;
+   cada ferramenta tem um acento discreto (faixa superior, código e tiques dos destaques) vindo do descritor (`accent`,
+   cores `--tool-*`, nunca vermelho; padrão steel), sem comparar ids de módulo; o cartão inteiro
    é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). O
    cartão sobe levemente ao passar o mouse (sem movimento com `prefers-reduced-motion`); o da análise aberta tem a borda
-   azul e a faixa superior vermelha. A última usada (`lastModule`,
+   azul e a faixa superior vermelha (no lugar do acento). A última usada (`lastModule`,
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
    "Voltar à análise". Ferramenta "Em breve" não abre; em prévia tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
-   ferramenta encerra a análise aberta (o worker guarda uma por vez). Arquivo que parece ser de outra ferramenta:
+   ferramenta encerra a análise aberta (o worker guarda uma por vez). Desde a Fase 15 são três ferramentas: Log de
+   auditoria (CFGR700), Integridade da CT2 e **Conciliador** (`CONC`, ícone de dois lados que se encontram), este em
+   prévia. Arquivo que parece ser de outra ferramenta:
    aviso "Este arquivo parece ser … Trocar de análise?" com o botão "Mudar para …", que troca e mantém a lista; o aviso
    nunca impede de analisar. **"Nova análise"** (topo) mantém a ferramenta e os arquivos.
    **Marca:** a logo é o "tique de auditoria" (linhas do razão e o tique vermelho de item conferido): no trilho, sem o
@@ -58,7 +63,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    **Estrutura (console):** trilho azul-marinho estreito à esquerda, com ícone e rótulo curto em cada item:
    Ferramentas, a ferramenta aberta (código e situação) e só as visões que ela oferece (Reconciliação, Painel, Achados,
    Tabelas, Justificativas, Exportação; "Achados" é visão da plataforma, oferecida pelos módulos com o recurso
-   `findings`, hoje só a CT2), e no pé Configuração, Ajuda e
+   `findings`: a CT2 e o Conciliador), e no pé Configuração, Ajuda e
    Encerrar sessão; a visão na tela tem fundo claro e uma marca vermelha na borda (o vermelho só marca: visão ativa,
    verificações bloqueantes e achados). Topo com a trilha ("Ferramentas › ferramenta | arquivos") acima do título da
    tela e as ações à direita; a única ação primária é "Exportar planilha". Com a análise pronta, uma faixa de
@@ -74,11 +79,15 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    curtas (entradas ≈ 160 ms, só opacidade e sem cascata), e só onde dão retorno (progresso, conclusão, abrir/fechar, arrastar); nada contínuo
    decorativo; números nunca são animados (um valor de auditoria não mostra quantias intermediárias); respeitar
    `prefers-reduced-motion`.
-1. **Arquivos** — soltar ou escolher um ou mais `.xlsx`; a ordem define a ordem das fontes; remover arquivo; arquivo
+1. **Arquivos** — soltar ou escolher um ou mais `.xlsx` (ou as extensões da ferramenta; o **Conciliador** aceita
+   qualquer arquivo, sem filtro de extensão, e mostra a dica "TXT do spool, PDF, XML ou XLSX exportados do Protheus":
+   o spool vem como `.##r`/`.__r` e o arquivo é reconhecido pelo conteúdo); a ordem define a ordem das fontes; remover arquivo; arquivo
    com mais de uma aba ganha o seletor **"Aba de <arquivo>"** ("Automática", o padrão, ou uma aba, lida pela sondagem
    do início); se mais de uma aba parece ser da análise na escolha automática, a linha avisa "Mais de uma aba parece
    ser desta análise (…). Escolha a aba a analisar." e **Analisar** espera a escolha;
-   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Mensagens de
+   Analisar (envia a configuração do módulo: a salva, ou o padrão do módulo sem configuração editável). Quando a
+   ferramenta ainda precisa de algo da sua configuração (`notReady` do descritor; Conciliador: perfil sem contas),
+   **Analisar** fica desabilitado e a dica aparece ao lado ("Importe o perfil de contas na Configuração"). Mensagens de
    erro com detalhe técnico recolhido.
 2. **Processamento** — etapa atual, progresso por arquivo e total, linhas lidas, linhas/segundo, tempo decorrido e
    **Cancelar** (termina o worker e avisa que os dados lidos foram descartados).
@@ -126,14 +135,23 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    lote <lote>" (painel lateral). Depois, documentos desbalanceados (com a compensação) e os maiores documentos. A
    severidade vem da configuração: teste elevado a Erro ou Alerta passa ao grupo de exceções.
 4b. **Barra de filtros da CT2** (`Ct2FilterBar.tsx`; região "Filtros", fixa em Painel, Achados e Tabelas, com o estado
-   em `Ct2Workspace`) — combobox "Segmento" (só com mais de um segmento), grupo "Origem do documento" com botões de
-   alternância Automático, Manual, Misto e Não identificado (seleção múltipla), combobox "Rotina", campos "Lote" e
-   "Sub-lote" com o botão "Filtrar o lote" e campo "Dia". Cada filtro ativo é um chip com o botão "Remover filtro
-   Segmento|Origem|Rotina|Lote|Dia"; "Limpar filtros" tira todos. Clicar num número ou gráfico cria o filtro. Chip que
-   não vale para a tabela aberta (origem e rotina em Lotes e Dias; lote em Dias) fica esmaecido, com a dica "não se
-   aplica a esta tabela", e é ignorado nela. Semântica: a linha passa quando seu bloco está no segmento, dia e lote, o
-   documento tem origem escolhida e a rotina da linha é a escolhida; documento, lote ou dia passa se ao menos uma de
-   suas linhas passa. Todo número do Painel e de Achados é igual ao total da tabela aberta com o mesmo filtro.
+   em `Ct2Workspace`; desde 25/11/2026) — uma linha compacta: o botão **"Filtros"** (com o número de filtros ativos;
+   `aria-expanded`), os chips dos filtros ativos (ou "Nenhum filtro: tudo o que foi lido."), "Limpar filtros" e, só em
+   Tabelas, a busca da tabela (campo "Buscar", que fica ao trocar de tabela). O botão abre, abaixo da linha, o painel
+   de filtros em três grupos: **Datas e segmento** (combobox "Segmento", só com mais de um segmento; "Período: de" e
+   "até"; "Dia"), **Origem e rotina** (grupo "Origem do documento" com botões de alternância Automático, Manual, Misto
+   e Não identificado, seleção múltipla; combobox "Rotina") e **Lote, conta e valor** ("Lote", "Sub-lote", "Conta
+   (débito ou crédito)" com a caixa "Começa com", "Valor mínimo (R$)" e "Valor máximo (R$)"). Escolhas (segmento,
+   datas, origem, rotina) valem na hora; os campos digitados valem com Enter ou **"Aplicar"** (valor em formato
+   diferente de 1.234,56, ou mínimo maior que o máximo, mostra o erro com o nome do campo e nada muda). **Esc** fecha o painel (e "Fechar") e o foco
+   volta ao botão "Filtros"; ao abrir, o foco vai ao primeiro campo. Cada filtro ativo é um chip com o botão "Remover
+   filtro Segmento|Origem|Rotina|Lote|Dia|Período|Conta|Valor"; "Limpar filtros" tira todos. Clicar num número ou
+   gráfico cria o filtro. Chip que não vale para a tabela aberta (origem, rotina, conta e valor em Lotes e Dias; lote
+   em Dias) fica esmaecido, com a dica "não se aplica a esta tabela", e é ignorado nela. Semântica e aplicabilidade na
+   seção 9 de `docs/REGRAS_CT2_INTEGRIDADE.md`: a linha passa quando seu bloco está no segmento, dia, período e lote, o
+   documento tem origem escolhida e a rotina, a conta e o valor da linha são os escolhidos; documento, lote ou dia passa
+   se ao menos uma de suas linhas passa. Todo número do Painel e de Achados é igual ao total da tabela aberta com o
+   mesmo filtro.
 4c. **Painel lateral do documento** (`Ct2DocumentPanel.tsx`; comando `document`) — diálogo (`role="dialog"`) com o
    nome "Documento <doc> · lote <lote>/<sub> · dd/mm/aaaa", foco preso, **Esc** fecha e o foco volta a quem o abriu.
    Cabeçalho com chave, origem, rotinas, débito e crédito por segmento e situação de B1/B4; linhas com marca discreta
@@ -141,7 +159,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    "Valor". Botões "Ver na Base" (abre Tabelas › Base filtrada pelo documento) e "Fechar o documento". Abre por
    clique ou Enter numa linha de Documentos, Exceções ou Base, e pelos botões de Painel e Achados.
 5. **Tabelas** (`page`) — tabela, busca, ordenação, filtros vindos do painel, paginação e rolagem virtualizada;
-   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). A tabela "Tipo de
+   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). Desde 25/11/2026
+   (`TablesView`, comum a todos os módulos): cabeçalho fixo; números, valores e datas à direita em Geist Mono com
+   algarismos tabulares; separadores leves e zebra discreta; uma linha de resumo acima da tabela com "N linha(s)" e,
+   na CT2, os filtros em vigor ("filtrado por …", a busca); o grupo "Densidade das linhas" (Confortável | Compacta,
+   lembrada no computador, chave `uiTableDensity`); o botão **"Colunas"** (lista para mostrar ou ocultar colunas na
+   tela, nesta sessão; Esc fecha; a exportação não muda); texto longo (histórico) cortado, inteiro ao passar o mouse e
+   com o foco na linha; estado vazio "Nenhuma linha com esses filtros." com a dica do módulo. A tabela "Tipo de
    saldo" (`segregation`) tem uma linha por evento; o filtro do painel mostra também fase, operação, exceção,
    informativo ou marcação, e "Remover filtro do painel" tira todos eles. Integridade da CT2: Documentos (com "Origem
    do documento"), Lotes (com "Documentos manuais" e "Documentos mistos"), Dias, Exceções e Base, todas com a barra
@@ -162,7 +186,15 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 8. **Configuração** — uma aba por análise com regras salvas (abre na da ferramenta aberta; a da CT2 tem o quadro
    de testes com Ligado e Severidade, os parâmetros padrão e os códigos do Lcto Manual?), a cópia de segurança abaixo
    das abas. Em cada aba: seções do formulário, erros por campo (`readConfig`), importar/exportar JSON, restaurar
-   padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App).
+   padrão, diferenças em relação ao padrão e SHA-256, editor JSON avançado, salvar (`applyConfig` do App). A aba do
+   **Conciliador** (chave `analyzerConfig:reconciliation`) não tem formulário nem editor JSON: o perfil Folha é
+   importado e exportado inteiro, como arquivo, por **Importar perfil (JSON)** (campo "Arquivo do perfil de contas
+   (JSON)"; o arquivo passa pelo mesmo schema, com os erros em português por campo, e nada muda se for inválido) e
+   **Exportar perfil (JSON)** (`{ "schemaVersion": 1, "profile": "payroll", … }`, o perfil salvo); o perfil importado
+   substitui o anterior inteiro no rascunho e vale depois de **Salvar configuração**. Mostra a situação ("Perfil sem
+   contas…" ou "Perfil com N conta(s).") com o SHA-256, as diferenças em relação ao padrão, os avisos do perfil (não
+   impedem salvar), a tabela das contas (tick mark, conta, padrão, natureza, critério), **Restaurar padrão** e
+   **Voltar**.
    Com análise na tela e configuração alterada (fora atalhos e feriados), aviso **"Reprocessar com esta
    configuração"**, que reaproveita os arquivos carregados. **Cópia de segurança**: baixar um arquivo com a
    configuração, os feriados da plataforma e as justificativas (`buildBackup`, versão 3, com a configuração de cada análise) e restaurar com confirmação
@@ -171,6 +203,37 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 9. **Tema** — claro (padrão) e escuro, trocados na barra de status (`src/app/themeStore.ts`: `<html data-theme>`,
    preferência no IndexedDB). Cores só por tokens de `src/app/global.css`; os dois temas devem continuar legíveis.
    Animações apenas com `transform`/`opacity` e desligadas com `prefers-reduced-motion`.
+9a. **Conciliador** (Fase 15, etapa 5; `src/app/modules/reconciliation/`, regras na seção 9 de
+   `docs/REGRAS_CONCILIADOR.md`) — trilho com Reconciliação, Painel, Achados, Tabelas, Justificativas e Exportação.
+   Indicadores-chave (sete): Contas, Sem diferença, Com diferença, Erros de integração, Verbas sem integração (F1c),
+   Linhas de integração conferidas e Competência. **Reconciliação de leitura**: veredito, "Quadro de invariantes" (L, R e
+   V, T, F2 e CC, cada código com OK/Falha/Alerta), as verificações, e os arquivos lado a lado — "Folha de pagamento
+   (GPER040)" e "Razão analítico (CTBR400)" — com relatório e formato ("GPER040 · TXT do spool", "CTBR400 · XML
+   (SpreadsheetML)"), SHA-256, codificação, linhas, blocos, funcionários, escopos, competência, intervalo, tipo de saldo,
+   contas e parâmetros do razão e as invariantes de cada arquivo; depois o razão por conta (real + pré-lançamento) e os
+   arquivos fora da análise (aviso, nunca bloqueio). **Painel**: tabela "Contas do perfil", uma linha por conta (tick
+   mark, conta, nome, padrão, esperado, saldo real, saldo pré-lançamento quando houver, saldo contábil, diferença,
+   situação sugerida, baixa do saldo anterior, achados); conta não analisada mostra o motivo. Cada número é um botão com o
+   nome "<Esperado|Saldo real|Saldo em pré-lançamento|Saldo contábil|Diferença> da conta <conta>: <valor>", "Baixa do
+   saldo anterior da conta …" e "Achados da conta …: N"; o número abre a tabela cuja soma é ele (a diferença abre o painel
+   lateral com a ponte); "Abrir a conta <conta>" abre o painel lateral. Com verificação bloqueante falhando, Painel e
+   Achados avisam no topo. **Achados**: cartões "Erro · N ocorrência(s)" e "Alerta · …" abertos, "Informativo · …"
+   recolhido; um bloco (`article`) por código com o nome "<código> <título>" (ex.: "F1c Verba da folha sem integração na
+   conta"), o botão "Ver todas as ocorrências de <código>" e, por ocorrência, a conta ("Abrir a conta …"), "Ver as N
+   linhas no razão" e, no F1c, "Ver na tabela de integração"; nenhum filtro por valor. **Tabelas**: Contas, Folha,
+   Integração, Razão e Achados (coluna "Baixa do saldo anterior?" com Sim/Não e "Tipo de saldo" no Razão); o filtro que
+   abriu a tabela vira um chip com o botão "Remover filtro da conciliação"; clicar numa linha de uma conta analisada abre
+   o painel lateral. **Painel lateral da conta**: diálogo "Conta <conta> · <nome>" (foco preso, Esc fecha), com o
+   critério (verbas, colunas, sinais, esperado), a ponte ("A ponte fecha"/"A ponte não fecha", cada parcela recolhida
+   com os seus lançamentos), "Baixa do saldo anterior (F3): <situação>" com os lançamentos, os achados da conta, o "Texto
+   do critério" com o botão "Copiar o texto do critério", "Ver no Razão" e "Fechar os detalhes da conta".
+   **Justificativas**: um cartão por conta com o campo "Justificativa da conta <conta>", a lista "Situação no papel de
+   trabalho da conta <conta>" (só com `workpaperStatuses` no perfil; começa em "— não escolhida —") e, ao lado, só para
+   leitura, a "Situação sugerida pelo módulo"; botão "Salvar a justificativa da conta <conta>" e a mensagem
+   "Justificativa salva neste computador." (IndexedDB, chave `reconciliationJustifications`). **Exportação**: a visão
+   comum (idioma, confirmação das verificações bloqueantes, "Gerar planilha") com as abas do Conciliador e o número de
+   contas com justificativa na competência (link "Escrever justificativas" quando não há nenhuma); as justificativas da
+   competência vão para o Resumo da planilha (Fase 15, etapa 6).
 10. **Geral** — "Nova análise", "Encerrar sessão" (termina o worker e limpa a tela), botão "Exportar planilha",
    aviso de configuração salva inválida, aviso de reprocessamento na tela principal, link **Ajuda** para
    `ajuda.html` (manual estático em `public/`, abre em nova aba, funciona offline), **versão** na barra de status
@@ -184,18 +247,27 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   Os testes acham os elementos pelo papel e pelo texto visível — botões "Analisar", "Cancelar", "Painel",
   "Nova análise", "Exportar planilha", "Gerar planilha", "Configuração", "Salvar configuração",
   "Reprocessar com esta configuração", "Baixar cópia de segurança", "Restaurar", "Exportar cópia em JSON",
+  "Importar perfil (JSON)", "Exportar perfil (JSON)", "Voltar" (Configuração do Conciliador),
   "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
   escuro"/"Usar tema claro", as linhas das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
   opções (radio) "Geral" e "Segregado",
   tabela "Categorias por fase", região "Exceções da fase Postado (1)"; campos "Escopo", "Período",
-  "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança"; e as mensagens
+  "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança", "Arquivo do perfil de
+  contas (JSON)"; a dica "Importe o perfil de contas na Configuração"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
   trecho, sem diferenciar maiúsculas: um botão ou link novo não pode conter "Analisar", "Ajuda", "Configuração",
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha". `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
+  do Conciliador (Fase 15: títulos "Integridade confirmada", "Quadro de invariantes", "Folha de pagamento (GPER040)",
+  "Razão analítico (CTBR400)"; tabela "Contas do perfil"; botões "Esperado da conta …", "Abrir a conta …", "Remover
+  filtro da conciliação", "Copiar o texto do critério", "Ver todas as ocorrências de F1c", "Salvar a justificativa da
+  conta …"; diálogo "Conta …" com "A ponte fecha"; bloco "F1c Verba da folha sem integração na conta"; campos
+  "Justificativa da conta …" e "Situação no papel de trabalho da conta …"; textos "Justificativa salva neste
+  computador."; e a Exportação, cujo download tem o Resumo com "Confere" em toda conta no avaliador), a análise
   da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
   trilha "Reconciliação", "Painel", "Achados", "Tabelas" e "Exportação"; título "Matriz de amarração" (Reconciliação);
-  região "Filtros", combobox "Segmento", botões "Remover filtro Segmento|Rotina" e "Limpar filtros", a dica "não se
-  aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
+  região "Filtros" com o botão "Filtros" (abre o painel; aria-expanded), combobox "Segmento", campos "Conta (débito ou
+  crédito)" e "Valor mínimo (R$)", botão "Aplicar", botões "Remover filtro Segmento|Rotina|Conta|Valor" e "Limpar
+  filtros", a dica "não se aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
   "Documentos: N", "Lotes com intervenção manual: N"; títulos "Por rotina" e "Exceções — Erro e Alerta", botões "B1: N
   documentos", "Reaplicar os testes" e "Remover filtro do painel"; e, no painel lateral, o diálogo "Documento …", "Ver
   na Base" e "Fechar o documento". Esses nomes não mudam sem atualizar o teste. Cada teste também reprova

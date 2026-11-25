@@ -290,3 +290,41 @@ lixo; ao lado, os números anteriores da Fase 10 para o mesmo caso.
   já inclui o que o caso anterior deixou na memória. Por isso o caso foi repetido sozinho (números da tabela); a
   medição vale um caso por processo, como na Fase 9.
 - Pendente, como antes: medir no Chromium (memória do worker na tela) e com a extração real, no computador do trabalho.
+
+## 2026-11-23 — Fase 15, etapa 4 (Conciliador: baixa do saldo anterior, F3), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Busca da combinação exata (`match/subsetSum.ts`, meet-in-the-middle com as somas de cada metade geradas já ordenadas,
+sem ordenação por comparador) com **40 candidatos**, o limite `maxCandidates` do perfil (REGRAS_CONCILIADOR.md, 7.4).
+Valores sintéticos; `MEDIR_CONCILIADOR=1 npx vitest run tests/unit/reconciliationSubsetSumMeasure.test.ts
+--disableConsoleIntercept`; 7 execuções por caso, duas rodadas.
+
+| Caso (40 candidatos) | Situação | Mediana | Máximo |
+|---|---|---|---|
+| Valores distintos, alvo inatingível (as duas metades percorridas inteiras) | NAO_IDENTIFICADA | 69–87 ms | 106 ms |
+| Valores distintos, alvo = soma de todos | IDENTIFICADA | 60–81 ms | 98 ms |
+| Todos iguais, alvo = 20 lançamentos (cerca de 138 bilhões de combinações exatas) | IDENTIFICADA | 69–72 ms | 86 ms |
+| Valores pequenos, muitos empates | IDENTIFICADA_AMBIGUA | 68–74 ms | 100 ms |
+
+- **Abaixo dos ~300 ms** da regra em todos os casos: não foi preciso parar.
+- O tempo não depende da quantidade de combinações exatas: por soma da primeira metade guardam-se só o menor tamanho e
+  os dois menores subconjuntos desse tamanho, o que basta para os desempates e para o empate (IDENTIFICADA_AMBIGUA).
+- Memória transitória da busca com 40 candidatos: cerca de 70 MB em typed arrays (2 × 2^20 somas e máscaras por metade
+  e os grupos de somas da primeira metade), liberados ao fim da busca. Medido no Node (mesmo V8 do Chrome); pendente
+  medir no worker do navegador quando a etapa 5 ligar o motor à tela.
+
+## 2026-11-24 — Versão 2.5.0 (Conciliador, Fase 15), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Medidas no Node (mesmo V8 do Chrome) com os arquivos reais da folha de outubro, só tempos e memória. A busca da baixa
+do saldo anterior (F3) com 40 candidatos já está registrada em 23/11/2026 (pior caso 106 ms) e não se repete aqui.
+
+| Etapa | Tempo | Memória |
+|---|---|---|
+| Leitura do GPER040 real (TXT) | ~0,1 s | pico de ~28 MB |
+| Leitura do razão CTBR400, TXT | 15 ms | — |
+| Leitura do razão CTBR400, XML | 30 ms | — |
+| Ingestão completa pelo `handler` (sondagem, hash, leitura, motor e verificações) | ~0,2 s | pico do heap de ~38 MB |
+| Geração da planilha (arquivos reais) | ~90 ms | — |
+
+- Bem abaixo das metas (ingestão < 60 s, pico do worker < 400 MB) e dos ~300 ms da regra da baixa (F3).
+- A planilha foi recalculada no LibreOffice, sem erros, com "Confere" em todas as contas.
+- Pendente: medir no worker do navegador, no computador do usuário, e conferir a planilha no Excel.

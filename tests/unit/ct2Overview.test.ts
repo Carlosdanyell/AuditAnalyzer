@@ -128,6 +128,15 @@ describe('CT2 Phase 14: overview, board and tables under the common filter', asy
     ['origem + segmento', { origins: ['manual'], segment: 1 }],
     ['dia', { day: parseDate('15/09/2026') }],
     ['nada passa', { routine: 'SEM ROTINA' }],
+    // The filters of 25/11/2026: period, account and value.
+    ['período', { dates: { from: parseDate('15/09/2026'), to: parseDate('16/09/2026') } }],
+    ['período aberto no fim', { dates: { from: parseDate('17/09/2026') } }],
+    ['período + dia fora dele', { dates: { to: parseDate('16/09/2026') }, day: parseDate('18/09/2026') }],
+    ['conta exata', { account: { code: '11101001', prefix: false } }],
+    ['conta por prefixo + origem', { account: { code: '211', prefix: true }, origins: ['manual'] }],
+    ['valor entre', { amount: { min: 5_00, max: 10_00 } }],
+    ['valor mínimo + segmento', { amount: { min: 50_00 }, segment: 0 }],
+    ['valor + rotina + período', { amount: { max: 10_00 }, routine: 'CTBANFE', dates: { from: parseDate('18/09/2026') } }],
   ];
 
   for (const [name, filter] of filters) {
@@ -143,7 +152,7 @@ describe('CT2 Phase 14: overview, board and tables under the common filter', asy
       expect(total('ct2Documents', filter)).toBe(c.documents);
       expect(total('ct2Documents', { ...filter, test: 'B1' })).toBe(c.unbalancedDocuments);
       // Lotes and Dias ignore the origin and the routine (the screen dims those chips): compared without them.
-      const lineLevel = filter.origins !== undefined || filter.routine !== undefined;
+      const lineLevel = filter.origins !== undefined || filter.routine !== undefined || filter.account !== undefined || filter.amount !== undefined;
       if (!lineLevel) {
         expect(total('ct2Batches', filter)).toBe(c.batches);
         expect(total('ct2Batches', { ...filter, intervention: true })).toBe(c.interventionBatches);
@@ -262,6 +271,50 @@ describe('CT2 Phase 14: overview, board and tables under the common filter', asy
     expect(batches.rows.map((r) => [r[bc('batch')], r[bc('manualDocuments')], r[bc('mixedDocuments')]])).toEqual([['000010', 0, 1]]);
   });
 
+  it('filters by period, account and value line by line (25/11/2026)', () => {
+    const { store, order } = base;
+    const text = (column: keyof typeof store.text, i: number) => String(store.text[column].get(i) ?? '');
+    /** Base rows by a predicate on the row, counted straight from the store (the oracle of the filter). */
+    const rows = (test: (i: number) => boolean) => Array.from(order).filter(test).length;
+    const accountIs = (code: string, prefix: boolean) => (i: number) =>
+      [text('debitAccount', i), text('creditAccount', i)].some((a) => (prefix ? a.startsWith(code) : a === code));
+    const amountIn = (min: number, max: number) => (i: number) => {
+      const v = store.amount.get(i);
+      return !Number.isNaN(v) && v >= min && v <= max;
+    };
+    // Period: the same rows as the days it covers; an open end; an empty range lets nothing pass.
+    const d = parseDate;
+    expect(total('ct2Base', { dates: { from: d('18/09/2026'), to: d('18/09/2026') } })).toBe(total('ct2Base', { day: d('18/09/2026') }));
+    expect(total('ct2Base', { dates: { from: d('15/09/2026'), to: d('16/09/2026') } })).toBe(total('ct2Base', { day: d('15/09/2026') }) + total('ct2Base', { day: d('16/09/2026') }));
+    expect(total('ct2Base', { dates: { from: d('01/10/2026') } })).toBe(1);
+    expect(total('ct2Base', { dates: { from: d('17/09/2026'), to: d('16/09/2026') } })).toBe(0);
+    expect(total('ct2Days', { dates: { to: d('15/09/2026') } })).toBe(2);
+    // Account: debit or credit, exact or by prefix.
+    expect(total('ct2Base', { account: { code: '11101001', prefix: false } })).toBe(rows(accountIs('11101001', false)));
+    expect(total('ct2Base', { account: { code: '211', prefix: true } })).toBe(rows(accountIs('211', true)));
+    expect(total('ct2Base', { account: { code: '211', prefix: false } })).toBe(0);
+    expect(total('ct2Base', { account: { code: '9', prefix: true } })).toBe(0);
+    // Value: "Valor" of the line in cents as read (an empty value on a Cont.Hist line is 0), both ends included.
+    expect(total('ct2Base', { amount: { min: 50_00 } })).toBe(3);
+    // 0,00 and −5,00 (I2) and the Cont.Hist line of document 33 without value.
+    expect(total('ct2Base', { amount: { max: 0 } })).toBe(3);
+    expect(total('ct2Base', { amount: { min: 5_00, max: 10_00 } })).toBe(rows(amountIn(5_00, 10_00)));
+    expect(total('ct2Base', { amount: { min: 10_00, max: 5_00 } })).toBe(0);
+    // A document passes when one of its lines passes: document 10 (1.000 lines of 1,00 and one of 50,00) by its 50,00.
+    const big = tables.page('ct2Base', { amount: { min: 50_00 } }, undefined, 0, 5);
+    const doc = big.columns.findIndex((c) => c.id === 'f:document');
+    expect(big.rows.map((r) => r[doc])).toEqual(['000001', '000010', '000011']);
+    expect(total('ct2Documents', { amount: { min: 50_00 } })).toBe(3);
+    // Account and value are line-level: the batch and day findings leave; the period is not.
+    expect(total('ct2Exceptions', { test: 'B3' })).toBe(2);
+    expect(total('ct2Exceptions', { test: 'B3', amount: { min: 1 } })).toBe(0);
+    expect(total('ct2Exceptions', { test: 'B3', account: { code: '1', prefix: true } })).toBe(0);
+    expect(total('ct2Exceptions', { test: 'B3', dates: { to: d('15/09/2026') } })).toBe(1);
+    // Lotes and Dias ignore account and value (the screen dims those chips).
+    expect(total('ct2Batches', { account: { code: '9', prefix: true } })).toBe(analysis.blocks.batches);
+    expect(total('ct2Days', { amount: { min: 1_000_000_00 } })).toBe(analysis.blocks.days);
+  });
+
   it('keeps the rows of different filters apart in the cache', () => {
     expect(total('ct2Base', { origins: ['mixed'] })).toBe(2);
     expect(total('ct2Base', { origins: ['automatic'] })).toBe(5);
@@ -269,6 +322,9 @@ describe('CT2 Phase 14: overview, board and tables under the common filter', asy
     expect(total('ct2Base', { routine: 'CTBANFE' })).toBe(4);
     expect(total('ct2Base', { batch: batch4, day: parseDate('16/09/2026') })).toBe(total('ct2Base', { batch: batch4 }));
     expect(total('ct2Days', { origins: ['mixed'] })).toBe(analysis.blocks.days);
+    expect(total('ct2Base', { account: { code: '111', prefix: true } })).not.toBe(total('ct2Base', { account: { code: '111', prefix: false } }));
+    expect(total('ct2Base', { amount: { min: 1_00 } })).not.toBe(total('ct2Base', { amount: { min: 1_00, max: 1_00 } }));
+    expect(total('ct2Base', { dates: { from: parseDate('16/09/2026') } })).not.toBe(total('ct2Base', { dates: { to: parseDate('16/09/2026') } }));
   });
 });
 

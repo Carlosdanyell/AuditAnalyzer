@@ -4,6 +4,40 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.5.0] — 2026-11-24
+
+### Tela mais limpa e filtros novos na CT2 (25/11/2026)
+- Início: cartões das ferramentas mais curtos (título, uma frase, destaques curtos, linha "Lê" compacta, marcas de
+  situação discretas, "Abrir"), três lado a lado em tela larga, com um acento próprio de cada ferramenta (`accent` do
+  descritor). Textos dos descritores encurtados.
+- Integridade da CT2: barra de filtros compacta com o botão "Filtros" (contagem dos ativos), os chips e, em Tabelas, a
+  busca; o painel de filtros agrupa os campos e ganha **Período** (de/até), **Conta** (débito ou crédito, exata ou
+  "Começa com") e **Valor** (mínimo e máximo, em centavos a partir do texto pt-BR). Conta e valor olham a linha, como a
+  rotina: Lotes e Dias os ignoram e os achados de lote e de dia saem da contagem. Regras em
+  `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 9.
+- Tabelas: linha de resumo (linhas e filtros em vigor), números em Geist Mono alinhados à direita, zebra mais leve,
+  densidade Confortável/Compacta lembrada no computador (chave `uiTableDensity`), "Colunas" para mostrar ou ocultar
+  colunas na tela, histórico longo inteiro ao passar o mouse ou com o foco na linha, estado vazio mais limpo.
+- Painel e Achados: indicadores em blocos, menos bordas e explicações secundárias em "Saiba mais".
+
+### Conciliador (prévia): folha de pagamento, Padrão A
+- Terceira análise da plataforma (`reconciliation`): confronta o relatório de origem da folha (GPER040, em TXT do spool)
+  com o razão analítico (CTBR400, em TXT ou XML), conta a conta, com o perfil de contas importado na Configuração
+  (verbas de cada conta, conta de líquido a pagar, verbas de baixa). Regras em `docs/REGRAS_CONCILIADOR.md`.
+- Os arquivos são reconhecidos pelo conteúdo, com qualquer extensão (o spool vem como `.##r` ou `.__r`); razão real e
+  pré-lançamento da mesma conta são combinados, e dois meses seguidos são aceitos.
+- Conferências da leitura bloqueantes: totais da folha (L), razão (R), tipos de saldo (T) e o mesmo relatório em dois
+  arquivos (V-3), com SHA-256 de cada arquivo.
+- Motor: esperado por conta; integração (F1a–F1e) em valores absolutos, com toda linha de integração conferida com a
+  folha; baixa do saldo anterior (F3) por combinação exata; ponte do saldo contábil; situação sugerida por conta,
+  incluindo "Sem diferença — conferir alertas". Sem limite de materialidade: qualquer diferença é sinalizada.
+- Telas: Reconciliação, Painel, Achados, Tabelas, painel lateral da conta, Justificativas e Exportação.
+- Planilha amarrada por fórmulas (Resumo, Criterios, Folha_Escopo, Folha_Filial, Integracao, Razao, Ponte,
+  Rastreabilidade), com "Confere" por conta quando a ponte fecha e a integração bate com a folha e o razão.
+- Contrato dos módulos: arquivos de qualquer extensão (`extensions: 'any'`), `notReady(config)`, avisos da configuração
+  (`warnings`), sondagem de spool de texto, comando `account` e `ExportOptions.conc`.
+- Fora desta versão: provisões (Padrão B) e leitura de PDF (Fase 16, versão 2.6.0); razão em `.xlsx` não é lido.
+
 ## [2.4.0] — 2026-11-18
 
 ### Início da plataforma em cartões

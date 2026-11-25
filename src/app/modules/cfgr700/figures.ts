@@ -1,12 +1,12 @@
 /** Key figures of the CFGR700 log for the strip under the header (docs/INTERFACE.md, item 0), by the scope chosen. */
 import { dayOfSeconds } from '../../../shared/dates';
 import { formatDay, formatInteger } from '../../../shared/format';
-import { isCt2Reconciliation, isCt2Summary } from '../../../shared/modules/ct2Integrity';
+import { isLogReconciliation, isLogSummary } from '../../../shared/protocol';
 import type { KeyFigure, KeyFigures } from '../workspace';
 
 export const cfgr700Figures: KeyFigures = (reconciliation, anySummary, scope) => {
-  if (isCt2Reconciliation(reconciliation)) return [];
-  const chosen = anySummary && !isCt2Summary(anySummary) ? anySummary.scopes[scope] : undefined;
+  if (!isLogReconciliation(reconciliation)) return [];
+  const chosen = anySummary && isLogSummary(anySummary) ? anySummary.scopes[scope] : undefined;
   if (!chosen) return [{ label: 'Linhas', value: formatInteger(reconciliation.consolidated.detailRows) }];
   const files = chosen.sources.map((i) => reconciliation.files[i]).filter((f) => f !== undefined);
   const { stats } = chosen;

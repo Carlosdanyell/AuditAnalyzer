@@ -10,6 +10,7 @@ contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca 
 |---|---|---|---|
 | `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | em uso desde a 1.0.0 |
 | `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | em uso desde a 2.1.0 (prévia na 2.0.0; conferida com extração real em 30/10/2026) |
+| `reconciliation` — Conciliador | Relatórios de origem (folha GPER040) e razão analítico (CTBR400), no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração | `docs/REGRAS_CONCILIADOR.md` | prévia na 2.5.0 (Fase 15: folha de pagamento, Padrão A; provisões e PDF na Fase 16) |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
 escopo; outra área = ferramenta própria"). Novas análises entram como módulos desta plataforma, não como ferramentas
@@ -47,11 +48,12 @@ worker):
 
 ```ts
 interface ModuleDescriptor {            // tela e worker
-  id: 'cfgr700' | 'ct2Integrity';
+  id: 'cfgr700' | 'ct2Integrity' | 'reconciliation';
   title: string;                        // "Log de auditoria (CFGR700)", "Integridade da CT2"
   description: string;                  // uma frase no seletor de análises
-  icon: 'auditLog' | 'ledger';          // ícone do cartão no início (components/Icon)
-  highlights: string[];                 // dois ou três destaques do cartão
+  icon: 'auditLog' | 'ledger' | 'reconcile';   // ícone do cartão no início (components/Icon)
+  highlights: string[];                 // dois ou três destaques curtos do cartão
+  accent?: 'steel' | 'teal' | 'ochre';  // acento discreto do cartão (tokens --tool-* da plataforma; padrão steel)
   accepts: { extensions: string[]; maxFiles: number };  // CFGR700 ['.xlsx']; CT2 ['.xlsx', '.xml', '.zip'] (2.3.0)
   detect(headerSample: string[][]): 'match' | 'maybe' | 'no';   // aviso de arquivo trocado, nunca bloqueia sozinho
   configSchema: ZodType;                // schema próprio
@@ -89,10 +91,12 @@ interface AvailableModule<C> {
   preview: string | null;                               // Fase 9: selo "Prévia" e aviso enquanto o módulo é parcial
   start: { heading; headingDescription; uploadTitle; uploadDescription; dropTitle; guide };   // tela inicial
   progress: { stages: { id: Stage; label }[]; perFile: number };   // etapas do processamento
-  accepts: { extensions: readonly string[]; maxFiles: number };
+  accepts: { extensions: readonly string[]; maxFiles: number }
+         | { extensions: 'any'; hint: string; maxFiles: number };   // Fase 15: qualquer arquivo, decidido pelo conteúdo
   helpAnchor: string;                                   // public/ajuda.html#<anchor>
   features: { panel; findings; tables; justifications; export: boolean };   // visões além da reconciliação (Fase 14: findings)
-  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };
+  config: { defaults(): C; read(input: unknown): ModuleConfigRead<C>; saved: boolean };   // read: ok com warnings? (Fase 15)
+  notReady?(config: C): string | null;                  // Fase 15: o que falta na configuração para Analisar (dica), ou null
   detect(sheets: SheetSample[], config: C): 'match' | 'maybe' | 'no';   // Fase 9; nunca bloqueia
 }
 interface ComingSoonModule { status: 'comingSoon'; id; title; description; input; helpAnchor: null }
@@ -172,21 +176,50 @@ interface ModuleSession {                               // objeto novo a cada in
   Como as demais, são opcionais: um módulo que não as oferece recebe o erro "não oferecido" do despacho
   (`src/worker/handler.ts`) e a tela não as chama; o filtro comum e os tipos ficam em `src/shared/modules/ct2Integrity.ts`.
 
+- **Fase 15 (Conciliador):** `MODULE_IDS` ganha `reconciliation` (descritor em `src/modules/reconciliation/`,
+  configuração em `src/config/reconciliationSchema.ts` e `src/config/defaults/reconciliation.json`, módulo do worker em
+  `src/worker/modules/reconciliation/`). Mudanças do contrato, todas opcionais para os outros módulos:
+  - `accepts.extensions: 'any'` com `hint`: a área de arquivos (`FileDrop`) aceita qualquer arquivo e mostra a dica no
+    lugar das extensões (o spool do Protheus vem como `.##r`/`.__r`); quem decide é o conteúdo (`detect`). Os outros
+    módulos continuam filtrando pela extensão.
+  - `notReady(config)`: o que o módulo ainda precisa da sua configuração para analisar (Conciliador: um perfil com
+    contas). Enquanto não for `null`, o botão Analisar fica desabilitado com essa dica; a casca nunca compara ids.
+  - `config.read` pode devolver `warnings` (válido, mas para conferir; no Conciliador, verba em mais de uma conta
+    `verbas`), mostrados na aba de Configuração sem impedir salvar.
+  - `probe`: cada `SheetSample` traz `format` (`xlsx`, `xml`, `xmlZip` ou `text`). Um arquivo que não é ZIP nem XML é
+    lido como **spool de texto** só pelos primeiros 64 KB, normalizados (seção 4.1 de `REGRAS_CONCILIADOR.md`,
+    `src/worker/ingest/spoolText.ts`), e só quando traz o identificador `SIGA /<ROTINA>/` (`src/shared/spool.ts`): uma
+    amostra sem nome, com as primeiras linhas não vazias (`titles[0]` = a linha inteira) e a linha do identificador.
+    Qualquer outro conteúdo segue como antes (resposta `null`).
+  - A área de trabalho (`workspaceOf`) só é pedida com uma análise na tela.
+  - Ícone `reconcile` (dois lados que se encontram) no `ModuleIcon`.
+  - Comando `account` (opcional, só o Conciliador): devolve o detalhe de uma conta do perfil (`ReconciliationAccountDetail`:
+    critério, ponte com as linhas de cada parcela, baixa do saldo anterior, texto do critério e achados) para o painel
+    lateral da conta; a resposta de mesmo nome leva os dados. Um módulo que não o oferece recebe o erro "não oferecido"
+    do despacho.
+  - `ExportOptions.conc` (opcional): as justificativas da tela da competência da sessão (`ReconciliationExportOptions`),
+    levadas para a planilha; os outros módulos ignoram o campo. `AnyTableFilter` ganha `conc` para os filtros das tabelas
+    do Conciliador.
+  - Guardas de tipo compartilhadas `isLogSummary` e `isLogReconciliation` (`src/shared/protocol.ts`): o código comum
+    estreita o resumo e a reconciliação do CFGR700 pelo formato do objeto, nunca pelo id do módulo.
+
 ## 4. Tela
 
-- **Início da plataforma (Ferramentas):** uma linha por módulo numa lista com colunas (`src/components/ToolHome.tsx`:
-  código curto, título, descrição, arquivo esperado, situação "Prévia"/"Em breve", link para a ajuda); a linha abre o
-  espaço de trabalho do módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
+- **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: ícone, código curto,
+  situação "Prévia"/"Em breve", título, descrição de uma frase, destaques curtos, arquivo esperado numa linha "Lê",
+  link para a ajuda e "Abrir"); o cartão abre o espaço de trabalho do módulo. O acento do cartão vem do descritor
+  (`accent`, uma das cores da plataforma, nunca vermelho), sem comparar ids de módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
   a análise aberta são marcadas na linha. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
 - No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
   oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
   oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
   `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
 - **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para
-  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição e arquivo esperado para a linha
-  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até sete
-  indicadores-chave (`KeyFigures`). Cores, fontes, logo e componentes são os da plataforma: a ferramenta não traz
-  marca própria.
+  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição (uma frase), destaques e arquivo
+  esperado (curto, em formato de linha) para o cartão do início, a seção do manual (`helpAnchor`), as visões que
+  oferece (`features`) e, com a análise pronta, até sete indicadores-chave (`KeyFigures`). Cores, fontes, logo e
+  componentes são os da plataforma: a ferramenta não traz marca própria (o `accent` só escolhe uma das cores da
+  plataforma).
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo

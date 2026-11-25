@@ -6,17 +6,22 @@
 import type { ComponentType } from 'react';
 import { cfgr700Module } from '../modules/cfgr700/module';
 import { ct2IntegrityModule } from '../modules/ct2Integrity/module';
+import { reconciliationModule } from '../modules/reconciliation/module';
 import type { AvailableModule } from '../modules/types';
 import { Cfgr700Workspace } from './modules/cfgr700/Cfgr700Workspace';
 import { cfgr700Figures } from './modules/cfgr700/figures';
 import { Ct2Workspace } from './modules/ct2Integrity/Ct2Workspace';
 import { ct2Figures } from './modules/ct2Integrity/figures';
+import { ReconciliationWorkspace } from './modules/reconciliation/ReconciliationWorkspace';
+import { reconciliationFigures } from './modules/reconciliation/figures';
 import type { KeyFigures, WorkspaceProps } from './modules/workspace';
 import { Ct2ConfigView } from './views/Ct2ConfigView';
+import { ReconciliationConfigView } from './views/ReconciliationConfigView';
 
 const WORKSPACES = new Map<AvailableModule, ComponentType<WorkspaceProps>>([
   [cfgr700Module as unknown as AvailableModule, Cfgr700Workspace],
   [ct2IntegrityModule as unknown as AvailableModule, Ct2Workspace],
+  [reconciliationModule as unknown as AvailableModule, ReconciliationWorkspace],
 ]);
 
 /** The workspace of a module after the analysis. */
@@ -29,6 +34,7 @@ export function workspaceOf(module: AvailableModule): ComponentType<WorkspacePro
 const FIGURES = new Map<AvailableModule, KeyFigures>([
   [cfgr700Module as unknown as AvailableModule, cfgr700Figures],
   [ct2IntegrityModule as unknown as AvailableModule, ct2Figures],
+  [reconciliationModule as unknown as AvailableModule, reconciliationFigures],
 ]);
 
 /** The key figures of a module for the strip under the header; none for a module without them. */
@@ -55,7 +61,7 @@ type AnyConfigView = ComponentType<ModuleConfigViewProps<unknown>>;
 const entry = <C,>(module: AvailableModule<C>, view: ComponentType<ModuleConfigViewProps<C>>) =>
   [module as unknown as AvailableModule, view as unknown as AnyConfigView] as const;
 
-const CONFIG_VIEWS = new Map<AvailableModule, AnyConfigView>([entry(ct2IntegrityModule, Ct2ConfigView)]);
+const CONFIG_VIEWS = new Map<AvailableModule, AnyConfigView>([entry(ct2IntegrityModule, Ct2ConfigView), entry(reconciliationModule, ReconciliationConfigView)]);
 
 /** The configuration screen of a module saved apart from the CFGR700 one; null when it has none. */
 export function configViewOf(module: AvailableModule): AnyConfigView | null {

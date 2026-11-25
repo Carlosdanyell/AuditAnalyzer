@@ -315,11 +315,11 @@
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-end;
-  gap: 1px;
+  gap: 2px;
   min-width: 112px;
-  padding: 10px 22px 11px 0;
-  margin-right: 22px;
-  border-right: 1px solid var(--border);
+  padding: 11px 24px 12px 0;
+  margin-right: 24px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 .figure:last-child {
@@ -334,9 +334,11 @@
 .figure dd {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 500;
+  line-height: 1.25;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
@@ -553,6 +555,26 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.analyzeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.analyzeHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.analyzeHint svg {
+  flex: none;
 }
 
 .steps {

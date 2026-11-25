@@ -29,7 +29,7 @@ import { Ct2DocumentDialog } from './Ct2DocumentPanel';
 import { Ct2FilterBar } from './Ct2FilterBar';
 import { Ct2FindingsView } from './Ct2FindingsView';
 import { Ct2OverviewView } from './Ct2OverviewView';
-import { commonOf, ownOf } from './filters';
+import { commonOf, filterChips, ownOf } from './filters';
 import styles from './Ct2Workspace.module.css';
 
 export const CT2_TABLES: { id: Ct2TableId; label: string }[] = [
@@ -94,7 +94,25 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
   );
 
   const merged = useMemo<TableRequest>(() => ({ ...request, filter: { ...ownOf(request.filter as Ct2TableFilter), ...filter } }), [request, filter]);
-  const onRequest = useCallback((r: TableRequest) => setRequest({ ...r, filter: ownOf(r.filter as Ct2TableFilter) }), []);
+  // The search lives in the filter bar: it stays when another table is opened.
+  const onRequest = useCallback(
+    (r: TableRequest) =>
+      setRequest((before) => {
+        const own = ownOf(r.filter as Ct2TableFilter);
+        const search = before.filter.search;
+        return { ...r, filter: r.table !== before.table && search && own.search === undefined ? { ...own, search } : own };
+      }),
+    [],
+  );
+  const onSearch = useCallback(
+    (text: string) =>
+      setRequest((before) => {
+        const { search: _drop, ...rest } = before.filter;
+        void _drop;
+        return { ...before, filter: text.trim() ? { ...rest, search: text } : rest };
+      }),
+    [],
+  );
   const onFilter = useCallback((next: Ct2Filter) => setFilter(commonOf(next)), []);
 
   if (!isCt2Reconciliation(anyReconciliation)) return null;
@@ -107,7 +125,16 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
 
   return (
     <>
-      {filtered && <Ct2FilterBar filter={filter} onChange={onFilter} segments={lists.segments} routines={lists.routines} table={view === 'tables' ? table : null} />}
+      {filtered && (
+        <Ct2FilterBar
+          filter={filter}
+          onChange={onFilter}
+          segments={lists.segments}
+          routines={lists.routines}
+          table={view === 'tables' ? table : null}
+          search={view === 'tables' ? { value: request.filter.search ?? '', onSearch } : null}
+        />
+      )}
       <div className={viewClassName} key={view}>
         {content()}
       </div>
@@ -149,8 +176,10 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
           onRequest={onRequest}
           tabs={CT2_TABLES}
           originFilters={false}
+          search={false}
+          summary={tableSummary(filter, own, table, lists.segments)}
           refreshKey={refresh}
-          emptyHint="Ajuste a busca ou remova um dos filtros."
+          emptyHint="Mude a busca ou tire um dos filtros."
           {...(DOCUMENT_TABLES.has(table) && { onRowClick: (_row: unknown, document: number | null) => document !== null && setOpened(document) })}
           toolbar={
             <>
@@ -222,4 +251,18 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
     }
     return <Ct2ReconciliationView data={reconciliation} summary={summary} preview={preview} matrix={matrix} />;
   }
+}
+
+/** The line after the row count: the filters this table applies (the dimmed ones are left out) and the search. */
+function tableSummary(filter: Ct2Filter, own: Ct2TableFilter, table: Ct2TableId, segments: readonly string[]): string | null {
+  const names = filterChips(filter, segments, table)
+    .filter((c) => c.applies)
+    .map((c) => c.label);
+  if (own.test) names.push(`teste ${own.test}`);
+  if (own.group) names.push(CT2_FINDING_GROUP_LABEL[own.group]);
+  if (own.intervention) names.push('intervenção manual');
+  if (own.document !== undefined) names.push('documento');
+  const search = own.search?.trim();
+  const parts = [names.length > 0 ? `filtrado por ${names.join(', ')}` : null, search ? `busca “${search}”` : null].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }

@@ -7,7 +7,15 @@ import type { ModuleId } from '../shared/modules';
 import type { SheetSample, Stage } from '../shared/protocol';
 
 /** Result of reading a configuration of the module (import, IndexedDB, backup). */
-export type ModuleConfigRead<C> = { ok: true; config: C; migratedFrom?: number } | { ok: false; errors: { path: string; message: string }[] };
+export type ModuleConfigRead<C> =
+  | {
+      ok: true;
+      config: C;
+      migratedFrom?: number;
+      /** Valid, but worth a look on the Configuração screen (e.g. a verba in two accounts of the Conciliador). */
+      warnings?: { path: string; message: string }[];
+    }
+  | { ok: false; errors: { path: string; message: string }[] };
 
 interface ModuleTexts {
   id: ModuleId;
@@ -21,10 +29,21 @@ interface ModuleTexts {
   icon: ModuleIcon;
   /** Two or three short lines on the card: what the tool answers best. */
   highlights: readonly string[];
+  /** Subtle accent of the card (a token of the platform palette, global.css `--tool-<accent>`); default steel. */
+  accent?: ToolAccent;
 }
 
-/** Glyphs of the tools: the audit log (clipboard checked) and the ledger (balance of debit and credit). */
-export type ModuleIcon = 'auditLog' | 'ledger';
+/** Accents of the tool cards: colours of the platform, never red (red marks the open analysis and findings). */
+export type ToolAccent = 'steel' | 'teal' | 'ochre';
+
+/** Glyphs of the tools: the audit log (clipboard checked), the ledger (balance of debit and credit) and the reconciliation (two sides meeting). */
+export type ModuleIcon = 'auditLog' | 'ledger' | 'reconcile';
+
+/**
+ * Files the module takes: by extension (lower case), or any file, decided by its content (the Protheus spool has no
+ * fixed extension), with the hint the file picker shows instead of the extensions.
+ */
+export type AcceptedFiles = { extensions: readonly string[]; maxFiles: number } | { extensions: 'any'; hint: string; maxFiles: number };
 
 /** Stages of a module, in order; the first `perFile` repeat for each file, the others run once for all files. */
 export interface ProgressSteps {
@@ -58,7 +77,7 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
   };
   /** Stages shown while processing. */
   progress: ProgressSteps;
-  accepts: { extensions: readonly string[]; maxFiles: number };
+  accepts: AcceptedFiles;
   /** Section of the user manual (public/ajuda.html#<anchor>). */
   helpAnchor: string;
   /** Views offered after the reconciliation, which every module has (the others are shown locked). */
@@ -68,6 +87,11 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
    * this computer; otherwise the analysis runs with the defaults.
    */
   config: { defaults: () => C; read: (input: unknown) => ModuleConfigRead<C>; saved: boolean };
+  /**
+   * What the module still needs from its configuration before it can analyze, as the hint shown by Analisar (which
+   * stays disabled), or null when it is ready. Absent = always ready.
+   */
+  notReady?(config: C): string | null;
   /**
    * Whether the first rows of the sheets of a workbook (SheetSample.rows) look like the input of the module, under its
    * configuration. Only warns about a file of another analysis; never blocks.

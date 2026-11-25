@@ -2,7 +2,6 @@ import type { ModuleDescriptor } from '../modules/types';
 import type { ModuleId } from '../shared/modules';
 import { Icon } from './Icon';
 import { cx } from './cx';
-import ui from './ui.module.css';
 import styles from './ToolHome.module.css';
 
 interface ToolHomeProps {
@@ -23,7 +22,7 @@ interface ToolHomeProps {
 export function ToolHome({ modules, lastUsed, open, onOpen, helpBase }: ToolHomeProps) {
   return (
     <div className={styles.home}>
-      <p className={styles.lead}>Cada ferramenta lê o seu tipo de extração, confere tudo o que leu e gera o próprio papel de trabalho em Excel.</p>
+      <p className={styles.lead}>Escolha pela extração que você tem. Cada ferramenta confere a leitura e gera o papel de trabalho em Excel.</p>
       <ul className={styles.grid}>
         {modules.map((m) => {
           const soon = m.status === 'comingSoon';
@@ -31,38 +30,40 @@ export function ToolHome({ modules, lastUsed, open, onOpen, helpBase }: ToolHome
           const badge = soon ? 'Em breve' : m.preview !== null ? 'Prévia' : null;
           const state = isOpen ? open.label : lastUsed === m.id ? 'Última usada' : null;
           return (
-            <li key={m.id} className={cx(styles.card, isOpen && styles.open, soon && styles.soon)}>
+            <li key={m.id} className={cx(styles.card, isOpen && styles.open, soon && styles.soon)} data-accent={m.accent ?? 'steel'}>
               <button type="button" className={styles.hit} aria-label={m.title} disabled={soon} onClick={() => onOpen(m.id)} />
               <div className={styles.head}>
                 <span className={styles.tile} data-icon={m.icon}>
-                  <Icon name={m.icon} size={28} strokeWidth={1.6} />
+                  <Icon name={m.icon} size={24} strokeWidth={1.6} />
                 </span>
-                <div className={styles.meta}>
+                <span className={styles.meta}>
+                  {(badge || state) && (
+                    <span className={styles.pills}>
+                      {badge && <span className={cx(styles.pill, !soon && styles.pillPreview)}>{badge}</span>}
+                      {state && <span className={cx(styles.pill, isOpen && styles.pillOpen)}>{state}</span>}
+                    </span>
+                  )}
                   <span className={styles.code} aria-hidden="true">
                     {m.status === 'available' ? m.shortTitle : 'Em preparo'}
                   </span>
-                  {(badge || state) && (
-                    <span className={styles.pills}>
-                      {badge && <span className={cx(ui.pill, soon ? ui.neutral : ui.warn)}>{badge}</span>}
-                      {state && <span className={cx(ui.pill, isOpen ? ui.info : ui.neutral)}>{state}</span>}
-                    </span>
-                  )}
-                </div>
+                </span>
               </div>
-              <h2 className={styles.title}>{m.title}</h2>
-              <p className={styles.description}>{m.description}</p>
+              <div className={styles.text}>
+                <h2 className={styles.title}>{m.title}</h2>
+                <p className={styles.description}>{m.description}</p>
+              </div>
               <ul className={styles.highlights}>
                 {m.highlights.map((h) => (
                   <li key={h}>
-                    <Icon name="check" size={15} strokeWidth={2.2} />
+                    <Icon name="check" size={14} strokeWidth={2.4} />
                     <span>{h}</span>
                   </li>
                 ))}
               </ul>
               <p className={styles.input}>
-                <Icon name="sheet" size={16} />
+                <Icon name="sheet" size={15} />
                 <span>
-                  <strong>Lê</strong> {m.input}
+                  <span className={styles.inputLabel}>Lê</span> {m.input}
                 </span>
               </p>
               <div className={styles.foot}>
@@ -76,7 +77,7 @@ export function ToolHome({ modules, lastUsed, open, onOpen, helpBase }: ToolHome
                 {!soon && (
                   <span className={styles.go} aria-hidden="true">
                     <span>{isOpen ? 'Voltar à análise' : 'Abrir'}</span>
-                    <Icon name="arrowRight" size={16} />
+                    <Icon name="arrowRight" size={15} />
                   </span>
                 )}
               </div>

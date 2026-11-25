@@ -18,7 +18,7 @@ const files = (dir: string): string[] =>
 
 describe('module registry', () => {
   it('lists every module once, in the order of the ids', () => {
-    expect(MODULE_IDS).toEqual(['cfgr700', 'ct2Integrity']);
+    expect(MODULE_IDS).toEqual(['cfgr700', 'ct2Integrity', 'reconciliation']);
     expect(MODULES.map((m) => m.id)).toEqual([...MODULE_IDS]);
     expect(DEFAULT_MODULE_ID).toBe('cfgr700');
   });
@@ -55,6 +55,7 @@ describe('module registry', () => {
   it('starts with the last module used only when it can be used', () => {
     expect(resolveInitialModule('cfgr700')).toBe('cfgr700');
     expect(resolveInitialModule('ct2Integrity')).toBe('ct2Integrity');
+    expect(resolveInitialModule('reconciliation')).toBe('reconciliation');
     for (const stored of [undefined, null, 'xyz', 'constructor', 42, {}]) {
       expect(resolveInitialModule(stored)).toBe('cfgr700');
     }

@@ -5,12 +5,15 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { Workbook } from '../support/xlsxEval';
+import { payrollProfileFile } from '../synthetic/reconciliationProfile';
+import { profileWithStatuses, screenFixture, sessionFiles } from '../synthetic/reconciliationSession';
 import { analyze, chooseModule, expect, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
 const CT2 = 'Integridade da CT2';
+const CONC = 'Conciliador';
 
 /** Reads or writes a key of the store `config` of the tool's IndexedDB, as an older version would. */
 function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
@@ -53,15 +56,19 @@ async function analyzeEngine(page: Page, files: { engine: string }) {
   return nav;
 }
 
-test('início da plataforma: uma linha por ferramenta, as duas disponíveis', async ({ page }) => {
+test('início da plataforma: uma linha por ferramenta, as três disponíveis, o Conciliador em prévia', async ({ page }) => {
   await page.goto('');
   await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
   await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: CT2, exact: true })).toBeEnabled();
-  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: CONC, exact: true })).toBeEnabled();
+  // Only the Conciliador is in preview (Phase 15).
+  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(1);
   const manuals = page.getByRole('link', { name: 'Manual desta análise' });
+  await expect(manuals).toHaveCount(3);
   await expect(manuals.nth(0)).toHaveAttribute('href', /ajuda\.html#cfgr700$/);
   await expect(manuals.nth(1)).toHaveAttribute('href', /ajuda\.html#ct2$/);
+  await expect(manuals.nth(2)).toHaveAttribute('href', /ajuda\.html#reconciliation$/);
   // No file area before a tool is chosen.
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
@@ -165,6 +172,8 @@ test('Integridade da CT2: achados por segmento, cada número abre a tabela com e
 
   // One segment (the common filter): every number of the Achados follows it.
   await nav.getByRole('button', { name: 'Achados' }).click();
+  // The fields of the filter are in the panel opened by the "Filtros" button of the bar.
+  await page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ }).click();
   await page.getByRole('combobox', { name: 'Segmento', exact: true }).selectOption({ label: 'Saldo 1 · Moeda 02' });
   await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
@@ -232,6 +241,27 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   await nav.getByRole('button', { name: 'Painel' }).click();
   await page.getByRole('button', { name: /^\d{2}\/\d{2}\/\d{4}: [\d.]+ linhas?/ }).first().click();
   await expect(page.getByRole('button', { name: 'Remover filtro Dia' })).toBeVisible();
+
+  // The filter panel (25/11/2026): account by prefix and a minimum value, applied together; Esc closes the panel and
+  // gives the focus back to its button; the Base follows (two lines of 50,00 or more with an account starting 211).
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  const filters = page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ });
+  await filters.click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'true');
+  await page.getByLabel('Conta (débito ou crédito)').fill('211');
+  await page.getByLabel('Valor mínimo (R$)').fill('50,00');
+  await page.getByRole('button', { name: 'Aplicar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remover filtro Conta' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Filtros' }).locator('span', { has: page.getByRole('button', { name: 'Remover filtro Valor' }) })).toContainText('a partir de 50,00');
+  await page.keyboard.press('Escape');
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await expect(filters).toBeFocused();
+  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await tables.getByRole('button', { name: 'Base' }).click();
+  await expect(page.getByText('2 linha(s)', { exact: true })).toBeVisible();
+  // Account and value look at the lines: the Lotes table ignores them and dims their chips.
+  await tables.getByRole('button', { name: 'Lotes' }).click();
+  await expect(page.getByText('não se aplica a esta tabela')).toHaveCount(2);
 });
 
 test('Integridade da CT2: achados com os grupos do quadro; cada ocorrência abre o painel lateral do documento', async ({ page, ct2Files }) => {
@@ -443,4 +473,150 @@ test('cópia de segurança restaurada depois de carregar um arquivo (sem anális
   await page.getByRole('button', { name: 'Restaurar', exact: true }).click();
   await expect(page.getByText(/Cópia restaurada/)).toBeVisible();
   await expect(page.getByText('3 diferença(s) em relação ao padrão CT2.')).toBeVisible();
+});
+
+test('Conciliador: aceita qualquer extensão; Analisar desabilitado sem perfil e habilitado depois de importar o perfil na Configuração', async ({ page }, testInfo) => {
+  // A synthetic spool page header (no real data) with an extension of the Protheus spool, and the synthetic profile.
+  const spoolPath = testInfo.outputPath('GPER040.##R');
+  writeFileSync(spoolPath, '\u001b@\u0002*****\r\n* EMPRESA X   SIGA /GPER040/v.12   Pagina: 1 *\r\n*****\r\n\f');
+  const profilePath = testInfo.outputPath('perfil-sintetico.json');
+  writeFileSync(profilePath, JSON.stringify(payrollProfileFile()));
+  const brokenPath = testInfo.outputPath('perfil-invalido.json');
+  const broken = payrollProfileFile();
+  broken.accounts.push({ ...broken.accounts[0]! });
+  writeFileSync(brokenPath, JSON.stringify(broken));
+
+  await page.goto('');
+  await chooseModule(page, CONC);
+  await expect(page.getByText(/^Prévia: o Conciliador/)).toBeVisible();
+  await expect(page.getByText(/TXT do spool, PDF, XML ou XLSX exportados do Protheus/)).toBeVisible();
+  await page.locator('input[type=file]').first().setInputFiles([spoolPath]);
+  await expect(page.getByText('GPER040.##R')).toBeVisible();
+  const analyzeButton = page.getByRole('button', { name: 'Analisar' });
+  await expect(analyzeButton).toBeDisabled();
+  await expect(page.getByText('Importe o perfil de contas na Configuração')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await expect(page.getByRole('tab', { name: CONC })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Perfil sem contas: importe o perfil de contas para analisar.')).toBeVisible();
+  // An invalid profile goes through the same schema: errors in Portuguese, by field; nothing changes.
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(brokenPath);
+  await expect(page.getByText(/não é um perfil válido do Conciliador/)).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'accounts.3.account' })).toContainText('Conta repetida');
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(profilePath);
+  await expect(page.getByText(/carregado no rascunho \(3 conta\(s\)\)/)).toBeVisible();
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Configuração salva neste computador.')).toBeVisible();
+  await expect(page.getByText('Perfil com 3 conta(s).')).toBeVisible();
+  expect(await idb(page, 'analyzerConfig:reconciliation')).toMatchObject({ schemaVersion: 1, profiles: { payroll: { accounts: [{ tickMark: '#01' }, { tickMark: '#02' }, { tickMark: '#03' }] } } });
+  // The exported profile is the file format of the import: version, profile, then the profile itself.
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar perfil (JSON)' }).click();
+  const exported = JSON.parse(readFileSync(await (await download).path(), 'utf8')) as unknown;
+  expect(exported).toEqual(payrollProfileFile());
+
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await expect(analyzeButton).toBeEnabled();
+  await expect(page.getByText('Importe o perfil de contas na Configuração')).toHaveCount(0);
+  // The platform dispatches to the module: a GPER040 without a ledger leaves nothing to reconcile.
+  await analyzeButton.click();
+  await expect(page.getByText(/^A análise precisa de ao menos um razão \(CTBR400\) e uma folha \(GPER040\)/)).toBeVisible({ timeout: 60_000 });
+});
+
+/** Writes the synthetic session of the screens (tests/synthetic/reconciliationSession.ts) and imports its profile. */
+async function concSession(page: Page, testInfo: { outputPath: (name: string) => string }) {
+  const { fx, real, preEntry } = screenFixture();
+  const files = sessionFiles(fx, [
+    { format: 'text', fixture: real, name: 'CTBR400-real.__r' },
+    { format: 'xml', fixture: preEntry, name: 'CTBR400-pre.xml' },
+  ]).map((f) => {
+    const path = testInfo.outputPath(f.name);
+    writeFileSync(path, f.bytes);
+    return path;
+  });
+  const profilePath = testInfo.outputPath('perfil-sintetico.json');
+  writeFileSync(profilePath, JSON.stringify(profileWithStatuses(fx.profile)));
+  await page.goto('');
+  await chooseModule(page, CONC);
+  await page.getByRole('button', { name: 'Configuração' }).click();
+  await page.getByLabel('Arquivo do perfil de contas (JSON)').setInputFiles(profilePath);
+  await page.getByRole('button', { name: 'Salvar configuração' }).click();
+  await expect(page.getByText('Perfil com 3 conta(s).')).toBeVisible();
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await page.locator('input[type=file]').first().setInputFiles(files);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  return nav;
+}
+
+test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, ponte no painel lateral, achados e justificativas', async ({ page }, testInfo) => {
+  const nav = await concSession(page, testInfo);
+  // Reconciliação de leitura: the two kinds of file side by side and the board of invariants.
+  await expect(page.getByRole('heading', { name: 'Integridade confirmada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Quadro de invariantes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Folha de pagamento (GPER040)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Razão analítico (CTBR400)' })).toBeVisible();
+  await expect(page.getByText('CTBR400 · XML (SpreadsheetML)')).toBeVisible();
+  const figures = page.getByLabel('Indicadores da análise');
+  await expect(figures).toContainText('Verbas sem integração (F1c)');
+  await expect(figures).toContainText('10/2026');
+
+  // Painel: a number opens the table behind it (the criterion of the account: two verbas).
+  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  await expect(page.getByRole('table', { name: 'Contas do perfil' })).toBeVisible();
+  await page.getByRole('button', { name: /^Esperado da conta 9\.9\.1\.0\.10\.02: / }).click();
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Folha' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('2 linha(s)')).toBeVisible();
+  await expect(page.getByText('conta 9.9.1.0.10.02', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro da conciliação' }).click();
+
+  // Side panel of an account: the bridge closes, the settlement was identified, the text of the criterion.
+  await nav.getByRole('button', { name: 'Painel', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir a conta 9.9.1.0.10.02' }).click();
+  const dialog = page.getByRole('dialog', { name: /^Conta 9\.9\.1\.0\.10\.02 · / });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('A ponte fecha')).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Baixa do saldo anterior (F3): Identificada' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Copiar o texto do critério' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  // Achados: the F1c of the net pay account (the provento posted by hand).
+  await nav.getByRole('button', { name: 'Achados', exact: true }).click();
+  const f1c = page.getByRole('article', { name: 'F1c Verba da folha sem integração na conta' });
+  await expect(f1c).toBeVisible();
+  await expect(f1c).toContainText('9.9.1.0.10.01');
+  await f1c.getByRole('button', { name: 'Ver todas as ocorrências de F1c' }).click();
+  await expect(page.getByText('1 linha(s)')).toBeVisible();
+
+  // Justificativas: free text and the situation of the user's workpaper, saved on this computer.
+  await nav.getByRole('button', { name: 'Justificativas', exact: true }).click();
+  await page.getByLabel('Justificativa da conta 9.9.1.0.10.01').fill('Verba lançada manualmente e compensada no mês.');
+  await page.getByLabel('Situação no papel de trabalho da conta 9.9.1.0.10.01').selectOption('Conciliado');
+  await page.getByRole('button', { name: 'Salvar a justificativa da conta 9.9.1.0.10.01' }).click();
+  await expect(page.getByText('Justificativa salva neste computador.')).toBeVisible();
+  expect(await idb(page, 'reconciliationJustifications')).toMatchObject({
+    schemaVersion: 1,
+    items: { '202610|9.9.1.0.10.01': { period: '202610', account: '9.9.1.0.10.01', text: 'Verba lançada manualmente e compensada no mês.', status: 'Conciliado' } },
+  });
+
+  // Exportação (step 6): the workpaper tied out by formulas; every account of the Resumo "Confere" in the evaluator, with
+  // the justification just saved.
+  await nav.getByRole('button', { name: 'Exportação', exact: true }).click();
+  await expect(page.getByText('1 conta(s) com justificativa ou situação nesta competência', { exact: false })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /^Gerar planilha/ }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^Conciliador_Folha_2026-10_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const path = testInfo.outputPath('conciliador.xlsx');
+  await file.saveAs(path);
+  const book = await Workbook.read(new Blob([readFileSync(path)]));
+  expect([...book.sheets.keys()]).toEqual(['Resumo', 'Criterios', 'Folha_Escopo', 'Folha_Filial', 'Integracao', 'Razao', 'Ponte', 'Rastreabilidade']);
+  const rows: { account: unknown; status: unknown; justification: unknown }[] = [];
+  for (let r = 7; book.raw('Resumo', `B${r}`)?.v; r++) rows.push({ account: book.value('Resumo', `B${r}`), status: book.value('Resumo', `O${r}`), justification: book.value('Resumo', `N${r}`) });
+  expect(rows.map((x) => x.account)).toEqual(['9.9.1.0.10.01', '9.9.1.0.10.02', '9.9.1.0.20.01']);
+  expect(rows.map((x) => x.status)).toEqual(['Confere', 'Confere', 'Confere']);
+  expect(rows[0]!.justification).toBe('Verba lançada manualmente e compensada no mês.');
+  await expect(page.getByText(/^Planilha gerada em/)).toBeVisible();
 });

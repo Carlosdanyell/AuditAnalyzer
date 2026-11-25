@@ -169,6 +169,19 @@ export function createCommandHandler(
         return;
       }
 
+      case 'account': {
+        if (!session || !session.account) {
+          post({ type: 'error', stage: 'page', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });
+          return;
+        }
+        try {
+          post({ type: 'account', requestId: command.requestId, data: session.account(command.index) });
+        } catch (e) {
+          post(errorEvent(e, 'page', command.requestId));
+        }
+        return;
+      }
+
       case 'panel': {
         if (!session || !session.panel) {
           post({ type: 'error', stage: 'panel', message: session ? NOT_OFFERED : NO_SESSION, requestId: command.requestId });

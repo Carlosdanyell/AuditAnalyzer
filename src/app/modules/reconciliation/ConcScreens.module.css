@@ -1,0 +1,374 @@
+/* Screens of the Conciliador after the analysis (docs/REGRAS_CONCILIADOR.md, section 9); tokens of global.css only. */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.left {
+  text-align: left !important;
+}
+
+.caption {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.subTitle {
+  margin: 0 0 8px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Reconciliação: the two kinds of file side by side. */
+.sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: 15px;
+}
+
+.hash {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.hash code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Board of invariants: one row per family, a chip per code. */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.family {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) 1fr;
+  gap: 6px 14px;
+  align-items: start;
+}
+
+.family dt {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.family dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.code[data-state='fail'] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.code[data-state='warn'] {
+  border-color: var(--warn);
+}
+
+/* Painel: a row per account. */
+.accounts td,
+.accounts th {
+  white-space: nowrap;
+}
+
+.reason {
+  color: var(--text-muted);
+  white-space: normal !important;
+}
+
+.counts {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.banner {
+  margin: 0;
+}
+
+/* Achados. */
+.blocks {
+  display: flex;
+  flex-direction: column;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.blockHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.samples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.samples li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.sampleWhy {
+  flex: 1 1 320px;
+  overflow-wrap: anywhere;
+}
+
+.more summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Side panel of an account (an overlay: the one place with a shadow). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(10 17 28 / 38%);
+  animation: fade 160ms var(--ease) both;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.drawerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 20px 28px;
+  overflow: auto;
+}
+
+.drawerTitle {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.drawerFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.drawerFacts dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.drawerFacts dd {
+  margin: 0;
+}
+
+.parcel summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.parcelLabel {
+  flex: 1;
+}
+
+.lines td,
+.lines th {
+  padding: 5px 10px;
+}
+
+.historyCell {
+  min-width: 180px;
+  white-space: normal !important;
+}
+
+.narrative {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* Justificativas: one card per account. */
+.justify {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 12px 20px;
+}
+
+.justify textarea {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+}
+
+.justifyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The filter that opened a table, in the toolbar of the tables. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 11px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chip button:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (width < 900px) {
+  .sides,
+  .justify {
+    grid-template-columns: 1fr;
+  }
+
+  .family {
+    grid-template-columns: 1fr;
+  }
+}

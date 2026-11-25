@@ -15,8 +15,10 @@ em TypeScript, de forma configurável, com interface própria. As regras estão 
 e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever código.**
 
 **Plataforma de análises (a partir da Fase 8):** o app hospeda módulos de análise independentes — `cfgr700` (log de
-auditoria, acima) e `ct2Integrity` (aglutinação e integridade da extração da CT2, com planilha toda amarrada por
-fórmulas). Contrato dos módulos em `docs/MODULOS.md`; regras do novo módulo em `docs/REGRAS_CT2_INTEGRIDADE.md`.
+auditoria, acima), `ct2Integrity` (aglutinação e integridade da extração da CT2, com planilha toda amarrada por
+fórmulas) e `reconciliation` (Conciliador: relatórios de origem × razão, hoje a folha de pagamento; regras em
+`docs/REGRAS_CONCILIADOR.md`). Contrato dos módulos em `docs/MODULOS.md`; regras do módulo de integridade em
+`docs/REGRAS_CT2_INTEGRIDADE.md`.
 Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições abaixo valem para todos.
 
 ## Restrições inegociáveis
@@ -72,7 +74,8 @@ src/
     modules/           # módulos no worker: registry.ts, types.ts, <id>/index.ts (cfgr700 = adaptador do motor;
                        # ct2Integrity: ingest.ts, store.ts, order.ts, values.ts; motor: aggregate.ts,
                        # analysis.ts, marks.ts, profile.ts, tuples.ts, checks.ts; panel.ts, segments.ts,
-                       # tables.ts; workpaper.ts)
+                       # tables.ts; workpaper.ts; reconciliation = Conciliador: formats/, reports/, match/,
+                       # profiles/payroll/, bridge.ts, ingest.ts, workpaper.ts)
     ingest/            # zip.ts, inflate.ts, sst.ts, sheetStream.ts, parametros.ts; readSheet.ts (leitura genérica
                        # de uma aba, comum aos módulos), probe.ts (primeiras linhas, aviso de arquivo trocado);
                        # xmlSpreadsheet.ts e xmlSheet.ts (XML Spreadsheet 2003 do sistema, puro ou em .zip)

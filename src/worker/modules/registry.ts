@@ -2,11 +2,12 @@
 import type { ModuleId } from '../../shared/modules';
 import { cfgr700Worker } from './cfgr700';
 import { ct2IntegrityWorker } from './ct2Integrity';
+import { reconciliationWorker } from './reconciliation';
 import type { WorkerModule } from './types';
 
 export type WorkerModules = { readonly [K in ModuleId]?: WorkerModule };
 
-export const WORKER_MODULES: WorkerModules = { cfgr700: cfgr700Worker, ct2Integrity: ct2IntegrityWorker };
+export const WORKER_MODULES: WorkerModules = { cfgr700: cfgr700Worker, ct2Integrity: ct2IntegrityWorker, reconciliation: reconciliationWorker };
 
 /** Own entries only: a name such as "constructor" never resolves to a member of Object. */
 export function findWorkerModule(modules: WorkerModules, id: string): WorkerModule | undefined {

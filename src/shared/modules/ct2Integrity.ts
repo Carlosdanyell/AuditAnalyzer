@@ -272,11 +272,11 @@ export interface Ct2SummaryAnalysis {
   approval: { occurrences: number; mixedDocuments: number };
 }
 
-export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation): r is Ct2Reconciliation {
+export function isCt2Reconciliation(r: Reconciliation | Ct2Reconciliation | { module: string }): r is Ct2Reconciliation {
   return 'module' in r && r.module === 'ct2Integrity';
 }
 
-export function isCt2Summary(s: Summary | Ct2Summary): s is Ct2Summary {
+export function isCt2Summary(s: Summary | Ct2Summary | { module: string }): s is Ct2Summary {
   return 'module' in s && s.module === 'ct2Integrity';
 }
 
@@ -287,8 +287,8 @@ export type Ct2TableId = 'ct2Documents' | 'ct2Batches' | 'ct2Days' | 'ct2Excepti
 
 /**
  * Common filter of the Painel, Achados and Tabelas (Phase 14, section 4.1). A line passes when its block is in the
- * segment, day and batch, its document's origin is one of `origins` and its own routine is `routine`; a document, batch
- * or day passes when at least one of its lines passes.
+ * segment, day, period and batch, its document's origin is one of `origins` and its own routine, account and value are
+ * the ones chosen; a document, batch or day passes when at least one of its lines passes.
  */
 export interface Ct2Filter {
   /** Index of the segment (Ct2PanelData.segments); absent = every segment. */
@@ -300,11 +300,17 @@ export interface Ct2Filter {
   batch?: { batch: string; subBatch: string };
   /** Day number. */
   day?: number;
+  /** Range of entry dates (day numbers, both ends included); an absent end is open. */
+  dates?: { from?: number; to?: number };
+  /** Debit or credit account of the line: the exact code, or (prefix) every code that starts with it. */
+  account?: { code: string; prefix: boolean };
+  /** "Valor" of the line in integer cents, both ends included; an absent end is open; an unreadable value never passes. */
+  amount?: { min?: number; max?: number };
 }
 
 /**
- * Filter of a CT2 table: the common filter (each table ignores what does not apply to it: origins and routine on Lotes
- * and Dias, batch on Dias), the rows of a test (code in Exceções, mark elsewhere) and a search.
+ * Filter of a CT2 table: the common filter (each table ignores what does not apply to it: origins, routine, account
+ * and value on Lotes and Dias, batch on Dias), the rows of a test (code in Exceções, mark elsewhere) and a search.
  */
 export interface Ct2TableFilter extends Ct2Filter {
   search?: string;
@@ -320,12 +326,12 @@ export interface Ct2TableFilter extends Ct2Filter {
 }
 
 /** Common filter applied by a table (Phase 14, section 4.1). */
-export const CT2_FILTER_APPLIES: Record<Ct2TableId, Record<'segment' | 'origins' | 'routine' | 'batch' | 'day', boolean>> = {
-  ct2Documents: { segment: true, origins: true, routine: true, batch: true, day: true },
-  ct2Batches: { segment: true, origins: false, routine: false, batch: true, day: true },
-  ct2Days: { segment: true, origins: false, routine: false, batch: false, day: true },
-  ct2Exceptions: { segment: true, origins: true, routine: true, batch: true, day: true },
-  ct2Base: { segment: true, origins: true, routine: true, batch: true, day: true },
+export const CT2_FILTER_APPLIES: Record<Ct2TableId, Record<keyof Ct2Filter, boolean>> = {
+  ct2Documents: { segment: true, origins: true, routine: true, batch: true, day: true, dates: true, account: true, amount: true },
+  ct2Batches: { segment: true, origins: false, routine: false, batch: true, day: true, dates: true, account: false, amount: false },
+  ct2Days: { segment: true, origins: false, routine: false, batch: false, day: true, dates: true, account: false, amount: false },
+  ct2Exceptions: { segment: true, origins: true, routine: true, batch: true, day: true, dates: true, account: true, amount: true },
+  ct2Base: { segment: true, origins: true, routine: true, batch: true, day: true, dates: true, account: true, amount: true },
 };
 
 export interface Ct2SegmentInfo {

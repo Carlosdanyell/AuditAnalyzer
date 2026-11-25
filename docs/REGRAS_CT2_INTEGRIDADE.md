@@ -636,34 +636,45 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   Reconciliação traz a **matriz de amarração** (OK/Verificar) que ficava no fim do Painel; o Painel é "o que há na
   extração" e Achados é "o que verificar".
 - **Filtro comum** ao Painel, Achados e Tabelas, com o estado na área de trabalho do módulo (substitui o seletor de
-  segmento de cada visão): Segmento, Origem do documento (uma ou mais), Rotina, Lote e Dia. Cada filtro ativo é um chip
-  removível e há um botão que limpa todos; clicar num elemento de gráfico ou num número cria o filtro correspondente.
+  segmento de cada visão): Segmento, Origem do documento (uma ou mais), Rotina, Lote, Dia e, desde 25/11/2026,
+  **Período** (de/até), **Conta** e **Valor**. Cada filtro ativo é um chip removível e há um botão que limpa todos;
+  clicar num elemento de gráfico ou num número cria o filtro correspondente.
   Semântica (`Ct2Filter`, `src/worker/modules/ct2Integrity/filter.ts`): uma **linha** passa quando o seu bloco está no
-  segmento, no dia e no lote, a origem do **seu documento** é uma das escolhidas e a **sua própria** rotina é a
-  escolhida; um documento, lote ou dia passa quando **ao menos uma** das suas linhas passa. Todo número do Painel e de
-  Achados é calculado sobre o que passa. Contagens podem somar segmentos; débito, crédito e percentuais em valor
-  aparecem por segmento (seção 5).
+  segmento, no dia, no período e no lote, a origem do **seu documento** é uma das escolhidas e a **sua própria** rotina,
+  conta e valor são os escolhidos; um documento, lote ou dia passa quando **ao menos uma** das suas linhas passa. Todo
+  número do Painel e de Achados é calculado sobre o que passa. Contagens podem somar segmentos; débito, crédito e
+  percentuais em valor aparecem por segmento (seção 5).
+  - **Período** (`dates`): datas de lançamento entre as duas pontas, inclusive; uma ponta vazia fica aberta. É atributo
+    do bloco do dia, como o Dia (os dois podem estar ativos: valem juntos).
+  - **Conta** (`account`): a conta de débito **ou** a de crédito da linha é igual ao código ou, com "Começa com"
+    (padrão da tela), começa por ele. Sem plano de contas nem conta sintética: só o texto das colunas mapeadas.
+  - **Valor** (`amount`): o "Valor" da linha, em centavos inteiros, entre o mínimo e o máximo, inclusive; uma ponta
+    vazia fica aberta. A tela lê o texto pt-BR ("1.234,56") com `centsFromBrText` (nunca `parseFloat`) e recusa outro
+    formato, com o nome do campo, e o mínimo maior que o máximo. O valor é o lido (o vazio de uma linha de continuação de histórico é 0); valor
+    ilegível nunca passa.
+  - Origem, rotina, conta e valor olham a **linha**; segmento, dia, período e lote, o bloco.
 - **Aplicabilidade por tabela** (o filtro que não se aplica é ignorado e a tela o esmaece, com a dica "não se aplica a
   esta tabela"):
 
-  | Tabela | Segmento | Dia | Lote | Origem | Rotina |
-  |---|---|---|---|---|---|
-  | Documentos | sim | sim | sim | sim | sim |
-  | Lotes | sim | sim | sim | não | não |
-  | Dias | sim | sim | não | não | não |
-  | Exceções | sim | sim | sim | sim | sim |
-  | Base | sim | sim | sim | sim | sim |
+  | Tabela | Segmento | Dia | Período | Lote | Origem | Rotina | Conta | Valor |
+  |---|---|---|---|---|---|---|---|---|
+  | Documentos | sim | sim | sim | sim | sim | sim | sim | sim |
+  | Lotes | sim | sim | sim | sim | não | não | não | não |
+  | Dias | sim | sim | sim | não | não | não | não | não |
+  | Exceções | sim | sim | sim | sim | sim | sim | sim | sim |
+  | Base | sim | sim | sim | sim | sim | sim | sim | sim |
 
-  Em Exceções, com filtro de origem ou de rotina ativo, os achados de lote e de dia ficam **fora** das contagens e da
-  tabela (não têm origem nem rotina). Além do filtro comum, as tabelas têm busca, teste, grupo (Exceções), "só lotes
+  Em Exceções, com filtro de origem, rotina, conta ou valor ativo (os que olham a linha), os achados de lote e de dia
+  ficam **fora** das contagens e da tabela (não têm origem, rotina, conta nem valor de linha). Além do filtro comum, as
+  tabelas têm busca (na barra de filtros, em Tabelas; mantida ao trocar de tabela), teste, grupo (Exceções), "só lotes
   com intervenção manual" (Lotes) e documento (Base, usado por "Ver na Base").
 - **Painel (composição da extração, tudo respeita o filtro):** lançamentos (linhas com valor) e linhas de
   continuação de histórico; documentos, lotes e dias; documentos por origem (Automático, Manual, Misto, Não
   identificado); lotes com intervenção manual; débito por segmento e % do débito em linhas manuais; distribuição por
   rotina (linhas, documentos ou débito, empilhada por origem); distribuição por dia (linhas ou débito; dias não úteis
   marcados pela regra do E6 e os feriados da plataforma); tabela dos lotes com intervenção manual (a lista vem
-  limitada, com o total dito na tela); perfil P1/P2 recolhido. **Lotes e Dias ignoram origem e rotina** quando o filtro
-  as traz (seção 13).
+  limitada, com o total dito na tela); perfil P1/P2 recolhido. **Lotes e Dias ignoram origem, rotina, conta e valor**
+  quando o filtro os traz (seção 13).
 - **Achados (o que verificar):** parâmetros da execução e "Reaplicar os testes" (recolhidos); Exceções — Erro e
   Alerta (um bloco por teste com ocorrência, as primeiras ocorrências com o motivo e "Ver todas", que abre Tabelas ›
   Exceções no teste); Conferir com documento de aprovação (I4a e documentos mistos); Informativos (recolhidos, com a
@@ -759,6 +770,14 @@ Situação em 20/10/2026 (decisões na seção 13):
 
 ## 13. Decisões registradas
 
+- 25/11/2026 — Filtros de período, conta e valor (passada visual antes de publicar a 2.5.0), pedido do usuário
+  ("opções aprimoradas de filtros"): nenhuma regra contábil muda; os filtros só escolhem o que a tela mostra.
+  - **Período** de/até ao lado do Dia (o clique numa coluna do gráfico continua criando o Dia).
+  - **Conta** de débito ou de crédito, exata ou por início do código ("Começa com", padrão), e **Valor** mínimo e
+    máximo da linha. Os dois olham a linha, como a rotina: Lotes e Dias os ignoram e os achados de lote e de dia saem
+    das contagens (mesma regra da origem e da rotina).
+  - Invariante da tela mantido e testado com os novos filtros (`tests/unit/ct2Overview.test.ts`): todo número do Painel
+    e de Achados é igual ao total da tabela aberta com o mesmo filtro.
 - 20/10/2026 — Módulo criado a partir da análise manual de uma extração mensal (validação em Python): aglutinação
   por documento, prova de compensação adjacente e controles de integridade; usuário pediu ferramenta geral de
   integridade (não focada no limite de linhas) e planilha **toda amarrada por fórmulas**.
@@ -865,8 +884,9 @@ Situação em 20/10/2026 (decisões na seção 13):
   - **I4b e I4c sem a coluna "Lcto Manual?":** toda linha conta como não manual e cai em I4c.
   - **Valores nunca somados** entre tipos de saldo e moedas (débito, crédito e percentuais em valor por segmento);
     contagens podem somar.
-  - **Filtro comum:** com filtro de origem ou de rotina, os achados de lote e de dia ficam fora das contagens e da
-    tabela Exceções; Lotes e Dias ignoram origem e rotina (a tela esmaece o filtro que não se aplica).
+  - **Filtro comum:** com filtro de origem ou de rotina (desde 25/11/2026, também conta e valor), os achados de lote e
+    de dia ficam fora das contagens e da tabela Exceções; Lotes e Dias ignoram esses filtros (a tela esmaece o filtro
+    que não se aplica).
   - **Planilha:** os subtipos, a origem do documento e as colunas de contexto entram também na planilha, por fórmula.
     O teto continua em **600.000 linhas** (medições de 11/11/2026 em `docs/MEDICOES.md`).
   - **Fora desta fase:** a conferência automática com os pacotes de lançamento manual assinados (leitura dos nomes dos

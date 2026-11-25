@@ -10,7 +10,7 @@ import type { AvailableModule } from '../../src/modules/types';
 import { railViews } from '../../src/app/rail';
 import { Ct2DocumentDetailView, currency1Differs, documentTitle } from '../../src/app/modules/ct2Integrity/Ct2DocumentPanel';
 import { DEBIT_UNAVAILABLE, dayColumns, manualShare, routineBars, valueSegment } from '../../src/app/modules/ct2Integrity/charts';
-import { NOT_APPLICABLE, commonOf, filterChips, isEmptyFilter, ownOf, toggleOrigin, withFilter, withoutFilter } from '../../src/app/modules/ct2Integrity/filters';
+import { NOT_APPLICABLE, accountFrom, activeFilters, amountFrom, commonOf, filterChips, isEmptyFilter, isLineLevel, ownOf, periodFrom, toggleOrigin, withFilter, withoutFilter } from '../../src/app/modules/ct2Integrity/filters';
 import { findingsLayout, occurrencesName, type BoardRow } from '../../src/app/modules/ct2Integrity/findingsLayout';
 import { parseDate } from '../../src/shared/dates';
 import type { Ct2DocumentDetail, Ct2DocumentLine, Ct2Origin, Ct2Overview } from '../../src/shared/modules/ct2Integrity';
@@ -58,6 +58,47 @@ describe('common filter of the CT2 screens', () => {
     expect(NOT_APPLICABLE).toBe('não se aplica a esta tabela');
     // No name of a new button contains the words the e2e helpers look for.
     for (const c of chips) expect(c.remove).not.toMatch(/analisar|ajuda|configuração|painel|cancelar|nova análise|exportar planilha/i);
+  });
+
+  it('writes the chips of the period, the account and the value, and where they apply (25/11/2026)', () => {
+    const filter = { dates: { from: day('01/09/2026'), to: day('30/09/2026') }, account: { code: '211', prefix: true }, amount: { min: 1_000_00, max: 5_000_00 } };
+    const chips = filterChips(filter, [], null);
+    expect(chips.map((c) => `${c.label}: ${c.text}`)).toEqual(['Período: 01/09/2026 a 30/09/2026', 'Conta: começa com 211', 'Valor: de 1.000,00 a 5.000,00']);
+    expect(chips.map((c) => c.remove)).toEqual(['Remover filtro Período', 'Remover filtro Conta', 'Remover filtro Valor']);
+    const open = filterChips({ dates: { from: day('01/09/2026') }, account: { code: '11101001', prefix: false }, amount: { max: 10_00 } }, [], null);
+    expect(open.map((c) => c.text)).toEqual(['a partir de 01/09/2026', '11101001', 'até 10,00']);
+    expect(filterChips({ dates: { to: day('30/09/2026') }, amount: { min: 0 } }, [], null).map((c) => c.text)).toEqual(['até 30/09/2026', 'a partir de 0,00']);
+    const applies = (table: Parameters<typeof filterChips>[2]) => Object.fromEntries(filterChips(filter, [], table).map((c) => [c.key, c.applies]));
+    expect(applies('ct2Batches')).toEqual({ dates: true, account: false, amount: false });
+    expect(applies('ct2Days')).toEqual({ dates: true, account: false, amount: false });
+    expect(applies('ct2Exceptions')).toEqual({ dates: true, account: true, amount: true });
+    for (const c of chips) expect(c.remove).not.toMatch(/analisar|ajuda|configuração|painel|cancelar|nova análise|exportar planilha/i);
+  });
+
+  it('reads the fields of the filter panel: dates, account and pt-BR amounts in cents', () => {
+    expect(periodFrom('2026-09-01', '2026-09-30')).toEqual({ from: day('01/09/2026'), to: day('30/09/2026') });
+    expect(periodFrom('', '2026-09-30')).toEqual({ to: day('30/09/2026') });
+    expect(periodFrom('', '')).toBeUndefined();
+    expect(accountFrom('  211 ', true)).toEqual({ code: '211', prefix: true });
+    expect(accountFrom('   ', false)).toBeUndefined();
+    expect(amountFrom('1.234,56', '')).toEqual({ amount: { min: 123_456 }, error: null });
+    expect(amountFrom('', '10')).toEqual({ amount: { max: 10_00 }, error: null });
+    expect(amountFrom('0,5', '1000,00')).toEqual({ amount: { min: 50, max: 1_000_00 }, error: null });
+    expect(amountFrom('', '')).toEqual({ amount: undefined, error: null });
+    // Never guessed: a dot as decimal separator or letters are refused, with the field named.
+    expect(amountFrom('12.5', '')).toEqual({ amount: undefined, error: 'Valor mínimo: use o formato 1.234,56.' });
+    expect(amountFrom('', 'dez')).toEqual({ amount: undefined, error: 'Valor máximo: use o formato 1.234,56.' });
+    expect(amountFrom('100,00', '10,00')).toEqual({ amount: undefined, error: 'O valor mínimo é maior que o máximo.' });
+    expect(amountFrom('10,00', '10,00')).toEqual({ amount: { min: 10_00, max: 10_00 }, error: null });
+  });
+
+  it('counts the active filters and tells the line-level ones (Lotes and Dias ignore them)', () => {
+    expect(activeFilters({})).toBe(0);
+    expect(activeFilters({ segment: 0, origins: ['manual'], amount: { min: 1 } })).toBe(3);
+    expect(isLineLevel({ segment: 0, day: 1, dates: { from: 1 }, batch: { batch: '1', subBatch: '1' } })).toBe(false);
+    for (const f of [{ origins: ['manual' as const] }, { routine: '' }, { account: { code: '1', prefix: true } }, { amount: { max: 1 } }]) expect(isLineLevel(f)).toBe(true);
+    expect(withFilter({}, 'dates', { from: 1 })).toEqual({ dates: { from: 1 } });
+    expect(isEmptyFilter({ account: { code: '1', prefix: false } })).toBe(false);
   });
 });
 

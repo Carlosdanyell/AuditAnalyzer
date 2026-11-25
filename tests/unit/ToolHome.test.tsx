@@ -14,17 +14,19 @@ describe('tool cards', () => {
     const html = render();
     expect(html).toMatch(/<button[^>]*aria-label="Log de auditoria \(CFGR700\)"/);
     expect(html).toMatch(/<button[^>]*aria-label="Integridade da CT2"/);
-    expect(html).toContain('Relatório CFGR700 do Protheus (tabela CT2), em .xlsx');
-    // No tool in preview since the CT2 integrity left it (30/10/2026); a tool in preview gets the mark.
-    expect(html).not.toContain('Prévia');
+    expect(html).toContain('Relatório CFGR700 da CT2 · .xlsx');
+    expect(html).toMatch(/<button[^>]*aria-label="Conciliador"/);
+    // Only the Conciliador is in preview (Phase 15); a tool in preview gets the mark.
+    expect(html.match(/>Prévia</g)).toHaveLength(1);
     const inPreview = render({ modules: MODULES.map((m) => (m.status === 'available' && m.id === 'ct2Integrity' ? { ...m, preview: 'Prévia: em conferência.' } : m)) });
-    expect(inPreview.match(/Prévia/g)).toHaveLength(1);
+    expect(inPreview.match(/>Prévia</g)).toHaveLength(2);
   });
 
   it('shows each tool as a card with its own icon and what it does best', () => {
     const html = render();
     expect(html).toContain('data-icon="auditLog"');
     expect(html).toContain('data-icon="ledger"');
+    expect(html).toContain('data-icon="reconcile"');
     for (const m of MODULES) {
       expect(m.highlights.length).toBeGreaterThanOrEqual(2);
       expect(m.highlights.length).toBeLessThanOrEqual(3);
@@ -32,12 +34,34 @@ describe('tool cards', () => {
     }
     // The call to open the tool is visible on every card (the button over the card carries the name).
     expect(html.match(/>Abrir</g)).toHaveLength(MODULES.length);
+    // Short texts on the card (25/11/2026): one sentence, short highlights and a compact format line.
+    for (const m of MODULES) {
+      expect(m.description.length, m.id).toBeLessThanOrEqual(100);
+      expect(m.input.length, m.id).toBeLessThanOrEqual(70);
+      for (const h of m.highlights) expect(h.length, h).toBeLessThanOrEqual(48);
+    }
+  });
+
+  it('gives each tool its accent from the descriptor (steel when absent), never by comparing ids', () => {
+    const html = render();
+    expect(html).toContain('data-accent="steel"');
+    expect(html).toContain('data-accent="teal"');
+    expect(html).toContain('data-accent="ochre"');
+    const plain = render({
+      modules: MODULES.map((m) => {
+        const copy = { ...m };
+        delete copy.accent;
+        return copy;
+      }),
+    });
+    expect(plain.match(/data-accent="steel"/g)).toHaveLength(MODULES.length);
   });
 
   it('links each tool to its section of the manual', () => {
     const html = render();
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#cfgr700"/);
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#ct2"/);
+    expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#reconciliation"/);
   });
 
   it('marks the tool used last, and the open analysis instead when there is one', () => {
