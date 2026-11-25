@@ -27,8 +27,12 @@ interface Props {
   content: ExportContent;
   /** Why this analysis cannot be exported (e.g. too large); the button stays disabled. */
   unavailable?: string | null;
-  /** What the module's export takes besides the common options (Conciliador: the justifications of the screen). */
-  extraOptions?: Pick<ExportOptions, 'conc'>;
+  /** What the module's export takes besides the common options (Conciliador: the justifications; Plano de contas: the period). */
+  extraOptions?: Pick<ExportOptions, 'conc' | 'chart'>;
+  /** Whether the workbook can be written in English too (default true); false = Portuguese only, no choice shown. */
+  languageChoice?: boolean;
+  /** Fields of the module shown with the options (Plano de contas: the period MM.AAAA). */
+  options?: ReactNode;
 }
 
 type Status =
@@ -84,7 +88,7 @@ export function cfgr700ExportContent(justificationCount: number, onOpenJustifica
   };
 }
 
-export function ExportView({ client, scopes, scope, onScopeChange, failures, content, unavailable = null, extraOptions }: Props) {
+export function ExportView({ client, scopes, scope, onScopeChange, failures, content, unavailable = null, extraOptions, languageChoice = true, options }: Props) {
   const [language, setLanguage] = useState<ExportOptions['language']>('pt');
   const [confirm, setConfirm] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -136,6 +140,7 @@ export function ExportView({ client, scopes, scope, onScopeChange, failures, con
         </div>
 
         <div className={styles.options}>
+          {options}
           {scopes && (
             <label className={ui.field}>
               Escopo
@@ -148,28 +153,30 @@ export function ExportView({ client, scopes, scope, onScopeChange, failures, con
               </select>
             </label>
           )}
-          <fieldset className={styles.fieldset} disabled={running}>
-            <legend>Idioma da planilha</legend>
-            <div className={styles.languages}>
-              {(
-                [
-                  ['pt', 'Português', 'PT', 'Abas, títulos e textos em português'],
-                  ['en', 'English', 'EN', 'Sheets, headings and texts in English'],
-                ] as const
-              ).map(([id, label, code, hint]) => (
-                <label key={id} className={cx(styles.language, language === id && styles.languageActive)}>
-                  <input type="radio" name="language" checked={language === id} onChange={() => setLanguage(id)} />
-                  <span className={styles.code} aria-hidden="true">
-                    {code}
-                  </span>
-                  <span className={styles.languageText}>
-                    <strong>{label}</strong>
-                    <span>{hint}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {languageChoice && (
+            <fieldset className={styles.fieldset} disabled={running}>
+              <legend>Idioma da planilha</legend>
+              <div className={styles.languages}>
+                {(
+                  [
+                    ['pt', 'Português', 'PT', 'Abas, títulos e textos em português'],
+                    ['en', 'English', 'EN', 'Sheets, headings and texts in English'],
+                  ] as const
+                ).map(([id, label, code, hint]) => (
+                  <label key={id} className={cx(styles.language, language === id && styles.languageActive)}>
+                    <input type="radio" name="language" checked={language === id} onChange={() => setLanguage(id)} />
+                    <span className={styles.code} aria-hidden="true">
+                      {code}
+                    </span>
+                    <span className={styles.languageText}>
+                      <strong>{label}</strong>
+                      <span>{hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
         </div>
 
         <ul className={styles.facts}>{content.facts}</ul>

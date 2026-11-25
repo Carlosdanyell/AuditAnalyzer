@@ -4,6 +4,17 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+### Plano de contas (prévia)
+- Quarta ferramenta da plataforma (`chartOfAccounts`, código `CT1`): lê o CSV do plano de contas exportado do Protheus
+  (tabelas CT1 + CVD; ANSI ou UTF-8; campos pelo nome do cabeçalho), valida (erros bloqueantes E01–E07, alertas
+  A01–A09, cada um com a conta e a linha do arquivo) e gera a planilha "Doc-01-Plano de Contas": uma aba, contas
+  sintéticas destacadas, descrição recuada pelo nível, estrutura de tópicos com o botão na linha sintética, códigos como
+  texto e datas sem fuso. Com erro bloqueante a planilha não é gerada. Período (MM.AAAA) opcional na Exportação.
+  Regras em `docs/REGRAS_PLANO_DE_CONTAS.md`.
+- Gerador XLSX: fonte padrão da pasta, nível de tópicos por linha, `summaryBelow`, margens e o formato `@` embutido.
+- Sondagem da tela inicial reconhece exportações de tabelas do sistema (`0;CT1;CVD`).
+- Teste local de equivalência com a planilha de referência (`tests/local/chartOfAccounts.test.ts`).
+
 ## [2.5.0] — 2026-11-24
 
 ### Tela mais limpa e filtros novos na CT2 (25/11/2026)

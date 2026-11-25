@@ -3,10 +3,12 @@
  * a file of another analysis. Reads only the beginning of each sheet and of the shared strings, up to the last string
  * those rows use: a few kilobytes even for the largest files. Nothing is checked here (the analysis checks everything).
  * For the XML the system writes (no directory), the worksheets that start in its first megabytes. For a plain-text
- * spool of the system (docs/REGRAS_CONCILIADOR.md, section 3.1), its first lines, normalized, from its first 64 KB.
+ * spool of the system (docs/REGRAS_CONCILIADOR.md, section 3.1), its first lines, normalized, from its first 64 KB; the
+ * same for a delimited export of tables of the system (docs/REGRAS_PLANO_DE_CONTAS.md, section 3.2: `0;CT1;CVD`).
  */
 import type { InputFormat, SheetSample } from '../../shared/protocol';
 import { spoolRoutine } from '../../shared/spool';
+import { isTableExport } from '../../shared/tableExport';
 import type { InflateMode } from './inflate';
 import { CellKind, SheetParser } from './sheetStream';
 import { SharedStringsBytesParser } from './sst';
@@ -49,6 +51,15 @@ function probeSpool(head: Uint8Array, complete: boolean, rows: number): SheetSam
   return { name: '', rows: out, format: 'text' };
 }
 
+/** A delimited export of tables (`0;CT1;CVD`): its first `rows` non-blank lines, as a text sample; null otherwise. */
+function probeTableExport(head: Uint8Array, complete: boolean, rows: number): SheetSample | null {
+  const { lines } = spoolLines(head, complete);
+  if (!isTableExport(lines.slice(0, 10))) return null;
+  const out: SheetSample['rows'] = [];
+  for (let i = 0; i < lines.length && out.length < rows; i++) if (lines[i]!.trim() !== '') out.push({ r: i + 1, titles: [lines[i]!] });
+  return { name: '', rows: out, format: 'text' };
+}
+
 /** First rows of each worksheet that starts in the first bytes of the XML the system writes (plain or zipped). */
 async function probeXml(read: (onChunk: (c: Uint8Array) => boolean) => Promise<void>, rows: number, format: InputFormat): Promise<SheetSample[]> {
   const out: SheetSample[] = [];
@@ -82,8 +93,9 @@ export async function probeWorkbook(blob: Blob, rows: number, inflateMode: Infla
     // Not an XML: a spool of the system is read as text; anything else goes on as before (the XML reading refuses it).
     const head = new Uint8Array(await blob.slice(0, SPOOL_HEAD_BYTES).arrayBuffer());
     if (firstByte(head) !== 0x3c) {
-      const spool = probeSpool(head, blob.size <= SPOOL_HEAD_BYTES, rows);
-      if (spool) return [spool];
+      const complete = blob.size <= SPOOL_HEAD_BYTES;
+      const text = probeSpool(head, complete, rows) ?? probeTableExport(head, complete, rows);
+      if (text) return [text];
     }
     return probeXml(async (onChunk) => void onChunk(new Uint8Array(await blob.slice(0, XML_HEAD_BYTES).arrayBuffer())), rows, 'xml');
   }

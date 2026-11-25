@@ -70,6 +70,8 @@ const PATHS = {
   ledger: ['M12 4v16', 'M8 20h8', 'M5 7h14', 'M5 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z', 'M19 7l-2.6 6.2a2.6 2.6 0 0 0 5.2 0z'],
   // Two sides meeting at the line of the reconciliation (origin report and ledger).
   reconcile: ['M12 3.5v17', 'M3 8.5h6.5', 'M7 5.5l3 3-3 3', 'M21 15.5h-6.5', 'M17 12.5l-3 3 3 3'],
+  // The hierarchy of a chart of accounts: a synthetic account and the accounts below it.
+  accounts: ['M4 4h7v4H4z', 'M7.5 8v10H12', 'M7.5 12H12', 'M12 10h8v4h-8z', 'M12 16h8v4h-8z'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

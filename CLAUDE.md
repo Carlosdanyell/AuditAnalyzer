@@ -16,8 +16,9 @@ e a arquitetura em `docs/ARQUITETURA.md`. **Leia os dois antes de escrever códi
 
 **Plataforma de análises (a partir da Fase 8):** o app hospeda módulos de análise independentes — `cfgr700` (log de
 auditoria, acima), `ct2Integrity` (aglutinação e integridade da extração da CT2, com planilha toda amarrada por
-fórmulas) e `reconciliation` (Conciliador: relatórios de origem × razão, hoje a folha de pagamento; regras em
-`docs/REGRAS_CONCILIADOR.md`). Contrato dos módulos em `docs/MODULOS.md`; regras do módulo de integridade em
+fórmulas), `reconciliation` (Conciliador: relatórios de origem × razão, hoje a folha de pagamento; regras em
+`docs/REGRAS_CONCILIADOR.md`) e `chartOfAccounts` (Plano de contas: CSV CT1 + CVD → planilha Doc-01; regras em
+`docs/REGRAS_PLANO_DE_CONTAS.md`). Contrato dos módulos em `docs/MODULOS.md`; regras do módulo de integridade em
 `docs/REGRAS_CT2_INTEGRIDADE.md`.
 Ao trabalhar num módulo, leia o documento de regras **dele**; as restrições abaixo valem para todos.
 

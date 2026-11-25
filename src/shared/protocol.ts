@@ -20,6 +20,7 @@ import type {
 } from './modules/cfgr700';
 import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
 import type { ReconciliationAccountDetail, ReconciliationExportOptions, ReconciliationReconciliation, ReconciliationSummary, ReconciliationTableFilter, ReconciliationTableId } from './modules/reconciliation';
+import type { ChartExportOptions, ChartReconciliation, ChartSummary } from './modules/chartOfAccounts';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
 export { PIPELINE_STAGES } from './modules/cfgr700';
@@ -68,8 +69,8 @@ export type AnyTableId = TableId | Ct2TableId | ReconciliationTableId;
 export type AnyTableFilter = TableFilter & Ct2TableFilter & { conc?: ReconciliationTableFilter };
 
 /** Reconciliation and summary of the module of the session (the CFGR700 ones carry no mark). */
-export type ModuleReconciliation = Reconciliation | Ct2Reconciliation | ReconciliationReconciliation;
-export type ModuleSummary = Summary | Ct2Summary | ReconciliationSummary;
+export type ModuleReconciliation = Reconciliation | Ct2Reconciliation | ReconciliationReconciliation | ChartReconciliation;
+export type ModuleSummary = Summary | Ct2Summary | ReconciliationSummary | ChartSummary;
 
 /** The CFGR700 reconciliation and summary: the only ones without the `module` mark. */
 export function isLogReconciliation(r: ModuleReconciliation): r is Reconciliation {
@@ -80,8 +81,8 @@ export function isLogSummary(s: ModuleSummary): s is Summary {
   return !('module' in s);
 }
 
-/** Processing stages of the modules ('sort': integrity of the CT2) plus the query/export stages. */
-export type Stage = PipelineStage | 'sort' | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
+/** Processing stages of the modules ('sort': integrity of the CT2; 'transform': chart of accounts) plus the query/export stages. */
+export type Stage = PipelineStage | 'sort' | 'transform' | 'panel' | 'page' | 'justifications' | 'export' | 'worker';
 
 /** Event-date interval in day numbers (days since 2000-01-01, see shared/dates.ts), both ends included. */
 export interface Period {
@@ -114,6 +115,8 @@ export interface ExportOptions {
   generatedAt: string;
   /** Conciliador: the justifications of the screen for the competence of the session (the other modules ignore it). */
   conc?: ReconciliationExportOptions;
+  /** Plano de contas: the period of the file and of the sheet (the other modules ignore it). */
+  chart?: ChartExportOptions;
 }
 
 /**

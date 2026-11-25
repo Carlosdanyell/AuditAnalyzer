@@ -2,7 +2,7 @@
  * Streaming XLSX writer over fflate (docs/ARQUITETURA.md, section 5). Sheets are written row by row into
  * deflated ZIP entries: strings inline, formulas without cached values (the workbook recalculates on open),
  * a style registry, defined names, data validation, conditional formats, frozen panes, autofilter, column
- * widths, internal hyperlinks and merges checked against overlap (invariant 10). ZIP timestamps are fixed,
+ * widths, row outline levels, page margins, internal hyperlinks and merges checked against overlap (invariant 10). ZIP timestamps are fixed,
  * so the same content always gives the same bytes.
  */
 import { Zip, ZipDeflate } from 'fflate';
@@ -83,8 +83,11 @@ export interface DxfSpec {
   font?: { bold?: boolean; color?: string };
 }
 
+/** Built-in number formats of Excel written by their id (no custom entry): text. */
+const BUILTIN_NUM_FMTS: Readonly<Record<string, number>> = { '@': 49 };
+
 class StyleRegistry {
-  private readonly fonts: string[] = ['<font><sz val="11"/><name val="Aptos"/></font>'];
+  private readonly fonts: string[];
   private readonly fills: string[] = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
   private readonly borders: string[] = ['<border><left/><right/><top/><bottom/><diagonal/></border>'];
   private readonly numFmts: string[] = [];
@@ -92,6 +95,11 @@ class StyleRegistry {
   private readonly byKey = new Map<string, number>([['{}', 0]]);
   private readonly dxfs: string[] = [];
   private readonly dxfByKey = new Map<string, number>();
+
+  /** `defaultSize`: the font of the workbook (Normal style) and of a style that names no size. */
+  constructor(private readonly defaultSize = 11) {
+    this.fonts = [`<font><sz val="${defaultSize}"/><name val="Aptos"/></font>`];
+  }
 
   private index(list: string[], xml: string): number {
     const i = list.indexOf(xml);
@@ -106,7 +114,7 @@ class StyleRegistry {
       (f.bold ? '<b/>' : '') +
       (f.italic ? '<i/>' : '') +
       (f.underline ? '<u/>' : '') +
-      `<sz val="${f.size ?? 11}"/>` +
+      `<sz val="${f.size ?? this.defaultSize}"/>` +
       (f.color ? `<color rgb="${f.color}"/>` : '') +
       `<name val="${f.name ?? 'Aptos'}"/></font>`
     );
@@ -136,7 +144,10 @@ class StyleRegistry {
               '<diagonal/></border>',
           );
     let numFmtId = 0;
-    if (spec.numFmt) {
+    const builtin = spec.numFmt ? BUILTIN_NUM_FMTS[spec.numFmt] : undefined;
+    if (builtin !== undefined) {
+      numFmtId = builtin;
+    } else if (spec.numFmt) {
       const i = this.numFmts.indexOf(spec.numFmt);
       numFmtId = 164 + (i >= 0 ? i : this.numFmts.push(spec.numFmt) - 1);
     }
@@ -200,6 +211,13 @@ export interface SheetOptions {
   zoom?: number;
   /** Printing in landscape, fitted to one page wide (absent: the defaults of Excel). */
   fitToWidth?: boolean;
+  /**
+   * Row groups (Dados > Estrutura de Tópicos): the deepest outline level used (1 to 7) and where the +/- button of a
+   * group is, below it (Excel's default) or on the summary row above it (`summaryBelow: false`).
+   */
+  outline?: { maxLevel: number; summaryBelow: boolean };
+  /** Page margins in inches (absent: 0.5 left and right, 0.6 top and bottom, 0.3 header and footer). */
+  margins?: { left: number; right: number; top: number; bottom: number; header?: number; footer?: number };
 }
 
 export interface Validation {
@@ -224,6 +242,12 @@ function parseRange(ref: string): Range {
 }
 
 const FLUSH_AT = 1 << 16;
+
+/** Outline levels of Excel: 1 to 7. */
+function outlineLevel(level: number): number {
+  if (!Number.isInteger(level) || level < 0 || level > 7) throw new RangeError(`Nível de estrutura de tópicos inválido para o Excel: ${level} (de 0 a 7).`);
+  return level;
+}
 
 /** Rows per worksheet in Excel. */
 const MAX_ROWS = 1048576;
@@ -261,11 +285,15 @@ export class SheetWriter {
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        (options.tabColor || options.fitToWidth
-          ? `<sheetPr>${options.tabColor ? `<tabColor rgb="${options.tabColor}"/>` : ''}${options.fitToWidth ? '<pageSetUpPr fitToPage="1"/>' : ''}</sheetPr>`
+        (options.tabColor || options.fitToWidth || options.outline
+          ? '<sheetPr>' +
+            (options.tabColor ? `<tabColor rgb="${options.tabColor}"/>` : '') +
+            (options.outline ? `<outlinePr summaryBelow="${options.outline.summaryBelow ? 1 : 0}"/>` : '') +
+            (options.fitToWidth ? '<pageSetUpPr fitToPage="1"/>' : '') +
+            '</sheetPr>'
           : '') +
         views +
-        '<sheetFormatPr defaultRowHeight="15"/>' +
+        `<sheetFormatPr defaultRowHeight="15"${options.outline ? ` outlineLevelRow="${outlineLevel(options.outline.maxLevel)}"` : ''}/>` +
         cols +
         '<sheetData>',
     );
@@ -303,10 +331,11 @@ export class SheetWriter {
    * Writes a row; returns its number. `styles` gives a default style per column: empty cells of a styled column are
    * written empty with that style (grid lines), others are skipped.
    */
-  row(cells: CellInput[], opts: { height?: number; style?: number; styles?: readonly (number | undefined)[] } = {}): number {
+  row(cells: CellInput[], opts: { height?: number; style?: number; styles?: readonly (number | undefined)[]; outlineLevel?: number } = {}): number {
     const r = ++this.rowNumber;
     if (r > MAX_ROWS) throw new RangeError('Uma aba da planilha passaria do limite de 1.048.576 linhas do Excel.');
-    let xml = `<row r="${r}"${opts.height ? ` ht="${opts.height}" customHeight="1"` : ''}>`;
+    const level = opts.outlineLevel ? outlineLevel(opts.outlineLevel) : 0;
+    let xml = `<row r="${r}"${opts.height ? ` ht="${opts.height}" customHeight="1"` : ''}${level ? ` outlineLevel="${level}"` : ''}>`;
     const styles = opts.styles;
     for (let c = 0; c < cells.length; c++) {
       const input = cells[c];
@@ -394,7 +423,10 @@ export class SheetWriter {
         '</dataValidations>';
     }
     if (this.links.length) tail += `<hyperlinks>${this.links.join('')}</hyperlinks>`;
-    tail += '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>';
+    const m = this.options.margins;
+    tail += m
+      ? `<pageMargins left="${m.left}" right="${m.right}" top="${m.top}" bottom="${m.bottom}" header="${m.header ?? 0.3}" footer="${m.footer ?? 0.3}"/>`
+      : '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>';
     if (this.options.fitToWidth) tail += '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
     tail += '</worksheet>';
     this.buffer += tail;
@@ -408,7 +440,6 @@ export class SheetWriter {
 const ZIP_MTIME = new Date(2000, 0, 1, 12, 0, 0);
 
 export class XlsxWriter {
-  readonly styles = new StyleRegistry();
   readonly encoder = new TextEncoder();
   readonly dateStyle: number;
   readonly dateTimeStyle: number;
@@ -430,8 +461,11 @@ export class XlsxWriter {
   readonly maxEntryBytes: number;
   private readonly partBytes: number;
 
-  /** Limits smaller than the defaults only in tests. */
-  constructor(limits: { maxEntryBytes?: number; partBytes?: number } = {}) {
+  readonly styles: StyleRegistry;
+
+  /** Limits smaller than the defaults only in tests; `defaultFontSize`: the font of the workbook (default Aptos 11). */
+  constructor(limits: { maxEntryBytes?: number; partBytes?: number; defaultFontSize?: number } = {}) {
+    this.styles = new StyleRegistry(limits.defaultFontSize);
     this.maxEntryBytes = limits.maxEntryBytes ?? MAX_ENTRY_BYTES;
     this.partBytes = limits.partBytes ?? BLOB_PART_BYTES;
     this.done = new Promise((resolve, reject) => {

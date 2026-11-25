@@ -7,6 +7,7 @@ import type { ComponentType } from 'react';
 import { cfgr700Module } from '../modules/cfgr700/module';
 import { ct2IntegrityModule } from '../modules/ct2Integrity/module';
 import { reconciliationModule } from '../modules/reconciliation/module';
+import { chartOfAccountsModule } from '../modules/chartOfAccounts/module';
 import type { AvailableModule } from '../modules/types';
 import { Cfgr700Workspace } from './modules/cfgr700/Cfgr700Workspace';
 import { cfgr700Figures } from './modules/cfgr700/figures';
@@ -14,6 +15,8 @@ import { Ct2Workspace } from './modules/ct2Integrity/Ct2Workspace';
 import { ct2Figures } from './modules/ct2Integrity/figures';
 import { ReconciliationWorkspace } from './modules/reconciliation/ReconciliationWorkspace';
 import { reconciliationFigures } from './modules/reconciliation/figures';
+import { ChartWorkspace } from './modules/chartOfAccounts/ChartWorkspace';
+import { chartFigures } from './modules/chartOfAccounts/figures';
 import type { KeyFigures, WorkspaceProps } from './modules/workspace';
 import { Ct2ConfigView } from './views/Ct2ConfigView';
 import { ReconciliationConfigView } from './views/ReconciliationConfigView';
@@ -22,6 +25,7 @@ const WORKSPACES = new Map<AvailableModule, ComponentType<WorkspaceProps>>([
   [cfgr700Module as unknown as AvailableModule, Cfgr700Workspace],
   [ct2IntegrityModule as unknown as AvailableModule, Ct2Workspace],
   [reconciliationModule as unknown as AvailableModule, ReconciliationWorkspace],
+  [chartOfAccountsModule as unknown as AvailableModule, ChartWorkspace],
 ]);
 
 /** The workspace of a module after the analysis. */
@@ -35,6 +39,7 @@ const FIGURES = new Map<AvailableModule, KeyFigures>([
   [cfgr700Module as unknown as AvailableModule, cfgr700Figures],
   [ct2IntegrityModule as unknown as AvailableModule, ct2Figures],
   [reconciliationModule as unknown as AvailableModule, reconciliationFigures],
+  [chartOfAccountsModule as unknown as AvailableModule, chartFigures],
 ]);
 
 /** The key figures of a module for the strip under the header; none for a module without them. */

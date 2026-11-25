@@ -5,15 +5,20 @@
  */
 import type { Page } from '@playwright/test';
 import { defaultConfig } from '../../src/config/schema';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Workbook } from '../support/xlsxEval';
+import { chartCsv, encodeWindows1252, withAccount } from '../synthetic/chartOfAccountsFixture';
 import { payrollProfileFile } from '../synthetic/reconciliationProfile';
+import { readWorkbookData } from '../support/xlsxStyles';
 import { profileWithStatuses, screenFixture, sessionFiles } from '../synthetic/reconciliationSession';
 import { analyze, chooseModule, expect, test } from './fixtures';
 
 const CFGR700 = 'Log de auditoria (CFGR700)';
 const CT2 = 'Integridade da CT2';
 const CONC = 'Conciliador';
+const CHART = 'Plano de contas';
 
 /** Reads or writes a key of the store `config` of the tool's IndexedDB, as an older version would. */
 function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
@@ -56,19 +61,21 @@ async function analyzeEngine(page: Page, files: { engine: string }) {
   return nav;
 }
 
-test('início da plataforma: uma linha por ferramenta, as três disponíveis, o Conciliador em prévia', async ({ page }) => {
+test('início da plataforma: uma linha por ferramenta, as quatro disponíveis, o Conciliador e o Plano de contas em prévia', async ({ page }) => {
   await page.goto('');
   await expect(page.getByRole('heading', { level: 1, name: 'Ferramentas' })).toBeVisible();
   await expect(page.getByRole('button', { name: CFGR700, exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: CT2, exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: CONC, exact: true })).toBeEnabled();
-  // Only the Conciliador is in preview (Phase 15).
-  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: CHART, exact: true })).toBeEnabled();
+  // The Conciliador (Phase 15) and the Plano de contas are in preview.
+  await expect(page.getByText('Prévia', { exact: true })).toHaveCount(2);
   const manuals = page.getByRole('link', { name: 'Manual desta análise' });
-  await expect(manuals).toHaveCount(3);
+  await expect(manuals).toHaveCount(4);
   await expect(manuals.nth(0)).toHaveAttribute('href', /ajuda\.html#cfgr700$/);
   await expect(manuals.nth(1)).toHaveAttribute('href', /ajuda\.html#ct2$/);
   await expect(manuals.nth(2)).toHaveAttribute('href', /ajuda\.html#reconciliation$/);
+  await expect(manuals.nth(3)).toHaveAttribute('href', /ajuda\.html#chartOfAccounts$/);
   // No file area before a tool is chosen.
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
@@ -619,4 +626,57 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, painel por conta, p
   expect(rows.map((x) => x.status)).toEqual(['Confere', 'Confere', 'Confere']);
   expect(rows[0]!.justification).toBe('Verba lançada manualmente e compensada no mês.');
   await expect(page.getByText(/^Planilha gerada em/)).toBeVisible();
+});
+
+test('Plano de contas: lê o CSV, mostra o resumo com erros e alertas e gera a planilha com o período; erro bloqueante impede', async ({ page }, testInfo) => {
+  // A folder without accents: the output folder of this test (named after its title) is not taken by the file picker.
+  const dir = mkdtempSync(join(tmpdir(), 'plano-'));
+  const csv = join(dir, 'plano-sintetico.csv');
+  writeFileSync(csv, encodeWindows1252(chartCsv()));
+  await page.goto('');
+  await chooseModule(page, CHART);
+  await expect(page.getByText(/^Prévia: o módulo lê/)).toBeVisible();
+  await page.locator('input[type=file]').first().setInputFiles([csv]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  const nav = page.getByRole('navigation', { name: 'Visões' });
+  await expect(nav).toBeVisible({ timeout: 60_000 });
+  for (const absent of ['Painel', 'Achados', 'Tabelas', 'Justificativas']) await expect(nav.getByRole('button', { name: absent })).toHaveCount(0);
+  await expect(page.getByText('Integridade confirmada, com 5 alerta(s)')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Distribuição por nível' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Distribuição por natureza SPED' })).toBeVisible();
+  // A02 opens to list the accounts and the lines of the file.
+  await page.getByText('Conta analítica com vínculo CVD').click();
+  await expect(page.getByRole('cell', { name: '90001001', exact: true })).toBeVisible();
+  await expect(page.getByText('ANSI (windows-1252)')).toBeVisible();
+
+  // Exportação: Portuguese only; an invalid period disables the button; a valid one names the sheet and the file.
+  await page.getByRole('button', { name: 'Gerar planilha' }).first().click();
+  await expect(page.getByText('Idioma da planilha')).toHaveCount(0);
+  const period = page.getByLabel(/Período/);
+  await period.fill('13.2026');
+  await expect(page.getByRole('button', { name: /^Gerar planilha/ })).toBeDisabled();
+  await period.fill('11.2026');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /^Gerar planilha/ }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('Plano_de_Contas_plano-sintetico_11.2026.xlsx');
+  const path = testInfo.outputPath('plano.xlsx');
+  await file.saveAs(path);
+  const data = readWorkbookData(new Uint8Array(readFileSync(path)));
+  expect(data.sheets.map((s) => s.name)).toEqual(['Doc-01-Plano de Contas 11.2026']);
+  expect(data.sheets[0]!.maxRow).toBe(4 + 39);
+
+  // A file with a blocking error: the account and the line on screen, and no workbook.
+  const broken = join(dir, 'plano-com-erro.csv');
+  writeFileSync(broken, encodeWindows1252(chartCsv({ accounts: withAccount('11103', { sup: '119' }) })));
+  await page.getByRole('button', { name: 'Nova análise' }).click();
+  await page.getByRole('button', { name: /Remover/ }).first().click();
+  await page.locator('input[type=file]').first().setInputFiles([broken]);
+  await page.getByRole('button', { name: 'Analisar' }).click();
+  await expect(page.getByText('1 verificação(ões) bloqueante(s) falhou(aram)')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('cell', { name: '11103 · 119' })).toBeVisible();
+  await expect(page.getByText('Gerar planilha: indisponível com erro bloqueante')).toBeVisible();
+  await page.getByRole('button', { name: 'Exportar planilha' }).click();
+  await expect(page.getByText(/^A planilha não é gerada com erro bloqueante/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Gerar planilha/ })).toBeDisabled();
 });

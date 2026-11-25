@@ -18,7 +18,7 @@ const files = (dir: string): string[] =>
 
 describe('module registry', () => {
   it('lists every module once, in the order of the ids', () => {
-    expect(MODULE_IDS).toEqual(['cfgr700', 'ct2Integrity', 'reconciliation']);
+    expect(MODULE_IDS).toEqual(['cfgr700', 'ct2Integrity', 'reconciliation', 'chartOfAccounts']);
     expect(MODULES.map((m) => m.id)).toEqual([...MODULE_IDS]);
     expect(DEFAULT_MODULE_ID).toBe('cfgr700');
   });

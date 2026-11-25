@@ -26,6 +26,7 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | Depois da 2.3 — versão 2.4.0 | concluída em 18/11/2026: início da plataforma em cartões |
 | 15 — Conciliador: módulo novo e perfil Folha (Padrão A) | concluída em 24/11/2026 (`docs/FASE_15_CONCILIADOR_FOLHA.md`, regras em `docs/REGRAS_CONCILIADOR.md`): folha de pagamento, Padrão A, razão em TXT ou XML, planilha amarrada por fórmulas; todos os números do golden local batem; versão 2.5.0 |
 | 16 — Conciliador: provisões (Padrão B) e leitura de PDF | a fazer (`docs/FASE_16_CONCILIADOR_PROVISOES_PDF.md`); versão 2.6.0 |
+| 17 — Plano de contas (CT1 + CVD → XLSX) | implementada em 25/11/2026 (`docs/REGRAS_PLANO_DE_CONTAS.md`), em prévia; pendente no computador do usuário: `npm run test:local` com o CSV real e a planilha de referência em `local/plano-de-contas/` (seções 9.2 a 9.4), abrir a planilha no Excel (sem reparo, botões de nível) |
 | 14 — CT2: painel de composição, Achados e subtipos de I3/I4 | implementada em 11/11/2026 (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`), versão 2.2.0; pendente no computador do usuário: golden local das contagens novas e conferência no Excel com uma extração real |
 
 Verificado pelo usuário em 26/09/2026 no computador do trabalho: tempos, memória e a planilha exportada no Excel,

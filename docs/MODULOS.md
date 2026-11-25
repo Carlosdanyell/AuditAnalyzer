@@ -10,6 +10,7 @@ contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca 
 |---|---|---|---|
 | `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | em uso desde a 1.0.0 |
 | `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | em uso desde a 2.1.0 (prévia na 2.0.0; conferida com extração real em 30/10/2026) |
+| `chartOfAccounts` — Plano de contas | CSV do plano de contas exportado do Protheus (tabelas CT1 + CVD) | `docs/REGRAS_PLANO_DE_CONTAS.md` | prévia desde 25/11/2026, até a conferência com o arquivo real |
 | `reconciliation` — Conciliador | Relatórios de origem (folha GPER040) e razão analítico (CTBR400), no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração | `docs/REGRAS_CONCILIADOR.md` | prévia na 2.5.0 (Fase 15: folha de pagamento, Padrão A; provisões e PDF na Fase 16) |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
@@ -202,6 +203,21 @@ interface ModuleSession {                               // objeto novo a cada in
     do Conciliador.
   - Guardas de tipo compartilhadas `isLogSummary` e `isLogReconciliation` (`src/shared/protocol.ts`): o código comum
     estreita o resumo e a reconciliação do CFGR700 pelo formato do objeto, nunca pelo id do módulo.
+
+- **Plano de contas (25/11/2026):** `MODULE_IDS` ganha `chartOfAccounts` (descritor em `src/modules/chartOfAccounts/`,
+  configuração em `src/config/chartOfAccountsSchema.ts` e `src/config/defaults/chart-of-accounts.json`, `saved: false`,
+  sem tela de Configuração; worker em `src/worker/modules/chartOfAccounts/`). Mudanças do contrato, opcionais para os
+  outros módulos:
+  - etapa `transform` em `Stage`; payloads marcados `module: 'chartOfAccounts'` (`isChartReconciliation`,
+    `isChartSummary`); `ExportOptions.chart` com o período `MM.AAAA`;
+  - `probe`: um texto que é exportação de tabelas do sistema (`0;CT1;CVD`, ou cabeçalho `n;<TABELA>_FILIAL;…`,
+    `src/shared/tableExport.ts`) vira uma amostra `text`, como o spool;
+  - `ExportView` ganha `languageChoice` (falso = só português, sem escolha) e `options` (campos do módulo, aqui o
+    período); a exportação bloqueada sem confirmação usa `unavailable` com `failures = []`;
+  - `XlsxWriter`: fonte padrão da pasta (`defaultFontSize`), nível de tópicos por linha (`row(..., { outlineLevel })`),
+    `outline` (`outlineLevelRow` e `summaryBelow`) e `margins` nas opções da aba, e `@` como formato embutido 49. Saída
+    dos outros módulos inalterada;
+  - ícone `accounts` (hierarquia) no `ModuleIcon`.
 
 ## 4. Tela
 

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "domains": {
+    "class": [
+      { "code": "1", "label": "Sintética", "kind": "synthetic" },
+      { "code": "2", "label": "Analítica", "kind": "analytic" }
+    ],
+    "balance": [
+      { "code": "1", "label": "Devedora", "kind": "debit" },
+      { "code": "2", "label": "Credora", "kind": "credit" }
+    ],
+    "situation": [
+      { "code": "1", "label": "Bloqueada", "kind": "blocked" },
+      { "code": "2", "label": "Ativa", "kind": "active" }
+    ],
+    "yesNo": [
+      { "code": "1", "label": "Sim" },
+      { "code": "2", "label": "Não" }
+    ],
+    "sped": [
+      { "code": "01", "label": "01 - Ativo" },
+      { "code": "02", "label": "02 - Passivo" },
+      { "code": "03", "label": "03 - Patrimônio Líquido" },
+      { "code": "04", "label": "04 - Resultado" },
+      { "code": "05", "label": "05 - Compensação" },
+      { "code": "09", "label": "09 - Outras" }
+    ]
+  }
+}

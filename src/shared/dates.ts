@@ -56,6 +56,23 @@ function dayFromParts(s: string, at: number): number {
   return daysFromCivil(y, m, d) - DAYS_1970_TO_2000;
 }
 
+/** First and last years of a compact date (AAAAMMDD): from 1901, the first date Excel shows right, to 9999, its last. */
+const COMPACT_MIN_YEAR = 1901;
+const COMPACT_MAX_YEAR = 9999;
+
+/**
+ * "AAAAMMDD" (dates of the Protheus tables, e.g. CT1_DTEXIS) → day number, or INVALID_TIME for another format or a
+ * date that does not exist (20250231). Years from 1901 to 9999 (the range of Excel without the 1900 leap-year bug).
+ */
+export function parseCompactDate(text: string): number {
+  if (text.length !== 8) return INVALID_TIME;
+  const y = digits(text, 0, 4);
+  const m = digits(text, 4, 2);
+  const d = digits(text, 6, 2);
+  if (y < COMPACT_MIN_YEAR || y > COMPACT_MAX_YEAR || m < 1 || m > 12 || d < 1 || d > daysInMonth(y, m)) return INVALID_TIME;
+  return daysFromCivil(y, m, d) - DAYS_1970_TO_2000;
+}
+
 /** "dd/mm/aaaa" → day number, or INVALID_TIME. */
 export function parseDate(text: string): number {
   const s = text.trim();

@@ -1,0 +1,203 @@
+/* Screens of the Plano de contas (docs/REGRAS_PLANO_DE_CONTAS.md, section 7); tokens of global.css only. */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.left {
+  text-align: left !important;
+}
+
+.wrap {
+  white-space: normal !important;
+}
+
+.sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.subTitle {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* Totals: label and number in a grid of small blocks. */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.totals > div {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.totals dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.totals dd {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Board of the validations: one line per code, open on click to list its occurrences. */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.issue[data-state='fail'] {
+  border-color: color-mix(in srgb, var(--error) 35%, var(--border));
+  background: var(--error-soft);
+}
+
+.issue[data-state='warn'] {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
+  background: var(--warn-soft);
+}
+
+.issue summary,
+.issueHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  list-style: none;
+  font-size: 13.5px;
+}
+
+.issue summary {
+  cursor: pointer;
+}
+
+.issue summary::-webkit-details-marker {
+  display: none;
+}
+
+.issue summary svg {
+  flex: none;
+  transition: transform 200ms var(--ease);
+}
+
+.issue[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.code {
+  flex: none;
+  min-width: 34px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+}
+
+.count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.state {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.issue[data-state='fail'] .state {
+  background: var(--error);
+  color: var(--surface);
+}
+
+.issue[data-state='warn'] .state {
+  background: var(--warn);
+  color: var(--surface);
+}
+
+.occurrences {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0 12px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+.cut {
+  margin: 0 12px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.hash {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.next {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fieldError {
+  font-weight: 400;
+  color: var(--error);
+}

@@ -3,6 +3,7 @@ import { DEFAULT_MODULE_ID, MODULE_IDS, isModuleId, type ModuleId } from '../sha
 import { cfgr700Module } from './cfgr700/module';
 import { ct2IntegrityModule } from './ct2Integrity/module';
 import { reconciliationModule } from './reconciliation/module';
+import { chartOfAccountsModule } from './chartOfAccounts/module';
 import type { SheetSample } from '../shared/protocol';
 import type { AvailableModule, ModuleDescriptor } from './types';
 
@@ -10,6 +11,7 @@ const BY_ID: { readonly [K in ModuleId]: ModuleDescriptor } = {
   cfgr700: cfgr700Module,
   ct2Integrity: ct2IntegrityModule,
   reconciliation: reconciliationModule,
+  chartOfAccounts: chartOfAccountsModule,
 };
 
 export const MODULES: readonly ModuleDescriptor[] = MODULE_IDS.map((id) => BY_ID[id]);

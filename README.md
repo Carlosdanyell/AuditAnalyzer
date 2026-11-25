@@ -37,6 +37,7 @@ e gera um papel de trabalho em Excel pronto para revisão.
 | **Log de auditoria** (`CFGR700`) | Relatório CFGR700 do Protheus (tabela CT2), um ou mais `.xlsx` de até ~1 milhão de linhas | Em uso desde a 1.0.0 |
 | **Integridade da CT2** (`CT2`) | Extração da tabela CT2 (lançamentos), um ou mais `.xlsx` ou o XML que o Protheus gera (também em `.zip`), até um ano por exportação | Em uso desde a 2.1.0 |
 | **Conciliador** (`CONC`) | Relatório de origem da folha (GPER040, TXT do spool) e razão analítico (CTBR400, TXT ou XML), com o perfil de contas importado na Configuração | Prévia na 2.5.0 (folha de pagamento) |
+| **Plano de contas** (`CT1`) | CSV do plano de contas exportado do Protheus (tabelas CT1 + CVD) | Prévia (não publicado) |
 
 A plataforma recebe outras ferramentas contábeis (por exemplo, conciliações) pelo mesmo contrato
 ([`docs/MODULOS.md`](docs/MODULOS.md)): cada uma traz as próprias regras, telas e planilha e usa a casca, a marca, a
@@ -79,6 +80,15 @@ leitura em fluxo, a rastreabilidade e as verificações comuns.
 | Qual parte do saldo anterior foi baixada no mês? | Baixa do saldo anterior (F3), por combinação exata dos lançamentos |
 | O saldo contábil fecha com o esperado? O que explica a diferença? | Ponte por conta e situação sugerida, sem limite de materialidade |
 | A planilha prova os números sozinha? | Papel de trabalho **amarrado por fórmulas**, com "Confere" por conta |
+
+**Plano de contas**
+
+| Pergunta | Onde aparece |
+|---|---|
+| O arquivo está íntegro: cabeçalho, contas únicas, hierarquia sem ciclo, datas válidas? | Erros bloqueantes E01–E07, com a conta e a linha do arquivo; com erro, a planilha não é gerada |
+| Toda analítica tem vínculo com o plano referencial (ECD)? Há CVD órfão ou repetido? | Alertas A01–A09 |
+| Quantas contas por nível, tipo, natureza do saldo e natureza SPED? | Resumo da tela |
+| A planilha Doc-01 sai no padrão? | Uma aba com a hierarquia agrupada por nível, sintéticas destacadas e códigos como texto |
 
 ## Como funciona
 
@@ -165,6 +175,7 @@ npm run build       # build de produção para o GitHub Pages
 | [`docs/REGRAS_CFGR700.md`](docs/REGRAS_CFGR700.md) | Regras de negócio e invariantes do log de auditoria |
 | [`docs/REGRAS_CT2_INTEGRIDADE.md`](docs/REGRAS_CT2_INTEGRIDADE.md) | Regras, testes e planilha da Integridade da CT2 |
 | [`docs/REGRAS_CONCILIADOR.md`](docs/REGRAS_CONCILIADOR.md) | Regras, perfil e planilha do Conciliador |
+| [`docs/REGRAS_PLANO_DE_CONTAS.md`](docs/REGRAS_PLANO_DE_CONTAS.md) | Leitura, validações e planilha do Plano de contas |
 | [`docs/ROTEIRO.md`](docs/ROTEIRO.md) | Fases de desenvolvimento e situação |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Leitura em fluxo, armazenamento colunar, motor, exportação |
 | [`docs/INTERFACE.md`](docs/INTERFACE.md) | Comportamentos obrigatórios das telas e padrão visual |

@@ -16,10 +16,11 @@ describe('tool cards', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Integridade da CT2"/);
     expect(html).toContain('Relatório CFGR700 da CT2 · .xlsx');
     expect(html).toMatch(/<button[^>]*aria-label="Conciliador"/);
-    // Only the Conciliador is in preview (Phase 15); a tool in preview gets the mark.
-    expect(html.match(/>Prévia</g)).toHaveLength(1);
+    expect(html).toMatch(/<button[^>]*aria-label="Plano de contas"/);
+    // The Conciliador (Phase 15) and the Plano de contas are in preview; a tool in preview gets the mark.
+    expect(html.match(/>Prévia</g)).toHaveLength(2);
     const inPreview = render({ modules: MODULES.map((m) => (m.status === 'available' && m.id === 'ct2Integrity' ? { ...m, preview: 'Prévia: em conferência.' } : m)) });
-    expect(inPreview.match(/>Prévia</g)).toHaveLength(2);
+    expect(inPreview.match(/>Prévia</g)).toHaveLength(3);
   });
 
   it('shows each tool as a card with its own icon and what it does best', () => {
@@ -27,6 +28,7 @@ describe('tool cards', () => {
     expect(html).toContain('data-icon="auditLog"');
     expect(html).toContain('data-icon="ledger"');
     expect(html).toContain('data-icon="reconcile"');
+    expect(html).toContain('data-icon="accounts"');
     for (const m of MODULES) {
       expect(m.highlights.length).toBeGreaterThanOrEqual(2);
       expect(m.highlights.length).toBeLessThanOrEqual(3);
@@ -62,6 +64,7 @@ describe('tool cards', () => {
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#cfgr700"/);
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#ct2"/);
     expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#reconciliation"/);
+    expect(html).toMatch(/href="\/AuditAnalyzer\/ajuda\.html#chartOfAccounts"/);
   });
 
   it('marks the tool used last, and the open analysis instead when there is one', () => {

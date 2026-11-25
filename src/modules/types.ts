@@ -36,8 +36,11 @@ interface ModuleTexts {
 /** Accents of the tool cards: colours of the platform, never red (red marks the open analysis and findings). */
 export type ToolAccent = 'steel' | 'teal' | 'ochre';
 
-/** Glyphs of the tools: the audit log (clipboard checked), the ledger (balance of debit and credit) and the reconciliation (two sides meeting). */
-export type ModuleIcon = 'auditLog' | 'ledger' | 'reconcile';
+/**
+ * Glyphs of the tools: the audit log (clipboard checked), the ledger (balance of debit and credit), the reconciliation
+ * (two sides meeting) and the chart of accounts (a hierarchy).
+ */
+export type ModuleIcon = 'auditLog' | 'ledger' | 'reconcile' | 'accounts';
 
 /**
  * Files the module takes: by extension (lower case), or any file, decided by its content (the Protheus spool has no

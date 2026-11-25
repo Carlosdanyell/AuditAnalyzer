@@ -98,6 +98,14 @@
           <li><a href="#rec-planilha">A planilha exportada</a></li>
           <li><a href="#rec-limites">Limites</a></li>
         </ol>
+        <p class="group">Plano de contas (prévia)</p>
+        <ol>
+          <li><a href="#pc-para-que-serve">Para que serve</a></li>
+          <li><a href="#pc-arquivo">O arquivo</a></li>
+          <li><a href="#pc-validacoes">Erros e alertas</a></li>
+          <li><a href="#pc-planilha">A planilha</a></li>
+          <li><a href="#pc-limites">Limites</a></li>
+        </ol>
         <ul>
           <li><a href="#privacidade">Privacidade e cópias</a></li>
         </ul>
@@ -115,6 +123,7 @@
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
               <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
               <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040, TXT) e razão analítico (CTBR400, TXT ou XML) do Protheus, com o perfil de contas importado na Configuração</td><td>Prévia</td></tr>
+              <tr><td><a href="#chartOfAccounts">Plano de contas</a></td><td>CSV do plano de contas exportado do Protheus (tabelas CT1 e CVD)</td><td>Prévia</td></tr>
             </tbody>
           </table>
           <ul>
@@ -481,6 +490,55 @@
             <li>Só as contas com o <strong>razão original</strong> carregado são analisadas; as demais contas do perfil precisam do razão delas.</li>
             <li>O razão em <code>.xlsx</code> não é lido: use o TXT do spool ou o XML. A cópia do razão colada num papel de trabalho não é um formato de tela.</li>
             <li>A ferramenta aponta diferenças e indícios; a causa e a conclusão são do contador.</li>
+          </ul>
+        </section>
+        </div>
+
+        <div id="chartOfAccounts">
+        <p class="group">Plano de contas (prévia)</p>
+        <section id="pc-para-que-serve">
+          <h2>1. Para que serve</h2>
+          <p>
+            Lê o CSV do <strong>plano de contas</strong> exportado do Protheus (tabela CT1, com o vínculo ao plano referencial do SPED ECD da tabela
+            CVD), confere a integridade do arquivo e gera a planilha <strong>Doc-01-Plano de Contas</strong>: uma linha por conta, na ordem do arquivo,
+            com as contas sintéticas destacadas, a descrição recuada pelo nível e a estrutura agrupada por nível (botões +/- à esquerda).
+          </p>
+        </section>
+
+        <section id="pc-arquivo">
+          <h2>2. O arquivo</h2>
+          <ul>
+            <li>Um único <code>.csv</code> por análise, separado por ponto e vírgula, em ANSI (windows-1252) ou UTF-8; a codificação é detectada e mostrada no Resumo, com o SHA-256 do arquivo.</li>
+            <li>A primeira coluna diz o tipo da linha: <code>0</code> controle (<code>0;CT1;CVD</code>), <code>1</code> CT1, <code>2</code> CVD. Os cabeçalhos são achados pelo conteúdo (CT1_FILIAL ou CVD_FILIAL na segunda coluna) e os campos, pelo nome: a ordem das colunas pode mudar entre versões do Protheus.</li>
+            <li>O <strong>nível</strong> é a profundidade na cadeia de contas superiores (CT1_CTASUP), não o tamanho do código: <code>90001001</code> abaixo de <code>9 → 900 → 90001</code> é nível 4.</li>
+            <li>O período (MM.AAAA) é opcional e informado na <strong>Exportação</strong>, porque o CSV não traz data-base.</li>
+          </ul>
+        </section>
+
+        <section id="pc-validacoes">
+          <h2>3. Erros e alertas</h2>
+          <ul>
+            <li><strong>Erros bloqueantes (E01–E07)</strong> impedem a planilha, sem opção de confirmar: cabeçalho da CT1 ausente, campo usado ausente, conta vazia ou repetida, conta superior inexistente, ciclo na hierarquia, data fora de AAAAMMDD ou inexistente.</li>
+            <li><strong>Alertas (A01–A09)</strong> não impedem: CVD ausente, analítica sem vínculo CVD, sintética com vínculo, CVD de conta inexistente, CVD repetido, conta filha antes da superior, código fora do domínio, sintética com código reduzido, mais de um código de plano referencial.</li>
+            <li>Cada item do Resumo abre a lista das ocorrências, com a conta e a linha do arquivo. Corrija o arquivo no Protheus ou na origem e carregue-o de novo.</li>
+          </ul>
+        </section>
+
+        <section id="pc-planilha">
+          <h2>4. A planilha</h2>
+          <ul>
+            <li>Uma aba, <strong>Doc-01-Plano de Contas</strong> (com o período, se informado), 22 colunas: conta, descrição, nível, tipo, natureza do saldo, conta superior, código reduzido, natureza SPED, situação, datas de bloqueio, dígito, centro de custo, item e classe de valor (Sim/Não), início da existência, conta referencial, conta referencial superior, código do plano e descrição complementar.</li>
+            <li>Códigos de conta e o código reduzido são gravados como texto (zeros à esquerda preservados); as datas, como datas do Excel. Contas bloqueadas têm a situação em vermelho.</li>
+            <li>Valores, sem fórmulas. Nome do arquivo: <code>Plano_de_Contas_&lt;nome do CSV&gt;[_MM.AAAA].xlsx</code>.</li>
+          </ul>
+        </section>
+
+        <section id="pc-limites">
+          <h2>5. Limites</h2>
+          <ul>
+            <li>Nesta prévia falta a conferência da planilha gerada com a planilha de referência a partir do arquivo real.</li>
+            <li>Os textos dos códigos (tipo, natureza, situação, Sim/Não e natureza SPED) vêm da configuração padrão do módulo; não há tela de Configuração para ele.</li>
+            <li><strong>Nova análise</strong> descarta os dados lidos; troque o arquivo da lista e analise de novo. Nada do plano fica salvo no navegador.</li>
           </ul>
         </section>
         </div>

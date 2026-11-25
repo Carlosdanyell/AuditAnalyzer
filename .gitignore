@@ -3,6 +3,9 @@ dist/
 /local/
 *.xlsx
 !tests/synthetic/**/*.xlsx
+# Real exports of the Protheus (chart of accounts and others) never enter the repository.
+*.csv
+!tests/synthetic/**/*.csv
 .env*
 .DS_Store
 coverage/
