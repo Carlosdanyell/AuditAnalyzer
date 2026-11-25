@@ -14,7 +14,7 @@ describe('tool cards', () => {
     const html = render();
     expect(html).toMatch(/<button[^>]*aria-label="Log de auditoria \(CFGR700\)"/);
     expect(html).toMatch(/<button[^>]*aria-label="Integridade da CT2"/);
-    expect(html).toContain('Relatório CFGR700 do Protheus (tabela CT2), em .xlsx');
+    expect(html).toContain('Relatório CFGR700 da CT2 · .xlsx');
     expect(html).toMatch(/<button[^>]*aria-label="Conciliador"/);
     // Only the Conciliador is in preview (Phase 15); a tool in preview gets the mark.
     expect(html.match(/>Prévia</g)).toHaveLength(1);
@@ -34,6 +34,27 @@ describe('tool cards', () => {
     }
     // The call to open the tool is visible on every card (the button over the card carries the name).
     expect(html.match(/>Abrir</g)).toHaveLength(MODULES.length);
+    // Short texts on the card (25/11/2026): one sentence, short highlights and a compact format line.
+    for (const m of MODULES) {
+      expect(m.description.length, m.id).toBeLessThanOrEqual(100);
+      expect(m.input.length, m.id).toBeLessThanOrEqual(70);
+      for (const h of m.highlights) expect(h.length, h).toBeLessThanOrEqual(48);
+    }
+  });
+
+  it('gives each tool its accent from the descriptor (steel when absent), never by comparing ids', () => {
+    const html = render();
+    expect(html).toContain('data-accent="steel"');
+    expect(html).toContain('data-accent="teal"');
+    expect(html).toContain('data-accent="ochre"');
+    const plain = render({
+      modules: MODULES.map((m) => {
+        const copy = { ...m };
+        delete copy.accent;
+        return copy;
+      }),
+    });
+    expect(plain.match(/data-accent="steel"/g)).toHaveLength(MODULES.length);
   });
 
   it('links each tool to its section of the manual', () => {

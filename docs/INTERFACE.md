@@ -32,7 +32,7 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 - Thread principal abaixo de 150 MB e sem travar: nada de processamento pesado na tela.
 - Nenhum dado do log em `localStorage`, `sessionStorage`, Cache Storage ou service worker. IndexedDB só para
   configuração e justificativas (as preferências de tema claro/escuro e da última análise usada ficam no mesmo store
-  `config`, chaves `uiTheme` e `lastModule`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
+  `config`, chaves `uiTheme` e `lastModule`, e a densidade das tabelas, chave `uiTableDensity`; as chaves da configuração estão em `docs/ARQUITETURA.md`, seção 6).
 - Textos em português; fontes do próprio app (`src/assets/fonts`, SIL OFL): Sora nos títulos, Geist no texto e
   Geist Mono nos números e códigos, com `Aptos, "Segoe UI", system-ui` de reserva; nada é baixado de fora.
 - Aviso permanente: "Os arquivos são processados neste computador e não são enviados para nenhum servidor."
@@ -41,11 +41,14 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
 
 0. **Início da plataforma — Ferramentas** (`docs/MODULOS.md`, seção 4) — um cartão por ferramenta, lado a lado (um
    por linha em tela estreita): o ícone da ferramenta (traço branco sobre azul-marinho, com o ponto vermelho da marca),
-   o código curto, as marcas de situação, o título, a descrição, dois ou três destaques do que ela responde (`highlights`
-   do descritor), o arquivo esperado ("Lê …"), o link "Manual desta análise" e o botão visual "Abrir"; o cartão inteiro
+   o código curto, as marcas de situação (discretas, contornadas), o título, a descrição (uma frase), dois ou três
+   destaques curtos do que ela responde (`highlights` do descritor), o arquivo esperado numa linha compacta ("Lê …"),
+   o link "Manual desta análise" e o botão visual "Abrir"; três cartões lado a lado em tela larga, um por linha a 390 px;
+   cada ferramenta tem um acento discreto (faixa superior, código e tiques dos destaques) vindo do descritor (`accent`,
+   cores `--tool-*`, nunca vermelho; padrão steel), sem comparar ids de módulo; o cartão inteiro
    é um botão com o título da ferramenta e abre o espaço de trabalho dela (a área de arquivos só existe ali). O
    cartão sobe levemente ao passar o mouse (sem movimento com `prefers-reduced-motion`); o da análise aberta tem a borda
-   azul e a faixa superior vermelha. A última usada (`lastModule`,
+   azul e a faixa superior vermelha (no lugar do acento). A última usada (`lastModule`,
    gravada ao Analisar) tem a marca "Última usada"; a ferramenta com análise carregada tem "Análise aberta" e
    "Voltar à análise". Ferramenta "Em breve" não abre; em prévia tem o selo "Prévia" e o aviso do
    que já faz, no espaço de trabalho e na reconciliação. Voltar às Ferramentas mantém a análise; abrir outra
@@ -132,14 +135,23 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    lote <lote>" (painel lateral). Depois, documentos desbalanceados (com a compensação) e os maiores documentos. A
    severidade vem da configuração: teste elevado a Erro ou Alerta passa ao grupo de exceções.
 4b. **Barra de filtros da CT2** (`Ct2FilterBar.tsx`; região "Filtros", fixa em Painel, Achados e Tabelas, com o estado
-   em `Ct2Workspace`) — combobox "Segmento" (só com mais de um segmento), grupo "Origem do documento" com botões de
-   alternância Automático, Manual, Misto e Não identificado (seleção múltipla), combobox "Rotina", campos "Lote" e
-   "Sub-lote" com o botão "Filtrar o lote" e campo "Dia". Cada filtro ativo é um chip com o botão "Remover filtro
-   Segmento|Origem|Rotina|Lote|Dia"; "Limpar filtros" tira todos. Clicar num número ou gráfico cria o filtro. Chip que
-   não vale para a tabela aberta (origem e rotina em Lotes e Dias; lote em Dias) fica esmaecido, com a dica "não se
-   aplica a esta tabela", e é ignorado nela. Semântica: a linha passa quando seu bloco está no segmento, dia e lote, o
-   documento tem origem escolhida e a rotina da linha é a escolhida; documento, lote ou dia passa se ao menos uma de
-   suas linhas passa. Todo número do Painel e de Achados é igual ao total da tabela aberta com o mesmo filtro.
+   em `Ct2Workspace`; desde 25/11/2026) — uma linha compacta: o botão **"Filtros"** (com o número de filtros ativos;
+   `aria-expanded`), os chips dos filtros ativos (ou "Nenhum filtro: tudo o que foi lido."), "Limpar filtros" e, só em
+   Tabelas, a busca da tabela (campo "Buscar", que fica ao trocar de tabela). O botão abre, abaixo da linha, o painel
+   de filtros em três grupos: **Datas e segmento** (combobox "Segmento", só com mais de um segmento; "Período: de" e
+   "até"; "Dia"), **Origem e rotina** (grupo "Origem do documento" com botões de alternância Automático, Manual, Misto
+   e Não identificado, seleção múltipla; combobox "Rotina") e **Lote, conta e valor** ("Lote", "Sub-lote", "Conta
+   (débito ou crédito)" com a caixa "Começa com", "Valor mínimo (R$)" e "Valor máximo (R$)"). Escolhas (segmento,
+   datas, origem, rotina) valem na hora; os campos digitados valem com Enter ou **"Aplicar"** (valor em formato
+   diferente de 1.234,56, ou mínimo maior que o máximo, mostra o erro com o nome do campo e nada muda). **Esc** fecha o painel (e "Fechar") e o foco
+   volta ao botão "Filtros"; ao abrir, o foco vai ao primeiro campo. Cada filtro ativo é um chip com o botão "Remover
+   filtro Segmento|Origem|Rotina|Lote|Dia|Período|Conta|Valor"; "Limpar filtros" tira todos. Clicar num número ou
+   gráfico cria o filtro. Chip que não vale para a tabela aberta (origem, rotina, conta e valor em Lotes e Dias; lote
+   em Dias) fica esmaecido, com a dica "não se aplica a esta tabela", e é ignorado nela. Semântica e aplicabilidade na
+   seção 9 de `docs/REGRAS_CT2_INTEGRIDADE.md`: a linha passa quando seu bloco está no segmento, dia, período e lote, o
+   documento tem origem escolhida e a rotina, a conta e o valor da linha são os escolhidos; documento, lote ou dia passa
+   se ao menos uma de suas linhas passa. Todo número do Painel e de Achados é igual ao total da tabela aberta com o
+   mesmo filtro.
 4c. **Painel lateral do documento** (`Ct2DocumentPanel.tsx`; comando `document`) — diálogo (`role="dialog"`) com o
    nome "Documento <doc> · lote <lote>/<sub> · dd/mm/aaaa", foco preso, **Esc** fecha e o foco volta a quem o abriu.
    Cabeçalho com chave, origem, rotinas, débito e crédito por segmento e situação de B1/B4; linhas com marca discreta
@@ -147,7 +159,13 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    "Valor". Botões "Ver na Base" (abre Tabelas › Base filtrada pelo documento) e "Fechar o documento". Abre por
    clique ou Enter numa linha de Documentos, Exceções ou Base, e pelos botões de Painel e Achados.
 5. **Tabelas** (`page`) — tabela, busca, ordenação, filtros vindos do painel, paginação e rolagem virtualizada;
-   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). A tabela "Tipo de
+   colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). Desde 25/11/2026
+   (`TablesView`, comum a todos os módulos): cabeçalho fixo; números, valores e datas à direita em Geist Mono com
+   algarismos tabulares; separadores leves e zebra discreta; uma linha de resumo acima da tabela com "N linha(s)" e,
+   na CT2, os filtros em vigor ("filtrado por …", a busca); o grupo "Densidade das linhas" (Confortável | Compacta,
+   lembrada no computador, chave `uiTableDensity`); o botão **"Colunas"** (lista para mostrar ou ocultar colunas na
+   tela, nesta sessão; Esc fecha; a exportação não muda); texto longo (histórico) cortado, inteiro ao passar o mouse e
+   com o foco na linha; estado vazio "Nenhuma linha com esses filtros." com a dica do módulo. A tabela "Tipo de
    saldo" (`segregation`) tem uma linha por evento; o filtro do painel mostra também fase, operação, exceção,
    informativo ou marcação, e "Remover filtro do painel" tira todos eles. Integridade da CT2: Documentos (com "Origem
    do documento"), Lotes (com "Documentos manuais" e "Documentos mistos"), Dias, Exceções e Base, todas com a barra
@@ -247,8 +265,9 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   computador."; e a Exportação, cujo download tem o Resumo com "Confere" em toda conta no avaliador), a análise
   da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
   trilha "Reconciliação", "Painel", "Achados", "Tabelas" e "Exportação"; título "Matriz de amarração" (Reconciliação);
-  região "Filtros", combobox "Segmento", botões "Remover filtro Segmento|Rotina" e "Limpar filtros", a dica "não se
-  aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
+  região "Filtros" com o botão "Filtros" (abre o painel; aria-expanded), combobox "Segmento", campos "Conta (débito ou
+  crédito)" e "Valor mínimo (R$)", botão "Aplicar", botões "Remover filtro Segmento|Rotina|Conta|Valor" e "Limpar
+  filtros", a dica "não se aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
   "Documentos: N", "Lotes com intervenção manual: N"; títulos "Por rotina" e "Exceções — Erro e Alerta", botões "B1: N
   documentos", "Reaplicar os testes" e "Remover filtro do painel"; e, no painel lateral, o diálogo "Documento …", "Ver
   na Base" e "Fechar o documento". Esses nomes não mudam sem atualizar o teste. Cada teste também reprova

@@ -29,7 +29,12 @@ interface ModuleTexts {
   icon: ModuleIcon;
   /** Two or three short lines on the card: what the tool answers best. */
   highlights: readonly string[];
+  /** Subtle accent of the card (a token of the platform palette, global.css `--tool-<accent>`); default steel. */
+  accent?: ToolAccent;
 }
+
+/** Accents of the tool cards: colours of the platform, never red (red marks the open analysis and findings). */
+export type ToolAccent = 'steel' | 'teal' | 'ochre';
 
 /** Glyphs of the tools: the audit log (clipboard checked), the ledger (balance of debit and credit) and the reconciliation (two sides meeting). */
 export type ModuleIcon = 'auditLog' | 'ledger' | 'reconcile';

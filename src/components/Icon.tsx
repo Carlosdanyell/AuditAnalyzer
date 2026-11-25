@@ -56,6 +56,9 @@ const PATHS = {
   copy: ['M9 11a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2z', 'M5 15a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2'],
   flag: ['M5 21V4', 'M5 4h12l-2.5 4 2.5 4H5'],
   filter: ['M3.5 5h17l-6.5 8v6l-4 1.5V13z'],
+  columns: ['M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z', 'M9.5 4v16M14.5 4v16'],
+  rowsComfortable: ['M4 6h16M4 12h16M4 18h16'],
+  rowsCompact: ['M4 5h16M4 9.5h16M4 14h16M4 18.5h16'],
   pen: ['M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z', 'M13.5 6.5l4 4'],
   // Glyphs of the tools on the start of the platform (ModuleIcon).
   auditLog: [

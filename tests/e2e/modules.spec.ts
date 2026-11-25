@@ -172,6 +172,8 @@ test('Integridade da CT2: achados por segmento, cada número abre a tabela com e
 
   // One segment (the common filter): every number of the Achados follows it.
   await nav.getByRole('button', { name: 'Achados' }).click();
+  // The fields of the filter are in the panel opened by the "Filtros" button of the bar.
+  await page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ }).click();
   await page.getByRole('combobox', { name: 'Segmento', exact: true }).selectOption({ label: 'Saldo 1 · Moeda 02' });
   await expect(page.getByRole('button', { name: 'E4: 2 linhas' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^B1:/ })).toHaveCount(0);
@@ -239,6 +241,27 @@ test('Integridade da CT2: painel da composição; clique numa rotina filtra, o c
   await nav.getByRole('button', { name: 'Painel' }).click();
   await page.getByRole('button', { name: /^\d{2}\/\d{2}\/\d{4}: [\d.]+ linhas?/ }).first().click();
   await expect(page.getByRole('button', { name: 'Remover filtro Dia' })).toBeVisible();
+
+  // The filter panel (25/11/2026): account by prefix and a minimum value, applied together; Esc closes the panel and
+  // gives the focus back to its button; the Base follows (two lines of 50,00 or more with an account starting 211).
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  const filters = page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ });
+  await filters.click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'true');
+  await page.getByLabel('Conta (débito ou crédito)').fill('211');
+  await page.getByLabel('Valor mínimo (R$)').fill('50,00');
+  await page.getByRole('button', { name: 'Aplicar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remover filtro Conta' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Filtros' }).locator('span', { has: page.getByRole('button', { name: 'Remover filtro Valor' }) })).toContainText('a partir de 50,00');
+  await page.keyboard.press('Escape');
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await expect(filters).toBeFocused();
+  await nav.getByRole('button', { name: 'Tabelas' }).click();
+  await tables.getByRole('button', { name: 'Base' }).click();
+  await expect(page.getByText('2 linha(s)', { exact: true })).toBeVisible();
+  // Account and value look at the lines: the Lotes table ignores them and dims their chips.
+  await tables.getByRole('button', { name: 'Lotes' }).click();
+  await expect(page.getByText('não se aplica a esta tabela')).toHaveCount(2);
 });
 
 test('Integridade da CT2: achados com os grupos do quadro; cada ocorrência abre o painel lateral do documento', async ({ page, ct2Files }) => {

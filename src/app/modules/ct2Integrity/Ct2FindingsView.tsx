@@ -12,6 +12,7 @@ import { formatCents, formatDay, formatInteger } from '../../../shared/format';
 import { CT2_TEST_INFO, type Ct2Filter, type Ct2PanelData, type Ct2RunParameters, type Ct2TableFilter, type Ct2TableId } from '../../../shared/modules/ct2Integrity';
 import type { Cell } from '../../../shared/protocol';
 import type { WorkerClient } from '../../workerClient';
+import { More } from './Ct2OverviewView';
 import { Ct2Parameters } from './Ct2Parameters';
 import { withFilter } from './filters';
 import { findingsLayout, occurrencesName, occurrencesText, type BoardRow, type FindingsGroup } from './findingsLayout';
@@ -201,7 +202,7 @@ export function Ct2FindingsView({ client, filter, onFilter, onOpenTable, onOpenD
             Mostrados os {n(data.unbalanced.rows.length)} primeiros de {n(data.unbalanced.total)}.
           </p>
         )}
-        <p className={ui.note}>A compensação pelo documento vizinho do lote é um indício, não a prova da causa.</p>
+        <More>A compensação pelo documento vizinho do lote (B4) é um indício, não a prova da causa.</More>
       </section>
 
       <section className={ui.card} aria-labelledby="ct2-largest">

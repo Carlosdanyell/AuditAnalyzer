@@ -1,35 +1,40 @@
-/* Start of the platform: one card per tool, side by side; the glyph tile carries the brand (navy with the red tick). */
+/*
+ * Start of the platform: one card per tool, three side by side on a wide screen, one per line on a phone. The glyph
+ * tile carries the brand (navy with the red tick); each tool has a quiet accent of its own (descriptor `accent`) on
+ * the top band, the code and the ticks of its highlights. Red stays for the tool whose analysis is open.
+ */
 .home {
   display: grid;
   gap: 18px;
-  max-width: 1180px;
+  max-width: 1280px;
 }
 
 .lead {
   margin: 0;
-  max-width: 72ch;
+  max-width: 68ch;
   color: var(--text-muted);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-/* The whole card opens the tool through a button stretched over it; the manual link stays above it. */
 .card {
+  --tool: var(--tool-steel);
+
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 22px 22px 18px;
+  gap: 16px;
+  padding: 20px 20px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   transition:
     transform 160ms var(--ease),
@@ -37,19 +42,26 @@
     border-color 160ms var(--ease);
 }
 
-/* A thin band of the brand at the top, red only on the tool whose analysis is open. */
+.card[data-accent='teal'] {
+  --tool: var(--tool-teal);
+}
+
+.card[data-accent='ochre'] {
+  --tool: var(--tool-ochre);
+}
+
+/* A thin band of the tool's accent at the top; red only on the tool whose analysis is open. */
 .card::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
-  background: var(--rail-bg);
-  opacity: 0.85;
+  background: var(--tool);
 }
 
 .card:hover:not(.soon) {
   transform: translateY(-2px);
-  border-color: var(--accent-soft-strong);
+  border-color: color-mix(in srgb, var(--tool) 45%, var(--border));
   box-shadow: var(--shadow-lg);
 }
 
@@ -64,7 +76,6 @@
 
 .open::before {
   background: var(--signal);
-  opacity: 1;
 }
 
 .soon {
@@ -77,6 +88,7 @@
   display: none;
 }
 
+/* The whole card opens the tool through a button stretched over it; the manual link stays above it. */
 .hit {
   position: absolute;
   inset: 0;
@@ -95,8 +107,9 @@
 
 .head {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 /* Glyph of the tool: white strokes on navy, with the red tick of the logo in the corner. */
@@ -105,23 +118,21 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 54px;
-  height: 54px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   color: #ffffff;
-  background:
-    radial-gradient(120% 120% at 0% 0%, rgb(255 255 255 / 16%), transparent 55%),
-    linear-gradient(145deg, #1a3a5e, var(--rail-bg));
+  background: linear-gradient(145deg, #1a3a5e, var(--rail-bg));
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
 .tile::after {
   content: '';
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 7px;
-  height: 7px;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--signal);
   box-shadow: 0 0 0 2px var(--rail-bg);
@@ -139,44 +150,70 @@
 
 .meta {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   min-width: 0;
 }
 
 .code {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
+  letter-spacing: 0.06em;
+  color: var(--tool);
 }
 
 .soon .code {
   color: var(--text-subtle);
-  background: var(--surface-sunken);
 }
 
 .pills {
   display: inline-flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* State marks: small and quiet, outlined; filled only for the open analysis. */
+.pill {
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pillPreview {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+.pillOpen {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.text {
+  display: grid;
   gap: 6px;
 }
 
 .title {
-  margin: 4px 0 0;
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 .description {
   margin: 0;
+  max-width: 46ch;
   color: var(--text-muted);
   font-size: 13.5px;
   line-height: 1.5;
@@ -184,42 +221,36 @@
 
 .highlights {
   display: grid;
-  gap: 7px;
-  margin: 2px 0 0;
-  padding: 12px 0 0;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border);
 }
 
 .highlights li {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
-  font-size: 13.5px;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .highlights svg {
   flex: none;
   margin-top: 2px;
-  padding: 2px;
-  box-sizing: content-box;
-  border-radius: 50%;
-  color: var(--ok);
-  background: var(--ok-soft);
+  color: var(--tool);
 }
 
 .soon .highlights svg {
   color: var(--text-subtle);
-  background: var(--surface-sunken);
 }
 
+/* What the tool reads: one compact format line. */
 .input {
   display: flex;
-  gap: 9px;
-  margin: 2px 0 0;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--surface-muted);
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
   font-size: 12.5px;
   color: var(--text-muted);
 }
@@ -230,7 +261,7 @@
   color: var(--text-subtle);
 }
 
-.input strong {
+.inputLabel {
   color: var(--text);
   font-weight: 600;
 }
@@ -242,24 +273,31 @@
   align-items: center;
   gap: 12px;
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .go {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 13.5px;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-soft-strong);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 13px;
   font-weight: 600;
-  transition: background-color 140ms var(--ease);
+  transition:
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease);
 }
 
-.card:hover .go {
-  background: var(--accent-hover);
+.card:hover .go,
+.open .go {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .go svg {
@@ -287,6 +325,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .card,
+  .go,
   .go svg {
     transition: none;
   }
@@ -294,14 +333,19 @@
   .card:hover:not(.soon) {
     transform: none;
   }
+
+  .card:hover .go svg {
+    transform: none;
+  }
 }
 
 @media (width < 600px) {
   .card {
-    padding: 18px 16px 16px;
+    padding: 18px 16px 14px;
+    gap: 14px;
   }
 
   .title {
-    font-size: 17.5px;
+    font-size: 17px;
   }
 }

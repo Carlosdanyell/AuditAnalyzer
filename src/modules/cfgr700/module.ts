@@ -23,14 +23,11 @@ export const cfgr700Module: AvailableModule<AnalyzerConfig> = {
   id: 'cfgr700',
   title: 'Log de auditoria (CFGR700)',
   shortTitle: 'CFGR700',
-  description: 'Exclusões, alterações, desbalanceamentos e postagens dos lançamentos contábeis, por período e origem.',
-  input: 'Relatório CFGR700 do Protheus (tabela CT2), em .xlsx',
+  description: 'Exclusões, alterações e postagens dos lançamentos, por período e origem.',
+  input: 'Relatório CFGR700 da CT2 · .xlsx',
   icon: 'auditLog',
-  highlights: [
-    'Exclusões, alterações e postagens por período e origem',
-    'Segregação de funções e justificativas com cobertura',
-    'Reconciliação de linhas e eventos com 15 invariantes',
-  ],
+  highlights: ['Desbalanceados e postagens por período', 'Segregação de funções e justificativas', 'Linhas e eventos reconciliados'],
+  accent: 'steel',
   brandSubtitle: 'CFGR700 · Protheus',
   preview: null,
   start: {

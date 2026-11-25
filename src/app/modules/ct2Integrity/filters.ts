@@ -3,14 +3,24 @@
  * removing a filter, the chips of the filter bar and whether each one applies to the table on screen. The state lives in
  * Ct2Workspace; the worker evaluates the filter (src/worker/modules/ct2Integrity/filter.ts).
  */
-import { formatDay } from '../../../shared/format';
+import { formatCents, formatDay, inputToDay } from '../../../shared/format';
+import { centsFromBrText } from '../../../shared/money';
 import { CT2_FILTER_APPLIES, CT2_ORIGINS, CT2_ORIGIN_LABEL, type Ct2Filter, type Ct2Origin, type Ct2TableFilter, type Ct2TableId } from '../../../shared/modules/ct2Integrity';
 
 export type Ct2FilterKey = keyof Ct2Filter;
 /** The keys of the common filter, in the order of the bar. */
-export const CT2_FILTER_KEYS: readonly Ct2FilterKey[] = ['segment', 'origins', 'routine', 'batch', 'day'];
+export const CT2_FILTER_KEYS: readonly Ct2FilterKey[] = ['segment', 'origins', 'routine', 'batch', 'day', 'dates', 'account', 'amount'];
 
-export const FILTER_LABEL: Record<Ct2FilterKey, string> = { segment: 'Segmento', origins: 'Origem', routine: 'Rotina', batch: 'Lote', day: 'Dia' };
+export const FILTER_LABEL: Record<Ct2FilterKey, string> = {
+  segment: 'Segmento',
+  origins: 'Origem',
+  routine: 'Rotina',
+  batch: 'Lote',
+  day: 'Dia',
+  dates: 'Período',
+  account: 'Conta',
+  amount: 'Valor',
+};
 /** Hint of a chip whose filter the table on screen ignores. */
 export const NOT_APPLICABLE = 'não se aplica a esta tabela';
 
@@ -46,6 +56,54 @@ export function ownOf(filter: Ct2TableFilter): Ct2TableFilter {
 
 export const isEmptyFilter = (filter: Ct2Filter) => CT2_FILTER_KEYS.every((k) => filter[k] === undefined);
 
+/** Number of active filters (the count on the "Filtros" button). */
+export const activeFilters = (filter: Ct2Filter) => CT2_FILTER_KEYS.filter((k) => filter[k] !== undefined).length;
+
+/**
+ * Whether the filter looks at the lines one by one (origin, routine, account, value): Lotes and Dias ignore those, and
+ * batch- and day-level findings leave the counts (docs/REGRAS_CT2_INTEGRIDADE.md, section 9).
+ */
+export const isLineLevel = (filter: Ct2Filter) => filter.origins !== undefined || filter.routine !== undefined || filter.account !== undefined || filter.amount !== undefined;
+
+/** Period from two date fields (aaaa-mm-dd); undefined when both are empty. */
+export function periodFrom(fromInput: string, toInput: string): Ct2Filter['dates'] {
+  const from = fromInput ? inputToDay(fromInput) : null;
+  const to = toInput ? inputToDay(toInput) : null;
+  if (from === null && to === null) return undefined;
+  return { ...(from !== null && { from }), ...(to !== null && { to }) };
+}
+
+/** Account from its field: the code trimmed; undefined when empty. */
+export function accountFrom(text: string, prefix: boolean): Ct2Filter['account'] {
+  const code = text.trim();
+  return code === '' ? undefined : { code, prefix };
+}
+
+/**
+ * Value range from two pt-BR fields ("1.234,56") in integer cents (shared/money, never parseFloat); an empty field is
+ * an open end; a field in another format is an error naming it, and then no range.
+ */
+export function amountFrom(minText: string, maxText: string): { amount: Ct2Filter['amount']; error: string | null } {
+  const read = (text: string, name: string): number | undefined | string => {
+    if (text.trim() === '') return undefined;
+    const cents = centsFromBrText(text);
+    return Number.isNaN(cents) ? `${name}: use o formato 1.234,56.` : cents;
+  };
+  const min = read(minText, 'Valor mínimo');
+  const max = read(maxText, 'Valor máximo');
+  if (typeof min === 'string') return { amount: undefined, error: min };
+  if (typeof max === 'string') return { amount: undefined, error: max };
+  if (min === undefined && max === undefined) return { amount: undefined, error: null };
+  if (min !== undefined && max !== undefined && min > max) return { amount: undefined, error: 'O valor mínimo é maior que o máximo.' };
+  return { amount: { ...(min !== undefined && { min }), ...(max !== undefined && { max }) }, error: null };
+}
+
+/** "de A a B", "a partir de A" or "até B". */
+function rangeText(low: string | null, high: string | null, between: string): string {
+  if (low !== null && high !== null) return `${between}${low} a ${high}`;
+  return low !== null ? `a partir de ${low}` : `até ${high}`;
+}
+
 export interface FilterChip {
   key: Ct2FilterKey;
   label: string;
@@ -64,6 +122,9 @@ export function filterChips(filter: Ct2Filter, segmentLabels: readonly string[],
     routine: () => filter.routine || '(vazio)',
     batch: () => `${filter.batch!.batch || '(vazio)'} / sub-lote ${filter.batch!.subBatch || '(vazio)'}`,
     day: () => formatDay(filter.day!),
+    dates: () => rangeText(filter.dates!.from === undefined ? null : formatDay(filter.dates!.from), filter.dates!.to === undefined ? null : formatDay(filter.dates!.to), ''),
+    account: () => (filter.account!.prefix ? `começa com ${filter.account!.code}` : filter.account!.code),
+    amount: () => rangeText(filter.amount!.min === undefined ? null : formatCents(filter.amount!.min), filter.amount!.max === undefined ? null : formatCents(filter.amount!.max), 'de '),
   };
   return CT2_FILTER_KEYS.filter((key) => filter[key] !== undefined).map((key) => ({
     key,

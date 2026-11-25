@@ -21,14 +21,11 @@ export const reconciliationModule: AvailableModule<ReconciliationConfig> = {
   id: 'reconciliation',
   title: 'Conciliador',
   shortTitle: 'CONC',
-  description: 'Confronta os relatórios de origem com o razão contábil, conta a conta, e explica cada diferença pela movimentação da conta.',
-  input: 'Folha de pagamento (GPER040) e razão analítico (CTBR400) do Protheus, no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração',
+  description: 'Confronta a folha com o razão, conta a conta, e explica cada diferença.',
+  input: 'Folha GPER040 e razão CTBR400 · TXT ou XML',
   icon: 'reconcile',
-  highlights: [
-    'Esperado de cada conta calculado pela folha, verba a verba',
-    'Integração conferida por verba e filial com o razão',
-    'Qualquer diferença sinalizada, a partir de R$ 0,01',
-  ],
+  highlights: ['Esperado de cada conta pela folha', 'Integração conferida por verba e filial', 'Diferença sinalizada a partir de R$ 0,01'],
+  accent: 'ochre',
   brandSubtitle: 'Conciliador · Protheus',
   preview:
     'Prévia: o Conciliador está em construção. Já lê a folha (GPER040) e o razão (CTBR400) em TXT ou XML, reconcilia a leitura, concilia as contas do perfil com a ponte de cada uma, guarda as justificativas e exporta o papel de trabalho amarrado por fórmulas; as contas de provisão chegam na Fase 16.',

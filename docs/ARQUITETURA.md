@@ -253,6 +253,7 @@ Fase 8 (plataforma de módulos): o banco continua na versão 2; no store `config
 | `reconciliationJustifications` | justificativas do Conciliador (Fase 15, etapa 5; `src/app/reconciliationJustificationStore.ts`): `{ schemaVersion: 1, items }`, uma por competência e conta (chave `AAAAMM\|conta`), com o texto livre, a situação do papel de trabalho escolhida pelo usuário entre as `workpaperStatuses` do perfil (ou `null`) e a data da alteração. Fica no store `config`, separada das justificativas do CFGR700 (store `justifications`, chaves de documento do log); valor ilegível é ignorado na leitura e não entra na cópia de segurança (ainda) |
 | `lastModule` | última análise usada (`src/app/moduleStore.ts`) |
 | `uiTheme`, `panelSettings` (antiga, migrada e apagada), metadados das justificativas | como antes |
+| `uiTableDensity` | densidade das tabelas na tela, `comfortable` (padrão) ou `compact` (`src/app/densityStore.ts`, 25/11/2026); valor desconhecido = padrão; nunca dados da tabela |
 
 `src/shared/configStorage.ts` decide, como função pura (`planConfigLoad`), o que ler e gravar; `configStore.ts` aplica
 numa única transação. Regras: na primeira abertura depois da 1.0.0, a chave antiga é copiada para a do módulo e os

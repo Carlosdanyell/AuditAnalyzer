@@ -13,7 +13,7 @@ import { CT2_ORIGINS, CT2_ORIGIN_LABEL, type Ct2Filter, type Ct2Overview, type C
 import type { WorkerClient } from '../../workerClient';
 import { ChartSwitch, DayColumns, OriginLegend, RoutineBars } from './Ct2Charts';
 import { DEBIT_UNAVAILABLE, dayColumns, manualShare, measureText, routineBars, valueSegment, type DayMeasure, type RoutineMeasure } from './charts';
-import { withFilter } from './filters';
+import { isLineLevel, withFilter } from './filters';
 import styles from './Ct2Screens.module.css';
 
 const n = formatInteger;
@@ -59,8 +59,8 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
   const segment = valueSegment(data, filter.segment);
   const label = (s: number) => data.segments.find((x) => x.index === s)?.label ?? '';
   const { counts } = data;
-  // Lotes ignores the origin and routine filters (CT2_FILTER_APPLIES): its total equals the count only without them.
-  const batchesOpen = filter.origins === undefined && filter.routine === undefined;
+  // Lotes ignores the line-level filters (CT2_FILTER_APPLIES): its total equals the count only without them.
+  const batchesOpen = !isLineLevel(filter);
   const effectiveRoutine = segment === null && routineMeasure === 'debit' ? 'lines' : routineMeasure;
   const effectiveDay = segment === null && dayMeasure === 'debit' ? 'lines' : dayMeasure;
   const bars = routineBars(data, effectiveRoutine, segment);
@@ -77,8 +77,8 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
           Composição da extração
         </h2>
         <dl className={styles.stats}>
-          <Stat label="Lançamentos (linhas com valor)" value={n(counts.entries)} />
-          <Stat label="Linhas de continuação de histórico" value={n(counts.historyLines)} />
+          <Stat label="Lançamentos" value={n(counts.entries)} />
+          <Stat label="Linhas de histórico" value={n(counts.historyLines)} />
           <Stat
             label="Documentos"
             value={n(counts.documents)}
@@ -118,7 +118,7 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
             })}
           </ul>
         </div>
-        <p className={styles.caption}>Valores por tipo de saldo e moeda (nunca somados entre segmentos)</p>
+        <h3 className={styles.subTitle}>Valores por segmento</h3>
         <div className={ui.scroll}>
           <table className={ui.table}>
             <thead>
@@ -143,6 +143,11 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
             </tbody>
           </table>
         </div>
+        <More>
+          Lançamentos são as linhas com valor; linhas de histórico (Cont.Hist) só continuam o texto da linha anterior. Os
+          valores ficam por tipo de saldo e moeda e nunca são somados entre segmentos. Clique num número para abrir a
+          tabela ou aplicar o filtro.
+        </More>
       </section>
 
       <section className={ui.card} aria-labelledby="ct2-routines">
@@ -167,11 +172,11 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
         {debitOption && data.segments.length > 1 && <p className={ui.note}>{debitOption}</p>}
         <OriginLegend />
         {bars.length === 0 ? <p className={ui.muted}>Nenhuma linha com esses filtros.</p> : <RoutineBars bars={bars} selected={filter.routine} onSelect={(r) => onFilter(withFilter(filter, 'routine', r))} />}
-        <p className={ui.note}>
-          Clique numa barra para filtrar pela rotina.
-          {effectiveRoutine === 'documents' && ' Em Documentos, um documento conta em cada rotina em que tem linha: a soma das barras pode passar do total de documentos.'}
-          {effectiveRoutine === 'debit' && segment !== null && ` Débito de ${label(segment)}.`}
-        </p>
+        {effectiveRoutine === 'debit' && segment !== null && <p className={ui.note}>Débito de {label(segment)}.</p>}
+        <More>
+          Clique numa barra para filtrar pela rotina. Em Documentos, um documento conta em cada rotina em que tem linha: a
+          soma das barras pode passar do total de documentos.
+        </More>
       </section>
 
       <section className={ui.card} aria-labelledby="ct2-days">
@@ -199,7 +204,7 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
           </li>
           <li>
             <span className={styles.swatch} data-day="off" aria-hidden="true" />
-            Dia não útil (fim de semana ou feriado da plataforma)
+            Dia não útil
           </li>
         </ul>
         {columns.length === 0 ? (
@@ -207,13 +212,27 @@ export function Ct2OverviewView({ client, filter, onFilter, onOpenTable, onOpenD
         ) : (
           <DayColumns columns={columns} selected={filter.day} onSelect={(d) => onFilter(withFilter(filter, 'day', d))} valueText={(v) => measureText(effectiveDay, v)} />
         )}
-        <p className={ui.note}>Clique numa coluna para filtrar pelo dia.{effectiveDay === 'debit' && segment !== null && ` Débito de ${label(segment)}.`}</p>
+        {effectiveDay === 'debit' && segment !== null && <p className={ui.note}>Débito de {label(segment)}.</p>}
+        <More>Clique numa coluna para filtrar pelo dia. Dia não útil é fim de semana ou feriado da plataforma.</More>
       </section>
 
       <Interventions data={data} filter={filter} onFilter={onFilter} onOpenDocument={onOpenDocument} onOpenTable={batchesOpen ? onOpenTable : null} />
 
       <Profile client={client} filter={filter} refreshKey={refreshKey} />
     </div>
+  );
+}
+
+/** Secondary explanation of a panel, folded under "Saiba mais". */
+export function More({ children }: { children: React.ReactNode }) {
+  return (
+    <details className={styles.more}>
+      <summary>
+        <Icon name="info" size={14} />
+        Saiba mais
+      </summary>
+      <p>{children}</p>
+    </details>
   );
 }
 
@@ -313,7 +332,7 @@ function Interventions({
           Mostrados os {n(rows.length)} primeiros de {n(total)}.
         </p>
       )}
-      <p className={ui.note}>Lote com pelo menos um documento Manual ou Misto. Clique no lote para filtrar; no histórico, para abrir o documento. Débito do segmento de cada lote.</p>
+      <More>Lote com pelo menos um documento Manual ou Misto. Clique no lote para filtrar; no histórico, para abrir o documento. O débito é o do segmento de cada lote.</More>
     </section>
   );
 }
@@ -345,7 +364,7 @@ function Profile({ client, filter, refreshKey }: { client: WorkerClient; filter:
           </span>
           Perfil (P1 e P2)
         </span>
-        <span className={ui.muted}>por rotina, por lançamento padrão e por Lcto Manual?</span>
+        <span className={ui.muted}>rotina, lançamento padrão e Lcto Manual?</span>
       </summary>
       {!data ? (
         <p className={ui.muted}>Carregando o perfil…</p>

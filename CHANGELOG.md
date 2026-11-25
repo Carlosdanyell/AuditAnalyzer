@@ -6,6 +6,20 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [2.5.0] — 2026-11-24
 
+### Tela mais limpa e filtros novos na CT2 (25/11/2026)
+- Início: cartões das ferramentas mais curtos (título, uma frase, destaques curtos, linha "Lê" compacta, marcas de
+  situação discretas, "Abrir"), três lado a lado em tela larga, com um acento próprio de cada ferramenta (`accent` do
+  descritor). Textos dos descritores encurtados.
+- Integridade da CT2: barra de filtros compacta com o botão "Filtros" (contagem dos ativos), os chips e, em Tabelas, a
+  busca; o painel de filtros agrupa os campos e ganha **Período** (de/até), **Conta** (débito ou crédito, exata ou
+  "Começa com") e **Valor** (mínimo e máximo, em centavos a partir do texto pt-BR). Conta e valor olham a linha, como a
+  rotina: Lotes e Dias os ignoram e os achados de lote e de dia saem da contagem. Regras em
+  `docs/REGRAS_CT2_INTEGRIDADE.md`, seção 9.
+- Tabelas: linha de resumo (linhas e filtros em vigor), números em Geist Mono alinhados à direita, zebra mais leve,
+  densidade Confortável/Compacta lembrada no computador (chave `uiTableDensity`), "Colunas" para mostrar ou ocultar
+  colunas na tela, histórico longo inteiro ao passar o mouse ou com o foco na linha, estado vazio mais limpo.
+- Painel e Achados: indicadores em blocos, menos bordas e explicações secundárias em "Saiba mais".
+
 ### Conciliador (prévia): folha de pagamento, Padrão A
 - Terceira análise da plataforma (`reconciliation`): confronta o relatório de origem da folha (GPER040, em TXT do spool)
   com o razão analítico (CTBR400, em TXT ou XML), conta a conta, com o perfil de contas importado na Configuração

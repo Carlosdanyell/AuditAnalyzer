@@ -52,7 +52,8 @@ interface ModuleDescriptor {            // tela e worker
   title: string;                        // "Log de auditoria (CFGR700)", "Integridade da CT2"
   description: string;                  // uma frase no seletor de análises
   icon: 'auditLog' | 'ledger' | 'reconcile';   // ícone do cartão no início (components/Icon)
-  highlights: string[];                 // dois ou três destaques do cartão
+  highlights: string[];                 // dois ou três destaques curtos do cartão
+  accent?: 'steel' | 'teal' | 'ochre';  // acento discreto do cartão (tokens --tool-* da plataforma; padrão steel)
   accepts: { extensions: string[]; maxFiles: number };  // CFGR700 ['.xlsx']; CT2 ['.xlsx', '.xml', '.zip'] (2.3.0)
   detect(headerSample: string[][]): 'match' | 'maybe' | 'no';   // aviso de arquivo trocado, nunca bloqueia sozinho
   configSchema: ZodType;                // schema próprio
@@ -204,19 +205,21 @@ interface ModuleSession {                               // objeto novo a cada in
 
 ## 4. Tela
 
-- **Início da plataforma (Ferramentas):** uma linha por módulo numa lista com colunas (`src/components/ToolHome.tsx`:
-  código curto, título, descrição, arquivo esperado, situação "Prévia"/"Em breve", link para a ajuda); a linha abre o
-  espaço de trabalho do módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
+- **Início da plataforma (Ferramentas):** um cartão por módulo (`src/components/ToolHome.tsx`: ícone, código curto,
+  situação "Prévia"/"Em breve", título, descrição de uma frase, destaques curtos, arquivo esperado numa linha "Lê",
+  link para a ajuda e "Abrir"); o cartão abre o espaço de trabalho do módulo. O acento do cartão vem do descritor
+  (`accent`, uma das cores da plataforma, nunca vermelho), sem comparar ids de módulo. A última usada (chave `lastModule` do store `config`, gravada ao clicar em Analisar) e
   a análise aberta são marcadas na linha. Voltar às Ferramentas mantém a análise; abrir outro módulo a encerra.
 - No espaço de trabalho o fluxo é o mesmo para todos: Arquivos → Processamento → Reconciliação → (visões que o módulo
   oferece). A trilha no topo mostra "Ferramentas › módulo | arquivos"; o trilho à esquerda mostra só as visões
   oferecidas. Com a análise pronta, a faixa de indicadores-chave vem da função do módulo achada pelo descritor em
   `figuresOf` (`src/app/moduleViews.tsx`; contrato `KeyFigures` em `src/app/modules/workspace.ts`).
 - **Uma ferramenta nova na tela** precisa de: código curto (`shortTitle`, 2 a 8 maiúsculas, algarismos ou hífen, para
-  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição e arquivo esperado para a linha
-  do início, a seção do manual (`helpAnchor`), as visões que oferece (`features`) e, com a análise pronta, até sete
-  indicadores-chave (`KeyFigures`). Cores, fontes, logo e componentes são os da plataforma: a ferramenta não traz
-  marca própria.
+  caber no trilho de 100 px; testado em `moduleRegistry.test.ts`), título, descrição (uma frase), destaques e arquivo
+  esperado (curto, em formato de linha) para o cartão do início, a seção do manual (`helpAnchor`), as visões que
+  oferece (`features`) e, com a análise pronta, até sete indicadores-chave (`KeyFigures`). Cores, fontes, logo e
+  componentes são os da plataforma: a ferramenta não traz marca própria (o `accent` só escolhe uma das cores da
+  plataforma).
 - Se `detect` disser `no` para o arquivo solto e outro módulo disser `match`, a tela avisa ("Este arquivo parece ser
   … Trocar de análise?", botão "Mudar para …", que mantém a lista) e deixa seguir. (Fase 9; ver 3.1.)
 - O que já está em `docs/INTERFACE.md` continua obrigatório para o módulo CFGR700; os comportamentos do novo módulo
