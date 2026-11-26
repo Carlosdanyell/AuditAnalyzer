@@ -10,7 +10,7 @@ Cada ferramenta lê o seu tipo de extração, reconcilia linha a linha, responde
 e gera um papel de trabalho em Excel pronto para revisão.
 
 [![Publicar no GitHub Pages](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml/badge.svg)](https://github.com/Carlosdanyell/AuditAnalyzer/actions/workflows/pages.yml)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-2.6.0-0f2742)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-2.6.1-0f2742)
 ![Processamento local](https://img.shields.io/badge/dados-100%25%20locais-1d7a46)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-1e6495?logo=typescript&logoColor=white)
 ![React 18](https://img.shields.io/badge/React-18-1e6495?logo=react&logoColor=white)

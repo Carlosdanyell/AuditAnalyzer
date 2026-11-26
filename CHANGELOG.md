@@ -4,6 +4,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.6.1] — 2026-11-26
+
 ### Análise e Visão geral, segunda revisão (26/11/2026)
 - Análise: sem a coluna da esquerda nas três ferramentas. O teste virou um filtro da barra: o botão **Teste** abre a
   lista agrupada por nível (Erro, Alerta, Conferir com aprovação, Informativo), com o número de linhas de cada um e os
@@ -25,6 +27,9 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   fase Postado em destaque, Informativo recolhido). Conciliador: os **achados por gravidade** abaixo das contas.
 - Sem mudança no worker, no motor ou na planilha. Contrato em `docs/MODULOS.md`; comportamentos em
   `docs/INTERFACE.md`.
+
+### Corrigido
+- Painel do documento da CT2: a tabela "Por tipo de saldo e moeda" aparecia sem altura (vazia).
 
 ## [2.6.0] — 2026-11-26
 

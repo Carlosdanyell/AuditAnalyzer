@@ -26,6 +26,7 @@ e só então implementar. Fazer commit ao final de cada fase com os testes passa
 | Depois da 2.3 — versão 2.4.0 | concluída em 18/11/2026: início da plataforma em cartões |
 | 15 — Conciliador: módulo novo e perfil Folha (Padrão A) | concluída em 24/11/2026 (`docs/FASE_15_CONCILIADOR_FOLHA.md`, regras em `docs/REGRAS_CONCILIADOR.md`): folha de pagamento, Padrão A, razão em TXT ou XML, planilha amarrada por fórmulas; todos os números do golden local batem; versão 2.5.0 |
 | Depois da 2.5 — versão 2.6.0 | concluída em 26/11/2026: as ferramentas em quatro visões (Leitura, Visão geral, Análise, Exportação), com o filtro Teste e o detalhe ao lado da tabela; perfil do Conciliador montado na tela, com modelo; folha e razão em PDF (Fase 16, etapas 1 e 4) |
+| Depois da 2.6 — versão 2.6.1 | concluída em 26/11/2026: na Análise, o teste como filtro da barra, a tabela ocupando a tela e o detalhe em painel lateral por cima da tabela; Visão geral ordenada por importância (resultado da análise primeiro) |
 | 16 — Conciliador: provisões (Padrão B) e leitura de PDF | em andamento (`docs/FASE_16_CONCILIADOR_PROVISOES_PDF.md`): etapas 1 e 4 publicadas na 2.6.0; leitor do GPER070/GPER090, motor do Padrão B, telas e planilha na versão 2.7.0 |
 | 14 — CT2: painel de composição, Achados e subtipos de I3/I4 | implementada em 11/11/2026 (`docs/FASE_14_CT2_PAINEL_ACHADOS.md`), versão 2.2.0; pendente no computador do usuário: golden local das contagens novas e conferência no Excel com uma extração real |
 
