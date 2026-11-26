@@ -1,27 +1,19 @@
 /**
- * The detail of a row (a CT2 document, an account of the Conciliador): a dialog with the focus on its close button when
- * it opens, Esc closes it and the focus goes back to the element that opened it. Docked beside the table on wide
- * screens (a non-modal dialog: Tab leaves it for the table); over the screen otherwise (modal, the focus kept inside,
- * a click outside closes it). Flow revision of 25/11/2026.
+ * The detail of a row (a CT2 document, an account of the Conciliador; second flow revision of 26/11/2026): a modal side
+ * panel that slides in from the right over the screen — about 60% of the width on wide screens (between 560 and
+ * 1100 px), the whole screen on a phone — over a dimmed backdrop. The table behind never changes size. The focus goes to
+ * the close button when it opens and stays inside; Esc, a click on the backdrop or the close button close it, and the
+ * focus goes back to the element that opened it (the row).
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { cx } from './cx';
 import ui from './ui.module.css';
-import layout from './AnalysisLayout.module.css';
+import styles from './DetailPane.module.css';
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
-export interface PaneClasses {
-  overlay: string | undefined;
-  drawer: string | undefined;
-  bar: string | undefined;
-  actions: string | undefined;
-  body: string | undefined;
-}
-
 interface Props {
-  docked: boolean;
   /** Id of the element that names the dialog. */
   labelledBy: string;
   /** Word in the bar ("Documento", "Conta"). */
@@ -30,11 +22,12 @@ interface Props {
   actions?: ReactNode;
   closeLabel: string;
   onClose: () => void;
-  classes: PaneClasses;
+  /** Class of the body (the module's spacing of its content). */
+  bodyClassName?: string | undefined;
   children: ReactNode;
 }
 
-export function DetailPane({ docked, labelledBy, kind, actions, closeLabel, onClose, classes, children }: Props) {
+export function DetailPane({ labelledBy, kind, actions, closeLabel, onClose, bodyClassName, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
 
@@ -53,38 +46,42 @@ export function DetailPane({ docked, labelledBy, kind, actions, closeLabel, onCl
       onClose();
       return;
     }
-    if (docked || e.key !== 'Tab' || !panel.current) return;
-    const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    if (e.key !== 'Tab' || !panel.current) return;
+    const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
     if (items.length === 0) return;
     const first = items[0]!;
     const last = items[items.length - 1]!;
-    if (e.shiftKey && document.activeElement === first) {
+    if (e.shiftKey && (document.activeElement === first || !panel.current.contains(document.activeElement))) {
       e.preventDefault();
       last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
+    } else if (!e.shiftKey && (document.activeElement === last || !panel.current.contains(document.activeElement))) {
       e.preventDefault();
       first.focus();
     }
   };
 
-  const pane = (
-    <div ref={panel} className={docked ? layout.pane : classes.drawer} role="dialog" aria-modal={docked ? 'false' : 'true'} aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
-      <div className={classes.bar}>
-        <span className={ui.muted}>{kind}</span>
-        <span className={classes.actions}>
-          {actions}
-          <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, ui.iconBtn)} aria-label={closeLabel} data-autofocus onClick={onClose}>
-            <Icon name="x" size={16} />
-          </button>
-        </span>
-      </div>
-      <div className={classes.body}>{children}</div>
-    </div>
-  );
-  if (docked) return pane;
   return (
-    <div className={classes.overlay} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      {pane}
+    <div
+      className={styles.overlay}
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        // No focus to the page behind: the focus goes back to the row.
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      <div ref={panel} className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
+        <div className={styles.bar}>
+          <span className={ui.muted}>{kind}</span>
+          <span className={styles.actions}>
+            {actions}
+            <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, ui.iconBtn)} aria-label={closeLabel} title={closeLabel} data-autofocus onClick={onClose}>
+              <Icon name="x" size={16} />
+            </button>
+          </span>
+        </div>
+        <div className={cx(styles.body, bodyClassName)}>{children}</div>
+      </div>
     </div>
   );
 }

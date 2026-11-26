@@ -10,7 +10,7 @@ import { railViews } from '../../src/app/rail';
 import { reconciliationFigures } from '../../src/app/modules/reconciliation/figures';
 import { ConcAccountDetailView, accountTitle } from '../../src/app/modules/reconciliation/ConcAccountPanel';
 import { concAnalysisTests } from '../../src/app/modules/reconciliation/analysisTests';
-import { AnalysisLayout, testName } from '../../src/components/AnalysisLayout';
+import { TestFilter, testGroups, testName } from '../../src/components/AnalysisLayout';
 import { ConcJustificationsView } from '../../src/app/modules/reconciliation/ConcJustificationsView';
 import { ConcPanelView } from '../../src/app/modules/reconciliation/ConcPanelView';
 import { ConcReconciliationView, invariantBoard } from '../../src/app/modules/reconciliation/ConcReconciliationView';
@@ -88,6 +88,9 @@ describe('Visão geral and Análise', () => {
     expect(html).toContain('Sem diferença — conferir alertas');
     expect(html).toContain('Com diferença — composição identificada');
     expect(html).toContain('Saldo pré-lançamento (9)');
+    // Under the accounts, the findings by severity (26/11/2026): each code with occurrence a button with its number.
+    expect(html).toContain('Achados por gravidade');
+    for (const t of concAnalysisTests(summary).filter((x) => x.count > 0)) expect(names).toContain(testName(t));
     for (const b of names) expect(b).not.toMatch(E2E_WORDS);
   });
 
@@ -101,14 +104,11 @@ describe('Visão geral and Análise', () => {
     expect(tests.find((t) => t.key === 'T2')!.level).toBe('info');
     expect(tests.find((t) => t.key === 'F1a')!.count).toBe(0);
     for (const t of tests) expect(t.count).toBe(summary.findings.filter((f) => f.code === t.key).length);
-    const html = renderToStaticMarkup(
-      <AnalysisLayout tests={tests} selected="F1c" onSelect={noop}>
-        <p>tabela</p>
-      </AnalysisLayout>,
-    );
-    expect(html).toContain('aria-label="Testes"');
-    expect(html).toMatch(/aria-pressed="true" aria-label="F1c Verba da folha sem integração na conta/);
-    expect(html).toMatch(/\d+ teste\(s\) sem ocorrência/);
+    // The Teste filter of the bar (26/11/2026): the code chosen shows as a chip; the codes without occurrence apart.
+    const html = renderToStaticMarkup(<TestFilter tests={tests} selected="F1c" onSelect={noop} />);
+    expect(html).toContain(`aria-label="Teste: ${testName(f1c)}"`);
+    expect(html).toContain('aria-label="Remover filtro Teste"');
+    expect(testGroups(tests).quiet.map((t) => t.key)).toContain('F1a');
     for (const b of buttons(html)) expect(b).not.toMatch(E2E_WORDS);
   });
 

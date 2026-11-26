@@ -111,7 +111,11 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    completo, competência (com o indicador de fechamento), **orientação para registros sem documento** (`identification`: um arquivo → carregar a extração anterior; escopo de arquivo → "Ver no
    Consolidado" mantendo o período; demais → extração anterior ou CT2 pelo Recno; link para os registros),
    cobertura das justificativas (números abrem as listas), movimento diário; salvar atalhos e feriados. As
-   **sinalizações** (Ação/Informativo/OK) passaram à lista da Análise (item 4a).
+   **sinalizações** (Ação/Informativo/OK) são o filtro Teste da Análise (item 4a). Desde 26/11/2026, logo depois do
+   período, o cartão **"Resultado da análise"** (região com esse nome; `ResultLevels`, `src/components/AnalysisResult.tsx`)
+   — o mais importante primeiro: Alerta (sinalizações que exigem ação e exceções da fase Postado (1)) em coluna, cada
+   item um botão "<nome>: <número com a unidade>" que abre a Análise com o teste escolhido (o número é o total da tabela);
+   Informativo recolhido ("Informativo: N com ocorrência"); sinalização sem tabela só com o texto (ao passar o mouse).
    **Seletor Geral / Segregado** (grupo de opções "Análise"; padrão Geral, mantido ao abrir uma tabela e voltar). O modo
    Geral mostra o que mostrava antes (sem as sinalizações). O modo Segregado (`segregated`, seção 13 de REGRAS_CFGR700.md) mostra:
    categorias por fase com a
@@ -119,12 +123,20 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    de funções, orientação para eventos Não determinados (extrair com "Exclui campos não alterados = Não" ou consultar a
    tabela pelo Recno) e o texto de limitações da seção 13. As exceções da fase Postado (1), os informativos e as
    marcações estão na lista da Análise.
-   **Integridade da CT2** (`overview`, `src/app/modules/ct2Integrity/Ct2OverviewView.tsx`) — composição da extração,
-   tudo respeitando a barra de filtros (item 4b); débito e crédito nunca são somados entre segmentos. Indicadores
-   (cada número abre a tabela correspondente ou aplica o filtro): "Lotes com intervenção manual: N" e as linhas de
-   continuação de histórico sempre; **só com filtro ativo**, os da seleção — "Lançamentos na seleção", botões
-   "Documentos: N" e "Lotes: N" (sem filtro são os da faixa); débito total e % do débito em linhas
-   manuais (por segmento) e documentos por origem, com botões "<Origem>: N documento(s)". Grupos de opções "Medida por
+   **Integridade da CT2** (`overview` e `tests`, `src/app/modules/ct2Integrity/Ct2OverviewView.tsx`) — tudo respeitando
+   a barra de filtros (item 4b); débito e crédito nunca são somados entre segmentos. Desde 26/11/2026 os quadros seguem a
+   **ordem de importância** e o tamanho acompanha a importância: (1) **"Resultado da análise"** (região com esse nome,
+   o primeiro e maior): os desbalanceamentos em três números grandes — documentos (B1), lotes (B2) e dias (B3), em
+   vermelho quando há ocorrência, cada um o botão "<código> <nome>: <número com a unidade>" —, depois os testes com
+   ocorrência em colunas Erro, Alerta e Conferir com aprovação (com os documentos mistos) e o Informativo recolhido;
+   cada número abre a Análise com o teste escolhido na tabela do nível do teste (Documentos, Lotes ou Dias; os de linha
+   em Ocorrências; os mistos, Documentos com a origem Misto) e é o total dessa tabela (`ct2AnalysisResult`); (2)
+   **"Intervenção manual"**: documentos por origem (botões "<Origem>: N documento(s)", que aplicam o filtro), o botão
+   "Lotes com intervenção manual: N" e o % do débito em linhas manuais por segmento (com o débito manual e o total);
+   (3) **"Valores por segmento"** (débito, crédito e débito em linhas manuais) com as **linhas de histórico** numa nota
+   de rodapé ("N linha(s) de histórico (Cont.Hist) …", não mais um cartão); (4) os gráficos "Por rotina" e "Por dia",
+   lado a lado em tela larga; (5) a tabela de lotes com intervenção manual e o perfil recolhido. **Só com filtro ativo**,
+   uma linha "Na seleção" no topo: lançamentos e os botões "Documentos: N" e "Lotes: N" (sem filtro são os da faixa). Grupos de opções "Medida por
    rotina" (Linhas | Documentos | Débito) e "Medida por dia" (Linhas | Débito); a medida Débito fica desabilitada,
    com a explicação, com mais de um segmento e nenhum escolhido. Barras por rotina empilhadas por origem, cada uma um
    botão com nome "<rotina>: <n> linhas", "<rotina>: <n> documentos" ou "<rotina>: <valor> de débito" (clique = filtro
@@ -133,42 +145,55 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    "Filtrar o lote X/Y", "Abrir o 1º documento do lote X/Y" (painel lateral, item 4c) e "Ver os N na tabela de lotes".
    Perfil (por rotina, por lançamento padrão e por "Lcto Manual?") recolhido. Gráficos em SVG próprio, só com tokens,
    sem animar números, legíveis nos dois temas; o vermelho continua reservado a achados e à visão ativa.
-4a. **Análise** (desde 25/11/2026; antes "Achados" e "Tabelas"; `AnalysisLayout`, `src/components/AnalysisLayout.tsx`) — o
-   lugar de trabalho, igual nas três ferramentas, em três colunas: **à esquerda**, a lista "Testes" (`aside`) com os
-   testes ou códigos de achado do módulo em grupos — **Erro**, **Alerta**, **Conferir com aprovação** (onde existe) e
-   **Informativo**, cada grupo uma região com o seu nome —, cada item um botão com `aria-pressed` e o nome "<código>
-   <nome>: <número com a unidade>" (ex.: "B1 Documento desbalanceado: 6 documentos"); o número é o total da tabela que o
-   clique abre; os sem ocorrência (e os desligados ou sem a coluna, com o motivo) ficam recolhidos em "N teste(s) sem
-   ocorrência". O clique filtra a tabela; clicar de novo tira o filtro. **No centro**, a barra (CT2: a barra de filtros
-   comum, item 4b; CFGR700 e Conciliador: a barra da tabela), com o filtro **Teste** (combobox "Teste": "Todos os
-   testes" e os testes com ocorrência, agrupados, com o número), a linha do teste escolhido (código, nome e a regra numa
-   linha, com o botão "Tirar o filtro de teste") e a tabela com as abas, o resumo e a rolagem virtualizada (item 5).
-   **À direita**, o detalhe da linha escolhida (item 4c) em tela larga (≥ 1360 px); em tela estreita ele abre por cima.
-   Abaixo de 1024 px a lista fica acima da tabela, recolhida em "Testes · N com ocorrência". Nada do que se consultava
-   saiu, só as duplicações: as "primeiras ocorrências" de cada teste são a tabela filtrada pelo teste; os documentos
-   desbalanceados são Documentos com B1 (compensação na coluna B4); os maiores, Documentos ordenada por Linhas.
-   - **CT2** (comando `tests`): parâmetros da execução recolhidos no topo da lista ("Parâmetros da execução", com
-     "Reaplicar os testes", comando `analyze`, validados na tela antes de enviar); grupos Erro e Alerta (as exceções),
+4a. **Análise** (desde 25/11/2026; antes "Achados" e "Tabelas"; segunda revisão em 26/11/2026; `AnalysisLayout`,
+   `src/components/AnalysisLayout.tsx`) — o lugar de trabalho, igual nas três ferramentas: **a tabela ocupa toda a
+   largura do conteúdo e a altura que sobra na tela** (sem a coluna de testes à esquerda; no computador a página não
+   rola — o shell marca a visão com `data-fill` e a tabela rola por dentro, com o cabeçalho fixo; abaixo de 1024 px de
+   largura ou 560 px de altura a página rola e a tabela tem quase a altura da tela). Acima da tabela, no máximo duas
+   linhas no computador: a **barra de filtros** (região "Filtros") e a linha das abas com os controles da tabela, "N
+   linha(s)" e os de visualização; a regra do teste escolhido aparece entre as duas. Tabela mais estreita que a tela é
+   alargada pela coluna de texto mais larga (`stretchColumns`); as fontes não mudam.
+   O **teste é um filtro da barra**: o botão **"Teste"** (nome "Teste: todos os testes" ou "Teste: <código> <nome>:
+   <número>"; `aria-haspopup="listbox"`, `aria-expanded`; mostra quantos testes têm ocorrência) abre a lista
+   (`listbox` "Teste") com "Todos os testes" e os testes ou códigos de achado do módulo em grupos — **Erro**,
+   **Alerta**, **Conferir com aprovação** (onde existe) e **Informativo**, cada grupo (`group`) com o seu nome —, cada
+   opção "<código> <nome>: <número com a unidade>" (ex.: "B1 Documento desbalanceado: 6 documentos"); o número é o
+   total da tabela que a escolha abre. Os sem ocorrência (e os desligados ou sem a coluna, com o motivo) ficam atrás de
+   **"Mostrar sem ocorrência (N)"**, no grupo "Sem ocorrência", sem escolha. Teclado: setas, Home e End movem, Enter
+   escolhe, Esc fecha e devolve o foco ao botão; clique fora fecha; no celular a lista sobe do pé da tela. Escolhido, o
+   teste vira um **chip** como os outros filtros (botão "Remover filtro Teste") e a sua regra aparece numa linha abaixo
+   da barra (nível e regra, com o botão "Tirar o filtro de teste"). O detalhe da linha abre **por cima** (item 4c). Nada
+   do que se consultava saiu, só as duplicações: as "primeiras ocorrências" de cada teste são a tabela filtrada pelo
+   teste; os documentos desbalanceados são Documentos com B1 (compensação na coluna B4); os maiores, Documentos ordenada
+   por Linhas.
+   - **CT2** (comando `tests`): barra = a barra de filtros comum (item 4b) com o filtro Teste depois de "Filtros", a
+     busca e, no fim, o botão **"Parâmetros"** (`aria-expanded`), que abre sob a barra o painel "Parâmetros da execução"
+     (título; "Reaplicar os testes", comando `analyze`, validados na tela antes de enviar; "Desfazer"; "Fechar os
+     parâmetros"; Esc ou clique fora fecham sem perder o que foi digitado); grupos Erro e Alerta (as exceções),
      Conferir com aprovação (I4a e "Documentos mistos (linhas manuais e automáticas)", que abre Documentos com a origem
      Misto) e Informativo; P1 e P2 ficam no perfil da Visão geral. O teste abre a tabela aberta quando ela o lista
      (Documentos: testes de documento, P3 e P4; Lotes; Dias; Base: testes de linha) e **Ocorrências** nos demais casos;
      o número de cada item é o dessa tabela. Ao trocar de aba, o teste fica quando a nova tabela o lista. Abas:
      Ocorrências (a antiga Exceções, primeira), Documentos, Lotes, Dias e Base. A severidade vem da configuração: teste
      elevado a Erro ou Alerta passa a esse grupo.
-   - **CFGR700:** o período no topo da lista (o mesmo da Visão geral: "Período", "De", "Até"); grupos Alerta (as
+   - **CFGR700:** barra = filtro Teste, o **período** como campos da barra (o mesmo da Visão geral: "Período", "De",
+     "Até", numa linha), "Origem", o chip do filtro da Visão geral (escondido quando o chip do teste já o nomeia) e a
+     busca; grupos Alerta (as
      sinalizações que exigem ação e as exceções da fase Postado (1)) e Informativo (as demais sinalizações com
      ocorrência, os informativos e as marcações da análise segregada), todos do período. "Documentos desbalanceados"
      abre Desbalanceados e "Registros alterados sem identificação de documento" a base de linhas não identificada, com
      exatamente aquelas linhas; as exceções, os informativos e as marcações abrem "Tipo de saldo" com o filtro; uma
-     sinalização sem tabela (dias, inconsistências, sem usuário, justificativas pendentes) mostra só o seu texto. Sem
-     detalhe de linha.
-   - **Conciliador:** os códigos de achado do resumo (Erro, Alerta, Informativo), cada um abrindo a tabela Achados com
-     o código; os códigos conhecidos sem ocorrência, recolhidos. Abas Contas, Folha, Integração, Razão e Achados
-     (abre em Achados).
+     sinalização sem tabela (dias, inconsistências, sem usuário, justificativas pendentes), quando escolhida, mostra o
+     seu texto na linha da regra e não filtra a tabela. Sem detalhe de linha.
+   - **Conciliador:** barra = filtro Teste com os códigos de achado do resumo (Erro, Alerta, Informativo), cada um
+     abrindo a tabela Achados com o código, o chip "Remover filtro da conciliação" e a busca; os códigos conhecidos sem
+     ocorrência atrás de "Mostrar sem ocorrência". Com verificação bloqueante falhando, o aviso fica acima da barra. Abas
+     Contas, Folha, Integração, Razão e Achados (abre em Achados).
 4b. **Barra de filtros da CT2** (`Ct2FilterBar.tsx`; região "Filtros", no topo da Visão geral e no centro da Análise, com
    o estado em `Ct2Workspace`; desde 25/11/2026) — uma linha compacta: o botão **"Filtros"** (com o número de filtros ativos;
-   `aria-expanded`), os chips dos filtros ativos (ou "Nenhum filtro: tudo o que foi lido."), "Limpar filtros" e, só na
-   Análise, o filtro **Teste** e a busca da tabela (campo "Buscar", que fica ao trocar de tabela). O botão abre, abaixo da linha, o painel
+   `aria-expanded`), só na Análise o filtro **Teste** (item 4a), os chips dos filtros ativos (ou "Nenhum filtro: tudo o
+   que foi lido."), "Limpar filtros" (tira os filtros comuns; o teste sai pelo seu chip) e, só na Análise, a busca da
+   tabela (campo "Buscar", que fica ao trocar de tabela) e o botão "Parâmetros". O botão "Filtros" abre, abaixo da linha, o painel
    de filtros em três grupos: **Datas e segmento** (combobox "Segmento", só com mais de um segmento; "Período: de" e
    "até"; "Dia"), **Origem e rotina** (grupo "Origem do documento" com botões de alternância Automático, Manual, Misto
    e Não identificado, seleção múltipla; combobox "Rotina") e **Lote, conta e valor** ("Lote", "Sub-lote", "Conta
@@ -181,21 +206,22 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    em Dias) fica esmaecido, com a dica "não se aplica a esta tabela", e é ignorado nela. Semântica e aplicabilidade na
    seção 9 de `docs/REGRAS_CT2_INTEGRIDADE.md`: a linha passa quando seu bloco está no segmento, dia, período e lote, o
    documento tem origem escolhida e a rotina, a conta e o valor da linha são os escolhidos; documento, lote ou dia passa
-   se ao menos uma de suas linhas passa. Todo número da Visão geral e da lista de testes é igual ao total da tabela
+   se ao menos uma de suas linhas passa. Todo número da Visão geral e do filtro Teste é igual ao total da tabela
    aberta com o mesmo filtro.
 4c. **Detalhe da linha** (`DetailPane`, `src/components/DetailPane.tsx`; CT2: documento, `Ct2DocumentPanel.tsx`, comando
-   `document`; Conciliador: conta, item 9a) — diálogo (`role="dialog"`) com o foco no botão de fechar ao abrir, **Esc**
-   fecha e o foco volta a quem o abriu. Na Análise em tela larga (≥ 1360 px) fica **ao lado** da tabela, como terceira
-   coluna (`aria-modal="false"`: Tab sai dele para a tabela; outra linha troca o conteúdo); em tela estreita e fora da
-   Análise abre **por cima** (`aria-modal="true"`, foco preso, clique fora fecha). Documento da CT2: nome "Documento <doc>
+   `document`; Conciliador: conta, item 9a) — desde 26/11/2026, em **qualquer largura**, um painel lateral modal que
+   entra pela direita **por cima** da tabela (cerca de 60% da largura, entre 560 e 1100 px; a tela inteira no celular),
+   sobre um fundo escurecido; a tabela nunca muda de tamanho. Diálogo (`role="dialog"`, `aria-modal="true"`) com o foco
+   no botão de fechar ao abrir e preso dentro; **Esc**, clique no fundo ou o botão de fechar fecham, e o foco volta a
+   quem o abriu (a linha). Com `prefers-reduced-motion`, sem deslizar. Documento da CT2: nome "Documento <doc>
    · lote <lote>/<sub> · dd/mm/aaaa"; cabeçalho com chave, origem, rotinas, débito e crédito por segmento e situação de
    B1/B4; linhas com marca discreta (não vermelha) nas manuais, marca de achado e o motivo nas com exceção, e "Valor
    Moeda1" visível quando difere de "Valor". Botões "Ver na Base" (abre a Base da Análise filtrada pelo documento) e
    "Fechar o documento". Abre por clique ou Enter numa linha de Ocorrências, Documentos ou Base, e pelos botões da Visão
    geral (lotes com intervenção manual).
-5. **Tabelas** (`page`; no centro da Análise desde 25/11/2026) — tabela, busca, ordenação, filtros vindos da Visão geral e da lista de testes, paginação e rolagem virtualizada;
+5. **Tabelas** (`page`; no centro da Análise desde 25/11/2026) — tabela, busca, ordenação, filtros vindos da Visão geral e do filtro Teste, paginação e rolagem virtualizada;
    colunas definidas pelo worker (tipos: texto, inteiro, dinheiro em centavos, data, data/hora). Desde 25/11/2026
-   (`TablesView`, comum a todos os módulos): cabeçalho fixo; números, valores e datas à direita em Geist Mono com
+   (`TablesView`, comum a todos os módulos; na Análise com `fill`, item 4a): cabeçalho fixo; números, valores e datas à direita em Geist Mono com
    algarismos tabulares; separadores leves e zebra discreta; uma linha de resumo acima da tabela com "N linha(s)" e,
    na CT2, os filtros em vigor ("filtrado por …", a busca); o grupo "Densidade das linhas" (Confortável | Compacta,
    lembrada no computador, chave `uiTableDensity`); o botão **"Colunas"** (lista para mostrar ou ocultar colunas na
@@ -271,13 +297,16 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
    situação sugerida, baixa do saldo anterior, achados); conta não analisada mostra o motivo. Cada número é um botão com o
    nome "<Esperado|Saldo real|Saldo em pré-lançamento|Saldo contábil|Diferença> da conta <conta>: <valor>", "Baixa do
    saldo anterior da conta …" e "Achados da conta …: N"; o número abre a tabela da Análise cuja soma é ele (a diferença
-   abre o detalhe com a ponte); "Abrir a conta <conta>" abre o detalhe. Com verificação bloqueante falhando, a Visão geral
-   e a Análise avisam no topo. **Análise** (item 4a): à esquerda, os códigos de achado em grupos Erro, Alerta e
+   abre o detalhe com a ponte); "Abrir a conta <conta>" abre o detalhe. Abaixo da tabela (26/11/2026), o quadro
+   **"Achados por gravidade"** (região com esse nome): os códigos com ocorrência em colunas Erro e Alerta e o
+   Informativo recolhido, cada um o botão "<código> <título>: N ocorrência(s)", que abre a Análise com o código no
+   filtro Teste. Com verificação bloqueante falhando, a Visão geral
+   e a Análise avisam no topo. **Análise** (item 4a): o filtro Teste com os códigos de achado em grupos Erro, Alerta e
    Informativo, cada um "<código> <título>: N ocorrência(s)" (ex.: "F1c Verba da folha sem integração na conta: 1
-   ocorrência"), que abre a tabela Achados com o código (o filtro Teste na barra da tabela faz o mesmo); nenhum filtro
+   ocorrência"), que abre a tabela Achados com o código; nenhum filtro
    por valor. Tabelas Contas, Folha, Integração, Razão e Achados (coluna "Baixa do saldo anterior?" com Sim/Não e "Tipo
    de saldo" no Razão); o filtro que abriu a tabela (além do código) vira um chip com o botão "Remover filtro da
-   conciliação"; clicar numa linha de uma conta analisada abre o detalhe da conta, ao lado da tabela em tela larga. As
+   conciliação"; clicar numa linha de uma conta analisada abre o detalhe da conta, por cima da tabela. As
    ações de cada ocorrência que ficavam nos blocos de Achados estão no detalhe da conta, em cada achado: "Ver as N
    linhas no razão" e, no F1c, "Ver na tabela de integração". **Detalhe da conta**: diálogo "Conta <conta> · <nome>" (Esc fecha; item 4c), com o
    critério (verbas, colunas, sinais, esperado), a ponte ("A ponte fecha"/"A ponte não fecha", cada parcela recolhida
@@ -310,9 +339,11 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   "Aplicar importação", "Ver no Consolidado (mesmo período)", "Ferramentas" (trilha), "Mudar para …", "Usar tema
   escuro"/"Usar tema claro", as linhas das ferramentas pelo título, link "Ajuda" e "Manual desta análise";
   opções (radio) "Geral" e "Segregado",
-  tabela "Categorias por fase"; na Análise, a lista "Testes" (`complementary`) com as regiões "Erro", "Alerta",
-  "Conferir com aprovação" e "Informativo", os botões "<código> <nome>: <número>" (com `aria-pressed`), o texto "N
-  teste(s) sem ocorrência", o combobox "Teste" e o botão "Tirar o filtro de teste"; campos "Escopo", "Período",
+  tabela "Categorias por fase"; na Visão geral a região "Resultado da análise" com os botões "<nome>: <número>"; na
+  Análise, o botão "Teste: …" (`aria-expanded`), a lista (`listbox`) "Teste" com os grupos "Erro", "Alerta",
+  "Conferir com aprovação", "Informativo" e "Sem ocorrência", as opções "<código> <nome>: <número>" e "Todos os
+  testes", o botão "Mostrar sem ocorrência (N)", os botões "Remover filtro Teste" e "Tirar o filtro de teste", a região
+  "Filtros" (com o campo "Período" no CFGR700); campos "Escopo", "Período",
   "Texto da justificativa", "Tolerância de balanceamento (R$)", "Arquivo da cópia de segurança", "Arquivo do perfil de
   contas (JSON)"; a dica "Monte ou importe o perfil de contas na Configuração"; e as mensagens
   citadas nos testes. Mudou um texto? Atualize o teste junto, sem tirar a verificação. Os nomes são procurados por
@@ -320,20 +351,23 @@ Este documento serve para quem for redesenhar a interface (pessoa ou agente). A 
   "Painel", "Cancelar", "Nova análise" nem "Exportar planilha" (o trilho não tem mais "Painel" desde 25/11/2026). `tests/e2e/modules.spec.ts` cobre o início, a trilha, a análise
   do Conciliador (Fase 15: títulos "Integridade confirmada", "Quadro de invariantes", "Folha de pagamento (GPER040)",
   "Razão analítico (CTBR400)"; tabela "Contas do perfil"; botões "Esperado da conta …", "Abrir a conta …", "Remover
-  filtro da conciliação", "Copiar o texto do critério", "F1c Verba da folha sem integração na conta: 1 ocorrência",
+  filtro da conciliação", "Copiar o texto do critério", região "Achados por gravidade" e o botão e a opção "F1c Verba da
+  folha sem integração na conta: 1 ocorrência",
   "Ver na tabela de integração", "Salvar a justificativa da conta …"; diálogo "Conta …" com "A ponte fecha"; campos
   "Justificativa da conta …" e "Situação no papel de trabalho da conta …"; textos "Justificativa salva neste
   computador."; e a Exportação, cujo download tem o Resumo com "Confere" em toda conta no avaliador), a análise
   da CT2, a escolha da aba e o aviso de arquivo trocado (botão "Mudar para …"). Para a CT2 ele usa também: botões da
   trilha "Leitura", "Visão geral", "Análise" e "Exportação"; título "Matriz de amarração" (Leitura); abas
-  "Ocorrências", "Documentos", "Lotes" e "Base"; botões da lista "B1 Documento desbalanceado: N documentos", "E4 …",
-  "I4a …", "C1 …: 7 linhas" e "Documentos mistos …";
+  "Ocorrências", "Documentos", "Lotes" e "Base"; opções do filtro Teste "B1 Documento desbalanceado: N documentos",
+  "E4 …", "I4a …", "C1 …: 7 linhas" e "Documentos mistos …"; na Visão geral, a região "Resultado da análise" com o
+  botão "B1 Documento desbalanceado: N documentos" e a nota "N linha(s) de histórico (Cont.Hist) …";
   região "Filtros" com o botão "Filtros" (abre o painel; aria-expanded), combobox "Segmento", campos "Conta (débito ou
   crédito)" e "Valor mínimo (R$)", botão "Aplicar", botões "Remover filtro Segmento|Rotina|Conta|Valor" e "Limpar
   filtros", a dica "não se aplica a esta tabela"; grupo "Medida por rotina" (botão "Débito"), barras "<rotina>: <n> linhas" e botões
-  "Documentos: N" (só com filtro), "Lotes com intervenção manual: N"; título "Por rotina", botão "Reaplicar os testes",
-  combobox "Grupo"; e, no detalhe, o diálogo "Documento …" (`aria-modal` "false" ao lado da tabela a 1440 px, "true"
-  por cima a 1280 e 390 px), "Ver na Base" e "Fechar o documento". Esses nomes não mudam sem atualizar o teste. Cada teste também reprova
+  "Documentos: N" (só com filtro), "Lotes com intervenção manual: N"; título "Por rotina", botão "Parâmetros", título
+  "Parâmetros da execução", botão "Reaplicar os testes", combobox "Grupo"; e, no detalhe, o diálogo "Documento …"
+  (`aria-modal` "true" em qualquer largura; 800–1100 px de largura a 1440 px, a tela inteira a 390 px; a tabela não muda
+  de tamanho; Esc, clique no fundo e "Fechar o documento" devolvem o foco à linha) e "Ver na Base". Esses nomes não mudam sem atualizar o teste. Cada teste também reprova
   qualquer requisição fora da origem do app (inclusive as bloqueadas pela CSP) e qualquer erro não tratado.
 - Percorrer as telas com os dois arquivos grandes: a tela não pode travar durante leitura, navegação e exportação.
 - Nenhum dado real, nome de empresa ou de pessoa em arquivos versionados.

@@ -425,3 +425,75 @@
   background: var(--accent-soft-strong);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+
+/*
+ * The Análise (26/11/2026): the table takes the height left on the screen (the shell stops the page scroll on a
+ * desktop) and the controls stand in two rows at most above it: the bar of filters and the tabs with the row count.
+ */
+.fill {
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 0;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bar .searchBox {
+  flex: 1 1 200px;
+  max-width: 360px;
+  margin-left: auto;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.head .summaryText {
+  flex: 1 1 auto;
+}
+
+.head .viewTools {
+  margin-left: auto;
+}
+
+.fill .tabs {
+  align-self: auto;
+}
+
+.fill .tabs > button {
+  padding: 5px 13px;
+}
+
+.fill .grid {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 240px;
+}
+
+/* A phone or a short window: the page scrolls and the table is almost a screen high. */
+@media (max-width: 1023.98px), (max-height: 559.98px) {
+  .fill .grid {
+    flex: none;
+    height: max(360px, calc(100dvh - 96px));
+  }
+}
+
+@media (max-width: 700px) {
+  .bar .searchBox {
+    flex-basis: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+}

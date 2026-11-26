@@ -14,7 +14,9 @@ import type {
 import { dayToInput, formatCents, formatDay, formatInteger, inputToDay, weekdayName } from '../../shared/format';
 import { PHASES, SEGREGATION_PT, balanceText, type Phase } from '../../shared/segregation';
 import type { WorkerClient } from '../workerClient';
+import { ResultLevels } from '../../components/AnalysisResult';
 import { Icon, type IconName } from '../../components/Icon';
+import { cfgr700AnalysisTests } from '../modules/cfgr700/analysisTests';
 import { cx } from '../../components/cx';
 import ui from '../../components/ui.module.css';
 import styles from './PanelView.module.css';
@@ -34,13 +36,14 @@ const samePeriod = (a: Period, b: Period) => a.startDay === b.startDay && a.endD
  * The period of the panel: a preset (the user's too) or dates, with "Personalizado" once a date is typed. Shared by the
  * Visão geral and the list of the Análise of the CFGR700 (flow revision of 25/11/2026).
  */
-export function PeriodFields({ data, onPeriod, compact = false }: { data: Pick<PanelData, 'presets' | 'period'>; onPeriod: (period: Period) => void; compact?: boolean }) {
+/** `bar`: the three fields in one line, as a filter of the bar of the Análise (26/11/2026). */
+export function PeriodFields({ data, onPeriod, bar = false }: { data: Pick<PanelData, 'presets' | 'period'>; onPeriod: (period: Period) => void; bar?: boolean }) {
   const [custom, setCustom] = useState(false);
   const matching = data.presets.find((p) => samePeriod(p.period, data.period))?.id;
   const preset = custom || !matching ? 'custom' : matching;
-  return (
+  const fields = (
     <>
-      <label className={cx(ui.field, styles.periodField, compact && styles.periodCompact)}>
+      <label className={cx(ui.field, styles.periodField)}>
         Período
         <select
           className={ui.input}
@@ -59,7 +62,7 @@ export function PeriodFields({ data, onPeriod, compact = false }: { data: Pick<P
           <option value="custom">Personalizado</option>
         </select>
       </label>
-      <label className={cx(ui.field, compact && styles.periodCompact)}>
+      <label className={ui.field}>
         De
         <input
           className={ui.input}
@@ -74,7 +77,7 @@ export function PeriodFields({ data, onPeriod, compact = false }: { data: Pick<P
           }}
         />
       </label>
-      <label className={cx(ui.field, compact && styles.periodCompact)}>
+      <label className={ui.field}>
         Até
         <input
           className={ui.input}
@@ -90,6 +93,45 @@ export function PeriodFields({ data, onPeriod, compact = false }: { data: Pick<P
         />
       </label>
     </>
+  );
+  return bar ? (
+    <span className={styles.periodBar} title="Pela data do evento; vale também para a Visão geral.">
+      {fields}
+    </span>
+  ) : (
+    fields
+  );
+}
+
+/**
+ * The result of the analysis of the period (second flow revision of 26/11/2026), first after the period: the flags that
+ * need action and the exceptions of the posted phase (Alerta), the other flags and the segregated results (Informativo,
+ * folded). A flag with a table opens the Análise with exactly its rows; the others show their text.
+ */
+function Result({ data, range, balanceType, onOpenTable }: { data: PanelData; range: string; balanceType: BalanceType; onOpenTable: OpenTable }) {
+  const tests = cfgr700AnalysisTests(data, balanceType);
+  const found = tests.filter((t) => t.count > 0).length;
+  return (
+    <section className={cx(ui.card, styles.result)} aria-labelledby="cfgr700-result">
+      <div className={ui.cardHead}>
+        <div>
+          <h2 className={ui.cardTitle} id="cfgr700-result">
+            <span className={ui.cardIcon}>
+              <Icon name="flag" />
+            </span>
+            Resultado da análise
+          </h2>
+          <p className={ui.sub}>{range}</p>
+        </div>
+        <span className={ui.muted}>
+          {formatInteger(found)} com ocorrência · {formatInteger(tests.length - found)} sem ocorrência
+        </span>
+      </div>
+      <ResultLevels
+        items={tests.map((t) => ({ ...t, onOpen: t.request ? () => onOpenTable(t.request!.table, t.request!.filter) : null }))}
+        empty="Nenhuma sinalização que exija ação e nenhuma exceção da fase postada no período."
+      />
+    </section>
   );
 }
 
@@ -244,6 +286,8 @@ export function PanelView({
         </p>
         <Settings data={data} onChange={changeSettings} />
       </section>
+
+      <Result data={data} range={range} balanceType={balanceType} onOpenTable={onOpenTable} />
 
       {mode === 'segregated' ? (
         <Segregated data={data} range={range} table={table} balanceType={balanceType} onOpenTable={onOpenTable} />

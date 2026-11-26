@@ -1,11 +1,12 @@
 /**
- * The Análise of every tool (docs/INTERFACE.md, item 5; flow revision of 25/11/2026): a working area in three columns —
- * the tests of the module grouped by level (Erro, Alerta, Conferir com aprovação, Informativo), each with the number of
- * rows a click opens, those without occurrence folded in one group; the table in the center; the detail of the selected
- * row on the right on wide screens (an overlay on narrow ones, rendered by the module). The module gives the tests and
- * decides what a click does; nothing here knows a module.
+ * The Análise of every tool (docs/INTERFACE.md, item 4a; second flow revision of 26/11/2026): the table takes the whole
+ * width and the height left on the screen. The tests of the module are a filter of the bar — the "Teste" control, a
+ * list grouped by level (Erro, Alerta, Conferir com aprovação, Informativo) with the number of rows each opens, the
+ * tests without occurrence behind "Mostrar sem ocorrência" — shown, once chosen, as a removable chip; the rule of the
+ * chosen test sits in one line under the bar. The detail of a row opens over the table (DetailPane). The module gives
+ * the tests and decides what a choice does; nothing here knows a module.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { cx } from './cx';
 import ui from './ui.module.css';
@@ -16,181 +17,229 @@ export type TestLevel = 'error' | 'warning' | 'approval' | 'info';
 export const TEST_LEVELS: readonly TestLevel[] = ['error', 'warning', 'approval', 'info'];
 export const TEST_LEVEL_LABEL: Record<TestLevel, string> = { error: 'Erro', warning: 'Alerta', approval: 'Conferir com aprovação', info: 'Informativo' };
 
-/** One test (or finding code, or flag) of the list. */
+/** One test (or finding code, or flag) of the Teste filter. */
 export interface AnalysisTest {
-  /** Unique in the list (the value of the Teste filter). */
+  /** Unique among the tests (the value of the Teste filter). */
   key: string;
   /** Short code, in Geist Mono ("B1", "F1c"); empty when the module has none. */
   code: string;
   label: string;
   level: TestLevel;
-  /** Rows the click opens (the total of the table it filters); 0 = no occurrence. */
+  /** Rows the choice opens (the total of the table it filters); 0 = no occurrence. */
   count: number;
   /** The count with its unit ("6 documentos"). */
   countText: string;
   /** Why it has no occurrence when it did not run ("desligado", "sem a coluna"). */
   note?: string | null;
-  /** The rule or the description, shown in one line when selected. */
+  /** The rule or the description, shown in one line when chosen. */
   description: string;
-  /** Whether a click opens rows (false: a result without a table, shown with its description only). */
+  /** Whether the choice opens rows (false: a result without a table, shown with its description only). */
   opens: boolean;
 }
 
-/** Media query of a wide screen: the detail of a row is docked beside the table. */
-export const WIDE_QUERY = '(min-width: 1360px)';
-/** Below it the list of tests stacks above the table, folded. */
-export const NARROW_QUERY = '(max-width: 1023.98px)';
-
-/** Whether a media query matches, following its changes (false where there is no window, as in the tests). */
-export function useMedia(query: string): boolean {
-  const get = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
-  const [matches, setMatches] = useState(get);
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const list = window.matchMedia(query);
-    const change = () => setMatches(list.matches);
-    change();
-    list.addEventListener('change', change);
-    return () => list.removeEventListener('change', change);
-  }, [query]);
-  return matches;
-}
-
-/** Accessible name of a test of the list: "B1 Documento desbalanceado: 6 documentos". */
+/** Accessible name of a test: "B1 Documento desbalanceado: 6 documentos". */
 export const testName = (t: Pick<AnalysisTest, 'code' | 'label' | 'countText'>) => `${t.code ? `${t.code} ` : ''}${t.label}: ${t.countText}`;
 
-interface LayoutProps {
-  tests: readonly AnalysisTest[];
-  selected: string | null;
-  onSelect: (key: string | null) => void;
-  /** Above the list (e.g. the parameters of the run, the period). */
-  top?: ReactNode;
-  /** Below the groups (e.g. the Misto documents). */
-  extra?: ReactNode;
-  /** The table and its bar. */
-  children: ReactNode;
-  /** The detail of the selected row, docked on the right (wide screens only; the module renders an overlay otherwise). */
-  detail?: ReactNode;
-  /** Text of the list while it loads. */
-  loading?: boolean;
+/** The tests of the Teste filter: those with occurrence by level (in the order of the module), and the quiet ones. */
+export function testGroups(tests: readonly AnalysisTest[]): { groups: { level: TestLevel; items: AnalysisTest[] }[]; quiet: AnalysisTest[] } {
+  const groups = TEST_LEVELS.map((level) => ({ level, items: tests.filter((t) => t.level === level && t.count > 0) })).filter((g) => g.items.length > 0);
+  return { groups, quiet: tests.filter((t) => t.count === 0) };
 }
 
-export function AnalysisLayout({ tests, selected, onSelect, top, extra, children, detail, loading = false }: LayoutProps) {
-  const narrow = useMedia(NARROW_QUERY);
-  const found = tests.filter((t) => t.count > 0);
-  const list = <TestList tests={tests} selected={selected} onSelect={onSelect} extra={extra} loading={loading} />;
+/** The working area of the Análise: what goes above the table (a notice) and the table with its bar. */
+export function AnalysisLayout({ top, children }: { top?: ReactNode; children: ReactNode }) {
   return (
-    <div className={styles.layout} data-detail={detail ? 'on' : undefined}>
-      <aside className={styles.side} aria-label="Testes">
-        {top}
-        {narrow ? (
-          <details className={styles.fold}>
-            <summary>
-              <Icon name="chevronRight" size={16} />
-              Testes · {found.length} com ocorrência
-            </summary>
-            {list}
-          </details>
-        ) : (
-          list
+    <div className={styles.layout}>
+      {top}
+      {children}
+    </div>
+  );
+}
+
+const ALL = '';
+
+/**
+ * The Teste filter of the bar: a button that opens the tests as a list grouped by level (keyboard: arrows, Home, End,
+ * Enter, Esc); once a test is chosen it shows as a chip with "Remover filtro Teste".
+ */
+export function TestFilter({ tests, selected, onSelect, loading = false }: { tests: readonly AnalysisTest[]; selected: string | null; onSelect: (key: string | null) => void; loading?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [showQuiet, setShowQuiet] = useState(false);
+  const [active, setActive] = useState<string>(ALL);
+  const id = useId();
+  const box = useRef<HTMLSpanElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const { groups, quiet } = testGroups(tests);
+  const current = selected === null ? null : (tests.find((t) => t.key === selected) ?? null);
+  const found = groups.reduce((n, g) => n + g.items.length, 0);
+  const order = [ALL, ...groups.flatMap((g) => g.items.map((t) => t.key))];
+  const optionId = (key: string) => `${id}-o-${key === ALL ? 'all' : key.replace(/[^\w-]/g, '_')}`;
+
+  // A click outside closes.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+  useEffect(() => {
+    if (open) list.current?.querySelector<HTMLElement>(`#${CSS.escape(optionId(active))}`)?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, active]);
+
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  const choose = (key: string) => {
+    onSelect(key === ALL ? null : key);
+    close();
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const at = Math.max(0, order.indexOf(active));
+    const move = (to: number) => {
+      e.preventDefault();
+      setActive(order[Math.min(order.length - 1, Math.max(0, to))]!);
+    };
+    if (e.key === 'ArrowDown') move(at + 1);
+    else if (e.key === 'ArrowUp') move(at - 1);
+    else if (e.key === 'Home') move(0);
+    else if (e.key === 'End') move(order.length - 1);
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      choose(active);
+    }
+  };
+
+  const option = (t: AnalysisTest) => (
+    <div
+      key={t.key}
+      id={optionId(t.key)}
+      role="option"
+      aria-selected={selected === t.key}
+      aria-label={testName(t)}
+      tabIndex={active === t.key ? 0 : -1}
+      className={cx(styles.option, selected === t.key && styles.optionOn)}
+      title={t.description}
+      onClick={() => choose(t.key)}
+      onFocus={() => setActive(t.key)}
+    >
+      {t.code && <code className={styles.code}>{t.code}</code>}
+      <span className={styles.optionLabel}>{t.label}</span>
+      <span className={styles.optionCount}>{t.countText}</span>
+    </div>
+  );
+
+  return (
+    <span
+      ref={box}
+      className={styles.test}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) {
+          e.stopPropagation();
+          close();
+        }
+      }}
+      onBlur={(e) => open && !box.current?.contains(e.relatedTarget as Node | null) && e.relatedTarget !== null && setOpen(false)}
+    >
+      <span className={cx(styles.testControl, current && styles.testChosen)}>
+        <button
+          ref={trigger}
+          type="button"
+          className={styles.testButton}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? `${id}-list` : undefined}
+          aria-label={current ? `Teste: ${testName(current)}` : 'Teste: todos os testes'}
+          title={current ? current.description : undefined}
+          onClick={() => {
+            // Opening puts the focus on the chosen test (or "Todos os testes").
+            if (!open) setActive(selected !== null && order.includes(selected) ? selected : ALL);
+            setOpen(!open);
+          }}
+        >
+          <Icon name="flag" size={15} />
+          {current ? (
+            <>
+              <span className={styles.testWord}>Teste</span>
+              <span className={styles.testValue}>
+                {current.code && <code className={styles.code}>{current.code}</code>} {current.label}
+              </span>
+            </>
+          ) : (
+            <>
+              Teste
+              {found > 0 && <span className={styles.testCount}>{found}</span>}
+            </>
+          )}
+          <Icon name="chevronDown" size={14} className={styles.chevron} />
+        </button>
+        {current && (
+          <button type="button" className={styles.testRemove} aria-label="Remover filtro Teste" onClick={() => onSelect(null)}>
+            <Icon name="x" size={13} strokeWidth={2.4} />
+          </button>
         )}
-      </aside>
-      <div className={styles.center}>{children}</div>
-      {detail && <div className={styles.detail}>{detail}</div>}
-    </div>
-  );
-}
-
-function TestList({ tests, selected, onSelect, extra, loading }: { tests: readonly AnalysisTest[]; selected: string | null; onSelect: (key: string | null) => void; extra?: ReactNode; loading: boolean }) {
-  const quiet = tests.filter((t) => t.count === 0);
-  return (
-    <div className={styles.list}>
-      {loading && tests.length === 0 && <p className={ui.muted}>Carregando os testes…</p>}
-      {TEST_LEVELS.map((level) => {
-        const items = tests.filter((t) => t.level === level && t.count > 0);
-        if (items.length === 0) return null;
-        return (
-          <section key={level} className={styles.group} aria-label={TEST_LEVEL_LABEL[level]}>
-            <h3 className={styles.groupTitle}>
-              <span className={styles.levelDot} data-level={level} aria-hidden="true" />
-              {TEST_LEVEL_LABEL[level]}
-              <span className={styles.groupCount}>{items.length}</span>
-            </h3>
-            <ul className={styles.items}>
-              {items.map((t) => {
-                const on = selected === t.key;
-                return (
-                  <li key={t.key}>
-                    <button type="button" className={cx(styles.item, on && styles.itemOn)} data-code={t.code ? '' : undefined} aria-pressed={on} aria-label={testName(t)} title={t.description} onClick={() => onSelect(on ? null : t.key)}>
-                      {t.code && <code className={styles.code}>{t.code}</code>}
-                      <span className={styles.label}>{t.label}</span>
-                      <span className={styles.count}>{t.countText}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        );
-      })}
-      {extra}
-      {quiet.length > 0 && (
-        <details className={styles.quiet}>
-          <summary>
-            <Icon name="chevronRight" size={15} />
-            {quiet.length} teste(s) sem ocorrência
-          </summary>
-          <ul className={styles.quietItems}>
-            {quiet.map((t) => (
-              <li key={t.key} title={t.description}>
-                {t.code && <code className={styles.code}>{t.code}</code>}
-                <span className={styles.label}>{t.label}</span>
-                <span className={styles.quietNote}>{t.note ?? 'sem ocorrência'}</span>
-              </li>
+      </span>
+      {open && (
+        <div className={styles.popover}>
+          <div ref={list} id={`${id}-list`} role="listbox" aria-label="Teste" className={styles.options} onKeyDown={onKeyDown}>
+            <div
+              id={optionId(ALL)}
+              role="option"
+              aria-selected={selected === null}
+              tabIndex={active === ALL ? 0 : -1}
+              className={cx(styles.option, styles.optionAll, selected === null && styles.optionOn)}
+              onClick={() => choose(ALL)}
+              onFocus={() => setActive(ALL)}
+            >
+              <span className={styles.optionLabel}>Todos os testes</span>
+              <span className={styles.optionCount}>{loading ? 'carregando…' : `${found} com ocorrência`}</span>
+            </div>
+            {groups.map((g) => (
+              <div key={g.level} role="group" aria-label={TEST_LEVEL_LABEL[g.level]} className={styles.optionGroup}>
+                <div aria-hidden="true" className={styles.groupHead}>
+                  <span className={styles.levelDot} data-level={g.level} aria-hidden="true" />
+                  {TEST_LEVEL_LABEL[g.level]}
+                  <span className={styles.groupCount}>{g.items.length}</span>
+                </div>
+                {g.items.map(option)}
+              </div>
             ))}
-          </ul>
-        </details>
+            {showQuiet && quiet.length > 0 && (
+              <div role="group" aria-label="Sem ocorrência" className={styles.optionGroup}>
+                <div aria-hidden="true" className={styles.groupHead}>
+                  Sem ocorrência
+                  <span className={styles.groupCount}>{quiet.length}</span>
+                </div>
+                {quiet.map((t) => (
+                  <div key={t.key} role="option" aria-selected="false" aria-disabled="true" className={cx(styles.option, styles.optionQuiet)} title={t.description}>
+                    {t.code && <code className={styles.code}>{t.code}</code>}
+                    <span className={styles.optionLabel}>{t.label}</span>
+                    <span className={styles.optionCount}>{t.note ?? 'sem ocorrência'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {quiet.length > 0 && (
+            <button type="button" className={cx(ui.link, styles.quietToggle)} aria-expanded={showQuiet} onClick={() => setShowQuiet(!showQuiet)}>
+              {showQuiet ? 'Esconder os sem ocorrência' : `Mostrar sem ocorrência (${quiet.length})`}
+            </button>
+          )}
+        </div>
       )}
-    </div>
+    </span>
   );
 }
 
-/** The Teste filter of the bar: the tests with occurrence, with the number of rows each opens. */
-export function TestSelect({ tests, selected, onSelect, className }: { tests: readonly AnalysisTest[]; selected: string | null; onSelect: (key: string | null) => void; className?: string }) {
-  const found = tests.filter((t) => t.count > 0 && t.opens);
-  const current = selected !== null && !found.some((t) => t.key === selected) ? tests.find((t) => t.key === selected) : undefined;
-  return (
-    <select className={cx(ui.input, styles.select, className)} value={selected ?? ''} onChange={(e) => onSelect(e.target.value === '' ? null : e.target.value)} aria-label="Teste">
-      <option value="">Todos os testes</option>
-      {current && <option value={current.key}>{optionText(current)}</option>}
-      {TEST_LEVELS.map((level) => {
-        const items = found.filter((t) => t.level === level);
-        if (items.length === 0) return null;
-        return (
-          <optgroup key={level} label={TEST_LEVEL_LABEL[level]}>
-            {items.map((t) => (
-              <option key={t.key} value={t.key}>
-                {optionText(t)}
-              </option>
-            ))}
-          </optgroup>
-        );
-      })}
-    </select>
-  );
-}
-
-const optionText = (t: AnalysisTest) => `${t.code ? `${t.code} · ` : ''}${t.label} (${t.countText})`;
-
-/** The selected test in one line: its code, name and rule; the button takes the test filter off. */
+/** The chosen test in one line under the bar: its level and rule; the button takes the test filter off. */
 export function TestNote({ test, onClear }: { test: AnalysisTest | null; onClear: () => void }) {
   if (!test) return null;
   return (
     <p className={styles.note} data-level={test.level}>
       <span className={styles.levelDot} data-level={test.level} aria-hidden="true" />
-      <strong>
-        {test.code && <code className={styles.code}>{test.code}</code>} {test.label}
-      </strong>
+      <strong>{TEST_LEVEL_LABEL[test.level]}</strong>
       <span className={styles.noteText} title={test.description}>
         {test.description}
       </span>

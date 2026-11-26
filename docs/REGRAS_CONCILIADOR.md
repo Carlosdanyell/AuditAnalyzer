@@ -736,8 +736,9 @@ Identidade fecha em centavos (CC-3).
 
 Fluxo da plataforma: Arquivos → Processamento → Leitura → visões. Trilho (revisão do fluxo de 25/11/2026, a mesma das
 três ferramentas): **Leitura · Visão geral · Análise · Justificativas · Exportação** (via `features`). Os antigos
-Painel, Achados e Tabelas são a Visão geral (a tabela de contas) e a Análise (os códigos de achado à esquerda, as
-tabelas no centro com o filtro **Teste**, o detalhe da conta à direita em tela larga). Abaixo, os nomes antigos valem
+Painel, Achados e Tabelas são a Visão geral (a tabela de contas e, desde 26/11/2026, os achados por gravidade abaixo
+dela) e a Análise (os códigos de achado no filtro **Teste** da barra, as tabelas na tela inteira, o detalhe da conta num
+painel por cima da tabela). Abaixo, os nomes antigos valem
 para o conteúdo, que não mudou.
 
 - **Reconciliação de leitura:** por arquivo: relatório e formato detectados, SHA-256, codificação, linhas, blocos,

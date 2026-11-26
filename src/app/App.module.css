@@ -360,6 +360,37 @@
   gap: 18px;
 }
 
+/*
+ * The Análise fills the screen (26/11/2026): full width, and on a desktop the page stops scrolling so the table takes
+ * the height left between the key figures and the status bar (it scrolls inside, with its header fixed).
+ */
+.main[data-fill] {
+  max-width: none;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  gap: 10px;
+}
+
+.main[data-fill] > .view {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (min-width: 1024px) and (min-height: 560px) {
+  .content[data-fill] {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .main[data-fill] {
+    min-height: 0;
+    overflow: auto;
+  }
+}
+
 /* A new view fades in: opacity only, short. */
 .view {
   animation: view-in 160ms var(--ease);

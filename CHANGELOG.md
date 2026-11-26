@@ -4,6 +4,33 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.6.1] — 2026-11-26
+
+### Análise e Visão geral, segunda revisão (26/11/2026)
+- Análise: sem a coluna da esquerda nas três ferramentas. O teste virou um filtro da barra: o botão **Teste** abre a
+  lista agrupada por nível (Erro, Alerta, Conferir com aprovação, Informativo), com o número de linhas de cada um e os
+  sem ocorrência em "Mostrar sem ocorrência"; funciona pelo teclado. O teste escolhido aparece como etiqueta removível
+  e a regra numa linha abaixo da barra ("Tirar o filtro de teste" continua).
+- A tabela ocupa toda a largura e a altura que sobra na tela (cabeçalho fixo, rolagem por dentro); acima dela, no
+  máximo duas linhas: a barra de filtros e as abas com o número de linhas. Tabela mais estreita que a tela é alargada
+  pela coluna de texto mais larga. As fontes não mudaram.
+- CT2: "Parâmetros da execução" e "Reaplicar os testes" no botão **Parâmetros**, no fim da barra. CFGR700: o período
+  é um campo da barra; a sinalização sem tabela mostra o seu texto quando escolhida.
+- Detalhe da linha (documento da CT2, conta do Conciliador): painel lateral por cima da tabela em qualquer largura
+  (cerca de 60% da tela; a tela inteira no celular), fundo escurecido, foco preso; Esc, clique fora ou o botão de
+  fechar devolvem o foco à linha. A tabela não muda mais de tamanho.
+- Visão geral da CT2 na ordem de importância: **Resultado da análise** primeiro (documentos, lotes e dias
+  desbalanceados em destaque e os testes com ocorrência por nível, cada número abrindo a Análise filtrada por ele),
+  depois **Intervenção manual** (origens, lotes com intervenção, % do débito em linhas manuais), **Valores por
+  segmento**, os gráficos e a tabela de lotes; as linhas de histórico viraram uma nota de rodapé.
+- Visão geral do CFGR700: o **Resultado da análise** logo depois do período (sinalizações que exigem ação e exceções da
+  fase Postado em destaque, Informativo recolhido). Conciliador: os **achados por gravidade** abaixo das contas.
+- Sem mudança no worker, no motor ou na planilha. Contrato em `docs/MODULOS.md`; comportamentos em
+  `docs/INTERFACE.md`.
+
+### Corrigido
+- Painel do documento da CT2: a tabela "Por tipo de saldo e moeda" aparecia sem altura (vazia).
+
 ## [2.6.0] — 2026-11-26
 
 ### Fluxo das ferramentas: Leitura, Visão geral, Análise e Exportação (25/11/2026)

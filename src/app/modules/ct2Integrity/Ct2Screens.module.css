@@ -165,7 +165,8 @@
 }
 
 .barSearch {
-  flex: 0 1 340px;
+  flex: 1 1 200px;
+  max-width: 360px;
   margin-left: auto;
 }
 
@@ -662,6 +663,198 @@
   margin-top: 6px;
 }
 
+/* ── Visão geral ordered by importance (26/11/2026) ── */
+
+/* The numbers of the selection, under a filter only: one quiet line above the result. */
+.selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0 2px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.selection dt {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.selection dd {
+  margin: 0;
+}
+
+/* The result of the analysis: the first and largest panel. */
+.result {
+  gap: 18px;
+  padding: 20px 22px 18px;
+  border-color: var(--border-strong);
+}
+
+.result h2 {
+  font-size: 17px;
+}
+
+/* B1, B2, B3: three large figures side by side, red when there is something to see (red marks findings). */
+.unbalances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.unbalances li + li {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+.unbalance {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 2px 10px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 18px 12px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+button.unbalance {
+  cursor: pointer;
+  transition: background-color 140ms var(--ease);
+}
+
+button.unbalance:hover {
+  background: var(--surface-sunken);
+}
+
+button.unbalance:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.unbalance strong {
+  grid-row: span 2;
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-subtle);
+}
+
+[data-found] .unbalance strong {
+  color: var(--error);
+}
+
+.unbalance > span {
+  align-self: end;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.unbalance code {
+  align-self: start;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+button.unbalance:hover > span {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The manual intervention: the origins on the left, the batches and the share of the debit on the right. */
+.manualGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px 28px;
+}
+
+.manualSide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.manualGrid .origins {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.shares {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.shares li {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) minmax(60px, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+}
+
+.shareLabel {
+  font-weight: 600;
+}
+
+.shareTrack {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+  background: var(--origin-manual);
+}
+
+.shareValue {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.shareNote {
+  grid-column: 2 / 4;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* The charts side by side on a wide screen. */
+.chartsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .manualGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ── Folded panels ── */
 
 .fold > summary {
@@ -696,50 +889,7 @@
   margin-bottom: 6px;
 }
 
-/* ── Side panel of a document (an overlay: the one place with a shadow) ── */
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: flex-end;
-  background: rgb(10 17 28 / 38%);
-  animation: fade 160ms var(--ease) both;
-}
-
-.drawer {
-  display: flex;
-  flex-direction: column;
-  width: min(1040px, 100%);
-  height: 100%;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-}
-
-.drawerBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px 10px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.drawerActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.drawerBody {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px 28px;
-  overflow: auto;
-}
+/* ── Side panel of a document (the sheet itself is DetailPane.module.css) ── */
 
 .drawerTitle {
   font-size: 17px;
@@ -814,16 +964,6 @@
 .historyCell {
   min-width: 180px;
   white-space: normal !important;
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
 }
 
 @media (width < 700px) {

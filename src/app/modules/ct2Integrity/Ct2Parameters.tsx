@@ -1,8 +1,10 @@
 /**
- * Parameters of one execution of the CT2 tests (docs/REGRAS_CT2_INTEGRIDADE.md, section 6.5), folded at the top of the list of tests of the Análise:
- * changed and reapplied in seconds, without reading the files again; validated on screen before they are sent.
+ * Parameters of one execution of the CT2 tests (docs/REGRAS_CT2_INTEGRIDADE.md, section 6.5): the "Parâmetros" button at
+ * the end of the filter bar of the Análise (26/11/2026) opens them in a panel under the bar; changed and reapplied in
+ * seconds, without reading the files again; validated on screen before they are sent. Esc or a click outside closes the
+ * panel (what was typed stays) and the focus goes back to the button.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { readCt2RunParameters } from '../../../config/ct2IntegritySchema';
 import { Icon } from '../../../components/Icon';
 import { cx } from '../../../components/cx';
@@ -17,7 +19,7 @@ const isoOf = (day: number | null) => (day === null ? '' : dayToInput(day));
 const dayOf = inputToDay;
 
 /** Parameters of the execution (section 6.5): changed and reapplied without reading the files again. */
-export function Ct2Parameters({ current, onReapply, compact = false }: { current: Ct2RunParameters; onReapply: (parameters: Ct2RunParameters) => Promise<void>; compact?: boolean }) {
+export function Ct2Parameters({ current, onReapply }: { current: Ct2RunParameters; onReapply: (parameters: Ct2RunParameters) => Promise<void> }) {
   const initial = useMemo(
     () => ({
       start: isoOf(current.periodStart),
@@ -34,7 +36,32 @@ export function Ct2Parameters({ current, onReapply, compact = false }: { current
   const [status, setStatus] = useState<{ kind: 'idle' | 'running' | 'done' | 'error'; text?: string }>({ kind: 'idle' });
   // Opened and closed by the user only: the result of reapplying stays in sight.
   const [open, setOpen] = useState(false);
+  const id = useId();
+  const box = useRef<HTMLSpanElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => setForm(initial), [initial]);
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.querySelector<HTMLElement>('input')?.focus();
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    // Esc closes even when the focus left the panel (a button disabled after reapplying gives it to the page).
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const cents = centsFromReais(form.tolerance);
   const candidate = {
@@ -62,77 +89,81 @@ export function Ct2Parameters({ current, onReapply, compact = false }: { current
     }
   }
 
+  const line = `tolerância ${formatCents(current.toleranceCents)} · tipo de saldo ${current.expectedBalanceType} · moeda ${current.expectedCurrency} · limite de ${n(current.documentLineLimit)} linhas`;
   return (
-    <details className={cx(compact ? styles.compact : ui.card, styles.fold)} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>
-        <Icon name="chevronRight" size={compact ? 16 : 18} />
-        <span className={ui.cardTitle}>
-          {!compact && (
-            <span className={ui.cardIcon}>
-              <Icon name="sliders" />
-            </span>
+    <span ref={box} className={styles.box}>
+      <button ref={button} type="button" className={cx(styles.button, open && styles.buttonOpen)} aria-expanded={open} aria-controls={open ? id : undefined} title={`Parâmetros da execução: ${line}`} onClick={() => setOpen(!open)}>
+        <Icon name="sliders" size={15} />
+        Parâmetros
+      </button>
+      {open && (
+        <div ref={panel} id={id} className={styles.panel} role="group" aria-labelledby={`${id}-title`}>
+          <div className={styles.panelHead}>
+            <h2 id={`${id}-title`} className={styles.title}>
+              Parâmetros da execução
+            </h2>
+            <span className={ui.note}>{line}</span>
+          </div>
+          <div className={styles.params}>
+            <label className={ui.field}>
+              Data inicial
+              <input type="date" className={ui.input} value={form.start} onChange={set('start')} />
+            </label>
+            <label className={ui.field}>
+              Data final
+              <input type="date" className={ui.input} value={form.end} onChange={set('end')} />
+            </label>
+            <label className={ui.field}>
+              Tipo de saldo esperado
+              <input className={ui.input} value={form.expectedBalanceType} onChange={set('expectedBalanceType')} />
+            </label>
+            <label className={ui.field}>
+              Moeda esperada
+              <input className={ui.input} value={form.expectedCurrency} onChange={set('expectedCurrency')} />
+            </label>
+            <label className={ui.field}>
+              Moeda local
+              <input className={ui.input} value={form.localCurrency} onChange={set('localCurrency')} />
+            </label>
+            <label className={ui.field}>
+              Tolerância (R$)
+              <input className={ui.input} inputMode="decimal" value={form.tolerance} onChange={set('tolerance')} />
+            </label>
+            <label className={ui.field}>
+              Limite de linhas por documento
+              <input className={ui.input} inputMode="numeric" value={form.documentLineLimit} onChange={set('documentLineLimit')} />
+            </label>
+          </div>
+          {problems.length > 0 && (
+            <ul className={styles.problems} role="alert">
+              {problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
           )}
-          Parâmetros da execução
-        </span>
-        <span className={ui.muted}>
-          tolerância {formatCents(current.toleranceCents)} · tipo de saldo {current.expectedBalanceType} · moeda {current.expectedCurrency} · limite de {n(current.documentLineLimit)} linhas
-        </span>
-      </summary>
-      <div className={styles.params}>
-        <label className={ui.field}>
-          Data inicial
-          <input type="date" className={ui.input} value={form.start} onChange={set('start')} />
-        </label>
-        <label className={ui.field}>
-          Data final
-          <input type="date" className={ui.input} value={form.end} onChange={set('end')} />
-        </label>
-        <label className={ui.field}>
-          Tipo de saldo esperado
-          <input className={ui.input} value={form.expectedBalanceType} onChange={set('expectedBalanceType')} />
-        </label>
-        <label className={ui.field}>
-          Moeda esperada
-          <input className={ui.input} value={form.expectedCurrency} onChange={set('expectedCurrency')} />
-        </label>
-        <label className={ui.field}>
-          Moeda local
-          <input className={ui.input} value={form.localCurrency} onChange={set('localCurrency')} />
-        </label>
-        <label className={ui.field}>
-          Tolerância (R$)
-          <input className={ui.input} inputMode="decimal" value={form.tolerance} onChange={set('tolerance')} />
-        </label>
-        <label className={ui.field}>
-          Limite de linhas por documento
-          <input className={ui.input} inputMode="numeric" value={form.documentLineLimit} onChange={set('documentLineLimit')} />
-        </label>
-      </div>
-      {problems.length > 0 && (
-        <ul className={styles.problems} role="alert">
-          {problems.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
+          <div className={styles.actions}>
+            <button type="button" className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => void apply()} disabled={!dirty || !read.ok || status.kind === 'running'}>
+              {status.kind === 'running' ? <span className={ui.spinner} /> : <Icon name="refresh" size={15} />}
+              Reaplicar os testes
+            </button>
+            <button type="button" className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => setForm(initial)} disabled={!dirty || status.kind === 'running'}>
+              Desfazer
+            </button>
+            <button type="button" className={cx(ui.btn, ui.ghost, ui.sm, styles.close)} onClick={close}>
+              Fechar os parâmetros
+            </button>
+            {status.text && (
+              <span className={cx(status.kind === 'error' ? styles.errorText : ui.muted)} role="status">
+                {status.text}
+              </span>
+            )}
+          </div>
+          <p className={ui.note}>
+            Os testes são aplicados de novo sobre a mesma base, sem reler os arquivos. A visão geral, a análise e a planilha passam a usar estes parâmetros;
+            os padrões ficam na Configuração.
+          </p>
+        </div>
       )}
-      <div className={styles.actions}>
-        <button type="button" className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => void apply()} disabled={!dirty || !read.ok || status.kind === 'running'}>
-          {status.kind === 'running' ? <span className={ui.spinner} /> : <Icon name="refresh" size={15} />}
-          Reaplicar os testes
-        </button>
-        <button type="button" className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => setForm(initial)} disabled={!dirty || status.kind === 'running'}>
-          Desfazer
-        </button>
-        {status.text && (
-          <span className={cx(status.kind === 'error' ? styles.errorText : ui.muted)} role="status">
-            {status.text}
-          </span>
-        )}
-      </div>
-      <p className={ui.muted}>
-        Os testes são aplicados de novo sobre a mesma base, sem reler os arquivos. A visão geral, a análise e a planilha passam a usar estes parâmetros;
-        os padrões ficam na Configuração.
-      </p>
-    </details>
+    </span>
   );
 }

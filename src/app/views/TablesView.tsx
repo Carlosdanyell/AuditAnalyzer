@@ -128,6 +128,20 @@ interface TablesViewProps {
   search?: boolean;
   /** Short text after the row count (e.g. the filters in force). */
   summary?: ReactNode;
+  /**
+   * The Análise (26/11/2026): the table takes the height left on the screen; the controls stand in two rows at most —
+   * the bar of filters (`lead`, the origin, the chip of the panel, `toolbar` and the search), then the tabs with
+   * `tableTools`, the row count and the view tools.
+   */
+  fill?: boolean;
+  /** First controls of the bar (the Teste filter, the period). */
+  lead?: ReactNode;
+  /** Between the bar and the tabs (the rule of the chosen test). */
+  note?: ReactNode;
+  /** Controls of the table on screen, beside the tabs (fill only). */
+  tableTools?: ReactNode;
+  /** False hides the chip of the filter of the panel (the Teste chip already names it). */
+  panelChip?: boolean;
 }
 
 export function TablesView({
@@ -145,6 +159,11 @@ export function TablesView({
   emptyHint = 'Ajuste a busca, a origem ou remova o filtro do painel.',
   search: showSearch = true,
   summary,
+  fill = false,
+  lead,
+  note,
+  tableTools,
+  panelChip = true,
 }: TablesViewProps) {
   const [columns, setColumns] = useState<ColumnSpec[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -244,9 +263,22 @@ export function TablesView({
     for (let p = first; p <= last; p++) loadPage(p, generation.current);
   });
 
+  // The width of the grid, so a table narrower than the screen fills it (26/11/2026).
+  const [room, setRoom] = useState(0);
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(() => setRoom(box.clientWidth));
+    watch.observe(box);
+    return () => watch.disconnect();
+  }, []);
+
   const hiddenHere = useMemo(() => new Set(hidden[request.table] ?? []), [hidden, request.table]);
-  /** The columns shown, with their index in the rows of the worker. */
-  const shown = columns.map((c, at) => ({ ...c, at })).filter((c) => !hiddenHere.has(c.id));
+  /** The columns shown, with their index in the rows of the worker; the room left goes to the widest text column. */
+  const shown = stretchColumns(
+    columns.map((c, at) => ({ ...c, at })).filter((c) => !hiddenHere.has(c.id)),
+    room,
+  );
   const setHiddenHere = (ids: string[]) => setHidden({ ...hidden, [request.table]: ids });
   const width = shown.reduce((w, c) => w + c.width, 0);
   const setFilter = (filter: AnyTableFilter) => onRequest({ ...request, filter });
@@ -259,25 +291,25 @@ export function TablesView({
   const { category, period, origin } = request.filter;
   const segregation = segregationFilterText(request.filter, balanceType);
 
-  return (
-    <div className={styles.view}>
-      <nav className={cx(ui.segmented, styles.tabs)} aria-label="Tabelas">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={t.id === request.table ? ui.segmentActive : ui.segment}
-            aria-current={t.id === request.table ? 'page' : undefined}
-            onClick={() => onRequest({ table: t.id, filter: {} })}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className={styles.toolbar}>
-        {showSearch && <SearchBox key={request.table} value={request.filter.search ?? ''} onSearch={onSearch} />}
-        {originFilters && (
+  const tabsNav = (
+    <nav className={cx(ui.segmented, styles.tabs)} aria-label="Tabelas">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          className={t.id === request.table ? ui.segmentActive : ui.segment}
+          aria-current={t.id === request.table ? 'page' : undefined}
+          onClick={() => onRequest({ table: t.id, filter: {} })}
+        >
+          {t.label}
+        </button>
+      ))}
+    </nav>
+  );
+  const search = showSearch && <SearchBox key={request.table} value={request.filter.search ?? ''} onSearch={onSearch} />;
+  const filters = (
+    <>
+      {originFilters && (
         <select
           className={ui.input}
           value={origin ?? ''}
@@ -295,55 +327,91 @@ export function TablesView({
             </option>
           ))}
         </select>
-        )}
-        {originFilters && (category || period || segregation.length > 0) && (
-          <span className={styles.chip}>
-            <Icon name="filter" size={13} />
-            {category ? `${CATEGORY_LABEL[category]} ` : 'Eventos '}
-            {period && period.startDay > -2147483648 ? `de ${formatDay(period.startDay)} a ${formatDay(period.endDay)}` : 'no log completo'}
-            {segregation.length > 0 && ` · ${segregation.join(' · ')}`}
-            <button
-              type="button"
-              aria-label="Remover filtro do painel"
-              onClick={() => {
-                const { category: _c, period: _p, phase: _f, operation: _o, exception: _e, informative: _i, mark: _m, ...rest } = request.filter;
-                void [_c, _p, _f, _o, _e, _i, _m];
-                setFilter(rest);
-              }}
-            >
-              <Icon name="x" size={13} strokeWidth={2.4} />
-            </button>
-          </span>
-        )}
-        {toolbar}
-      </div>
-
-      <div className={styles.summary}>
-        <p className={styles.summaryText}>
-          <span className={cx(styles.count, total === null && styles.counting)} aria-live="polite">
-            {total === null ? 'Carregando…' : `${formatInteger(total)} linha(s)`}
-          </span>
-          {summary && <span className={styles.summaryMore}>{summary}</span>}
-        </p>
-        <span className={styles.viewTools}>
-          {columns.length > 1 && <ColumnChooser columns={columns} hidden={hiddenHere} onChange={setHiddenHere} />}
-          <span className={cx(ui.segmented, styles.density)} role="group" aria-label="Densidade das linhas">
-            {(['comfortable', 'compact'] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={density === d ? ui.segmentActive : ui.segment}
-                aria-pressed={density === d}
-                title={d === 'comfortable' ? 'Linhas confortáveis' : 'Linhas compactas'}
-                onClick={() => chooseDensity(d)}
-              >
-                <Icon name={d === 'comfortable' ? 'rowsComfortable' : 'rowsCompact'} size={15} />
-                <span>{d === 'comfortable' ? 'Confortável' : 'Compacta'}</span>
-              </button>
-            ))}
-          </span>
+      )}
+      {originFilters && panelChip && (category || period || segregation.length > 0) && (
+        <span className={styles.chip}>
+          <Icon name="filter" size={13} />
+          {category ? `${CATEGORY_LABEL[category]} ` : 'Eventos '}
+          {period && period.startDay > -2147483648 ? `de ${formatDay(period.startDay)} a ${formatDay(period.endDay)}` : 'no log completo'}
+          {segregation.length > 0 && ` · ${segregation.join(' · ')}`}
+          <button
+            type="button"
+            aria-label="Remover filtro do painel"
+            onClick={() => {
+              const { category: _c, period: _p, phase: _f, operation: _o, exception: _e, informative: _i, mark: _m, ...rest } = request.filter;
+              void [_c, _p, _f, _o, _e, _i, _m];
+              setFilter(rest);
+            }}
+          >
+            <Icon name="x" size={13} strokeWidth={2.4} />
+          </button>
         </span>
-      </div>
+      )}
+      {toolbar}
+    </>
+  );
+  const countText = (
+    <p className={styles.summaryText}>
+      <span className={cx(styles.count, total === null && styles.counting)} aria-live="polite">
+        {total === null ? 'Carregando…' : `${formatInteger(total)} linha(s)`}
+      </span>
+      {summary && <span className={styles.summaryMore}>{summary}</span>}
+    </p>
+  );
+  const viewTools = (
+    <span className={styles.viewTools}>
+      {columns.length > 1 && <ColumnChooser columns={columns} hidden={hiddenHere} onChange={setHiddenHere} />}
+      <span className={cx(ui.segmented, styles.density)} role="group" aria-label="Densidade das linhas">
+        {(['comfortable', 'compact'] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={density === d ? ui.segmentActive : ui.segment}
+            aria-pressed={density === d}
+            title={d === 'comfortable' ? 'Linhas confortáveis' : 'Linhas compactas'}
+            onClick={() => chooseDensity(d)}
+          >
+            <Icon name={d === 'comfortable' ? 'rowsComfortable' : 'rowsCompact'} size={15} />
+            <span>{d === 'comfortable' ? 'Confortável' : 'Compacta'}</span>
+          </button>
+        ))}
+      </span>
+    </span>
+  );
+  const hasBar = !!lead || showSearch || originFilters || !!toolbar;
+
+  return (
+    <div className={cx(styles.view, fill && styles.fill)}>
+      {fill ? (
+        <>
+          {hasBar && (
+            <section className={styles.bar} aria-label="Filtros">
+              {lead}
+              {filters}
+              {search}
+            </section>
+          )}
+          {note}
+          <div className={styles.head}>
+            {tabsNav}
+            {tableTools}
+            {countText}
+            {viewTools}
+          </div>
+        </>
+      ) : (
+        <>
+          {tabsNav}
+          <div className={styles.toolbar}>
+            {search}
+            {filters}
+          </div>
+          <div className={styles.summary}>
+            {countText}
+            {viewTools}
+          </div>
+        </>
+      )}
 
       {error && (
         <p className={cx(ui.alert, ui.error)} role="alert">
@@ -423,6 +491,23 @@ export function TablesView({
       </div>
     </div>
   );
+}
+
+/**
+ * The columns of a table narrower than its grid, widened to fill it (pure): the room left goes to the widest text
+ * column (the history, usually), or is shared by all when there is none. The widths of the worker are the minimum.
+ */
+export function stretchColumns<C extends { type: ColumnSpec['type']; width: number }>(columns: C[], room: number): C[] {
+  const width = columns.reduce((w, c) => w + c.width, 0);
+  const extra = Math.floor(room) - width;
+  if (columns.length === 0 || extra <= 0) return columns;
+  let target = -1;
+  columns.forEach((c, i) => {
+    if (c.type === 'text' && (target < 0 || c.width > columns[target]!.width)) target = i;
+  });
+  if (target >= 0) return columns.map((c, i) => (i === target ? { ...c, width: c.width + extra } : c));
+  const each = Math.floor(extra / columns.length);
+  return columns.map((c, i) => ({ ...c, width: c.width + each + (i === columns.length - 1 ? extra - each * columns.length : 0) }));
 }
 
 /** "Colunas": a list of the columns of the table to show or hide (this session only; the export is not affected). */

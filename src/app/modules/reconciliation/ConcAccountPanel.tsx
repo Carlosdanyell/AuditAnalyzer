@@ -251,21 +251,19 @@ export function ConcAccountDetailView({ detail, titleId, onCopy, copied, onFindi
   );
 }
 
-/** The detail of an account: asks the worker for it; docked beside the table or over the screen (DetailPane). */
+/** The detail of an account: asks the worker for it; a side panel over the screen (DetailPane). */
 export function ConcAccountDialog({
   client,
   index,
   onClose,
   onLedger,
   onFinding,
-  docked = false,
 }: {
   client: WorkerClient;
   index: number;
   onClose: () => void;
   onLedger: (index: number) => void;
   onFinding?: OnFinding;
-  docked?: boolean;
 }) {
   const [detail, setDetail] = useState<ReconciliationAccountDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -294,12 +292,11 @@ export function ConcAccountDialog({
 
   return (
     <DetailPane
-      docked={docked}
       labelledBy="conc-account-title"
       kind="Conta"
       closeLabel="Fechar os detalhes da conta"
       onClose={onClose}
-      classes={{ overlay: styles.overlay, drawer: styles.drawer, bar: styles.drawerBar, actions: styles.drawerActions, body: styles.drawerBody }}
+      bodyClassName={styles.drawerBody}
       actions={
         <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onLedger(index)}>
           <Icon name="table" size={15} />

@@ -1,13 +1,13 @@
 /**
- * Workspace of the CT2 integrity module after the analysis (docs/REGRAS_CT2_INTEGRIDADE.md, section 9; flow revision of
- * 25/11/2026): Leitura (with the tie-out matrix), Visão geral (composition of the extraction), Análise (the tests on the
- * left, the tables in the center with the Teste filter, the document of the selected row on the right) and Exportação.
- * The common filter of the Visão geral and the Análise and the side panel of a document live here; the shell (App.tsx)
- * owns the files, the processing and the view chosen in the rail.
+ * Workspace of the CT2 integrity module after the analysis (docs/REGRAS_CT2_INTEGRIDADE.md, section 9; flow revisions of
+ * 25 and 26/11/2026): Leitura (with the tie-out matrix), Visão geral (the result of the analysis first, then the
+ * composition of the extraction), Análise (the filter bar with the Teste filter and "Parâmetros", the tables on the
+ * whole screen) and Exportação. The common filter of the Visão geral and the Análise and the side panel of a document
+ * (over the screen) live here; the shell (App.tsx) owns the files, the processing and the view chosen in the rail.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Ct2TestCode } from '../../../config/ct2IntegritySchema';
-import { AnalysisLayout, TestNote, TestSelect, WIDE_QUERY, useMedia } from '../../../components/AnalysisLayout';
+import { AnalysisLayout, TestFilter, TestNote } from '../../../components/AnalysisLayout';
 import { Ct2ReconciliationView } from '../../../components/Ct2ReconciliationView';
 import { Icon } from '../../../components/Icon';
 import ui from '../../../components/ui.module.css';
@@ -62,7 +62,6 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
   const [lists, setLists] = useState<{ segments: string[]; routines: string[] }>({ segments: [], routines: [] });
   const [matrix, setMatrix] = useState<Ct2MatrixRow[] | null>(null);
   const [tests, setTests] = useState<Ct2TestsData | null>(null);
-  const wide = useMedia(WIDE_QUERY);
 
   // A new analysis starts the filters, the tables and the side panel over.
   useEffect(() => {
@@ -110,6 +109,18 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
     [onView],
   );
 
+  /** A test of the result of the Visão geral: the Análise with the table that counts it (Misto: Documentos with the origin). */
+  const openTest = useCallback(
+    (key: string, table: Ct2TableId) => {
+      if (key === MIXED_KEY) {
+        setFilter((before) => commonOf(withFilter(before, 'origins', ['mixed'])));
+        setRequest({ table: 'ct2Documents', filter: {} });
+      } else setRequest({ table, filter: { test: key as Ct2TestCode } });
+      onView('analysis');
+    },
+    [onView],
+  );
+
   const reapply = useCallback(
     async (parameters: Ct2RunParameters) => {
       const answer = await client.query({ type: 'analyze', parameters });
@@ -152,7 +163,6 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
   const exportOffered = module.features.export;
   const table = request.table as Ct2TableId;
   const own = ownOf(request.filter as Ct2TableFilter);
-  const docked = view === 'analysis' && wide;
 
   /** A test chosen in the list or in the Teste filter: the table on screen when it lists it, Ocorrências otherwise. */
   const selectTest = (key: string | null) => {
@@ -182,7 +192,6 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
         client={client}
         index={opened}
         segments={lists.segments}
-        docked={docked}
         onClose={() => setOpened(null)}
         onBase={(index) => {
           setOpened(null);
@@ -196,7 +205,7 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
       <div className={viewClassName} key={view}>
         {content()}
       </div>
-      {!docked && dialog}
+      {dialog}
     </>
   );
 
@@ -205,7 +214,7 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
       return (
         <div className={styles.stack}>
           <Ct2FilterBar filter={filter} onChange={onFilter} segments={lists.segments} routines={lists.routines} table={null} />
-          <Ct2OverviewView client={client} filter={filter} onFilter={onFilter} onOpenTable={openTable} onOpenDocument={setOpened} refreshKey={refresh} />
+          <Ct2OverviewView client={client} filter={filter} onFilter={onFilter} onOpenTable={openTable} onOpenTest={openTest} onOpenDocument={setOpened} refreshKey={refresh} />
         </div>
       );
     }
@@ -217,14 +226,7 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
       };
       const setOwn = (next: Ct2TableFilter) => setRequest({ ...request, filter: next });
       return (
-        <AnalysisLayout
-          tests={analysisTests}
-          selected={selectedKey}
-          onSelect={selectTest}
-          loading={tests === null}
-          top={summary?.analysis ? <Ct2Parameters compact current={summary.analysis.parameters} onReapply={reapply} /> : null}
-          detail={docked ? dialog : null}
-        >
+        <AnalysisLayout>
           <Ct2FilterBar
             filter={filter}
             onChange={onFilter}
@@ -232,10 +234,13 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
             routines={lists.routines}
             table={table}
             search={{ value: request.filter.search ?? '', onSearch }}
-            extra={<TestSelect tests={analysisTests} selected={selectedKey} onSelect={selectTest} />}
+            lead={<TestFilter tests={analysisTests} selected={selectedKey} onSelect={selectTest} loading={tests === null} />}
+            otherFilter={selectedKey !== null}
+            tools={summary?.analysis ? <Ct2Parameters current={summary.analysis.parameters} onReapply={reapply} /> : null}
           />
           <TestNote test={selected} onClear={() => selectTest(null)} />
           <TablesView
+            fill
             client={client}
             scope={0}
             request={merged}
@@ -247,7 +252,7 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
             refreshKey={refresh}
             emptyHint="Mude a busca, o teste ou tire um dos filtros."
             {...(DOCUMENT_TABLES.has(table) && { onRowClick: (_row: unknown, document: number | null) => document !== null && setOpened(document) })}
-            toolbar={
+            tableTools={
               (table === 'ct2Exceptions' || (table === 'ct2Batches' && own.intervention) || table === 'ct2Base') && (
                 <>
                   {table === 'ct2Exceptions' && (
