@@ -36,3 +36,10 @@
   color: var(--text-muted);
   cursor: pointer;
 }
+
+/* The filter bar above the Visão geral. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

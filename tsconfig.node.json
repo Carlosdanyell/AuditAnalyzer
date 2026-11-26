@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["node", "vite/client"]
   },
-  "include": ["tests", "playwright.config.ts", "vite.config.ts", "vitest.config.ts", "vitest.local.config.ts", "eslint.config.js"]
+  "include": ["tests", "src/worker/ingest/pdfjsWorker.d.ts", "playwright.config.ts", "vite.config.ts", "vitest.config.ts", "vitest.local.config.ts", "eslint.config.js"]
 }

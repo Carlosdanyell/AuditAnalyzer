@@ -1,5 +1,5 @@
 /**
- * Geometry of the charts of the CT2 Painel (Phase 14, section 4.3), pure: bars by routine stacked by origin and columns
+ * Geometry of the charts of the CT2 Visão geral (Phase 14, section 4.3), pure: bars by routine stacked by origin and columns
  * by day, with the accessible name of each mark. Widths and heights are percentages of the largest mark; values come
  * from the overview as they are (counts, or cents of ONE segment: values are never added across segments).
  */

@@ -1,17 +1,19 @@
 /**
- * Workspace of the CT2 integrity module after the analysis (docs/REGRAS_CT2_INTEGRIDADE.md, section 9; Phase 14,
- * section 4): reconciliation (with the tie-out matrix), Painel (composition of the extraction), Achados (what to
- * examine), tables and export. The common filter of Painel, Achados and Tabelas and the side panel of a document live
- * here; the shell (App.tsx) owns the files, the processing and the view chosen in the rail.
+ * Workspace of the CT2 integrity module after the analysis (docs/REGRAS_CT2_INTEGRIDADE.md, section 9; flow revision of
+ * 25/11/2026): Leitura (with the tie-out matrix), Visão geral (composition of the extraction), Análise (the tests on the
+ * left, the tables in the center with the Teste filter, the document of the selected row on the right) and Exportação.
+ * The common filter of the Visão geral and the Análise and the side panel of a document live here; the shell (App.tsx)
+ * owns the files, the processing and the view chosen in the rail.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Ct2TestCode } from '../../../config/ct2IntegritySchema';
+import { AnalysisLayout, TestNote, TestSelect, WIDE_QUERY, useMedia } from '../../../components/AnalysisLayout';
 import { Ct2ReconciliationView } from '../../../components/Ct2ReconciliationView';
 import { Icon } from '../../../components/Icon';
 import ui from '../../../components/ui.module.css';
 import {
   CT2_FINDING_GROUPS,
   CT2_FINDING_GROUP_LABEL,
-  CT2_TEST_INFO,
   isCt2Reconciliation,
   isCt2Summary,
   type Ct2Filter,
@@ -20,43 +22,52 @@ import {
   type Ct2RunParameters,
   type Ct2TableFilter,
   type Ct2TableId,
+  type Ct2TestsData,
 } from '../../../shared/modules/ct2Integrity';
 import { ExportView } from '../../views/ExportView';
 import { TablesView, type TableRequest } from '../../views/TablesView';
 import { CT2_EXPORT, ct2TooLarge } from '../../views/ct2Export';
 import type { WorkspaceProps } from '../workspace';
+import { MIXED_KEY, ct2AnalysisTests, ct2TestTarget } from './analysisTests';
 import { Ct2DocumentDialog } from './Ct2DocumentPanel';
 import { Ct2FilterBar } from './Ct2FilterBar';
-import { Ct2FindingsView } from './Ct2FindingsView';
 import { Ct2OverviewView } from './Ct2OverviewView';
-import { commonOf, filterChips, ownOf } from './filters';
+import { Ct2Parameters } from './Ct2Parameters';
+import { commonOf, filterChips, ownOf, withFilter } from './filters';
 import styles from './Ct2Workspace.module.css';
 
 export const CT2_TABLES: { id: Ct2TableId; label: string }[] = [
+  { id: 'ct2Exceptions', label: 'Ocorrências' },
   { id: 'ct2Documents', label: 'Documentos' },
   { id: 'ct2Batches', label: 'Lotes' },
   { id: 'ct2Days', label: 'Dias' },
-  { id: 'ct2Exceptions', label: 'Exceções' },
   { id: 'ct2Base', label: 'Base' },
 ];
 
 /** Tables whose rows open the side panel of their document. */
 const DOCUMENT_TABLES: ReadonlySet<Ct2TableId> = new Set(['ct2Documents', 'ct2Exceptions', 'ct2Base']);
 
+const FIRST: TableRequest = { table: 'ct2Exceptions', filter: {} };
+
+/** The Misto documents chosen in the list: the origin filter is Misto alone, on Documentos, without a test. */
+const mixedOn = (filter: Ct2Filter, request: TableRequest) => request.table === 'ct2Documents' && !request.filter.test && filter.origins?.length === 1 && filter.origins[0] === 'mixed';
+
 /** The state of the workspace (filter, table, side panel) stays while the views change; each view is a new element (its entrance). */
 export function Ct2Workspace({ viewClassName, client, module, view, onView, reconciliation: anyReconciliation, summary: anySummary, analysisId, onAnalyzed }: WorkspaceProps) {
   const [filter, setFilter] = useState<Ct2Filter>({});
   /** The table and its own filter (test, group, intervention, document, search, columns); the common filter is merged in. */
-  const [request, setRequest] = useState<TableRequest>({ table: 'ct2Documents', filter: {} });
+  const [request, setRequest] = useState<TableRequest>(FIRST);
   const [refresh, setRefresh] = useState(0);
   const [opened, setOpened] = useState<number | null>(null);
   const [lists, setLists] = useState<{ segments: string[]; routines: string[] }>({ segments: [], routines: [] });
   const [matrix, setMatrix] = useState<Ct2MatrixRow[] | null>(null);
+  const [tests, setTests] = useState<Ct2TestsData | null>(null);
+  const wide = useMedia(WIDE_QUERY);
 
   // A new analysis starts the filters, the tables and the side panel over.
   useEffect(() => {
     setFilter({});
-    setRequest({ table: 'ct2Documents', filter: {} });
+    setRequest(FIRST);
     setOpened(null);
   }, [analysisId]);
 
@@ -76,10 +87,25 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
     };
   }, [client, analysisId, refresh]);
 
+  // The tests with their rows in each table, under the common filter (the list and the Teste filter of the Análise).
+  const filterKey = JSON.stringify(filter);
+  useEffect(() => {
+    if (view !== 'analysis') return;
+    let current = true;
+    void client
+      .query({ type: 'tests', filter })
+      .then((answer) => current && setTests(answer.data))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, filterKey, refresh, analysisId, view]);
+
   const openTable = useCallback(
     (table: Ct2TableId, own: Ct2TableFilter) => {
       setRequest({ table, filter: ownOf(own) });
-      onView('tables');
+      onView('analysis');
     },
     [onView],
   );
@@ -94,15 +120,19 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
   );
 
   const merged = useMemo<TableRequest>(() => ({ ...request, filter: { ...ownOf(request.filter as Ct2TableFilter), ...filter } }), [request, filter]);
-  // The search lives in the filter bar: it stays when another table is opened.
+  // The search lives in the filter bar: it stays when another table is opened, and so does the test when the new table lists it.
   const onRequest = useCallback(
     (r: TableRequest) =>
       setRequest((before) => {
         const own = ownOf(r.filter as Ct2TableFilter);
-        const search = before.filter.search;
-        return { ...r, filter: r.table !== before.table && search && own.search === undefined ? { ...own, search } : own };
+        if (r.table === before.table) return { ...r, filter: own };
+        const { search, test } = before.filter as Ct2TableFilter;
+        const keep: Ct2TableFilter = { ...own };
+        if (search && own.search === undefined) keep.search = search;
+        if (test && own.test === undefined && tests && ct2TestTarget(tests, test, r.table as Ct2TableId) === r.table) keep.test = test;
+        return { ...r, filter: keep };
       }),
-    [],
+    [tests],
   );
   const onSearch = useCallback(
     (text: string) =>
@@ -120,120 +150,150 @@ export function Ct2Workspace({ viewClassName, client, module, view, onView, reco
   const summary = anySummary && isCt2Summary(anySummary) ? anySummary : null;
   const preview = module.preview;
   const exportOffered = module.features.export;
-  const filtered = view === 'panel' || view === 'findings' || view === 'tables';
   const table = request.table as Ct2TableId;
+  const own = ownOf(request.filter as Ct2TableFilter);
+  const docked = view === 'analysis' && wide;
+
+  /** A test chosen in the list or in the Teste filter: the table on screen when it lists it, Ocorrências otherwise. */
+  const selectTest = (key: string | null) => {
+    if (key === MIXED_KEY) {
+      onFilter(withFilter(filter, 'origins', ['mixed']));
+      setRequest({ table: 'ct2Documents', filter: own.search ? { search: own.search } : {} });
+      return;
+    }
+    if (key === null) {
+      if (mixedOn(filter, request)) onFilter(withFilter(filter, 'origins', undefined));
+      const { test: _t, ...rest } = own;
+      void _t;
+      setRequest({ ...request, filter: rest });
+      return;
+    }
+    const target = tests ? ct2TestTarget(tests, key, table) : 'ct2Exceptions';
+    const keep: Ct2TableFilter = target === table ? { ...own } : own.search ? { search: own.search } : {};
+    setRequest({ table: target, filter: { ...keep, test: key as Ct2TestCode } });
+  };
+  const analysisTests = tests ? ct2AnalysisTests(tests, table) : [];
+  const selectedKey = own.test ?? (mixedOn(filter, request) ? MIXED_KEY : null);
+  const selected = analysisTests.find((t) => t.key === selectedKey) ?? null;
+
+  const dialog =
+    opened !== null ? (
+      <Ct2DocumentDialog
+        client={client}
+        index={opened}
+        segments={lists.segments}
+        docked={docked}
+        onClose={() => setOpened(null)}
+        onBase={(index) => {
+          setOpened(null);
+          openTable('ct2Base', { document: index });
+        }}
+      />
+    ) : null;
 
   return (
     <>
-      {filtered && (
-        <Ct2FilterBar
-          filter={filter}
-          onChange={onFilter}
-          segments={lists.segments}
-          routines={lists.routines}
-          table={view === 'tables' ? table : null}
-          search={view === 'tables' ? { value: request.filter.search ?? '', onSearch } : null}
-        />
-      )}
       <div className={viewClassName} key={view}>
         {content()}
       </div>
-      {opened !== null && (
-        <Ct2DocumentDialog
-          client={client}
-          index={opened}
-          segments={lists.segments}
-          onClose={() => setOpened(null)}
-          onBase={(index) => {
-            setOpened(null);
-            openTable('ct2Base', { document: index });
-          }}
-        />
-      )}
+      {!docked && dialog}
     </>
   );
 
   function content() {
-    if (view === 'panel') {
-      return <Ct2OverviewView client={client} filter={filter} onFilter={onFilter} onOpenTable={openTable} onOpenDocument={setOpened} refreshKey={refresh} />;
+    if (view === 'overview') {
+      return (
+        <div className={styles.stack}>
+          <Ct2FilterBar filter={filter} onChange={onFilter} segments={lists.segments} routines={lists.routines} table={null} />
+          <Ct2OverviewView client={client} filter={filter} onFilter={onFilter} onOpenTable={openTable} onOpenDocument={setOpened} refreshKey={refresh} />
+        </div>
+      );
     }
-    if (view === 'findings') {
-      return <Ct2FindingsView client={client} filter={filter} onFilter={onFilter} onOpenTable={openTable} onOpenDocument={setOpened} onReapply={reapply} refreshKey={refresh} />;
-    }
-    if (view === 'tables') {
-      const own = ownOf(request.filter as Ct2TableFilter);
-      const setOwn = (next: Ct2TableFilter) => setRequest({ ...request, filter: next });
+    if (view === 'analysis') {
       const drop = (key: keyof Ct2TableFilter) => {
         const next = { ...own };
         delete next[key];
-        setOwn(next);
+        setRequest({ ...request, filter: next });
       };
+      const setOwn = (next: Ct2TableFilter) => setRequest({ ...request, filter: next });
       return (
-        <TablesView
-          client={client}
-          scope={0}
-          request={merged}
-          onRequest={onRequest}
-          tabs={CT2_TABLES}
-          originFilters={false}
-          search={false}
-          summary={tableSummary(filter, own, table, lists.segments)}
-          refreshKey={refresh}
-          emptyHint="Mude a busca ou tire um dos filtros."
-          {...(DOCUMENT_TABLES.has(table) && { onRowClick: (_row: unknown, document: number | null) => document !== null && setOpened(document) })}
-          toolbar={
-            <>
-              {table === 'ct2Exceptions' && (
-                <select
-                  className={ui.input}
-                  value={own.group ?? ''}
-                  onChange={(e) => (e.target.value === '' ? drop('group') : setOwn({ ...own, group: e.target.value as Ct2FindingGroup }))}
-                  aria-label="Grupo"
-                >
-                  <option value="">Todos os grupos</option>
-                  {CT2_FINDING_GROUPS.map((g) => (
-                    <option key={g} value={g}>
-                      {CT2_FINDING_GROUP_LABEL[g]}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {own.test && (
-                <span className={styles.chip}>
-                  <Icon name="filter" size={13} />
-                  {own.test} · {CT2_TEST_INFO[own.test].label}
-                  <button type="button" aria-label="Remover filtro do painel" onClick={() => drop('test')}>
-                    <Icon name="x" size={13} strokeWidth={2.4} />
-                  </button>
-                </span>
-              )}
-              {table === 'ct2Batches' && own.intervention && (
-                <span className={styles.chip}>
-                  <Icon name="filter" size={13} />
-                  Lotes com intervenção manual
-                  <button type="button" aria-label="Remover filtro de intervenção manual" onClick={() => drop('intervention')}>
-                    <Icon name="x" size={13} strokeWidth={2.4} />
-                  </button>
-                </span>
-              )}
-              {table === 'ct2Base' && own.document !== undefined && (
-                <span className={styles.chip}>
-                  <Icon name="filter" size={13} />
-                  Linhas de um documento
-                  <button type="button" aria-label="Remover filtro de documento" onClick={() => drop('document')}>
-                    <Icon name="x" size={13} strokeWidth={2.4} />
-                  </button>
-                </span>
-              )}
-              {table === 'ct2Base' && (
-                <label className={styles.toggle}>
-                  <input type="checkbox" checked={!!own.allColumns} onChange={(e) => (e.target.checked ? setOwn({ ...own, allColumns: true }) : drop('allColumns'))} />
-                  Mostrar todas as colunas
-                </label>
-              )}
-            </>
-          }
-        />
+        <AnalysisLayout
+          tests={analysisTests}
+          selected={selectedKey}
+          onSelect={selectTest}
+          loading={tests === null}
+          top={summary?.analysis ? <Ct2Parameters compact current={summary.analysis.parameters} onReapply={reapply} /> : null}
+          detail={docked ? dialog : null}
+        >
+          <Ct2FilterBar
+            filter={filter}
+            onChange={onFilter}
+            segments={lists.segments}
+            routines={lists.routines}
+            table={table}
+            search={{ value: request.filter.search ?? '', onSearch }}
+            extra={<TestSelect tests={analysisTests} selected={selectedKey} onSelect={selectTest} />}
+          />
+          <TestNote test={selected} onClear={() => selectTest(null)} />
+          <TablesView
+            client={client}
+            scope={0}
+            request={merged}
+            onRequest={onRequest}
+            tabs={CT2_TABLES}
+            originFilters={false}
+            search={false}
+            summary={tableSummary(filter, own, table, lists.segments)}
+            refreshKey={refresh}
+            emptyHint="Mude a busca, o teste ou tire um dos filtros."
+            {...(DOCUMENT_TABLES.has(table) && { onRowClick: (_row: unknown, document: number | null) => document !== null && setOpened(document) })}
+            toolbar={
+              (table === 'ct2Exceptions' || (table === 'ct2Batches' && own.intervention) || table === 'ct2Base') && (
+                <>
+                  {table === 'ct2Exceptions' && (
+                    <select
+                      className={ui.input}
+                      value={own.group ?? ''}
+                      onChange={(e) => (e.target.value === '' ? drop('group') : setOwn({ ...own, group: e.target.value as Ct2FindingGroup }))}
+                      aria-label="Grupo"
+                    >
+                      <option value="">Todos os grupos</option>
+                      {CT2_FINDING_GROUPS.map((g) => (
+                        <option key={g} value={g}>
+                          {CT2_FINDING_GROUP_LABEL[g]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {table === 'ct2Batches' && own.intervention && (
+                    <span className={styles.chip}>
+                      <Icon name="filter" size={13} />
+                      Lotes com intervenção manual
+                      <button type="button" aria-label="Remover filtro de intervenção manual" onClick={() => drop('intervention')}>
+                        <Icon name="x" size={13} strokeWidth={2.4} />
+                      </button>
+                    </span>
+                  )}
+                  {table === 'ct2Base' && own.document !== undefined && (
+                    <span className={styles.chip}>
+                      <Icon name="filter" size={13} />
+                      Linhas de um documento
+                      <button type="button" aria-label="Remover filtro de documento" onClick={() => drop('document')}>
+                        <Icon name="x" size={13} strokeWidth={2.4} />
+                      </button>
+                    </span>
+                  )}
+                  {table === 'ct2Base' && (
+                    <label className={styles.toggle}>
+                      <input type="checkbox" checked={!!own.allColumns} onChange={(e) => (e.target.checked ? setOwn({ ...own, allColumns: true }) : drop('allColumns'))} />
+                      Mostrar todas as colunas
+                    </label>
+                  )}
+                </>
+              )
+            }
+          />
+        </AnalysisLayout>
       );
     }
     if (view === 'export' && exportOffered) {

@@ -1,5 +1,5 @@
 /*
- * Screens of the CT2 after the analysis (Phase 14, section 4): filter bar, Painel charts, Achados blocks and the side
+ * Screens of the CT2 after the analysis (Phase 14, section 4): filter bar, Visão geral charts and the side
  * panel of a document. Flat panels, hairline borders, small radii, colours only from the tokens of global.css; the
  * colour of an origin is --origin-<origin>, never red (red marks findings and the active view).
  */
@@ -696,106 +696,6 @@
   margin-bottom: 6px;
 }
 
-/* ── Achados ── */
-
-.blocks {
-  display: flex;
-  flex-direction: column;
-}
-
-.block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 0;
-  border-top: 1px solid var(--border);
-}
-
-.blocks > .block:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.blockHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-}
-
-.blockTitle {
-  margin: 0;
-  font-family: var(--font);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-
-.blockTitle code {
-  margin-right: 4px;
-}
-
-.samples {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sample {
-  display: grid;
-  grid-template-columns: minmax(200px, 440px) 1fr;
-  gap: 4px 16px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--text);
-  font-size: 13px;
-  text-align: left;
-}
-
-button.sample {
-  cursor: pointer;
-}
-
-button.sample:hover {
-  background: var(--surface-muted);
-  border-color: var(--border);
-}
-
-.sampleWhere {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sampleWhy {
-  overflow-wrap: anywhere;
-}
-
-.quiet {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-}
-
-.quiet li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-}
-
 /* ── Side panel of a document (an overlay: the one place with a shadow) ── */
 
 .overlay {
@@ -934,14 +834,6 @@ button.sample:hover {
   .barValue {
     grid-column: 1 / 3;
     text-align: left;
-  }
-
-  .sample {
-    grid-template-columns: 1fr;
-  }
-
-  .sampleWhere {
-    white-space: normal;
   }
 
   .stats {

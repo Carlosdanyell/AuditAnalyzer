@@ -47,7 +47,7 @@ const pt = {
   },
   otherClass: 'Outros',
   notLoaded: 'Não carregado',
-  formats: { text: 'TXT do spool', xml: 'XML (SpreadsheetML 2003)' },
+  formats: { text: 'TXT do spool', pdf: 'PDF (texto selecionável)', xml: 'XML (SpreadsheetML 2003)' },
   summary: {
     title: 'Conciliador — Folha de pagamento',
     subtitle: (period: string, scope: string, generatedAt: string) => `Competência ${period} · Folha: GPER040, ${scope} · Razão: CTBR400 · Gerado em ${generatedAt}`,
@@ -288,7 +288,7 @@ const en: ReconciliationWorkpaperLabels = {
   },
   otherClass: 'Other',
   notLoaded: 'Not loaded',
-  formats: { text: 'Spool TXT', xml: 'XML (SpreadsheetML 2003)' },
+  formats: { text: 'Spool TXT', pdf: 'PDF (selectable text)', xml: 'XML (SpreadsheetML 2003)' },
   summary: {
     title: 'Reconciliation — Payroll',
     subtitle: (period, scope, generatedAt) => `Period ${period} · Payroll: GPER040, ${scope} · Ledger: CTBR400 · Generated on ${generatedAt}`,

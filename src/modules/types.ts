@@ -80,8 +80,11 @@ export interface AvailableModule<C = unknown> extends ModuleTexts {
   accepts: AcceptedFiles;
   /** Section of the user manual (public/ajuda.html#<anchor>). */
   helpAnchor: string;
-  /** Views offered after the reconciliation, which every module has (the others are shown locked). */
-  features: { panel: boolean; findings: boolean; tables: boolean; justifications: boolean; export: boolean };
+  /**
+   * Views offered after the Leitura, which every module has (flow revision of 25/11/2026): Visão geral (composition),
+   * Análise (the tests and the tables, with the detail of a row), Justificativas (an input screen) and Exportação.
+   */
+  features: { overview: boolean; analysis: boolean; justifications: boolean; export: boolean };
   /**
    * Own configuration, validated and versioned by the module. `saved`: edited on the Configuração screen and kept on
    * this computer; otherwise the analysis runs with the defaults.

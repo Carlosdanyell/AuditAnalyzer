@@ -39,6 +39,11 @@ interface TableDef {
   searched: string[];
   /** Document block of a row, for the side panel of the screen (null for a batch or a day). */
   document?(k: number): number | null;
+  /** The tests a row can be filtered by: the marks of its level (one bit per test) or, in Exceções, the code of the finding. */
+  marks?: Uint32Array;
+  /** Tests whose marks the table lists (Teste filter). */
+  tests?: Ct2TestCode[];
+  testOf?(k: number): Ct2TestCode;
 }
 
 const LEVELS = { line: 'Linha', document: 'Documento', batch: 'Lote', day: 'Dia', profile: 'Perfil' } as const;
@@ -125,6 +130,38 @@ export class Ct2Tables {
     return { columns, rows: out, total: rows.length, ...(def.document && { documents }) };
   }
 
+  /**
+   * Rows of each table with each test under the common filter (the part each table applies, without its own filters):
+   * the totals the tables show when opened with that test (the list and the Teste filter of the Análise).
+   */
+  testCounts(filter: Ct2Filter): Record<Ct2TableId, Map<Ct2TestCode, number>> {
+    const out = {} as Record<Ct2TableId, Map<Ct2TestCode, number>>;
+    for (const table of Object.keys(this.defs) as Ct2TableId[]) {
+      const def = this.defs[table];
+      const counts = new Map<Ct2TestCode, number>();
+      out[table] = counts;
+      const rows = this.rows(table, def, filter, undefined);
+      if (def.testOf) {
+        for (const k of rows) {
+          const code = def.testOf(k);
+          counts.set(code, (counts.get(code) ?? 0) + 1);
+        }
+        continue;
+      }
+      if (!def.marks || !def.tests) continue;
+      const bits = def.tests.map((code) => BIT[code]);
+      const tally = new Float64Array(bits.length);
+      const mask = bits.reduce((m, b) => m | b, 0);
+      for (const k of rows) {
+        const m = def.marks[k]! & mask;
+        if (m === 0) continue;
+        for (let t = 0; t < bits.length; t++) if (m & bits[t]!) tally[t]!++;
+      }
+      def.tests.forEach((code, t) => counts.set(code, tally[t]!));
+    }
+    return out;
+  }
+
   /** The selection of a common filter, kept for the last few filters. */
   private selection(filter: Ct2Filter): Ct2Selection {
     const key = filterKey(filter);
@@ -191,6 +228,11 @@ export class Ct2Tables {
     return textOf(this.base.store.text[field as 'batch'], i);
   }
 
+  /** The tests of a level that are on (and the extra ones the table shows), in the order of the configuration. */
+  private levelTests(level: Exclude<Ct2Level, 'profile'>, extra: Ct2TestCode[] = []): Ct2TestCode[] {
+    return CT2_TESTS.filter((c) => (CT2_TEST_INFO[c].level === level || extra.includes(c)) && this.on(c));
+  }
+
   /** Columns of the tests of a level that are on (Sim/Não; B4 is its result). */
   private testColumns(level: Exclude<Ct2Level, 'profile'>, extra: Ct2TestCode[] = []): ColumnSpec[] {
     return CT2_TESTS.filter((c) => (CT2_TEST_INFO[c].level === level || extra.includes(c)) && this.on(c)).map((c) =>
@@ -229,6 +271,8 @@ export class Ct2Tables {
       columns: () => columns,
       passes: (d, s) => s.document[d] === 1,
       has: (d, code) => (a.marks.document[d]! & BIT[code]) !== 0,
+      marks: a.marks.document,
+      tests: this.levelTests('document', ['P3', 'P4']),
       document: (d) => d,
       searched: ['document', 'batch', 'routine', 'history'],
       cell: (d, c) => {
@@ -293,6 +337,8 @@ export class Ct2Tables {
       columns: () => columns,
       passes: (k, s) => s.batch[k] === 1,
       has: (k, code) => (a.marks.batch[k]! & BIT[code]) !== 0,
+      marks: a.marks.batch,
+      tests: this.levelTests('batch'),
       // A batch with manual intervention: at least one Manual or Misto document (section 3.4).
       only: (k, filter) => !filter.intervention || a.batchManualDocuments[k]! + a.batchMixedDocuments[k]! > 0,
       searched: ['batch'],
@@ -348,6 +394,8 @@ export class Ct2Tables {
       columns: () => columns,
       passes: (k, s) => s.day[k] === 1,
       has: (k, code) => (a.marks.day[k]! & BIT[code]) !== 0,
+      marks: a.marks.day,
+      tests: this.levelTests('day'),
       searched: [],
       cell: (k, c) => {
         switch (c) {
@@ -424,6 +472,7 @@ export class Ct2Tables {
         return itemPasses(s, f.level, f.item);
       },
       has: (n, code) => CT2_TESTS[a.findings.test.get(n)] === code,
+      testOf: (n) => CT2_TESTS[a.findings.test.get(n)]!,
       only: (n, filter) => !filter.group || findingAt(a, n).group === filter.group,
       document: (n) => {
         const f = findingAt(a, n);
@@ -510,6 +559,8 @@ export class Ct2Tables {
       columns: (filter) => (filter.allColumns ? all : main),
       passes: (p, s) => s.line[p] === 1,
       has: (p, code) => (lineMarks[p]! & BIT[code]) !== 0,
+      marks: lineMarks,
+      tests: this.levelTests('line'),
       document: (p) => documentAt(a.blocks, p),
       searched: ['f:document', 'f:batch', 'f:debitAccount', 'f:creditAccount', 'f:history', 'f:routine'].filter((c) => c === 'f:document' || present.has(c.slice(2) as Ct2Field)),
       cell: (p, c) => {

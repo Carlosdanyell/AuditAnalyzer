@@ -2,7 +2,7 @@
  * What the worker needs from an analysis module (docs/MODULOS.md, section 3). The handler keeps one session at a
  * time and calls it for every query; it never compares module ids.
  */
-import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData } from '../../shared/modules/ct2Integrity';
+import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2TestsData } from '../../shared/modules/ct2Integrity';
 import type { ReconciliationAccountDetail } from '../../shared/modules/reconciliation';
 import type {
   AnyTableFilter,
@@ -46,6 +46,8 @@ export interface ModuleSession {
   segmentPanel?(filter: Ct2Filter): Ct2PanelData;
   /** Composition of the extraction under the common filter (CT2). */
   overview?(filter: Ct2Filter): Ct2Overview;
+  /** The tests with their rows in each table under the common filter (CT2, Análise). */
+  tests?(filter: Ct2Filter): Ct2TestsData;
   /** The lines of a document block's key in every segment (CT2). */
   document?(index: number): Ct2DocumentDetail;
   /** An account of the profile in detail (Conciliador, side panel). */

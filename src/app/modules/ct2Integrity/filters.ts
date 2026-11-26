@@ -1,5 +1,5 @@
 /**
- * The common filter of the Painel, Achados and Tabelas of the CT2 (Phase 14, section 4.1), as pure helpers: adding and
+ * The common filter of the Visão geral and the Análise of the CT2 (Phase 14, section 4.1), as pure helpers: adding and
  * removing a filter, the chips of the filter bar and whether each one applies to the table on screen. The state lives in
  * Ct2Workspace; the worker evaluates the filter (src/worker/modules/ct2Integrity/filter.ts).
  */
@@ -114,7 +114,7 @@ export interface FilterChip {
   remove: string;
 }
 
-/** The chips of the active filters; `table` is the table on screen (null outside Tabelas: every filter applies). */
+/** The chips of the active filters; `table` is the table on screen (null outside the Análise: every filter applies). */
 export function filterChips(filter: Ct2Filter, segmentLabels: readonly string[], table: Ct2TableId | null): FilterChip[] {
   const text: Record<Ct2FilterKey, () => string> = {
     segment: () => segmentLabels[filter.segment!] ?? `Segmento ${filter.segment! + 1}`,

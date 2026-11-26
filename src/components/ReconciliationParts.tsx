@@ -2,6 +2,7 @@
  * Parts of the reconciliation screens of every module (docs/MODULOS.md, section 4): the verdict of the run, the checks,
  * the alerts and the integrity of the ZIP entries.
  */
+import type { ReactNode } from 'react';
 import type { Alert, CheckResult, EntryIntegrity } from '../shared/protocol';
 import { formatBytes, formatCrc, formatElapsed, formatInteger } from '../shared/format';
 import { Icon, type IconName } from './Icon';
@@ -17,47 +18,77 @@ export interface StatusTile {
   value: string;
 }
 
-/** Headline of the run: integrity verdict and the size of what was read. */
-export function RunStatus({ checks, tiles, okText, failText }: { checks: CheckResult[]; tiles: StatusTile[]; okText: string; failText: string }) {
+/**
+ * Headline of the run (the Leitura; flow revision of 25/11/2026): when every check passes, a single green line that
+ * opens the details (the figures of the reading and `children`); when a check fails or alerts, the verdict card with the
+ * details open below it.
+ */
+export function RunStatus({ checks, tiles, okText, failText, children }: { checks: CheckResult[]; tiles: StatusTile[]; okText: string; failText: string; children?: ReactNode }) {
   const failures = checks.filter((c) => !c.passed && c.severity === 'error').length;
   const warnings = checks.filter((c) => !c.passed && c.severity === 'warning').length;
   const passed = checks.filter((c) => c.passed).length;
   const tone = failures ? 'error' : warnings ? 'warn' : 'ok';
-  const title = failures
-    ? `${n(failures)} verificação(ões) bloqueante(s) falhou(aram)`
-    : warnings
-      ? `Integridade confirmada, com ${n(warnings)} alerta(s)`
-      : 'Integridade confirmada';
-  const text = failures ? failText : okText;
-  return (
-    <section className={cx(ui.card, styles.status, styles[`status_${tone}`])}>
-      <div className={styles.statusHead}>
-        <span className={styles.statusIcon}>
-          <Icon name={failures ? 'xCircle' : warnings ? 'alert' : 'shield'} size={28} />
-        </span>
-        <div>
-          <h2 className={styles.statusTitle}>{title}</h2>
-          <p className={ui.sub}>{text}</p>
+  const tileList = (
+    <dl className={styles.tiles}>
+      {tiles.map((t) => (
+        <div key={t.label}>
+          <dt>
+            <Icon name={t.icon} size={15} />
+            {t.label}
+          </dt>
+          <dd>{t.value}</dd>
         </div>
-        <p className={styles.statusCount}>
-          <strong>
-            {passed}/{checks.length}
-          </strong>
-          verificações OK
-        </p>
-      </div>
-      <dl className={styles.tiles}>
-        {tiles.map((t) => (
-          <div key={t.label}>
-            <dt>
-              <Icon name={t.icon} size={15} />
-              {t.label}
-            </dt>
-            <dd>{t.value}</dd>
+      ))}
+    </dl>
+  );
+  if (tone === 'ok') {
+    return (
+      <details className={styles.reading}>
+        <summary className={cx(styles.statusLine, styles.status_ok)}>
+          <Icon name="shield" size={20} className={styles.statusLineIcon} />
+          <h2 className={styles.statusLineTitle}>Integridade confirmada</h2>
+          <span className={styles.statusLineText}>
+            <strong>
+              {passed}/{checks.length}
+            </strong>{' '}
+            verificações OK · {okText}
+          </span>
+          <span className={styles.statusLineMore} aria-hidden="true">
+            <span className={styles.whenClosed}>Ver detalhes</span>
+            <span className={styles.whenOpen}>Ocultar detalhes</span>
+            <Icon name="chevronDown" size={15} />
+          </span>
+        </summary>
+        <div className={styles.readingBody}>
+          <section className={ui.card}>{tileList}</section>
+          {children}
+        </div>
+      </details>
+    );
+  }
+  const title = failures ? `${n(failures)} verificação(ões) bloqueante(s) falhou(aram)` : `Integridade confirmada, com ${n(warnings)} alerta(s)`;
+  return (
+    <>
+      <section className={cx(ui.card, styles.status, styles[`status_${tone}`])}>
+        <div className={styles.statusHead}>
+          <span className={styles.statusIcon}>
+            <Icon name={failures ? 'xCircle' : 'alert'} size={28} />
+          </span>
+          <div>
+            <h2 className={styles.statusTitle}>{title}</h2>
+            <p className={ui.sub}>{failures ? failText : okText}</p>
           </div>
-        ))}
-      </dl>
-    </section>
+          <p className={styles.statusCount}>
+            <strong>
+              {passed}/{checks.length}
+            </strong>
+            verificações OK
+          </p>
+        </div>
+        {tileList}
+      </section>
+      {children}
+    </>
   );
 }
 

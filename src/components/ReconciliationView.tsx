@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { FileReconciliation, OperationCount, Reconciliation, ScopeStats, Stage, Summary } from '../shared/protocol';
 import { formatBytes, formatDateTime, formatElapsed, formatInteger } from '../shared/format';
 import { Icon } from './Icon';
@@ -21,7 +22,7 @@ export function ReconciliationView({ data, summary, valueField = 'CT2_VALOR' }: 
   const multi = data.files.length > 1;
   return (
     <div className={cx(styles.view, ui.stagger)}>
-      <Status data={data} />
+      <Status data={data}>
       <Checks checks={data.checks} totalMs={data.totalMs} />
       {summary && summary.scopes.length > 0 && <AnalysisSummary summary={summary} valueField={valueField} />}
 
@@ -51,12 +52,13 @@ export function ReconciliationView({ data, summary, valueField = 'CT2_VALOR' }: 
       {data.files.map((file) => (
         <FileCard key={file.fileIndex} file={file} />
       ))}
+      </Status>
     </div>
   );
 }
 
 /** Headline of the run: integrity verdict and the size of what was read. */
-function Status({ data }: { data: Reconciliation }) {
+function Status({ data, children }: { data: Reconciliation; children?: ReactNode }) {
   const c = data.consolidated;
   const tiles: StatusTile[] = [
     { icon: 'sheet', label: 'Arquivos', value: n(data.files.length) },
@@ -71,7 +73,9 @@ function Status({ data }: { data: Reconciliation }) {
       tiles={tiles}
       okText="Arquivos íntegros, linhas reconciliadas e invariantes conferidos. Os números da análise podem ser usados."
       failText="A exportação exige confirmação explícita, registrada na planilha. Confira os detalhes abaixo."
-    />
+    >
+      {children}
+    </RunStatus>
   );
 }
 

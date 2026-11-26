@@ -415,6 +415,27 @@ export interface Ct2PanelData {
 }
 
 
+/**
+ * One test of the list of the Análise (left column) and of its Teste filter (flow revision of 25/11/2026), under the
+ * common filter: its occurrences in Ocorrências and the rows of each other table that lists its marks, so every number
+ * equals the total of the table it opens.
+ */
+export interface Ct2TestEntry extends Ct2TestResult {
+  group: Ct2FindingGroup | null;
+  /** Rows of each table that can be filtered by the test (Ocorrências always; Documentos, Lotes, Dias or Base by level). */
+  tables: Partial<Record<Ct2TableId, number>>;
+  /** The rule of the test (section 6), in one paragraph. */
+  rule: string;
+}
+
+export interface Ct2TestsData {
+  /** The common filter the numbers follow. */
+  filter: Ct2Filter;
+  tests: Ct2TestEntry[];
+  /** Misto documents under the filter (listed with the tests to check against an approval document). */
+  mixedDocuments: number;
+}
+
 // ── Overview and side panel of a document (Phase 14, sections 3.6, 4.3 and 4.6) ──
 
 export interface Ct2Overview {

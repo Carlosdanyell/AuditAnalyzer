@@ -18,7 +18,7 @@ import type {
   TableFilter,
   TableId,
 } from './modules/cfgr700';
-import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId } from './modules/ct2Integrity';
+import type { Ct2DocumentDetail, Ct2Filter, Ct2Overview, Ct2PanelData, Ct2Reconciliation, Ct2Summary, Ct2TableFilter, Ct2TableId, Ct2TestsData } from './modules/ct2Integrity';
 import type { ReconciliationAccountDetail, ReconciliationExportOptions, ReconciliationReconciliation, ReconciliationSummary, ReconciliationTableFilter, ReconciliationTableId } from './modules/reconciliation';
 
 // Types of the CFGR700 module, kept importable from here (docs/MODULOS.md, section 3).
@@ -152,9 +152,10 @@ export interface SheetSample {
   rows: { r: number; titles: string[] }[];
   /**
    * How the file was read (set by the probe). `text`: a plain-text spool of the system, as one sample without a name
-   * whose rows are its first normalized lines (`r` = line number, the whole line in `titles[0]`).
+   * whose rows are its first normalized lines (`r` = line number, the whole line in `titles[0]`). `pdf`: a PDF, as one
+   * sample without a name whose rows are the lines of its first page in reading order.
    */
-  format?: InputFormat | 'text';
+  format?: InputFormat | 'text' | 'pdf';
 }
 
 export type Command =
@@ -189,6 +190,8 @@ export type Command =
   | { type: 'segmentPanel'; requestId: number; filter: Ct2Filter }
   /** Composition of the extraction under the common filter (CT2, Painel). */
   | { type: 'overview'; requestId: number; filter: Ct2Filter }
+  /** The tests with their rows in each table under the common filter (CT2, Análise: the list and the Teste filter). */
+  | { type: 'tests'; requestId: number; filter: Ct2Filter }
   /** Every line of a document block's key, in each segment (CT2, side panel). */
   | { type: 'document'; requestId: number; index: number }
   /** Reapplies the analysis with the parameters informed (validated by the module), without reading the files again. */
@@ -219,6 +222,7 @@ export type WorkerEvent =
   | { type: 'page'; requestId: number; table: AnyTableId; columns: ColumnSpec[]; rows: Cell[][]; offset: number; total: number; documents?: (number | null)[] }
   | { type: 'segmentPanel'; requestId: number; data: Ct2PanelData }
   | { type: 'overview'; requestId: number; data: Ct2Overview }
+  | { type: 'tests'; requestId: number; data: Ct2TestsData }
   | { type: 'document'; requestId: number; data: Ct2DocumentDetail }
   | { type: 'account'; requestId: number; data: ReconciliationAccountDetail }
   | { type: 'exported'; requestId: number; blob: Blob; fileName: string }

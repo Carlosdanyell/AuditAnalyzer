@@ -23,7 +23,7 @@ import { competenceText } from './labels';
 import styles from './ConcScreens.module.css';
 
 const n = formatInteger;
-const FORMAT_LABELS = { text: 'TXT do spool', xml: 'XML (SpreadsheetML)' } as const;
+const FORMAT_LABELS = { text: 'TXT do spool', pdf: 'PDF', xml: 'XML (SpreadsheetML)' } as const;
 const LEVEL_LABELS = { branch: 'Filial', company: 'Empresa', groupOfCompanies: 'Grupo de Empresas' } as const;
 const ENCODING_LABELS: Record<string, string> = { 'utf-8': 'UTF-8', 'windows-1252': 'windows-1252' };
 
@@ -72,8 +72,8 @@ export function ConcReconciliationView({ data, summary, preview }: { data: Recon
         checks={data.checks}
         tiles={tiles}
         okText="Folha e razão lidos por inteiro, leitura reconciliada e ponte de cada conta fechada."
-        failText="A leitura tem problemas que impedem usar os números como estão. Confira os detalhes abaixo antes do Painel e dos Achados."
-      />
+        failText="A leitura tem problemas que impedem usar os números como estão. Confira os detalhes abaixo antes da Visão geral e da Análise."
+      >
       <Alerts alerts={data.alerts} />
       <InvariantBoard checks={data.checks} />
       <Checks checks={data.checks} totalMs={data.totalMs} />
@@ -115,6 +115,7 @@ export function ConcReconciliationView({ data, summary, preview }: { data: Recon
           ))}
         </section>
       )}
+      </RunStatus>
     </div>
   );
 }
@@ -255,7 +256,7 @@ function LedgerCard({ file }: { file: LedgerFileCard }) {
         <dd>{file.currency ?? '—'}</dd>
         <dt>Codificação</dt>
         <dd>{ENCODING_LABELS[file.encoding] ?? file.encoding}</dd>
-        <dt>{file.format === 'text' ? 'Linhas' : 'Linhas (todas as abas)'}</dt>
+        <dt>{file.format === 'xml' ? 'Linhas (todas as abas)' : file.format === 'pdf' ? 'Linhas (texto reconstruído do PDF)' : 'Linhas'}</dt>
         <dd>{n(file.lines)}</dd>
         {file.sheetName !== null && (
           <>
@@ -265,7 +266,7 @@ function LedgerCard({ file }: { file: LedgerFileCard }) {
         )}
         <dt>Lançamentos</dt>
         <dd>{n(file.entries)}</dd>
-        {file.format === 'text' && (
+        {file.format !== 'xml' && (
           <>
             <dt>Transportes de página</dt>
             <dd>{n(file.transports)}</dd>

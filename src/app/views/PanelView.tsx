@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type {
   Category,
   CategoryPanel,
@@ -12,7 +12,7 @@ import type {
   TableId,
 } from '../../shared/protocol';
 import { dayToInput, formatCents, formatDay, formatInteger, inputToDay, weekdayName } from '../../shared/format';
-import { EXCEPTIONS, INFORMATIVES, MARKS, PHASES, SEGREGATION_PT, balanceText, type Phase } from '../../shared/segregation';
+import { PHASES, SEGREGATION_PT, balanceText, type Phase } from '../../shared/segregation';
 import type { WorkerClient } from '../workerClient';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../components/cx';
@@ -29,6 +29,69 @@ const CATEGORIES: { id: Category; label: string; color: string; icon: IconName }
 
 const n = formatInteger;
 const samePeriod = (a: Period, b: Period) => a.startDay === b.startDay && a.endDay === b.endDay;
+
+/**
+ * The period of the panel: a preset (the user's too) or dates, with "Personalizado" once a date is typed. Shared by the
+ * Visão geral and the list of the Análise of the CFGR700 (flow revision of 25/11/2026).
+ */
+export function PeriodFields({ data, onPeriod, compact = false }: { data: Pick<PanelData, 'presets' | 'period'>; onPeriod: (period: Period) => void; compact?: boolean }) {
+  const [custom, setCustom] = useState(false);
+  const matching = data.presets.find((p) => samePeriod(p.period, data.period))?.id;
+  const preset = custom || !matching ? 'custom' : matching;
+  return (
+    <>
+      <label className={cx(ui.field, styles.periodField, compact && styles.periodCompact)}>
+        Período
+        <select
+          className={ui.input}
+          value={preset}
+          onChange={(e) => {
+            const p = data.presets.find((x) => x.id === e.target.value);
+            setCustom(!p);
+            if (p) onPeriod(p.period);
+          }}
+        >
+          {data.presets.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label} ({formatDay(p.period.startDay)} a {formatDay(p.period.endDay)})
+            </option>
+          ))}
+          <option value="custom">Personalizado</option>
+        </select>
+      </label>
+      <label className={cx(ui.field, compact && styles.periodCompact)}>
+        De
+        <input
+          className={ui.input}
+          type="date"
+          value={dayToInput(data.period.startDay)}
+          onChange={(e) => {
+            const day = inputToDay(e.target.value);
+            if (day !== null) {
+              setCustom(true);
+              onPeriod({ startDay: day, endDay: Math.max(day, data.period.endDay) });
+            }
+          }}
+        />
+      </label>
+      <label className={cx(ui.field, compact && styles.periodCompact)}>
+        Até
+        <input
+          className={ui.input}
+          type="date"
+          value={dayToInput(data.period.endDay)}
+          onChange={(e) => {
+            const day = inputToDay(e.target.value);
+            if (day !== null) {
+              setCustom(true);
+              onPeriod({ startDay: Math.min(day, data.period.startDay), endDay: day });
+            }
+          }}
+        />
+      </label>
+    </>
+  );
+}
 
 export interface OpenTable {
   (table: TableId, filter: TableFilter): void;
@@ -48,8 +111,13 @@ interface PanelViewProps {
   onOpenJustifications: OpenTable;
   /** Changing it reloads the panel (e.g. after a justification is saved). */
   refreshKey?: number;
-  /** Switches the scope (the panel keeps the current period). */
-  onScopeChange?: (scope: number) => void;
+  /** Switches the scope keeping the period given (the workspace carries it). */
+  onScopeChange?: (scope: number, keep: Period) => void;
+  /** The period and the cutoff day chosen (null = the default of the worker); kept by the workspace, shared with the Análise. */
+  period: Period | null;
+  onPeriod: (period: Period) => void;
+  cutoffDay: number | null;
+  onCutoff: (day: number) => void;
   /** Audited table (configuration), named in the guidance texts. */
   table?: string;
   /** Configured balance types (section 13), shown in the phase names. */
@@ -70,26 +138,18 @@ export function PanelView({
   balanceType = { field: 'CT2_TPSALD', expectedFrom: '9', expectedTo: '1' },
   mode: modeProp,
   onModeChange,
+  period,
+  onPeriod,
+  cutoffDay,
+  onCutoff,
 }: PanelViewProps) {
   const [ownMode, setOwnMode] = useState<PanelMode>('general');
   const mode = modeProp ?? ownMode;
   const setMode = (m: PanelMode) => (onModeChange ? onModeChange(m) : setOwnMode(m));
-  const [period, setPeriod] = useState<Period | null>(null);
-  const [cutoffDay, setCutoffDay] = useState<number | null>(null);
   const [data, setData] = useState<PanelData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [version, setVersion] = useState(0);
-  const [custom, setCustom] = useState(false);
-  /** Period kept when the scope is switched from the panel itself. */
-  const carriedPeriod = useRef<Period | null>(null);
-
-  useEffect(() => {
-    setPeriod(carriedPeriod.current);
-    carriedPeriod.current = null;
-    setCutoffDay(null);
-  }, [scope]);
-
   useEffect(() => {
     let current = true;
     setLoading(true);
@@ -124,71 +184,19 @@ export function PanelView({
     return (
       <p className={cx(ui.alert, ui.info)}>
         <span className={ui.spinner} />
-        <span>Carregando o painel…</span>
+        <span>Carregando a visão geral…</span>
       </p>
     );
 
-  const matching = data.presets.find((p) => samePeriod(p.period, data.period))?.id;
-  const preset = custom || !matching ? 'custom' : matching;
   const open = (table: TableId, category: Category, origin?: OriginFilter) =>
     onOpenTable(table, { category, period: data.period, ...(origin && { origin }) });
-  const actions = data.signals.filter((s) => s.requiresAction).length;
-  const infos = data.signals.filter((s) => !s.requiresAction && s.count > 0).length;
   const range = `${formatDay(data.period.startDay)} a ${formatDay(data.period.endDay)}`;
 
   return (
     <div className={cx(styles.view, loading && styles.loading)}>
-      <section className={cx(ui.card, styles.controls)} aria-label="Filtros do painel">
+      <section className={cx(ui.card, styles.controls)} aria-label="Filtros da visão geral">
         <div className={styles.filters}>
-          <label className={cx(ui.field, styles.periodField)}>
-            Período
-            <select
-              className={ui.input}
-              value={preset}
-              onChange={(e) => {
-                const p = data.presets.find((x) => x.id === e.target.value);
-                setCustom(!p);
-                if (p) setPeriod(p.period);
-              }}
-            >
-              {data.presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label} ({formatDay(p.period.startDay)} a {formatDay(p.period.endDay)})
-                </option>
-              ))}
-              <option value="custom">Personalizado</option>
-            </select>
-          </label>
-          <label className={ui.field}>
-            De
-            <input
-              className={ui.input}
-              type="date"
-              value={dayToInput(data.period.startDay)}
-              onChange={(e) => {
-                const day = inputToDay(e.target.value);
-                if (day !== null) {
-                  setCustom(true);
-                  setPeriod({ startDay: day, endDay: Math.max(day, data.period.endDay) });
-                }
-              }}
-            />
-          </label>
-          <label className={ui.field}>
-            Até
-            <input
-              className={ui.input}
-              type="date"
-              value={dayToInput(data.period.endDay)}
-              onChange={(e) => {
-                const day = inputToDay(e.target.value);
-                if (day !== null) {
-                  setCustom(true);
-                  setPeriod({ startDay: Math.min(day, data.period.startDay), endDay: day });
-                }
-              }}
-            />
-          </label>
+          <PeriodFields data={data} onPeriod={onPeriod} />
           <label className={ui.field}>
             Data de corte (competência)
             <input
@@ -197,7 +205,7 @@ export function PanelView({
               value={dayToInput(data.cutoffDay)}
               onChange={(e) => {
                 const day = inputToDay(e.target.value);
-                if (day !== null) setCutoffDay(day);
+                if (day !== null) onCutoff(day);
               }}
             />
           </label>
@@ -235,12 +243,6 @@ export function PanelView({
           <Icon name="filter" size={13} /> Filtro pela data do evento (inclusão, alteração ou exclusão), não pela data contábil.
         </p>
         <Settings data={data} onChange={changeSettings} />
-      </section>
-
-      <section className={styles.kpis} aria-label="Totais por categoria">
-        {CATEGORIES.map((c) => (
-          <Kpi key={c.id} category={c} data={data.panel[c.id]} onOpen={() => open(c.id === 'unbalanced' ? 'unbalanced' : 'documents', c.id)} />
-        ))}
       </section>
 
       {mode === 'segregated' ? (
@@ -317,65 +319,21 @@ export function PanelView({
 
       <div className={styles.split}>
         <section className={ui.card}>
-          <div className={ui.cardHead}>
-            <h2 className={ui.cardTitle}>Sinalizações</h2>
-            <span className={styles.signalSummary}>
-              {actions > 0 && (
-                <span className={cx(ui.pill, ui.warn)}>
-                  <Icon name="alert" size={13} />
-                  {actions} exige(m) ação
-                </span>
-              )}
-              {infos > 0 && <span className={cx(ui.pill, ui.info)}>{infos} informativo(s)</span>}
-              {actions === 0 && infos === 0 && (
-                <span className={cx(ui.pill, ui.ok)}>
-                  <Icon name="check" size={13} />
-                  Sem ocorrências
-                </span>
-              )}
-            </span>
-          </div>
-          {!data.justificationsLoaded && (
-            <p className={cx(ui.alert, ui.warn)} role="note">
-              <Icon name="info" size={17} />
-              <span>
-                As justificativas ainda não foram carregadas. A sinalização de justificativa pendente mostra todos os documentos excluídos ou
-                alterados do período; não é um resultado da análise.
-              </span>
-            </p>
-          )}
-          {/* What calls for attention open; the signals without occurrences folded in one line. */}
-          <SignalList signals={data.signals.filter((s) => s.requiresAction || s.count > 0)} />
-          {data.signals.some((s) => !s.requiresAction && s.count === 0) && (
-            <details className={styles.foldInline}>
-              <summary>
-                <Icon name="chevronRight" size={16} />
-                {data.signals.filter((s) => !s.requiresAction && s.count === 0).length} sinalização(ões) sem ocorrência
-              </summary>
-              <SignalList signals={data.signals.filter((s) => !s.requiresAction && s.count === 0)} />
-            </details>
-          )}
-          {data.identification && (
+          <h2 className={ui.cardTitle}>Cobertura das justificativas</h2>
+          <Coverage data={data} onOpen={onOpenJustifications} />
+        </section>
+
+        {data.identification && (
+          <section className={ui.card}>
+            <h2 className={ui.cardTitle}>Registros alterados sem documento</h2>
             <IdentificationNote
               hint={data.identification}
               table={table}
               onShowRecords={() => open('baseRows', 'changed', 'unidentified')}
-              onShowConsolidated={
-                onScopeChange && data.identification.recoverable
-                  ? () => {
-                      carriedPeriod.current = data.period;
-                      onScopeChange(data.identification!.recoverable!.scope);
-                    }
-                  : undefined
-              }
+              onShowConsolidated={onScopeChange && data.identification.recoverable ? () => onScopeChange(data.identification!.recoverable!.scope, data.period) : undefined}
             />
-          )}
-        </section>
-
-        <section className={ui.card}>
-          <h2 className={ui.cardTitle}>Cobertura das justificativas</h2>
-          <Coverage data={data} onOpen={onOpenJustifications} />
-        </section>
+          </section>
+        )}
       </div>
 
       <section className={ui.card}>
@@ -415,80 +373,6 @@ export function PanelView({
         </p>
       </details>
     </div>
-  );
-}
-
-function SignalList({ signals }: { signals: PanelData['signals'] }) {
-  return (
-    <ul className={styles.signals}>
-      {signals.map((s) => {
-        const kind = s.requiresAction ? 'action' : s.count > 0 ? 'info' : 'clear';
-        return (
-          <li key={s.id} className={styles[kind]}>
-            <span className={styles.signalIcon} aria-hidden="true">
-              <Icon name={kind === 'action' ? 'alert' : kind === 'info' ? 'info' : 'check'} size={15} strokeWidth={2.2} />
-            </span>
-            <span className={styles.signalText}>
-              <span className={styles.signalBadge}>{s.requiresAction ? 'Ação' : s.count > 0 ? 'Informativo' : 'OK'}</span>
-              <strong>{s.label}.</strong> {s.text}.
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** One category of the period: documents, lines, debited value and how the documents split by origin. */
-function Kpi({ category, data, onOpen }: { category: (typeof CATEGORIES)[number]; data: CategoryPanel; onOpen: () => void }) {
-  // Final values only: an audit figure never shows intermediate amounts on screen.
-  const documents = data.totalDocuments;
-  const lineCount = lines(data);
-  const cents = value(data);
-  const split = [
-    { label: 'Manual', value: data.manual.documents, className: styles.splitManual },
-    { label: 'Automático', value: data.automatic.documents, className: styles.splitAuto },
-    { label: 'Misto', value: data.mixedDocuments, className: styles.splitMixed },
-  ];
-  const total = split.reduce((a, b) => a + b.value, 0);
-  return (
-    <button
-      type="button"
-      className={styles.kpi}
-      style={{ ['--series' as string]: category.color }}
-      onClick={onOpen}
-      aria-label={`${category.label}: ${n(data.totalDocuments)} documento(s), ${n(lines(data))} lançamento(s). Abrir a tabela`}
-    >
-      <span className={styles.kpiHead}>
-        <span className={styles.kpiIcon}>
-          <Icon name={category.icon} size={16} />
-        </span>
-        <span className={styles.kpiLabel}>{category.label}</span>
-        <Icon name="arrowRight" size={16} className={styles.kpiArrow} />
-      </span>
-      <span className={styles.kpiValue}>
-        {n(documents)}
-        <span>documento(s)</span>
-      </span>
-      <span className={styles.kpiMeta}>
-        {n(lineCount)} lançamento(s) · R$ {formatCents(cents)}
-      </span>
-      <span className={styles.kpiSplit} aria-hidden="true">
-        {total === 0 ? (
-          <span className={styles.splitEmpty} />
-        ) : (
-          split.map((s) => s.value > 0 && <span key={s.label} className={s.className} style={{ flexGrow: s.value }} />)
-        )}
-      </span>
-      <span className={styles.kpiLegend} aria-hidden="true">
-        {split.map((s) => (
-          <span key={s.label}>
-            <i className={s.className} />
-            {s.label} {n(s.value)}
-          </span>
-        ))}
-      </span>
-    </button>
   );
 }
 
@@ -1062,61 +946,6 @@ function Segregated({
 
   return (
     <>
-      <section
-        className={cx(ui.card, styles.exceptions, s.exceptionEvents > 0 ? styles.exceptionsFound : styles.exceptionsClear)}
-        aria-label={`Exceções da fase ${posted}`}
-      >
-        <div className={ui.cardHead}>
-          <div>
-            <h2 className={ui.cardTitle}>
-              Exceções da fase {posted}
-              <span className={cx(ui.pill, s.exceptionEvents > 0 ? ui.warn : ui.ok)}>
-                <Icon name={s.exceptionEvents > 0 ? 'alert' : 'check'} size={13} />
-                {s.exceptionEvents > 0 ? `${n(s.exceptionEvents)} evento(s)` : 'nenhuma'}
-              </span>
-            </h2>
-            <p className={ui.sub}>
-              {range} · premissa: inclusão em {balanceType.expectedFrom}, efetivação {balanceType.expectedFrom} → {balanceType.expectedTo} e nenhuma alteração ou
-              exclusão em saldo {balanceType.expectedTo}
-            </p>
-          </div>
-          {s.exceptionEvents > 0 && (
-            <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} onClick={() => events({ exception: 'any' })}>
-              Ver as exceções
-            </button>
-          )}
-        </div>
-        {s.exceptionEvents === 0 ? (
-          <p className={ui.muted}>Nenhum evento do período contraria a premissa do processo.</p>
-        ) : (
-          <ul className={styles.exceptionList}>
-            {EXCEPTIONS.filter((id) => s.exceptions[id] > 0).map((id) => (
-              <li key={id}>
-                <span>{t(SEGREGATION_PT.exceptions[id])}</span>
-                <NumLink value={s.exceptions[id]} onClick={() => events({ exception: id })} />
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className={ui.note}>
-          Informativos (resultado esperado):{' '}
-          {INFORMATIVES.map((id, i) => (
-            <span key={id}>
-              {i > 0 && ' · '}
-              {t(SEGREGATION_PT.informatives[id])}: <NumLink value={s.informatives[id]} onClick={() => events({ informative: id })} />
-            </span>
-          ))}
-          . Marcações:{' '}
-          {MARKS.map((id, i) => (
-            <span key={id}>
-              {i > 0 && ' · '}
-              {SEGREGATION_PT.marks[id]}: <NumLink value={s.marks[id]} onClick={() => events({ mark: id })} />
-            </span>
-          ))}
-          .
-        </p>
-      </section>
-
       <section className={ui.card}>
         <div className={ui.cardHead}>
           <div>

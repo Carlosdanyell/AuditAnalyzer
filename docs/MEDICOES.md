@@ -328,3 +328,22 @@ do saldo anterior (F3) com 40 candidatos já está registrada em 23/11/2026 (pio
 - Bem abaixo das metas (ingestão < 60 s, pico do worker < 400 MB) e dos ~300 ms da regra da baixa (F3).
 - A planilha foi recalculada no LibreOffice, sem erros, com "Confere" em todas as contas.
 - Pendente: medir no worker do navegador, no computador do usuário, e conferir a planilha no Excel.
+
+## 2026-11-25 — Fase 16, etapa 4 (Conciliador: adaptador de PDF), ambiente de nuvem (Linux, 4 núcleos, 15 GB, Node 22)
+
+Leitura dos PDFs reais pelo adaptador (`formats/pdf.ts`, pdf.js 5.6.205, build legacy, o mesmo do app), página a
+página, no Node (mesmo V8 do Chrome), com `--expose-gc`; só tempos e memória. Memória = memória residente do processo
+(o pdf.js analisa o documento no mesmo processo, como no worker do app); "Δheap" = heap retido ao fim da leitura.
+
+| Arquivo | Páginas | Linhas da grade | Tempo | Memória |
+|---|---|---|---|---|
+| GPER070 (férias, o maior PDF real) | 212 | 9.280 | 2,5–4,1 s | 81–85 MB antes → pico de 207–215 MB (cerca de +130 MB); Δheap 41–67 MB |
+| GPER090 (13º) | 120 | 4.603 | 1,0–1,1 s | sem novo pico; Δheap 15–28 MB |
+| Razão CTBR400 (líquido) | 15 | 676 | 0,2 s | — |
+| Razão CTBR400 (contas de provisão) | 32 | 1.528 | 0,3 s | — |
+
+- Abaixo das metas do `CLAUDE.md` (pico do worker < 400 MB; ingestão < 60 s): não foi preciso parar.
+- O pdf.js e o seu worker são carregados sob demanda, só quando há um PDF (blocos de 465 KB e 1,2 MB, minificados),
+  e não pesam na abertura do app nem na leitura de TXT e XML.
+- Pendente: medir no worker do navegador, no computador do usuário, quando a etapa 2 ligar as provisões à ingestão (hoje
+  o GPER070 e o GPER090 são reconhecidos e ficam fora da análise).

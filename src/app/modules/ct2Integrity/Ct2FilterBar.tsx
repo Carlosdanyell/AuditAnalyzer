@@ -1,13 +1,13 @@
 /**
- * The common filter bar of the Painel, Achados and Tabelas of the CT2 (Phase 14, section 4.1; 25/11/2026): one compact
+ * The common filter bar of the Visão geral and the Análise of the CT2 (Phase 14, section 4.1; 25/11/2026): one compact
  * line with the "Filtros" button (and the number of active filters), each active filter a removable chip, "Limpar
- * filtros" and, on Tabelas, the search of the table. The button opens a panel with the fields in three groups: dates and
+ * filtros" and, on the Análise, the Teste filter and the search of the table. The button opens a panel with the fields in three groups: dates and
  * segment, origin and routine, batch, account and value. Choices (segment, origin, routine, dates) apply at once; typed
  * fields (batch, account, value) apply with Enter or "Aplicar". Esc closes the panel and gives the focus back to the
- * button. On Tabelas, a filter the table ignores (CT2_FILTER_APPLIES) is dimmed with the hint "não se aplica a esta
+ * button. On the Análise, a filter the table ignores (CT2_FILTER_APPLIES) is dimmed with the hint "não se aplica a esta
  * tabela".
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../../components/Icon';
 import { cx } from '../../../components/cx';
 import ui from '../../../components/ui.module.css';
@@ -24,10 +24,12 @@ interface Props {
   segments: readonly string[];
   /** Routines of the extraction (texts of the Rotina column), for the choice. */
   routines: readonly string[];
-  /** Table on screen (Tabelas), whose applicability dims the chips; null elsewhere. */
+  /** Table on screen (Análise), whose applicability dims the chips; null elsewhere. */
   table: Ct2TableId | null;
-  /** The search of the table on screen (Tabelas only). */
+  /** The search of the table on screen (Análise only). */
   search?: { value: string; onSearch: (text: string) => void } | null;
+  /** Controls of the table on screen, before the search (the Teste filter). */
+  extra?: ReactNode;
 }
 
 /** The typed fields of the panel, applied together. */
@@ -53,7 +55,7 @@ function draftsOf(filter: Ct2Filter): Drafts {
   };
 }
 
-export function Ct2FilterBar({ filter, onChange, segments, routines, table, search = null }: Props) {
+export function Ct2FilterBar({ filter, onChange, segments, routines, table, search = null, extra }: Props) {
   const chips = filterChips(filter, segments, table);
   const count = activeFilters(filter);
   const [open, setOpen] = useState(false);
@@ -128,6 +130,7 @@ export function Ct2FilterBar({ filter, onChange, segments, routines, table, sear
             </button>
           )}
         </div>
+        {extra}
         {search && <SearchBox className={styles.barSearch} value={search.value} onSearch={search.onSearch} placeholder="Buscar no histórico, documento, lote…" />}
       </div>
 

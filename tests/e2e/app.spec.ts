@@ -13,10 +13,11 @@ import { Workbook } from '../support/xlsxEval';
 import { synthBlob } from '../synthetic/cfgr700';
 import { EVENTS, KEYS } from '../synthetic/engineFixture';
 import { toReportRows } from '../synthetic/logBuilder';
-import { PERIODS, analyze, chooseModule, expect, openView, test } from './fixtures';
+import { PERIODS, analyze, chooseModule, expect, openView, showReadingDetails, test } from './fixtures';
 
-test('arquivos, processamento e reconciliação; versão e autoria no rodapé', async ({ page, files }) => {
+test('arquivos, processamento e leitura; versão e autoria no rodapé', async ({ page, files }) => {
   await analyze(page, [files.august, files.september]);
+  await showReadingDetails(page);
   await expect(page.getByText('Os arquivos são processados neste computador e não são enviados para nenhum servidor.')).toBeVisible();
   await expect(page.getByText('agosto.xlsx').first()).toBeVisible();
   await expect(page.getByText('setembro.xlsx').first()).toBeVisible();
@@ -35,19 +36,41 @@ test('cancelar descarta a leitura', async ({ page, bigFile }) => {
   await expect(page.getByRole('button', { name: 'Analisar' })).toBeEnabled();
 });
 
-test('painel: um número abre a tabela com exatamente aquelas linhas', async ({ page, files }) => {
+test('visão geral: um número abre a tabela da Análise com exatamente aquelas linhas', async ({ page, files }) => {
   await analyze(page, [files.august, files.september]);
-  await openView(page, 'Painel');
+  await openView(page, 'Visão geral');
   const row = page.getByRole('row').filter({ has: page.getByText('Excluídos', { exact: true }) }).first();
   const number = row.getByRole('button').last();
   const value = (await number.innerText()).trim();
   await number.click();
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Análise', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText(`${value} linha(s)`)).toBeVisible();
 });
 
-test('painel: seletor Geral / Segregado; o total de cada categoria no modo Segregado é igual ao modo Geral', async ({ page, segregationFiles }) => {
+test('análise: a lista de testes, o filtro Teste e o período da visão geral', async ({ page, segregationFiles }) => {
   await analyze(page, segregationFiles);
-  await openView(page, 'Painel');
+  await openView(page, 'Análise');
+  await page.getByLabel('Escopo').selectOption({ label: 'Consolidado' });
+  const list = page.getByRole('complementary', { name: 'Testes' });
+  // A test of the list filters the table with exactly its rows; the Teste filter says the same.
+  const posted = list.getByRole('button', { name: 'Alteração em lançamento postado: 3 eventos' });
+  await posted.click();
+  await expect(posted).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('3 linha(s)')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('exception:postedChange');
+  await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
+  await expect(posted).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('');
+  // The same through the Teste filter.
+  await page.getByRole('combobox', { name: 'Teste' }).selectOption('exception:postedChange');
+  await expect(page.getByText('3 linha(s)')).toBeVisible();
+  // The tests without occurrence are folded in one group.
+  await expect(list.getByText(/^\d+ teste\(s\) sem ocorrência$/)).toBeVisible();
+});
+
+test('visão geral: seletor Geral / Segregado; o total de cada categoria no modo Segregado é igual ao modo Geral', async ({ page, segregationFiles }) => {
+  await analyze(page, segregationFiles);
+  await openView(page, 'Visão geral');
   await page.getByLabel('Escopo').selectOption({ label: 'Consolidado' });
   await expect(page.getByRole('radio', { name: 'Geral' })).toHaveAttribute('aria-checked', 'true');
   const general: string[][] = [];
@@ -63,30 +86,32 @@ test('painel: seletor Geral / Segregado; o total de cada categoria no modo Segre
   await expect(totals).toHaveCount(4);
   for (let i = 0; i < 4; i++) expect(await totals.nth(i).locator('td').allInnerTexts()).toEqual(general[i]);
 
-  const exceptions = page.getByRole('region', { name: 'Exceções da fase Postado (1)' });
-  await expect(exceptions.getByText('9 evento(s)')).toBeVisible();
   await expect(page.getByText(/Exclui campos não alterados = Não/).first()).toBeVisible();
   await expect(page.getByText(/A soma das fases é sempre igual à análise geral\./)).toBeVisible();
 
-  // An exception number opens the events table with exactly those events; the mode is kept when coming back.
-  await exceptions.getByRole('listitem').filter({ hasText: 'Alteração em lançamento postado' }).getByRole('button').click();
+  // The exceptions of the posted phase are in the list of the Análise (25/11/2026): each opens the events table with
+  // exactly those events; the mode is kept when coming back.
+  await openView(page, 'Análise');
+  const list = page.getByRole('complementary', { name: 'Testes' });
+  await expect(list.getByRole('region', { name: 'Alerta' })).toBeVisible();
+  await list.getByRole('button', { name: /^Alteração em lançamento postado: / }).click();
   await expect(page.getByText('3 linha(s)')).toBeVisible();
   await expect(page.getByText('Alteração em lançamento postado').first()).toBeVisible();
-  await openView(page, 'Painel');
+  await openView(page, 'Visão geral');
   await expect(page.getByRole('radio', { name: 'Segregado' })).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('radio', { name: 'Geral' }).click();
   await expect(page.getByRole('table', { name: 'Categorias por fase' })).toHaveCount(0);
 });
 
-test('painel: orientação para alterados sem documento e "Ver no Consolidado" no mesmo período', async ({ page, files }) => {
+test('visão geral: orientação para alterados sem documento e "Ver no Consolidado" no mesmo período', async ({ page, files }) => {
   await analyze(page, [files.september]);
-  await openView(page, 'Painel');
+  await openView(page, 'Visão geral');
   await expect(page.getByText(/carregando também a extração anterior/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Nova análise' }).click();
   await page.getByRole('button', { name: /Remover/ }).first().click();
   await analyze(page, [files.august, files.september]);
-  await openView(page, 'Painel');
+  await openView(page, 'Visão geral');
   await page.getByLabel('Escopo').selectOption({ label: 'setembro.xlsx' });
   await page.getByRole('button', { name: 'Ver no Consolidado (mesmo período)' }).click();
   await expect(page.getByLabel('Escopo')).toHaveValue('2');
@@ -164,7 +189,7 @@ test('configuração: salvar, reprocessar, persistir e restaurar a cópia de seg
   await expect(page.getByText('1 diferença(s) em relação ao padrão CT2.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Reprocessar com esta configuração' }).click();
-  await expect(page.getByRole('button', { name: 'Painel' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Visão geral', exact: true })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText('A configuração mudou depois desta análise')).toHaveCount(0);
 
   await page.reload();

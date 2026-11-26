@@ -1,5 +1,5 @@
 /**
- * Painel of the Conciliador (docs/REGRAS_CONCILIADOR.md, section 9): one row per account of the profile — tick mark,
+ * Visão geral of the Conciliador (docs/REGRAS_CONCILIADOR.md, section 9): one row per account of the profile — tick mark,
  * account, name, pattern, expected, ledger balance (real, pre-entry, combined), difference, suggested situation and
  * settlement of the opening balance. Each number opens the table behind it (its sum is that number): the expected the
  * Folha of the account, the balances the Razão from the opening of the competence, the settlement its lines; the
@@ -34,7 +34,7 @@ export function BlockingNotice({ blocking }: { blocking: number }) {
     <p className={cx(ui.alert, ui.error, styles.banner)} role="alert">
       <Icon name="xCircle" />
       <span>
-        {n(blocking)} verificação(ões) bloqueante(s) falhou(aram) na leitura: confira a Reconciliação antes de usar estes números. A planilha exigirá confirmação explícita.
+        {n(blocking)} verificação(ões) bloqueante(s) falhou(aram) na leitura: confira a Leitura antes de usar estes números. A planilha exigirá confirmação explícita.
       </span>
     </p>
   );

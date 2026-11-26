@@ -1,0 +1,306 @@
+/* The Análise (flow revision of 25/11/2026): tests | table | detail of the row. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.layout[data-detail] {
+  grid-template-columns: 252px minmax(0, 1fr) minmax(400px, 36%);
+}
+
+.side {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.detail {
+  position: sticky;
+  top: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 1023.98px) {
+  .layout,
+  .layout[data-detail] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ── List of tests ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 2px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.groupCount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.levelDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-subtle);
+}
+
+.levelDot[data-level='error'] {
+  background: var(--error);
+}
+
+.levelDot[data-level='warning'] {
+  background: var(--warn);
+}
+
+.levelDot[data-level='approval'] {
+  background: var(--accent);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1px 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:not([data-code]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.item:not([data-code]) .count {
+  grid-column: 1;
+}
+
+.item:hover {
+  background: var(--surface-muted);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.itemOn,
+.itemOn:hover {
+  background: var(--selected-bg);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--selected-text);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.label {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.count {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.itemOn .count {
+  color: inherit;
+}
+
+.quiet summary,
+.fold summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.quiet summary::-webkit-details-marker,
+.fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.quiet summary svg,
+.fold summary svg {
+  transition: transform 200ms var(--ease);
+}
+
+.quiet[open] summary svg,
+.fold[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.fold[open] > .list {
+  margin-top: 12px;
+}
+
+.quietItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.quietItems li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  padding: 0 8px;
+}
+
+.quietNote {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── The Teste filter and the selected test ── */
+
+.select {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: min(360px, 100%);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.note strong {
+  flex: none;
+  font-weight: 600;
+}
+
+.noteText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .note {
+    flex-wrap: wrap;
+  }
+
+  .noteText {
+    flex-basis: 100%;
+    order: 3;
+    white-space: normal;
+  }
+}
+
+/* ── Detail of a row docked on the right (wide screens) ── */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 150px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  animation: pane-in 160ms var(--ease);
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane,
+  .item,
+  .quiet summary svg,
+  .fold summary svg {
+    animation: none;
+    transition: none;
+  }
+}

@@ -79,7 +79,7 @@ export function App() {
   const [summary, setSummary] = useState<ModuleSummary | null>(null);
   const [error, setError] = useState<WorkerError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [view, setView] = useState<View>('reconciliation');
+  const [view, setView] = useState<View>('reading');
   const [scope, setScope] = useState(0);
   /** Changes with each new analysis (the workspace of the module starts its tables over). */
   const [analysisId, setAnalysisId] = useState(0);
@@ -291,7 +291,7 @@ export function App() {
             }
             setSummary(event.summary);
             setScope(isLogSummary(event.summary) ? Math.max(0, event.summary.scopes.length - 1) : 0);
-            setView('reconciliation');
+            setView('reading');
             setAnalysisId((n) => n + 1);
             setPhase('done');
             break;
@@ -541,7 +541,7 @@ export function App() {
   const notReady = current.notReady?.(configOf(current)) ?? null;
   const figures = done && reconciliation ? figuresOf(current)(reconciliation, summary, scope) : [];
   const suggestion = phase === 'select' ? suggestModule(current, files.map((f) => samples.get(fileKey(f))), configOf) : null;
-  const showScope = inTool && done && view !== 'reconciliation' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
+  const showScope = inTool && done && view !== 'reading' && view !== 'export' && logSummary !== null && logSummary.scopes.length > 1;
   const openSession = done || phase === 'running' || files.length > 0 ? { id: moduleId, label: done ? 'Análise aberta' : phase === 'running' ? 'Processando' : 'Arquivos carregados' } : null;
 
   return (
@@ -588,7 +588,7 @@ export function App() {
                     >
                       <Icon name={v.icon} />
                       {v.label}
-                      {v.id === 'reconciliation' && blocking > 0 && (
+                      {v.id === 'reading' && blocking > 0 && (
                         <span className={styles.railCount} title={`${blocking} verificação(ões) bloqueante(s)`}>
                           {blocking}
                         </span>
@@ -914,7 +914,7 @@ export function App() {
               viewClassName={styles.view}
               client={client()}
               module={current}
-              view={offered(current, view) ? view : 'reconciliation'}
+              view={offered(current, view) ? view : 'reading'}
               onView={setView}
               reconciliation={reconciliation}
               summary={summary}

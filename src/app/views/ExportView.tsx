@@ -58,7 +58,7 @@ export function cfgr700ExportContent(justificationCount: number, onOpenJustifica
         <li>
           <Icon name="calendar" size={16} />
           <span>
-            <strong>Data de corte:</strong> a última exibida no Painel para este escopo (ou o padrão, último dia do mês do primeiro
+            <strong>Data de corte:</strong> a última exibida na Visão geral para este escopo (ou o padrão, último dia do mês do primeiro
             evento). Pode ser alterada no Resumo.
           </span>
         </li>

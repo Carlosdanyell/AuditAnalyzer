@@ -44,6 +44,7 @@ export class WorkerClient {
   query(command: Query<'segmentPanel'>): Promise<Answer<'segmentPanel'>>;
   query(command: Query<'analyze'>): Promise<Answer<'analyzed'>>;
   query(command: Query<'overview'>): Promise<Answer<'overview'>>;
+  query(command: Query<'tests'>): Promise<Answer<'tests'>>;
   query(command: Query<'document'>): Promise<Answer<'document'>>;
   query(command: Query<'account'>): Promise<Answer<'account'>>;
   query(
@@ -51,6 +52,7 @@ export class WorkerClient {
       | Query<'probe'>
       | Query<'segmentPanel'>
       | Query<'overview'>
+      | Query<'tests'>
       | Query<'document'>
       | Query<'account'>
       | Query<'analyze'>

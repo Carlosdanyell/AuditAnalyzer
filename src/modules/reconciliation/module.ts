@@ -37,7 +37,7 @@ export const reconciliationModule: AvailableModule<ReconciliationConfig> = {
       'A folha de pagamento (GPER040) no TXT do spool e o razão analítico (CTBR400) das contas do perfil, no TXT do spool ou em XML. O arquivo é reconhecido pelo conteúdo, qualquer que seja a extensão (o spool vem como .##r ou .__r).',
     dropTitle: 'Arraste os relatórios aqui',
     guide: [
-      { title: 'Importe', text: 'o perfil de contas (JSON) na Configuração: contas, verbas e regras do razão.' },
+      { title: 'Monte', text: 'o perfil de contas na Configuração (ou importe o JSON): contas, verbas e regras do razão.' },
       { title: 'Carregue', text: 'a folha do mês e o razão das contas, como o Protheus os exporta.' },
       { title: 'Confira', text: 'a leitura de cada relatório e, por conta, o esperado, o saldo contábil e a composição da diferença.' },
     ],
@@ -46,7 +46,7 @@ export const reconciliationModule: AvailableModule<ReconciliationConfig> = {
   // The spool has no fixed extension: any file is listed and recognized by its content (section 3.2).
   accepts: { extensions: 'any', hint: 'TXT do spool, PDF, XML ou XLSX exportados do Protheus', maxFiles: 255 },
   helpAnchor: 'reconciliation',
-  features: { panel: true, findings: true, tables: true, justifications: true, export: true },
+  features: { overview: true, analysis: true, justifications: true, export: true },
   config: { defaults: reconciliationDefaultConfig, read: readReconciliationConfig, saved: true },
   notReady: reconciliationNotReady,
   detect(sheets, config) {

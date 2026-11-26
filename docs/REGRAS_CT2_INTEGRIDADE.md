@@ -191,7 +191,7 @@ nada ficou de fora (matriz de amarração). Detalhe da apresentação por segmen
 
 Todo teste tem código, nível, severidade e regra; liga/desliga e severidade vêm da configuração. **Erro** e
 **Alerta** são achados da análise (não bloqueiam a exportação); **Info** é perfil ou apoio à conferência (os testes Info
-com nível aparecem em Achados, seção 6.6). Nenhum teste altera ou exclui linhas.
+com nível aparecem na lista de testes da Análise, seção 6.6). Nenhum teste altera ou exclui linhas.
 
 ### 6.1 Balanceamento
 
@@ -221,7 +221,7 @@ substituem o I3, e I4a, I4b e I4c o I4). "Entidades" são centro de custo, item 
 a comparação é exata, texto contra texto, e a coluna ausente conta como vazia. Sem nenhuma coluna de entidade
 mapeada, toda mesma conta cai em I3b (seção 10). `amountCurrency1` vazio ou ilegível deixa a linha fora de I4a–I4c
 (o aviso de valores ilegíveis é do CI-4). Valores comparados em centavos, de forma exata. A severidade e o liga/desliga
-de cada subtipo são editáveis na Configuração; I4a é **Info** por padrão e aparece aberto em Achados (seção 6.6), porque
+de cada subtipo são editáveis na Configuração; I4a é **Info** por padrão e aparece na Análise, no grupo "Conferir com aprovação" (seção 6.6), porque
 a alteração de um lançamento automático deve ter documento de aprovação.
 
 ### 6.3 Integridade estrutural
@@ -318,9 +318,9 @@ desconhecido conta como lançamento. Somado às "linhas de continuação de hist
 
 | Grupo | Quais testes | Na tela | Na planilha (Excecoes) |
 |---|---|---|---|
-| Exceção | severidade Erro ou Alerta (inclusive I4a, se a severidade for elevada) | Achados › "Exceções — Erro e Alerta" | sim |
-| Conferir com aprovação | Info com o atributo `review: 'approval'` em `CT2_TEST_INFO` (hoje, I4a) | Achados › "Conferir com documento de aprovação", aberto | sim |
-| Informativo | os demais Info com nível | Achados › "Informativos", recolhido | não: ficam nas colunas de teste e no Resumo |
+| Exceção | severidade Erro ou Alerta (inclusive I4a, se a severidade for elevada) | Análise › grupos Erro e Alerta | sim |
+| Conferir com aprovação | Info com o atributo `review: 'approval'` em `CT2_TEST_INFO` (hoje, I4a) | Análise › grupo "Conferir com aprovação" | sim |
+| Informativo | os demais Info com nível | Análise › grupo Informativo | não: ficam nas colunas de teste e no Resumo |
 
 A lista de achados segue a ordem: Exceção (Erro, depois Alerta), Conferir com aprovação, Informativo; dentro do grupo,
 a ordem dos testes e a do nível. A Excecoes da planilha é um prefixo dessa lista (CI-5 continua valendo para Erro e
@@ -630,19 +630,25 @@ todos os arquivos aparece como "sem a coluna" no quadro de testes.
 
 Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, exportação, configuração) com:
 
-- **Parâmetros** da execução (seção 6.5) num quadro do painel: os testes rodam com os padrões e são reaplicados em
-  segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
-- **Trilho (Fase 14):** Reconciliação · Painel · Achados · Tabelas · Exportação (Configuração e Ajuda no pé).
-  Reconciliação traz a **matriz de amarração** (OK/Verificar) que ficava no fim do Painel; o Painel é "o que há na
-  extração" e Achados é "o que verificar".
-- **Filtro comum** ao Painel, Achados e Tabelas, com o estado na área de trabalho do módulo (substitui o seletor de
+- **Revisão do fluxo (decisões do usuário de 25/11/2026):** quatro visões, as mesmas das três ferramentas —
+  **Leitura · Visão geral · Análise · Exportação** (Configuração e Ajuda no pé). A Leitura é a integridade dos arquivos e
+  da leitura, com a **matriz de amarração**; com tudo conferindo, uma linha verde com "Ver detalhes" (recolhidos), aberta
+  quando algo falha; o quadro de testes saiu dela (está na Análise). A Visão geral é "o que há na extração", sem repetir
+  a faixa de indicadores-chave. A Análise junta os antigos Achados e Tabelas num lugar de trabalho: os testes à
+  esquerda, a tabela no centro, o documento da linha escolhida à direita. Nada do que se consultava saiu: só as
+  duplicações (as "primeiras ocorrências" de cada teste são a tabela Ocorrências filtrada pelo teste; os documentos
+  desbalanceados são Documentos com B1, com a compensação na coluna B4; os maiores documentos são Documentos ordenada
+  por Linhas, com P4 na lista de testes).
+- **Parâmetros** da execução (seção 6.5), recolhidos no topo da lista de testes da Análise: os testes rodam com os
+  padrões e são reaplicados em segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
+- **Filtro comum** à Visão geral e à Análise, com o estado na área de trabalho do módulo (substitui o seletor de
   segmento de cada visão): Segmento, Origem do documento (uma ou mais), Rotina, Lote, Dia e, desde 25/11/2026,
   **Período** (de/até), **Conta** e **Valor**. Cada filtro ativo é um chip removível e há um botão que limpa todos;
   clicar num elemento de gráfico ou num número cria o filtro correspondente.
   Semântica (`Ct2Filter`, `src/worker/modules/ct2Integrity/filter.ts`): uma **linha** passa quando o seu bloco está no
   segmento, no dia, no período e no lote, a origem do **seu documento** é uma das escolhidas e a **sua própria** rotina,
   conta e valor são os escolhidos; um documento, lote ou dia passa quando **ao menos uma** das suas linhas passa. Todo
-  número do Painel e de Achados é calculado sobre o que passa. Contagens podem somar segmentos; débito, crédito e
+  número da Visão geral e da lista de testes é calculado sobre o que passa. Contagens podem somar segmentos; débito, crédito e
   percentuais em valor aparecem por segmento (seção 5).
   - **Período** (`dates`): datas de lançamento entre as duas pontas, inclusive; uma ponta vazia fica aberta. É atributo
     do bloco do dia, como o Dia (os dois podem estar ativos: valem juntos).
@@ -661,35 +667,40 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   | Documentos | sim | sim | sim | sim | sim | sim | sim | sim |
   | Lotes | sim | sim | sim | sim | não | não | não | não |
   | Dias | sim | sim | sim | não | não | não | não | não |
-  | Exceções | sim | sim | sim | sim | sim | sim | sim | sim |
+  | Ocorrências | sim | sim | sim | sim | sim | sim | sim | sim |
   | Base | sim | sim | sim | sim | sim | sim | sim | sim |
 
-  Em Exceções, com filtro de origem, rotina, conta ou valor ativo (os que olham a linha), os achados de lote e de dia
+  Em Ocorrências, com filtro de origem, rotina, conta ou valor ativo (os que olham a linha), os achados de lote e de dia
   ficam **fora** das contagens e da tabela (não têm origem, rotina, conta nem valor de linha). Além do filtro comum, as
-  tabelas têm busca (na barra de filtros, em Tabelas; mantida ao trocar de tabela), teste, grupo (Exceções), "só lotes
-  com intervenção manual" (Lotes) e documento (Base, usado por "Ver na Base").
-- **Painel (composição da extração, tudo respeita o filtro):** lançamentos (linhas com valor) e linhas de
-  continuação de histórico; documentos, lotes e dias; documentos por origem (Automático, Manual, Misto, Não
+  tabelas têm busca (na barra de filtros da Análise; mantida ao trocar de tabela), **Teste**, grupo (Ocorrências), "só
+  lotes com intervenção manual" (Lotes) e documento (Base, usado por "Ver na Base").
+- **Lista de testes e filtro Teste (25/11/2026; comando `tests`, `src/worker/modules/ct2Integrity/testList.ts`):** à
+  esquerda da Análise, os testes com nível em grupos — Erro, Alerta (as exceções), Conferir com aprovação (I4a e os
+  documentos mistos) e Informativo —, cada um com o número de linhas que o clique abre; os sem ocorrência, desligados
+  ou sem a coluna recolhidos num grupo só; P1 e P2 ficam no perfil da Visão geral. O clique (ou a escolha no filtro
+  **Teste** da barra, que lista os testes com ocorrência e os seus números) filtra a **tabela aberta quando ela lista o
+  teste** — Documentos (testes de documento, P3 e P4), Lotes (de lote), Dias (de dia), Base (de linha), pelas marcas —
+  e **Ocorrências** nos demais casos; a regra do teste (a mesma da aba Criterios) aparece numa linha acima da tabela.
+  O worker conta, sob o filtro comum (a parte que cada tabela aplica), as linhas de cada tabela com cada teste: o
+  número da lista é o total da tabela que ele abre (testado em `tests/unit/ct2Tests.test.ts` para seis filtros). Os
+  documentos mistos abrem Documentos com a origem Misto.
+- **Visão geral (composição da extração, tudo respeita o filtro):** linhas de continuação de histórico; lançamentos,
+  documentos e lotes **da seleção** só com filtro ativo (sem filtro, são os da faixa de indicadores-chave); documentos por origem (Automático, Manual, Misto, Não
   identificado); lotes com intervenção manual; débito por segmento e % do débito em linhas manuais; distribuição por
   rotina (linhas, documentos ou débito, empilhada por origem); distribuição por dia (linhas ou débito; dias não úteis
   marcados pela regra do E6 e os feriados da plataforma); tabela dos lotes com intervenção manual (a lista vem
   limitada, com o total dito na tela); perfil P1/P2 recolhido. **Lotes e Dias ignoram origem, rotina, conta e valor**
   quando o filtro os traz (seção 13).
-- **Achados (o que verificar):** parâmetros da execução e "Reaplicar os testes" (recolhidos); Exceções — Erro e
-  Alerta (um bloco por teste com ocorrência, as primeiras ocorrências com o motivo e "Ver todas", que abre Tabelas ›
-  Exceções no teste); Conferir com documento de aprovação (I4a e documentos mistos); Informativos (recolhidos, com a
-  contagem); testes sem ocorrência (uma linha recolhida); documentos desbalanceados (B1, B4, B5) e maiores documentos
-  (P4). Cada ocorrência abre o painel lateral do documento.
-- **Painel lateral do documento** (comando `document`): a chave, a data, a origem por segmento, as rotinas, débito e
+- **Documento da linha** (comando `document`), à direita da tabela da Análise em tela larga e por cima em tela estreita: a chave, a data, a origem por segmento, as rotinas, débito e
   crédito **por segmento**, a situação de B1/B4 e as linhas do documento (limitadas, com o total dito) com as colunas
   mapeadas, as entidades, "Valor Moeda1" quando difere de "Valor", "Lcto Manual?", as marcas dos testes e o motivo;
-  "Ver na Base" abre Tabelas › Base filtrada pelo documento. Detalhes de comportamento em `docs/INTERFACE.md`.
+  "Ver na Base" abre a Base da Análise filtrada pelo documento. Detalhes de comportamento em `docs/INTERFACE.md`.
 - **Faixa de indicadores-chave:** Lançamentos (linhas com valor), Documentos, Lotes, Desbalanceados, Exceções (Erro +
   Alerta), Para conferência (ocorrências de I4a + documentos mistos) e Período.
-- **Tabelas:** Documentos (com "Origem do documento"), Lotes (com "Documentos manuais" e "Documentos mistos"), Dias,
-  Exceções (com Conta D e C, as entidades mapeadas, Valor, Valor Moeda1, Histórico, Rotina, Lcto Manual?, Motivo e
+- **Tabelas da Análise:** Ocorrências (a antiga Exceções, aberta primeiro; com Conta D e C, as entidades mapeadas, Valor, Valor Moeda1, Histórico, Rotina, Lcto Manual?, Motivo e
   Grupo: Exceção, Conferir com aprovação ou Informativo; filtro por grupo; **a tela lista os três grupos**, a planilha
-  só os dois primeiros), Base (com as colunas de teste; as demais colunas da extração sob
+  só os dois primeiros), Documentos (com "Origem do documento"), Lotes (com "Documentos manuais" e "Documentos
+  mistos"), Dias, Base (com as colunas de teste; as demais colunas da extração sob
   "Mostrar todas as colunas"), virtualizadas e paginadas no worker.
 - **Exportação:** idioma pt/en; nome sugerido `CT2_Integridade_<AAAA-MM>_<data da execução>.xlsx` (com mais de um mês,
   `<AAAA-MM>_a_<AAAA-MM>`).
@@ -716,7 +727,7 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
 - **COUNTIF do Excel × motor:** o `COUNTIF(P_COD_MANUAL, …)` da planilha ignora maiúsculas e minúsculas e compara como
   número os códigos só com dígitos (`01` = `1`); o motor compara o texto exato. Códigos de "Lcto Manual?" que só
   diferem nisso podem dar origens diferentes no Excel e no motor; o Resumo mostra a diferença na coluna Conferência.
-- No Painel (visão por documento), um documento com linhas de mais de uma rotina conta em **cada** rotina; a soma por
+- Na Visão geral (visão por documento), um documento com linhas de mais de uma rotina conta em **cada** rotina; a soma por
   rotina de documentos pode passar do total de documentos (a de linhas e a de débito não).
 - O módulo não identifica o usuário que fez o lançamento (seção 12, item 4); a análise por usuário é do módulo
   CFGR700.

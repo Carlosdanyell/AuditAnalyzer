@@ -49,7 +49,7 @@ export const ct2IntegrityModule: AvailableModule<Ct2IntegrityConfig> = {
   // The XML the system writes is read as it comes (docs/REGRAS_CT2_INTEGRIDADE.md, section 2.1), or inside a .zip.
   accepts: { extensions: ['.xlsx', '.xml', '.zip'], maxFiles: 255 },
   helpAnchor: 'ct2',
-  features: { panel: true, findings: true, tables: true, justifications: false, export: true },
+  features: { overview: true, analysis: true, justifications: false, export: true },
   config: { defaults: ct2DefaultConfig, read: readCt2Config, saved: true },
   // A sheet whose first rows hold every mandatory title (the reading rule of section 2), or the chart of accounts,
   // which is loaded with the extraction.

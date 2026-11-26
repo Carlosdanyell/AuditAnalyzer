@@ -325,7 +325,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
         {field('Campo → descrição', ['fieldLabels'], <MapInput value={value(['fieldLabels'])} keyLabel="Campo" valueLabel="Descrição" onChange={(m) => set(['fieldLabels'], m)} />)}
       </Section>
 
-      <Section title="Sinalizações do painel" icon="flag">
+      <Section title="Sinalizações (lista da Análise)" icon="flag">
         <p className={styles.muted}>
           Marcadores nos textos: {'{n}'} = ocorrências; nas inconsistências também {'{pendentes}'} e {'{corrigidos}'}; nos dias, {'{dias}'}.
         </p>
@@ -354,7 +354,7 @@ export function ConfigView({ config, onSave, analysisLoaded, needsReprocess, can
 
       <Section title="Calendário e atalhos de período" icon="calendar">
         {field('Feriados (dd/mm/aaaa)', ['calendar', 'holidays'], listInput(['calendar', 'holidays'], 4), 'Não contam como dias úteis nas sinalizações. Valem para todas as análises.')}
-        {field('Atalhos de período', ['panel', 'periodPresets'], <PresetsInput value={value(['panel', 'periodPresets'])} onChange={(p) => set(['panel', 'periodPresets'], p)} />, 'Também editáveis no painel.')}
+        {field('Atalhos de período', ['panel', 'periodPresets'], <PresetsInput value={value(['panel', 'periodPresets'])} onChange={(p) => set(['panel', 'periodPresets'], p)} />, 'Também editáveis na Visão geral.')}
       </Section>
 
       <Section title="Avançado: estrutura do relatório e JSON completo" icon="sliders">

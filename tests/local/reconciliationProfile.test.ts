@@ -7,8 +7,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readPayrollProfileFile, reconciliationDefaultConfig } from '../../src/config/reconciliationSchema';
-import { payrollProfileFile, provisionProfileFile } from '../synthetic/reconciliationProfile';
+import { payrollProfileTemplate, readPayrollProfileFile, reconciliationDefaultConfig } from '../../src/config/reconciliationSchema';
+import { SYNTHETIC_END_MARKER, payrollProfileFile, provisionProfileFile } from '../synthetic/reconciliationProfile';
 import { localDir } from './realFiles';
 
 const path = join(localDir, 'conciliador', 'perfil-folha.json');
@@ -48,11 +48,22 @@ describe.skipIf(!present)('real payroll profile (local/conciliador/perfil-folha.
   it('shares no account, verba or batch prefix with the synthetic profiles nor with the default', () => {
     const real = codesOf(JSON.parse(readFileSync(path, 'utf8')));
     const shared: string[] = [];
-    for (const synthetic of [payrollProfileFile(), provisionProfileFile(), { schemaVersion: 1, profile: 'payroll', ...reconciliationDefaultConfig().profiles.payroll }]) {
+    for (const synthetic of [payrollProfileFile(), provisionProfileFile(), payrollProfileTemplate(), { schemaVersion: 1, profile: 'payroll', ...reconciliationDefaultConfig().profiles.payroll }]) {
       const s = codesOf(synthetic);
       for (const kind of ['accounts', 'verbas', 'prefixes'] as const) if ([...s[kind]].some((c) => real[kind].has(c))) shared.push(kind);
     }
     console.log(shared.length === 0 ? 'ok' : `códigos em comum: ${[...new Set(shared)].join(', ')}`);
     expect(shared).toEqual([]);
+  });
+});
+
+const provisionReports = ['gper070-2026-10.__r', 'gper090-2026-10.__r'].map((name) => join(localDir, 'conciliador', name)).filter((p) => existsSync(p));
+
+describe.skipIf(provisionReports.length === 0)('real provision reports (local/conciliador/gper070, gper090)', () => {
+  it('no line starts with the synthetic end text of the template and of the tests (it is not the real one)', () => {
+    let found = 0;
+    for (const p of provisionReports) for (const line of readFileSync(p, 'latin1').split(/\r?\n|\f/)) if (line.trimStart().startsWith(SYNTHETIC_END_MARKER)) found++;
+    console.log(found === 0 ? 'ok' : `${found} linha(s)`);
+    expect(found).toBe(0);
   });
 });

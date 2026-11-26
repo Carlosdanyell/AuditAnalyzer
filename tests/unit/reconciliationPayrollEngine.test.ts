@@ -49,7 +49,7 @@ function profileOf(fx: EngineFixture): PayrollProfileConfig {
   return read.profile;
 }
 
-async function run(fx: EngineFixture, options: { format?: 'text' | 'xml'; split?: boolean } = {}): Promise<PayrollAnalysis> {
+async function run(fx: EngineFixture, options: { format?: 'text' | 'xml'; split?: boolean; provisionReports?: readonly ('vacation' | 'thirteenth')[] } = {}): Promise<PayrollAnalysis> {
   const source = await readPayrollSpool(blob(fx.payroll.bytes), { netPayCode: fx.profile.payrollReport.netPayCode });
   expect(source.checks.filter((c) => !c.passed).map((c) => c.id)).toEqual([]);
   const format = options.format ?? 'text';
@@ -62,7 +62,7 @@ async function run(fx: EngineFixture, options: { format?: 'text' | 'xml'; split?
         ];
       })()
     : [{ name: 'razao', reading: await readLedger(fx.ledger, format) }];
-  return analyzePayroll({ payroll: source.report, ledgers, profile: profileOf(fx) });
+  return analyzePayroll({ payroll: source.report, ledgers, profile: profileOf(fx), ...(options.provisionReports && { provisionReports: options.provisionReports }) });
 }
 
 /** Without what only one format has (line of the file, FILIAL DE ORIGEM): CC-5 compares the rest. */
@@ -409,6 +409,45 @@ describe('the other F1 findings and the invariants CC-1 and CC-4', () => {
     const cc1 = r.checks.find((c) => c.id === 'CC-1')!;
     expect(cc1).toMatchObject({ passed: false, severity: 'warning', message: 'Fora da análise, sem razão: 9.9.1.0.99.01.' });
     expect(r.checks.filter((c) => c.id !== 'CC-1').every((c) => c.passed)).toBe(true);
+  });
+
+  it('a Padrão B account without its report in the session is "não analisada — falta <relatório>", before CC-1', async () => {
+    const f = fixture();
+    const provision = provisionProfileFile();
+    const thirteenth = { ...provision.accounts[3]!, account: '9.9.1.0.30.02', tickMark: '#05', report: 'thirteenth', column: 'TOTAL 13o', verbas: { accrual: ['Q01'], terminationRelease: ['Q21'] } };
+    f.profile = { ...provision, accounts: [...provision.accounts, thirteenth as (typeof provision.accounts)[number]] };
+    // Neither account is in the ledger: with the report missing, the reason is the report, not CC-1.
+    const none = await run(f);
+    expect(none.accounts.slice(3).map((a) => [a.account, a.status, a.reason])).toEqual([
+      ['9.9.1.0.30.01', 'notAnalyzed', 'não analisada — falta GPER070'],
+      ['9.9.1.0.30.02', 'notAnalyzed', 'não analisada — falta GPER090'],
+    ]);
+    expect(none.checks.find((c) => c.id === 'CC-1')).toMatchObject({ passed: true });
+    // With the GPER090 in the session, its account is held to CC-1 (out of the ledger); the vacation one still lacks its report.
+    const one = await run(f, { provisionReports: ['thirteenth'] });
+    expect(one.accounts.slice(3).map((a) => [a.account, a.status, a.reason])).toEqual([
+      ['9.9.1.0.30.01', 'notAnalyzed', 'não analisada — falta GPER070'],
+      ['9.9.1.0.30.02', 'notInLedger', 'conta fora da análise — não está no razão (CC-1)'],
+    ]);
+    expect(one.checks.find((c) => c.id === 'CC-1')).toMatchObject({ passed: false, message: 'Fora da análise, sem razão: 9.9.1.0.30.02.' });
+    // Padrão A accounts are untouched, and every blocking invariant still passes.
+    expect(one.accounts.slice(0, 3).every((a) => a.status === 'analyzed')).toBe(true);
+    expect(one.checks.filter((c) => c.id !== 'CC-1').every((c) => c.passed)).toBe(true);
+  });
+
+  it('a Padrão B account with its report and its ledger waits for the reader of the provisions (Phase 16, steps 2-3); without the end text, it says so', async () => {
+    const f = fixture((x) => {
+      const copy = structuredClone(accountOf(x, NET_ACCOUNT));
+      x.ledger.accounts.push({ ...copy, code: '9.9.1.0.30.01' });
+    });
+    f.profile = provisionProfileFile();
+    const r = await run(f, { provisionReports: ['vacation'] });
+    expect(acc(r, '9.9.1.0.30.01')).toMatchObject({ status: 'notAnalyzed', reason: 'não analisada — a leitura do GPER070 ainda não está disponível nesta versão', bridge: null, situation: null });
+    expect(r.checks.every((c) => c.passed)).toBe(true);
+    const reports = f.profile.provisionReports!;
+    f.profile = { ...f.profile, provisionReports: { scope: reports.scope, reversalMarker: reports.reversalMarker, vacation: reports.vacation, thirteenth: reports.thirteenth } };
+    const noEnd = await run(f, { provisionReports: ['vacation'] });
+    expect(acc(noEnd, '9.9.1.0.30.01').reason).toBe('não analisada — falta o texto de fim dos relatórios de provisão no perfil (provisionReports.endMarker)');
   });
 
   it('the column of a verba in the profile is conferred with the report', async () => {

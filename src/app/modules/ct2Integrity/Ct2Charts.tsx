@@ -1,5 +1,5 @@
 /**
- * Charts of the CT2 Painel in plain HTML (Phase 14, section 4.3; no chart dependency): bars by routine stacked by
+ * Charts of the CT2 Visão geral in plain HTML (Phase 14, section 4.3; no chart dependency): bars by routine stacked by
  * origin and columns by day. Every mark is a real <button> with an accessible name, colours come from the tokens of
  * global.css and values are shown as they are (never animated).
  */

@@ -138,9 +138,15 @@ export async function analyze(page: Page, paths: string[]): Promise<void> {
   await chooseModule(page);
   await page.locator('input[type=file]').first().setInputFiles(paths);
   await page.getByRole('button', { name: 'Analisar' }).click();
-  await expect(page.getByRole('button', { name: 'Painel' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Visão geral', exact: true })).toBeVisible({ timeout: 60_000 });
 }
 
 export async function openView(page: Page, name: string): Promise<void> {
   await page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name, exact: true }).click();
+}
+
+/** The Leitura folds its details when every check passes (25/11/2026): opens them when folded. */
+export async function showReadingDetails(page: Page): Promise<void> {
+  const more = page.getByText('Ver detalhes', { exact: true });
+  if (await more.isVisible()) await more.click();
 }
