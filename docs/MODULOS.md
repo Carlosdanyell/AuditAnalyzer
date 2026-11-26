@@ -39,7 +39,7 @@ CFGR700 ler outras tabelas.
 | Leitura | ZIP com acesso aleatório, inflate, CRC32, SHA-256, sharedStrings, leitura da aba em fluxo (`.xlsx`, ou o XML Spreadsheet 2003 do sistema, puro ou em `.zip`, reconhecido pelo conteúdo), dicionário, colunas | `src/worker/ingest/`, `src/worker/store/` |
 | Exportação | gerador XLSX em fluxo, tema, mesclagens validadas, nomes definidos, formatação condicional, aba Rastreabilidade | `src/worker/export/` |
 | Utilitários | datas sem fuso, centavos, formatação pt-BR, hash da configuração | `src/shared/` |
-| Tela | Arquivos, Processamento (etapas), Leitura, Análise (lista de testes, filtro Teste, detalhe da linha: `AnalysisLayout`, `DetailPane`), tabelas virtualizadas, Exportação, Configuração, tema, ajuda, cópia de segurança | `src/app/`, `src/components/` |
+| Tela | Arquivos, Processamento (etapas), Leitura, Análise (filtro Teste, detalhe da linha: `AnalysisLayout`, `DetailPane`), resultado da análise na Visão geral (`AnalysisResult`), tabelas virtualizadas, Exportação, Configuração, tema, ajuda, cópia de segurança | `src/app/`, `src/components/` |
 
 ## 3. Contrato de um módulo
 
@@ -228,6 +228,28 @@ interface ModuleSession {                               // objeto novo a cada in
     lista e o filtro Teste mostram; um módulo que não o oferece recebe "não oferecido" do despacho. O CFGR700 e o
     Conciliador montam a lista com o que já recebem (`panel` e o resumo).
   - A tabela "Exceções" da CT2 aparece na tela como **Ocorrências** (o id `ct2Exceptions` e a planilha não mudam).
+
+- **Segunda revisão do fluxo (decisões do usuário de 26/11/2026):** a Análise não tem mais coluna à esquerda e o detalhe
+  da linha abre por cima. Mudanças do contrato (nenhuma no worker, no motor ou na planilha):
+  - **Análise:** `AnalysisLayout` passa a ser só o contêiner que ocupa a tela (`top`: um aviso; filhos: a barra e a
+    tabela). O teste é um filtro da barra: `TestFilter` (substitui a lista e `TestSelect`) recebe os `AnalysisTest`, o
+    escolhido e o que a escolha faz, e desenha o botão "Teste", a lista agrupada por nível (`testGroups`, puro; os sem
+    ocorrência atrás de "Mostrar sem ocorrência") e, escolhido, o chip "Remover filtro Teste"; `TestNote` continua a
+    linha da regra. `WIDE_QUERY`, `NARROW_QUERY` e `useMedia` saem.
+  - **Tabela na tela inteira:** `TablesView` ganha `fill` (a altura que sobra; o shell marca a Análise com
+    `data-fill` em `App.tsx` e deixa de limitar a largura a 1400 px), `lead` (primeiros controles da barra: Teste,
+    período), `note` (entre a barra e as abas), `tableTools` (controles da tabela ao lado das abas) e `panelChip`
+    (esconde o chip do filtro do painel do CFGR700 quando o do teste já o nomeia). `stretchColumns` (puro) alarga a
+    coluna de texto mais larga quando a tabela é mais estreita que a tela. Sem `fill` (Justificativas), nada muda.
+  - **Detalhe da linha:** `DetailPane` é sempre modal (painel lateral por cima, `DetailPane.module.css`); saem
+    `docked` e `classes` (o módulo passa só `bodyClassName`).
+  - **Visão geral:** `ResultLevels` (`src/components/AnalysisResult.tsx`) desenha o resultado da análise de qualquer
+    módulo a partir dos mesmos `AnalysisTest` (com `onOpen`, ou `null` para um resultado sem tabela). CT2:
+    `ct2AnalysisResult` (puro, em `analysisTests.ts`) separa B1, B2 e B3 e diz, para cada teste, a tabela que o
+    número abre (a do nível do teste quando ela o lista; Ocorrências nos demais) — o número é o total dela sob o mesmo
+    filtro (`tests/unit/ct2Tests.test.ts`). `Ct2OverviewView` ganha `onOpenTest(key, table)`; `PeriodFields` ganha
+    `bar` (o período numa linha, na barra da Análise do CFGR700) e perde `compact`; `Ct2Parameters` vira o botão
+    "Parâmetros" da barra com o seu painel (sai `compact`); `Ct2FilterBar` troca `extra` por `lead` e `tools`.
 
 ## 4. Tela
 

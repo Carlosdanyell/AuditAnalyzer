@@ -529,6 +529,8 @@ export function App() {
   const currentView = VIEWS.find((v) => v.id === view)!;
   const blocking = reconciliation?.checks.filter((c) => c.severity === 'error' && !c.passed).length ?? 0;
   const inTool = screen === 'tool';
+  /** The Análise fills the screen: the table takes the height left (docs/INTERFACE.md, item 4a; 26/11/2026). */
+  const fill = inTool && done && view === 'analysis' && offered(current, view);
   const title = screen === 'home' ? 'Ferramentas' : screen === 'config' ? 'Configuração' : phase === 'running' ? 'Processamento' : done ? currentView.label : current.start.heading;
   const fileSummary = files.length === 0 ? null : `${files.length} arquivo(s) com ${formatBytes(files.reduce((sum, f) => sum + f.size, 0))}`;
   const status = phase === 'running' ? 'Processando…' : done ? 'Análise pronta' : files.length > 0 ? 'Arquivos carregados' : null;
@@ -617,7 +619,7 @@ export function App() {
         </div>
       </aside>
 
-      <div className={styles.content}>
+      <div className={styles.content} data-fill={fill ? '' : undefined}>
         <header className={styles.topbar}>
           <div className={styles.heading} key={`${screen}-${phase}-${view}-${moduleId}`}>
             {screen !== 'home' && (
@@ -675,7 +677,7 @@ export function App() {
           </dl>
         )}
 
-        <main className={styles.main}>
+        <main className={styles.main} data-fill={fill ? '' : undefined}>
           {configNotice && (
             <p className={cx(ui.alert, ui.error)} role="alert">
               <Icon name="alert" />

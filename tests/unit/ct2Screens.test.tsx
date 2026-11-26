@@ -11,8 +11,10 @@ import { railViews } from '../../src/app/rail';
 import { Ct2DocumentDetailView, currency1Differs, documentTitle } from '../../src/app/modules/ct2Integrity/Ct2DocumentPanel';
 import { DEBIT_UNAVAILABLE, dayColumns, manualShare, routineBars, valueSegment } from '../../src/app/modules/ct2Integrity/charts';
 import { NOT_APPLICABLE, accountFrom, activeFilters, amountFrom, commonOf, filterChips, isEmptyFilter, isLineLevel, ownOf, periodFrom, toggleOrigin, withFilter, withoutFilter } from '../../src/app/modules/ct2Integrity/filters';
-import { MIXED_KEY, ct2AnalysisTests, ct2TestTarget } from '../../src/app/modules/ct2Integrity/analysisTests';
-import { testName } from '../../src/components/AnalysisLayout';
+import { MIXED_KEY, ct2AnalysisResult, ct2AnalysisTests, ct2TestTarget } from '../../src/app/modules/ct2Integrity/analysisTests';
+import { stretchColumns } from '../../src/app/views/TablesView';
+import { TestFilter, TestNote, testGroups, testName } from '../../src/components/AnalysisLayout';
+import { DetailPane } from '../../src/components/DetailPane';
 import type { Ct2Severity, Ct2TestCode } from '../../src/config/ct2IntegritySchema';
 import { parseDate } from '../../src/shared/dates';
 import type { Ct2DocumentDetail, Ct2DocumentLine, Ct2FindingGroup, Ct2Origin, Ct2Overview, Ct2TestEntry, Ct2TestsData } from '../../src/shared/modules/ct2Integrity';
@@ -207,6 +209,47 @@ describe('Análise: the list of tests and the Teste filter (25/11/2026)', () => 
     expect(tests[2]!.description).toBe('5 compensados pelo documento vizinho, 1 sem compensação. Regra de B4.');
   });
 
+  it('the Teste filter of the bar (26/11/2026): tests with occurrence by level, the quiet ones apart; a chip once chosen', () => {
+    const tests = ct2AnalysisTests(data, 'ct2Exceptions');
+    const { groups, quiet } = testGroups(tests);
+    expect(groups.map((g) => [g.level, g.items.map((t) => t.key)])).toEqual([
+      ['error', ['B1']],
+      ['warning', ['E4']],
+      ['approval', ['I4a', MIXED_KEY]],
+      ['info', ['B4']],
+    ]);
+    expect(quiet.map((t) => t.key)).toEqual(['B2', 'E6']);
+    const noop = () => {};
+    const closed = renderToStaticMarkup(<TestFilter tests={tests} selected={null} onSelect={noop} />);
+    expect(closed).toContain('aria-haspopup="listbox"');
+    expect(closed).toContain('aria-label="Teste: todos os testes"');
+    expect(closed).not.toContain('Remover filtro Teste');
+    const chosen = renderToStaticMarkup(<TestFilter tests={tests} selected="B1" onSelect={noop} />);
+    expect(chosen).toContain('aria-label="Teste: B1 Documento desbalanceado: 6 documentos"');
+    expect(chosen).toContain('aria-label="Remover filtro Teste"');
+    const note = renderToStaticMarkup(<TestNote test={tests[0]!} onClear={noop} />);
+    expect(note).toContain('Erro');
+    expect(note).toContain('Regra de B1.');
+    expect(note).toContain('aria-label="Tirar o filtro de teste"');
+  });
+
+  it('the result of the Visão geral: unbalances first, then the levels; each number from the table of the level of the test', () => {
+    const withB3: Ct2TestsData = { ...data, tests: [...data.tests, entry('B3', 'error', 'exception', 2, { ct2Exceptions: 2, ct2Days: 2 }), entry('B5', 'warning', 'exception', 1, { ct2Exceptions: 1, ct2Documents: 1 })] };
+    const result = ct2AnalysisResult(withB3);
+    expect(result.unbalances.map((u) => [u.key, u.count, u.countText, u.table, u.state])).toEqual([
+      ['B1', 6, '6 documentos', 'ct2Documents', 'on'],
+      ['B2', 0, '0 lotes', 'ct2Batches', 'on'],
+      ['B3', 2, '2 dias', 'ct2Days', 'on'],
+    ]);
+    expect(result.groups.map((g) => [g.level, g.items.map((t) => [t.key, t.count, t.table])])).toEqual([
+      ['warning', [['E4', 2, 'ct2Exceptions'], ['B5', 1, 'ct2Documents']]],
+      ['approval', [['I4a', 2, 'ct2Exceptions'], [MIXED_KEY, 1, 'ct2Documents']]],
+      ['info', [['B4', 6, 'ct2Documents']]],
+    ]);
+    // E6 is off: counted with the tests without occurrence; the profile (P1) is the profile's.
+    expect(result.quiet).toBe(1);
+  });
+
   it('opens the table on screen when it lists the test, Ocorrências otherwise', () => {
     expect(ct2TestTarget(data, 'B1', 'ct2Documents')).toBe('ct2Documents');
     expect(ct2TestTarget(data, 'B1', 'ct2Base')).toBe('ct2Exceptions');
@@ -233,6 +276,35 @@ const line = (over: Partial<Ct2DocumentLine>): Ct2DocumentLine => ({
   history: 'HISTORICO SINTETICO',
   findings: [],
   ...over,
+});
+
+describe('detail of a row and the table on the whole screen (26/11/2026)', () => {
+  it('the detail is a modal side panel at every width, named by its title, with the close button', () => {
+    const html = renderToStaticMarkup(
+      <DetailPane labelledBy="t" kind="Documento" closeLabel="Fechar o documento" onClose={() => {}}>
+        <h2 id="t">Documento 1</h2>
+      </DetailPane>,
+    );
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('aria-labelledby="t"');
+    expect(html).toContain('aria-label="Fechar o documento"');
+  });
+
+  it('widens a table narrower than its grid: the room goes to the widest text column, or is shared', () => {
+    const cols = [
+      { id: 'a', type: 'int' as const, width: 80 },
+      { id: 'b', type: 'text' as const, width: 120 },
+      { id: 'c', type: 'text' as const, width: 240 },
+    ];
+    expect(stretchColumns(cols, 1000).map((c) => c.width)).toEqual([80, 120, 800]);
+    expect(stretchColumns(cols, 300)).toBe(cols);
+    const numbers = [
+      { type: 'int' as const, width: 100 },
+      { type: 'money' as const, width: 100 },
+    ];
+    expect(stretchColumns(numbers, 301).map((c) => c.width)).toEqual([150, 151]);
+  });
 });
 
 describe('side panel of a document', () => {

@@ -1,35 +1,78 @@
-/* Parameters of the execution, folded (top of the list of tests of the Análise of the CT2). */
-.fold > summary {
-  display: flex;
-  flex-wrap: wrap;
+/* Parameters of the execution: the "Parâmetros" button of the filter bar of the Análise and its panel (26/11/2026). */
+.box {
+  position: relative;
+  display: inline-flex;
+}
+
+.button {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  list-style: none;
-  cursor: pointer;
-}
-
-.fold > summary::-webkit-details-marker {
-  display: none;
-}
-
-.fold > summary > svg {
-  flex: none;
-  color: var(--text-subtle);
-  transition: transform 160ms var(--ease);
-}
-
-.fold[open] > summary > svg {
-  transform: rotate(90deg);
-}
-
-.fold > summary > .muted,
-.fold > summary > span:last-child {
-  margin-left: auto;
+  gap: 7px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
   font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease);
 }
 
-.fold[open] > summary {
-  margin-bottom: 16px;
+.button > svg {
+  color: var(--text-subtle);
+}
+
+.button:hover,
+.buttonOpen {
+  border-color: var(--accent);
+}
+
+.buttonOpen {
+  background: var(--surface-muted);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(640px, 75vh);
+  padding: 14px 16px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: pop-in 140ms var(--ease);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.panelHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
 }
 
 .params {
@@ -39,7 +82,7 @@
 }
 
 .problems {
-  margin: 12px 0 0;
+  margin: 0;
   padding-left: 18px;
   color: var(--error);
   font-size: 13px;
@@ -50,7 +93,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin: 14px 0 8px;
+}
+
+.close {
+  margin-left: auto;
 }
 
 .errorText {
@@ -58,24 +104,20 @@
   font-size: 13px;
 }
 
-/* In the list of tests of the Análise: no card of its own, the fields one under the other. */
-.compact {
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+/* A phone: the panel rises from the bottom of the screen. */
+@media (max-width: 700px) {
+  .panel {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+  }
 }
 
-.compact > summary {
-  gap: 4px 8px;
-}
-
-.compact > summary > .muted,
-.compact > summary > span:last-child {
-  flex-basis: 100%;
-  margin-left: 0;
-  font-size: 12px;
-}
-
-.compact .params {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
 }

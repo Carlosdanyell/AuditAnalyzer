@@ -1,0 +1,170 @@
+/* The result of the analysis at the top of a Visão geral (26/11/2026): Erro, Alerta and Conferir com aprovação in
+   columns, each test one row with its number; Informativo folded. */
+.levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px 24px;
+}
+
+.level {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-subtle);
+}
+
+.dot[data-level='error'] {
+  background: var(--error);
+}
+
+.dot[data-level='warning'] {
+  background: var(--warn);
+}
+
+.dot[data-level='approval'] {
+  background: var(--accent);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 3.4ch minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--surface-muted);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+
+.item code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.label {
+  line-height: 1.35;
+}
+
+.number {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+.item:hover .number {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.items[data-spread] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  column-gap: 24px;
+}
+
+.items:not([data-codes]) .item {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.item[data-static] {
+  cursor: default;
+}
+
+.item[data-static]:hover {
+  background: none;
+}
+
+.item[data-static] .number {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.fold > summary {
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg {
+  color: var(--text-subtle);
+  transition: transform 160ms var(--ease);
+}
+
+.fold[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.fold[open] > summary {
+  margin-bottom: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold > summary > svg {
+    transition: none;
+  }
+}

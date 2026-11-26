@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ct2DefaultConfig } from '../../src/config/ct2IntegritySchema';
 import { defaultConfig } from '../../src/config/schema';
+import { MIXED_KEY, ct2AnalysisResult } from '../../src/app/modules/ct2Integrity/analysisTests';
 import type { Ct2Filter, Ct2TableId, Ct2TestsData } from '../../src/shared/modules/ct2Integrity';
 import type { Command, WorkerEvent } from '../../src/shared/protocol';
 import { createCommandHandler } from '../../src/worker/handler';
@@ -54,6 +55,31 @@ describe('CT2: tests of the Análise with their rows in each table', () => {
         for (const [table, count] of Object.entries(t.tables)) expect(count, `${t.code} ${table} ${JSON.stringify(filter)}`).toBe(await s.total(table as Ct2TableId, { ...filter, test: t.code }));
       }
     }
+  });
+
+  it('the result of the Visão geral: each number equals the total of the table it opens, under every filter (26/11/2026)', async () => {
+    const s = await session();
+    let checked = 0;
+    for (const filter of FILTERS) {
+      const result = ct2AnalysisResult(await s.tests(filter));
+      for (const item of [...result.unbalances, ...result.groups.flatMap((g) => g.items)]) {
+        if (item.key === MIXED_KEY) {
+          expect(item.count).toBe(await s.total('ct2Documents', { ...filter, origins: ['mixed'] }));
+          continue;
+        }
+        if (item.note) continue;
+        expect(item.count, `${item.key} ${JSON.stringify(filter)}`).toBe(await s.total(item.table, { ...filter, test: item.key }));
+        if (item.count > 0) checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+    // Without a filter: the three unbalances of the fixture.
+    const all = ct2AnalysisResult(await s.tests({}));
+    expect(all.unbalances.map((u) => [u.key, u.count])).toEqual([
+      ['B1', 6],
+      ['B2', 2],
+      ['B3', 2],
+    ]);
   });
 
   it('lists each test in Ocorrências and in the table of its level', async () => {

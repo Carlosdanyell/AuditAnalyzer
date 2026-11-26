@@ -716,11 +716,45 @@ thead .totalCol {
   margin-bottom: 16px;
 }
 
-/* The period in the list of tests of the Análise (narrow column): one field under the other. */
-.periodCompact,
-.periodField.periodCompact {
-  flex: none;
+/* The period as a filter of the bar of the Análise (26/11/2026): the three fields in one line, the labels beside them. */
+.periodBar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
   min-width: 0;
-  max-width: none;
-  width: 100%;
+}
+
+.periodBar > label {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 500;
+}
+
+.periodBar .input {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+.periodBar > .periodField {
+  flex: 0 1 auto;
+}
+
+.periodBar > .periodField select {
+  max-width: 290px;
+  min-width: 0;
+}
+
+/* The result of the analysis (26/11/2026): the first panel after the period, a stronger border. */
+.result {
+  border-color: var(--border-strong);
+}
+
+.result h2 {
+  font-size: 17px;
 }

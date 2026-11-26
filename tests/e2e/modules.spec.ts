@@ -46,12 +46,18 @@ function idb(page: Page, key: string, value?: unknown): Promise<unknown> {
 /** The number at the end of an accessible name ("CTBANFE: 1.234 linhas" → "1.234"). */
 const numberIn = (name: string | null) => /: ([\d.]+)/.exec(name ?? '')![1]!;
 
-/** The list of tests of the Análise (25/11/2026). */
-const testList = (page: Page) => page.getByRole('complementary', { name: 'Testes' });
+/** The Teste filter of the bar of the Análise (26/11/2026). */
+const testButton = (page: Page) => page.getByRole('button', { name: /^Teste:/ });
 
-/** Sum of the numbers of the tests of a group of the list ("Erro", "Alerta", "Conferir com aprovação"). */
+/** Opens the Teste filter (when closed) and gives its list. */
+async function testList(page: Page) {
+  if ((await testButton(page).getAttribute('aria-expanded')) !== 'true') await testButton(page).click();
+  return page.getByRole('listbox', { name: 'Teste' });
+}
+
+/** Sum of the numbers of the tests of a group of the Teste filter ("Erro", "Alerta", "Conferir com aprovação"). */
 async function groupSum(page: Page, group: string): Promise<number> {
-  const names = await testList(page).getByRole('region', { name: group }).getByRole('button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label') ?? ''));
+  const names = await (await testList(page)).getByRole('group', { name: group }).getByRole('option').evaluateAll((os) => os.map((o) => o.getAttribute('aria-label') ?? ''));
   return names.reduce((sum, name) => sum + Number(numberIn(name).replace(/\./g, '')), 0);
 }
 
@@ -165,34 +171,35 @@ test('Integridade da CT2: exporta a planilha amarrada; a matriz e o quadro de te
 
 test('Integridade da CT2: análise por segmento, cada número da lista abre a tabela com essas linhas, parâmetros reaplicados', async ({ page, ct2Files }) => {
   const nav = await analyzeEngine(page, ct2Files);
-  // 25/11/2026: the tests are the list of the Análise, beside the tables.
+  // 26/11/2026: the tests are the Teste filter of the bar; the table takes the whole width.
   await nav.getByRole('button', { name: 'Análise', exact: true }).click();
-  const list = testList(page);
   const tables = page.getByRole('navigation', { name: 'Tabelas' });
-  await expect(list.getByRole('region', { name: 'Erro' })).toBeVisible();
   await expect(tables.getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
+  let list = await testList(page);
+  await expect(list.getByRole('group', { name: 'Erro' })).toBeVisible();
 
-  // A number of the list opens the table with exactly those rows; the Teste filter shows the test.
-  await list.getByRole('button', { name: 'B1 Documento desbalanceado: 6 documentos' }).click();
+  // A test opens the table with exactly its rows; the chip shows the test.
+  await list.getByRole('option', { name: 'B1 Documento desbalanceado: 6 documentos' }).click();
   await expect(page.getByText('6 linha(s)')).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('B1');
+  await expect(testButton(page)).toHaveAttribute('aria-label', /^Teste: B1 /);
   // Documentos lists B1 too: the test stays and the table has as many rows.
   await tables.getByRole('button', { name: 'Documentos' }).click();
   await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('B1');
+  await expect(testButton(page)).toHaveAttribute('aria-label', /^Teste: B1 /);
   await expect(page.getByText('6 linha(s)')).toBeVisible();
   await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('');
+  await expect(testButton(page)).toHaveAttribute('aria-label', 'Teste: todos os testes');
   // Phase 14: every finding, 28 exceptions, 2 to check against an approval document and 17 informative (without the
   // holiday of the unit tests, E6 has only the Saturday).
   await tables.getByRole('button', { name: 'Ocorrências' }).click();
   await expect(page.getByText('47 linha(s)')).toBeVisible();
-  // The Teste filter: a test of a line opens Ocorrências from Lotes (Lotes does not list it).
+  // A test of a line opens Ocorrências from Lotes (Lotes does not list it); the chip takes it off.
   await tables.getByRole('button', { name: 'Lotes' }).click();
-  await page.getByRole('combobox', { name: 'Teste' }).selectOption('E4');
+  await (await testList(page)).getByRole('option', { name: /^E4 / }).click();
   await expect(tables.getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('2 linha(s)')).toBeVisible();
-  await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
+  await page.getByRole('button', { name: 'Remover filtro Teste' }).click();
+  await expect(page.getByText('47 linha(s)')).toBeVisible();
 
   // The Base shows the mapped columns and, on request, every column of the extraction.
   await tables.getByRole('button', { name: 'Base' }).click();
@@ -201,21 +208,28 @@ test('Integridade da CT2: análise por segmento, cada número da lista abre a ta
   await page.getByLabel('Mostrar todas as colunas').check();
   await expect(page.getByRole('columnheader', { name: /^Campo Livre 01/ })).toHaveCount(1);
 
-  // One segment (the common filter): every number of the list follows it.
+  // One segment (the common filter): every number of the Teste filter follows it.
   await tables.getByRole('button', { name: 'Ocorrências' }).click();
   await page.getByRole('region', { name: 'Filtros' }).getByRole('button', { name: /^Filtros/ }).click();
   await page.getByRole('combobox', { name: 'Segmento', exact: true }).selectOption({ label: 'Saldo 1 · Moeda 02' });
-  await expect(list.getByRole('button', { name: 'E4 Moeda diferente da esperada: 2 linhas' })).toBeVisible();
-  await expect(list.getByRole('button', { name: /^B1 / })).toHaveCount(0);
+  list = await testList(page);
+  await expect(list.getByRole('option', { name: 'E4 Moeda diferente da esperada: 2 linhas' })).toBeVisible();
+  await expect(list.getByRole('option', { name: /^B1 / })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Remover filtro Segmento' }).click();
-  await expect(list.getByRole('button', { name: 'B1 Documento desbalanceado: 6 documentos' })).toBeVisible();
+  await expect((await testList(page)).getByRole('option', { name: 'B1 Documento desbalanceado: 6 documentos' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
-  // Parameters reapplied without reading the files again: a tolerance of R$ 10,00 leaves two unbalanced documents.
-  await page.getByText('Parâmetros da execução').click();
+  // Parameters reapplied without reading the files again ("Parâmetros", at the end of the bar): a tolerance of R$ 10,00
+  // leaves two unbalanced documents.
+  await page.getByRole('button', { name: 'Parâmetros', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Parâmetros da execução' })).toBeVisible();
   await page.getByLabel('Tolerância (R$)').fill('10,00');
   await page.getByRole('button', { name: 'Reaplicar os testes' }).click();
   await expect(page.getByText('Testes reaplicados com os novos parâmetros.')).toBeVisible();
-  await expect(list.getByRole('button', { name: 'B1 Documento desbalanceado: 2 documentos' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Parâmetros', exact: true })).toBeFocused();
+  await expect((await testList(page)).getByRole('option', { name: 'B1 Documento desbalanceado: 2 documentos' })).toBeVisible();
 });
 
 test('Integridade da CT2: visão geral da composição; clique numa rotina filtra, o chip aparece e as tabelas seguem o filtro', async ({ page, ct2Files }) => {
@@ -228,6 +242,17 @@ test('Integridade da CT2: visão geral da composição; clique numa rotina filtr
   await expect(page.getByRole('group', { name: 'Medida por rotina' }).getByRole('button', { name: 'Débito' })).toBeDisabled();
   // Without a filter, lines, documents and batches are the key-figure strip, not repeated here (25/11/2026).
   await expect(page.getByRole('button', { name: /^Documentos: [\d.]+$/ })).toHaveCount(0);
+
+  // The result of the analysis first (26/11/2026): a number opens the Análise with the table that counts it.
+  const result = page.getByRole('region', { name: 'Resultado da análise' });
+  await result.getByRole('button', { name: 'B1 Documento desbalanceado: 6 documentos' }).click();
+  await expect(analysis).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('6 linha(s)', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro Teste' }).click();
+  await overview.click();
+  // History lines are a footnote, not a figure.
+  await expect(page.getByText(/linha\(s\) de histórico \(Cont\.Hist\)/)).toBeVisible();
 
   const bar = page.getByRole('button', { name: /^CTBANFE: [\d.]+ linhas?$/ });
   const lines = numberIn(await bar.getAttribute('aria-label'));
@@ -294,28 +319,31 @@ test('Integridade da CT2: visão geral da composição; clique numa rotina filtr
   await expect(page.getByText('não se aplica a esta tabela')).toHaveCount(2);
 });
 
-test('Integridade da CT2: a lista da análise com os grupos; cada linha abre o documento ao lado (tela larga) ou por cima', async ({ page, ct2Files }) => {
+test('Integridade da CT2: o filtro Teste com os grupos; cada linha abre o documento num painel por cima da tabela', async ({ page, ct2Files }) => {
   const nav = await analyzeEngine(page, ct2Files);
   const strip = page.getByLabel('Indicadores da análise');
   const figure = async (label: string) => (await strip.locator('div').filter({ has: page.getByText(label, { exact: true }) }).locator('dd').textContent())!;
   const exceptions = Number(await figure('Exceções'));
   const review = Number(await figure('Para conferência'));
   await nav.getByRole('button', { name: 'Análise', exact: true }).click();
-  const list = testList(page);
   const tables = page.getByRole('navigation', { name: 'Tabelas' });
-  // The groups of the list add up to the strip: Erro and Alerta to Exceções, Conferir com aprovação (I4a and the
-  // mixed documents) to Para conferência; the tests without occurrence are folded in one group.
-  await expect(list.getByRole('region', { name: 'Informativo' })).toBeVisible();
+  // The groups of the Teste filter add up to the strip: Erro and Alerta to Exceções, Conferir com aprovação (I4a and
+  // the mixed documents) to Para conferência; the tests without occurrence behind "Mostrar sem ocorrência".
+  let list = await testList(page);
+  await expect(list.getByRole('group', { name: 'Informativo' })).toBeVisible();
   expect((await groupSum(page, 'Erro')) + (await groupSum(page, 'Alerta'))).toBe(exceptions);
   expect(await groupSum(page, 'Conferir com aprovação')).toBe(review);
-  await expect(list.getByText(/^\d+ teste\(s\) sem ocorrência$/)).toBeVisible();
+  await expect(list.getByRole('group', { name: 'Sem ocorrência' })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Mostrar sem ocorrência/ }).click();
+  await expect(list.getByRole('group', { name: 'Sem ocorrência' })).toBeVisible();
 
   // I4a and the mixed documents open their tables with as many rows.
-  const i4a = list.getByRole('button', { name: /^I4a / });
+  const i4a = list.getByRole('option', { name: /^I4a / });
   const occurrences = numberIn(await i4a.getAttribute('aria-label'));
   await i4a.click();
   await expect(page.getByText(`${occurrences} linha(s)`, { exact: true })).toBeVisible();
-  const mixed = list.getByRole('button', { name: /^Documentos mistos/ });
+  list = await testList(page);
+  const mixed = list.getByRole('option', { name: /^Documentos mistos/ });
   const mixedCount = numberIn(await mixed.getAttribute('aria-label'));
   await mixed.click();
   await expect(tables.getByRole('button', { name: 'Documentos' })).toHaveAttribute('aria-current', 'page');
@@ -323,14 +351,18 @@ test('Integridade da CT2: a lista da análise com os grupos; cada linha abre o d
   await expect(page.getByText(`${mixedCount} linha(s)`, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remover filtro Origem' }).click();
 
-  // The side panel over the screen (narrower than a wide screen): Esc and the close button give the focus back.
-  await list.getByRole('button', { name: /^B1 / }).click();
+  // The document opens in a side panel over the table (modal at every width): Esc, the backdrop and the close button
+  // give the focus back to the row; the table never changes size.
+  await (await testList(page)).getByRole('option', { name: /^B1 / }).click();
+  const grid = page.locator('[role=table][aria-rowcount]');
+  const before = (await grid.boundingBox())!;
   const row = page.locator('[role=row][tabindex="0"]').first();
   await row.click();
   const dialog = page.getByRole('dialog', { name: /^Documento \d+ · lote / });
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute('aria-modal', 'true');
   await expect(dialog.getByText('Por tipo de saldo e moeda')).toBeVisible();
+  expect((await grid.boundingBox())!.width).toBe(before.width);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(row).toBeFocused();
@@ -340,6 +372,12 @@ test('Integridade da CT2: a lista da análise com os grupos; cada linha abre o d
   for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
   expect(await dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
   await dialog.getByRole('button', { name: 'Fechar o documento' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toBeFocused();
+  // A click on the backdrop closes it too.
+  await row.click();
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(10, 300);
   await expect(dialog).toHaveCount(0);
   await expect(row).toBeFocused();
 
@@ -361,20 +399,26 @@ test('Integridade da CT2: a lista da análise com os grupos; cada linha abre o d
   await page.keyboard.press('Escape');
   await expect(row).toBeFocused();
 
-  // A wide screen docks the document beside the table: the table stays in sight and another row replaces the document.
+  // A wide screen: the panel is about 60% of the width, over the table, which keeps its size.
   await page.setViewportSize({ width: 1440, height: 900 });
+  const wide = (await grid.boundingBox())!;
   await row.click();
   await expect(dialog).toBeVisible();
-  await expect(dialog).toHaveAttribute('aria-modal', 'false');
-  await expect(tables).toBeVisible();
-  await expect(list).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  const sheet = (await dialog.boundingBox())!;
+  expect(sheet.width).toBeGreaterThanOrEqual(800);
+  expect(sheet.width).toBeLessThanOrEqual(1100);
+  expect((await grid.boundingBox())!.width).toBe(wide.width);
+  // The table is as wide as the content and as high as the screen allows.
+  expect(wide.width).toBeGreaterThan(1200);
+  expect(wide.y + wide.height).toBeGreaterThan(780);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  // A phone: the list of tests folds above the table and the document opens over it.
+  // A phone: the panel takes the whole screen; nothing scrolls sideways.
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByText(/^Testes · \d+ com ocorrência$/)).toBeVisible();
   await row.click();
   await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  expect((await dialog.boundingBox())!.width).toBeCloseTo(390, 0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -394,7 +438,7 @@ test('Integridade da CT2: o plano de contas vai na lista com a extração; a Lei
   await expect(page.getByText('Plano de contas legível')).toBeVisible();
   await nav.getByRole('button', { name: 'Análise', exact: true }).click();
   // The count opens Ocorrências with as many rows, each with its reason.
-  await testList(page).getByRole('button', { name: 'C1 Centro de custo obrigatório não informado: 7 linhas' }).click();
+  await (await testList(page)).getByRole('option', { name: 'C1 Centro de custo obrigatório não informado: 7 linhas' }).click();
   await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Ocorrências' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('7 linha(s)', { exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Conta C 31101001 exige centro de custo; C Custo Crd vazio', exact: true }).first()).toBeAttached();
@@ -788,12 +832,17 @@ test('Conciliador: lê folha e razão, reconcilia a leitura, visão geral por co
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
-  // Análise: the F1c of the net pay account (the provento posted by hand), in the list and in the Teste filter.
-  await nav.getByRole('button', { name: 'Análise', exact: true }).click();
-  const f1c = testList(page).getByRole('button', { name: 'F1c Verba da folha sem integração na conta: 1 ocorrência' });
-  await f1c.click();
+  // Visão geral (26/11/2026): the findings by severity under the accounts; the F1c of the net pay account (the
+  // provento posted by hand) opens Achados with the Teste filter on it.
+  await nav.getByRole('button', { name: 'Visão geral', exact: true }).click();
+  await page.getByRole('region', { name: 'Achados por gravidade' }).getByRole('button', { name: 'F1c Verba da folha sem integração na conta: 1 ocorrência' }).click();
+  await expect(nav.getByRole('button', { name: 'Análise', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('navigation', { name: 'Tabelas' }).getByRole('button', { name: 'Achados' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('F1c');
+  await expect(testButton(page)).toHaveAttribute('aria-label', 'Teste: F1c Verba da folha sem integração na conta: 1 ocorrência');
+  await expect(page.getByText('1 linha(s)')).toBeVisible();
+  // The same through the Teste filter of the bar.
+  await page.getByRole('button', { name: 'Remover filtro Teste' }).click();
+  await (await testList(page)).getByRole('option', { name: 'F1c Verba da folha sem integração na conta: 1 ocorrência' }).click();
   await expect(page.getByText('1 linha(s)')).toBeVisible();
   // The row opens its account, with the way to the keys without integration.
   await page.locator('[role=row][tabindex="0"]').first().click();

@@ -191,7 +191,7 @@ nada ficou de fora (matriz de amarração). Detalhe da apresentação por segmen
 
 Todo teste tem código, nível, severidade e regra; liga/desliga e severidade vêm da configuração. **Erro** e
 **Alerta** são achados da análise (não bloqueiam a exportação); **Info** é perfil ou apoio à conferência (os testes Info
-com nível aparecem na lista de testes da Análise, seção 6.6). Nenhum teste altera ou exclui linhas.
+com nível aparecem no filtro Teste da Análise, seção 6.6). Nenhum teste altera ou exclui linhas.
 
 ### 6.1 Balanceamento
 
@@ -638,8 +638,10 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   esquerda, a tabela no centro, o documento da linha escolhida à direita. Nada do que se consultava saiu: só as
   duplicações (as "primeiras ocorrências" de cada teste são a tabela Ocorrências filtrada pelo teste; os documentos
   desbalanceados são Documentos com B1, com a compensação na coluna B4; os maiores documentos são Documentos ordenada
-  por Linhas, com P4 na lista de testes).
-- **Parâmetros** da execução (seção 6.5), recolhidos no topo da lista de testes da Análise: os testes rodam com os
+  por Linhas, com P4 na lista de testes). **Segunda revisão (26/11/2026):** a coluna da esquerda saiu — os testes são o
+  filtro **Teste** da barra (a mesma lista, com os mesmos números) e a tabela ocupa a tela; o documento abre num painel
+  por cima da tabela; a Visão geral começa pelo resultado da análise.
+- **Parâmetros** da execução (seção 6.5), no botão **Parâmetros** no fim da barra da Análise (antes, no topo da lista de testes): os testes rodam com os
   padrões e são reaplicados em segundos quando um parâmetro muda, sem reler os arquivos (decisão de 29/10/2026).
 - **Filtro comum** à Visão geral e à Análise, com o estado na área de trabalho do módulo (substitui o seletor de
   segmento de cada visão): Segmento, Origem do documento (uma ou mais), Rotina, Lote, Dia e, desde 25/11/2026,
@@ -674,24 +676,28 @@ Segue `docs/INTERFACE.md` (arquivos, processamento, reconciliação, tabelas, ex
   ficam **fora** das contagens e da tabela (não têm origem, rotina, conta nem valor de linha). Além do filtro comum, as
   tabelas têm busca (na barra de filtros da Análise; mantida ao trocar de tabela), **Teste**, grupo (Ocorrências), "só
   lotes com intervenção manual" (Lotes) e documento (Base, usado por "Ver na Base").
-- **Lista de testes e filtro Teste (25/11/2026; comando `tests`, `src/worker/modules/ct2Integrity/testList.ts`):** à
-  esquerda da Análise, os testes com nível em grupos — Erro, Alerta (as exceções), Conferir com aprovação (I4a e os
-  documentos mistos) e Informativo —, cada um com o número de linhas que o clique abre; os sem ocorrência, desligados
-  ou sem a coluna recolhidos num grupo só; P1 e P2 ficam no perfil da Visão geral. O clique (ou a escolha no filtro
-  **Teste** da barra, que lista os testes com ocorrência e os seus números) filtra a **tabela aberta quando ela lista o
+- **Filtro Teste (25/11/2026, na barra desde 26/11/2026; comando `tests`, `src/worker/modules/ct2Integrity/testList.ts`):**
+  os testes com nível em grupos — Erro, Alerta (as exceções), Conferir com aprovação (I4a e os
+  documentos mistos) e Informativo —, cada um com o número de linhas que a escolha abre; os sem ocorrência, desligados
+  ou sem a coluna em "Mostrar sem ocorrência"; P1 e P2 ficam no perfil da Visão geral. A escolha filtra a **tabela aberta quando ela lista o
   teste** — Documentos (testes de documento, P3 e P4), Lotes (de lote), Dias (de dia), Base (de linha), pelas marcas —
-  e **Ocorrências** nos demais casos; a regra do teste (a mesma da aba Criterios) aparece numa linha acima da tabela.
+  e **Ocorrências** nos demais casos; a regra do teste (a mesma da aba Criterios) aparece numa linha abaixo da barra.
   O worker conta, sob o filtro comum (a parte que cada tabela aplica), as linhas de cada tabela com cada teste: o
   número da lista é o total da tabela que ele abre (testado em `tests/unit/ct2Tests.test.ts` para seis filtros). Os
   documentos mistos abrem Documentos com a origem Misto.
-- **Visão geral (composição da extração, tudo respeita o filtro):** linhas de continuação de histórico; lançamentos,
-  documentos e lotes **da seleção** só com filtro ativo (sem filtro, são os da faixa de indicadores-chave); documentos por origem (Automático, Manual, Misto, Não
-  identificado); lotes com intervenção manual; débito por segmento e % do débito em linhas manuais; distribuição por
+- **Visão geral (tudo respeita o filtro; ordem de importância desde 26/11/2026):** (1) o **resultado da análise** —
+  documentos (B1), lotes (B2) e dias (B3) desbalanceados em destaque e os demais testes com ocorrência por nível, cada
+  número o total da tabela do nível do teste (Ocorrências para os de linha; Documentos com a origem Misto para os
+  mistos) sob o mesmo filtro, que ele abre (`ct2AnalysisResult`, testado em `tests/unit/ct2Tests.test.ts`); (2) a
+  **intervenção manual** — documentos por origem (Automático, Manual, Misto, Não identificado), lotes com intervenção
+  manual e % do débito em linhas manuais por segmento; (3) débito e crédito por segmento, com as linhas de continuação de
+  histórico numa nota; lançamentos, documentos e lotes **da seleção** só com filtro ativo (sem filtro, são os da faixa
+  de indicadores-chave); distribuição por
   rotina (linhas, documentos ou débito, empilhada por origem); distribuição por dia (linhas ou débito; dias não úteis
   marcados pela regra do E6 e os feriados da plataforma); tabela dos lotes com intervenção manual (a lista vem
   limitada, com o total dito na tela); perfil P1/P2 recolhido. **Lotes e Dias ignoram origem, rotina, conta e valor**
   quando o filtro os traz (seção 13).
-- **Documento da linha** (comando `document`), à direita da tabela da Análise em tela larga e por cima em tela estreita: a chave, a data, a origem por segmento, as rotinas, débito e
+- **Documento da linha** (comando `document`), num painel lateral por cima da tabela em qualquer largura (26/11/2026): a chave, a data, a origem por segmento, as rotinas, débito e
   crédito **por segmento**, a situação de B1/B4 e as linhas do documento (limitadas, com o total dito) com as colunas
   mapeadas, as entidades, "Valor Moeda1" quando difere de "Valor", "Lcto Manual?", as marcas dos testes e o motivo;
   "Ver na Base" abre a Base da Análise filtrada pelo documento. Detalhes de comportamento em `docs/INTERFACE.md`.

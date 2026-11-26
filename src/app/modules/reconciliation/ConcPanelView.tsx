@@ -4,7 +4,9 @@
  * settlement of the opening balance. Each number opens the table behind it (its sum is that number): the expected the
  * Folha of the account, the balances the Razão from the opening of the competence, the settlement its lines; the
  * difference opens the side panel with the bridge. No filter by value: a difference of R$ 0,01 shows like any other.
+ * Under it (26/11/2026), the findings by severity: each code opens the Análise with Achados filtered by it.
  */
+import { ResultLevels } from '../../../components/AnalysisResult';
 import { Icon } from '../../../components/Icon';
 import { cx } from '../../../components/cx';
 import ui from '../../../components/ui.module.css';
@@ -18,6 +20,7 @@ import {
   type ReconciliationTableFilter,
   type ReconciliationTableId,
 } from '../../../shared/modules/reconciliation';
+import { concAnalysisTests } from './analysisTests';
 import { competenceText, money } from './labels';
 import styles from './ConcScreens.module.css';
 
@@ -98,7 +101,30 @@ export function ConcPanelView({ summary, onOpenTable, onOpenAccount }: { summary
         </div>
         {summary.workpaperStatuses.length > 0 && <p className={ui.note}>A situação do seu papel de trabalho é escolhida em Justificativas; a situação sugerida é só uma indicação.</p>}
       </section>
+      <Findings summary={summary} onOpenTable={onOpenTable} />
     </div>
+  );
+}
+
+/** The findings of the competence by severity (26/11/2026): each code opens Achados with exactly its occurrences. */
+function Findings({ summary, onOpenTable }: { summary: ReconciliationSummary; onOpenTable: OpenTable }) {
+  const tests = concAnalysisTests(summary);
+  const found = tests.filter((t) => t.count > 0).length;
+  return (
+    <section className={ui.card} aria-labelledby="conc-findings">
+      <div className={ui.cardHead}>
+        <h2 className={ui.cardTitle} id="conc-findings">
+          <span className={ui.cardIcon}>
+            <Icon name="flag" />
+          </span>
+          Achados por gravidade
+        </h2>
+        <span className={ui.muted}>
+          {n(found)} código(s) com ocorrência · {n(tests.length - found)} sem ocorrência
+        </span>
+      </div>
+      <ResultLevels items={tests.map((t) => ({ ...t, onOpen: () => onOpenTable('concFindings', { code: t.key }) }))} empty="Nenhum erro ou alerta na competência." />
+    </section>
   );
 }
 

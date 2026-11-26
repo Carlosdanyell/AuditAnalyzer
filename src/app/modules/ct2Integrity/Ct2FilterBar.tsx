@@ -1,7 +1,7 @@
 /**
  * The common filter bar of the Visão geral and the Análise of the CT2 (Phase 14, section 4.1; 25/11/2026): one compact
- * line with the "Filtros" button (and the number of active filters), each active filter a removable chip, "Limpar
- * filtros" and, on the Análise, the Teste filter and the search of the table. The button opens a panel with the fields in three groups: dates and
+ * line with the "Filtros" button (and the number of active filters), on the Análise the Teste filter (26/11/2026), each
+ * active filter a removable chip, "Limpar filtros" and, on the Análise, the search of the table and "Parâmetros". The button opens a panel with the fields in three groups: dates and
  * segment, origin and routine, batch, account and value. Choices (segment, origin, routine, dates) apply at once; typed
  * fields (batch, account, value) apply with Enter or "Aplicar". Esc closes the panel and gives the focus back to the
  * button. On the Análise, a filter the table ignores (CT2_FILTER_APPLIES) is dimmed with the hint "não se aplica a esta
@@ -28,8 +28,12 @@ interface Props {
   table: Ct2TableId | null;
   /** The search of the table on screen (Análise only). */
   search?: { value: string; onSearch: (text: string) => void } | null;
-  /** Controls of the table on screen, before the search (the Teste filter). */
-  extra?: ReactNode;
+  /** After the "Filtros" button (the Teste filter of the Análise). */
+  lead?: ReactNode;
+  /** At the end of the line, after the search (the "Parâmetros" of the Análise). */
+  tools?: ReactNode;
+  /** Another filter is on (the test): no "Nenhum filtro" sentence. */
+  otherFilter?: boolean;
 }
 
 /** The typed fields of the panel, applied together. */
@@ -55,7 +59,7 @@ function draftsOf(filter: Ct2Filter): Drafts {
   };
 }
 
-export function Ct2FilterBar({ filter, onChange, segments, routines, table, search = null, extra }: Props) {
+export function Ct2FilterBar({ filter, onChange, segments, routines, table, search = null, lead, tools, otherFilter = false }: Props) {
   const chips = filterChips(filter, segments, table);
   const count = activeFilters(filter);
   const [open, setOpen] = useState(false);
@@ -112,8 +116,9 @@ export function Ct2FilterBar({ filter, onChange, segments, routines, table, sear
           {count > 0 && <span className={styles.filterCount}>{count}</span>}
           <Icon name="chevronDown" size={14} className={styles.filterChevron} />
         </button>
+        {lead}
         <div className={styles.chips}>
-          {chips.length === 0 && <span className={styles.noFilter}>Nenhum filtro: tudo o que foi lido.</span>}
+          {chips.length === 0 && !otherFilter && <span className={styles.noFilter}>Nenhum filtro: tudo o que foi lido.</span>}
           {chips.map((c) => (
             <span key={c.key} className={cx(styles.chip, !c.applies && styles.chipIdle)} title={c.applies ? undefined : NOT_APPLICABLE}>
               <span className={styles.chipLabel}>{c.label}</span>
@@ -130,8 +135,8 @@ export function Ct2FilterBar({ filter, onChange, segments, routines, table, sear
             </button>
           )}
         </div>
-        {extra}
         {search && <SearchBox className={styles.barSearch} value={search.value} onSearch={search.onSearch} placeholder="Buscar no histórico, documento, lote…" />}
+        {tools}
       </div>
 
       {open && (

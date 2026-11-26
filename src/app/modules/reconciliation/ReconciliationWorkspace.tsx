@@ -1,13 +1,13 @@
 /**
- * Workspace of the Conciliador after the analysis (docs/REGRAS_CONCILIADOR.md, section 9; flow revision of 25/11/2026):
- * Leitura, Visão geral (the accounts of the profile), Análise (the codes of finding on the left, the tables Contas,
- * Folha, Integração, Razão and Achados in the center with the Teste filter, the account of the selected row on the
- * right), Justificativas and Exportação (the workpaper, with the justifications of the competence). The table, its
- * filter, the side panel and the justifications live here; the shell (App.tsx) owns the files, the processing and the
- * view chosen.
+ * Workspace of the Conciliador after the analysis (docs/REGRAS_CONCILIADOR.md, section 9; flow revisions of 25 and
+ * 26/11/2026): Leitura, Visão geral (the findings by severity, then the accounts of the profile), Análise (the bar with
+ * the Teste filter — the codes of finding — and the search; the tables Contas, Folha, Integração, Razão and Achados on
+ * the whole screen; the account of a row in a side panel over the screen), Justificativas and Exportação (the
+ * workpaper, with the justifications of the competence). The table, its filter, the side panel and the justifications
+ * live here; the shell (App.tsx) owns the files, the processing and the view chosen.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { AnalysisLayout, TestNote, TestSelect, WIDE_QUERY, useMedia } from '../../../components/AnalysisLayout';
+import { AnalysisLayout, TestFilter, TestNote } from '../../../components/AnalysisLayout';
 import { Icon } from '../../../components/Icon';
 import ui from '../../../components/ui.module.css';
 import { formatInteger } from '../../../shared/format';
@@ -107,7 +107,6 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
   const [opened, setOpened] = useState<number | null>(null);
   const [justifications, setJustifications] = useState<Map<string, ReconciliationJustification>>(new Map());
   const [loaded, setLoaded] = useState(true);
-  const wide = useMedia(WIDE_QUERY);
 
   // A new analysis starts the tables and the side panel over.
   useEffect(() => {
@@ -144,7 +143,6 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
   if (!isReconciliationReconciliation(anyReconciliation)) return null;
   const reconciliation = anyReconciliation;
   const summary = anySummary && isReconciliationSummary(anySummary) ? anySummary : null;
-  const docked = view === 'analysis' && wide;
   const onFinding = (f: ReconciliationFinding, what: 'lines' | 'integration') => {
     if (!summary) return;
     if (what === 'integration' && f.accountIndex !== null) return openTable('concIntegration', { account: f.accountIndex, keyStatus: 'missing' });
@@ -153,7 +151,7 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
   };
   const dialog =
     opened !== null ? (
-      <ConcAccountDialog client={client} index={opened} docked={docked} onClose={() => setOpened(null)} onLedger={(index) => openTable('concLedger', { account: index })} onFinding={onFinding} />
+      <ConcAccountDialog client={client} index={opened} onClose={() => setOpened(null)} onLedger={(index) => openTable('concLedger', { account: index })} onFinding={onFinding} />
     ) : null;
 
   return (
@@ -161,7 +159,7 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
       <div className={viewClassName} key={view}>
         {content()}
       </div>
-      {!docked && dialog}
+      {dialog}
     </>
   );
 
@@ -181,9 +179,9 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
       const select = (key: string | null) =>
         setRequest((before) => ({ table: 'concFindings', filter: { ...(key !== null && { conc: { code: key } }), ...(before.filter.search && { search: before.filter.search }) } }));
       return (
-        <AnalysisLayout tests={tests} selected={selectedKey} onSelect={select} top={<BlockingNotice blocking={summary.blocking} />} detail={docked ? dialog : null}>
-          <TestNote test={tests.find((t) => t.key === selectedKey) ?? null} onClear={() => select(null)} />
+        <AnalysisLayout top={<BlockingNotice blocking={summary.blocking} />}>
           <TablesView
+            fill
             client={client}
             scope={0}
             request={request}
@@ -192,19 +190,18 @@ export function ReconciliationWorkspace({ viewClassName, client, module, view, o
             originFilters={false}
             emptyHint="Ajuste a busca, o teste ou remova o filtro."
             onRowClick={(_row, account) => account !== null && summary.accounts[account]?.status === 'analyzed' && setOpened(account)}
+            lead={<TestFilter tests={tests} selected={selectedKey} onSelect={select} />}
+            note={<TestNote test={tests.find((t) => t.key === selectedKey) ?? null} onClear={() => select(null)} />}
             toolbar={
-              <>
-                <TestSelect tests={tests} selected={selectedKey} onSelect={select} />
-                {chip && (
-                  <span className={styles.chip}>
-                    <Icon name="filter" size={13} />
-                    {chip}
-                    <button type="button" aria-label="Remover filtro da conciliação" onClick={() => setRequest({ ...request, filter: { ...(request.filter.search && { search: request.filter.search }), ...(selectedKey && { conc: { code: selectedKey } }) } })}>
-                      <Icon name="x" size={13} strokeWidth={2.4} />
-                    </button>
-                  </span>
-                )}
-              </>
+              chip && (
+                <span className={styles.chip}>
+                  <Icon name="filter" size={13} />
+                  {chip}
+                  <button type="button" aria-label="Remover filtro da conciliação" onClick={() => setRequest({ ...request, filter: { ...(request.filter.search && { search: request.filter.search }), ...(selectedKey && { conc: { code: selectedKey } }) } })}>
+                    <Icon name="x" size={13} strokeWidth={2.4} />
+                  </button>
+                </span>
+              )
             }
           />
         </AnalysisLayout>

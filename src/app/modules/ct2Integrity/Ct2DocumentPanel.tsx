@@ -2,7 +2,7 @@
  * Side panel of a CT2 document (Phase 14, section 4.6): a dialog over the screen with the answer of the `document`
  * query. Header (key, date, origin, routines, debit and credit by segment, B1/B4) and the lines, with a discreet mark on
  * manual lines and the finding mark, with its reason, on lines with findings; "Valor Moeda1" only where it differs from
- * "Valor". Docked beside the table of the Análise on wide screens, over the screen otherwise (DetailPane).
+ * "Valor". A modal side panel over the screen, at every width (DetailPane; 26/11/2026).
  */
 import { useEffect, useState } from 'react';
 import { DetailPane } from '../../../components/DetailPane';
@@ -171,21 +171,19 @@ function LineRows({ line, detail, segments, several, showCurrency1 }: { line: Ct
   );
 }
 
-/** The detail of a document: asks the worker for it; docked beside the table or over the screen (DetailPane). */
+/** The detail of a document: asks the worker for it; a side panel over the screen (DetailPane). */
 export function Ct2DocumentDialog({
   client,
   index,
   segments,
   onClose,
   onBase,
-  docked = false,
 }: {
   client: WorkerClient;
   index: number;
   segments: readonly string[];
   onClose: () => void;
   onBase: (index: number) => void;
-  docked?: boolean;
 }) {
   const [detail, setDetail] = useState<Ct2DocumentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -204,12 +202,10 @@ export function Ct2DocumentDialog({
 
   return (
     <DetailPane
-      docked={docked}
       labelledBy="ct2-document-title"
       kind="Documento"
       closeLabel="Fechar o documento"
       onClose={onClose}
-      classes={{ overlay: styles.overlay, drawer: styles.drawer, bar: styles.drawerBar, actions: styles.drawerActions, body: styles.drawerBody }}
       actions={
         <button type="button" className={cx(ui.btn, ui.secondary, ui.sm)} disabled={!detail} onClick={() => onBase(index)}>
           <Icon name="table" size={15} />

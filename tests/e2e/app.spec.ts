@@ -47,25 +47,51 @@ test('visão geral: um número abre a tabela da Análise com exatamente aquelas 
   await expect(page.getByText(`${value} linha(s)`)).toBeVisible();
 });
 
-test('análise: a lista de testes, o filtro Teste e o período da visão geral', async ({ page, segregationFiles }) => {
+test('análise: o filtro Teste da barra, o resultado da visão geral e a tabela na tela inteira', async ({ page, segregationFiles }) => {
   await analyze(page, segregationFiles);
-  await openView(page, 'Análise');
+  // Visão geral (26/11/2026): the result of the analysis first; a number opens the Análise with exactly its rows.
+  await openView(page, 'Visão geral');
   await page.getByLabel('Escopo').selectOption({ label: 'Consolidado' });
-  const list = page.getByRole('complementary', { name: 'Testes' });
-  // A test of the list filters the table with exactly its rows; the Teste filter says the same.
-  const posted = list.getByRole('button', { name: 'Alteração em lançamento postado: 3 eventos' });
-  await posted.click();
-  await expect(posted).toHaveAttribute('aria-pressed', 'true');
+  const result = page.getByRole('region', { name: 'Resultado da análise' });
+  await result.getByRole('button', { name: 'Alteração em lançamento postado: 3 eventos' }).click();
+  await expect(page.getByRole('navigation', { name: 'Visões' }).getByRole('button', { name: 'Análise', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText('3 linha(s)')).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('exception:postedChange');
+  const teste = page.getByRole('button', { name: /^Teste:/ });
+  await expect(teste).toHaveAttribute('aria-label', 'Teste: Alteração em lançamento postado: 3 eventos');
+  // No column of tests beside the table: the table takes the width of the content.
+  await expect(page.getByRole('complementary', { name: 'Testes' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Tirar o filtro de teste' }).click();
-  await expect(posted).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('combobox', { name: 'Teste' })).toHaveValue('');
-  // The same through the Teste filter.
-  await page.getByRole('combobox', { name: 'Teste' }).selectOption('exception:postedChange');
+  await expect(teste).toHaveAttribute('aria-label', 'Teste: todos os testes');
+
+  // The Teste filter: a list grouped by level; a choice filters the table and shows as a chip.
+  await teste.click();
+  const list = page.getByRole('listbox', { name: 'Teste' });
+  await expect(list.getByRole('group', { name: 'Alerta' })).toBeVisible();
+  await list.getByRole('option', { name: 'Alteração em lançamento postado: 3 eventos' }).click();
+  await expect(list).toHaveCount(0);
   await expect(page.getByText('3 linha(s)')).toBeVisible();
-  // The tests without occurrence are folded in one group.
-  await expect(list.getByText(/^\d+ teste\(s\) sem ocorrência$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Remover filtro Teste' }).click();
+  await expect(teste).toHaveAttribute('aria-label', 'Teste: todos os testes');
+  // By keyboard: the list opens on "Todos os testes"; arrows move, Enter chooses, Esc closes back on the button.
+  await teste.focus();
+  await page.keyboard.press('Enter');
+  await expect(list.getByRole('option', { name: /^Todos os testes/ })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Remover filtro Teste' })).toBeVisible();
+  await expect(teste).toBeFocused();
+  await page.getByRole('button', { name: 'Remover filtro Teste' }).click();
+  // The tests without occurrence, behind "Mostrar sem ocorrência".
+  await teste.click();
+  await page.getByRole('button', { name: /^Mostrar sem ocorrência \(\d+\)$/ }).click();
+  await expect(list.getByRole('group', { name: 'Sem ocorrência' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(list).toHaveCount(0);
+  await expect(teste).toBeFocused();
+  // The period is a field of the bar, the same as the Visão geral's.
+  await expect(page.getByRole('region', { name: 'Filtros' }).getByLabel('Período')).toBeVisible();
+  // On a desktop the page does not scroll: the table takes the height left.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1)).toBe(true);
 });
 
 test('visão geral: seletor Geral / Segregado; o total de cada categoria no modo Segregado é igual ao modo Geral', async ({ page, segregationFiles }) => {
@@ -92,9 +118,10 @@ test('visão geral: seletor Geral / Segregado; o total de cada categoria no modo
   // The exceptions of the posted phase are in the list of the Análise (25/11/2026): each opens the events table with
   // exactly those events; the mode is kept when coming back.
   await openView(page, 'Análise');
-  const list = page.getByRole('complementary', { name: 'Testes' });
-  await expect(list.getByRole('region', { name: 'Alerta' })).toBeVisible();
-  await list.getByRole('button', { name: /^Alteração em lançamento postado: / }).click();
+  await page.getByRole('button', { name: /^Teste:/ }).click();
+  const list = page.getByRole('listbox', { name: 'Teste' });
+  await expect(list.getByRole('group', { name: 'Alerta' })).toBeVisible();
+  await list.getByRole('option', { name: /^Alteração em lançamento postado: / }).click();
   await expect(page.getByText('3 linha(s)')).toBeVisible();
   await expect(page.getByText('Alteração em lançamento postado').first()).toBeVisible();
   await openView(page, 'Visão geral');

@@ -1,14 +1,13 @@
 /**
- * Workspace of the CFGR700 module after the analysis (docs/INTERFACE.md, items 3-7; flow revision of 25/11/2026):
- * Leitura, Visão geral (the panel, general or segregated), Análise (the flags and the segregated results on the left, the
- * tables in the center with the Teste filter), Justificativas and Exportação. The period of the panel lives here, shared
- * by the Visão geral and the Análise.
+ * Workspace of the CFGR700 module after the analysis (docs/INTERFACE.md, items 3-7; flow revisions of 25 and 26/11/2026):
+ * Leitura, Visão geral (the panel, general or segregated, with the result of the analysis first), Análise (the bar with
+ * the Teste filter — the flags and the segregated results —, the period, the origin and the search; the tables on the
+ * whole screen), Justificativas and Exportação. The period of the panel lives here, shared by the Visão geral and the
+ * Análise.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnalysisLayout, TestNote, TestSelect } from '../../../components/AnalysisLayout';
+import { AnalysisLayout, TestFilter, TestNote } from '../../../components/AnalysisLayout';
 import { ReconciliationView } from '../../../components/ReconciliationView';
-import { cx } from '../../../components/cx';
-import ui from '../../../components/ui.module.css';
 import { isLogReconciliation, isLogSummary, type PanelData, type Period, type TableFilter, type TableId } from '../../../shared/protocol';
 import { ExportView, cfgr700ExportContent } from '../../views/ExportView';
 import { JustificationsView } from '../../views/JustificationsView';
@@ -16,7 +15,6 @@ import { PanelView, PeriodFields, type PanelMode } from '../../views/PanelView';
 import { TablesView, type TableRequest } from '../../views/TablesView';
 import type { WorkspaceProps } from '../workspace';
 import { cfgr700AnalysisTests, cfgr700TestOf } from './analysisTests';
-import styles from './Cfgr700Workspace.module.css';
 
 export function Cfgr700Workspace({ client, module, view, onView, reconciliation, summary, analysisId, viewClassName, cfgr700: s }: WorkspaceProps) {
   const [tableRequest, setTableRequest] = useState<TableRequest>({ table: 'documents', filter: {} });
@@ -99,22 +97,9 @@ export function Cfgr700Workspace({ client, module, view, onView, reconciliation,
       } else setNoted(t.key);
     };
     return (
-      <AnalysisLayout
-        tests={tests}
-        selected={selectedKey}
-        onSelect={select}
-        loading={panel === null}
-        top={
-          panel && (
-            <div className={styles.period}>
-              <PeriodFields data={panel} onPeriod={setPeriod} compact />
-              <p className={ui.note}>Pela data do evento; vale também para a Visão geral.</p>
-            </div>
-          )
-        }
-      >
-        <TestNote test={selected} onClear={() => select(null)} />
+      <AnalysisLayout>
         <TablesView
+          fill
           client={client}
           scope={s.scope}
           request={tableRequest}
@@ -123,7 +108,14 @@ export function Cfgr700Workspace({ client, module, view, onView, reconciliation,
             setTableRequest(r);
           }}
           balanceType={config.balanceType}
-          toolbar={<TestSelect tests={tests} selected={selectedKey} onSelect={select} className={cx(styles.test)} />}
+          panelChip={!shown}
+          lead={
+            <>
+              <TestFilter tests={tests} selected={selectedKey} onSelect={select} loading={panel === null} />
+              {panel && <PeriodFields data={panel} onPeriod={setPeriod} bar />}
+            </>
+          }
+          note={<TestNote test={selected} onClear={() => select(null)} />}
         />
       </AnalysisLayout>
     );
