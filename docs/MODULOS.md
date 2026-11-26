@@ -10,7 +10,7 @@ contábeis (por exemplo, conciliações) pelo mesmo contrato, sem mudar a casca 
 |---|---|---|---|
 | `cfgr700` — Log de auditoria | Relatório CFGR700 (tabela CT2) | `docs/REGRAS_CFGR700.md` | em uso desde a 1.0.0 |
 | `ct2Integrity` — Integridade da CT2 | Extração da tabela CT2 (lançamentos) | `docs/REGRAS_CT2_INTEGRIDADE.md` | em uso desde a 2.1.0 (prévia na 2.0.0; conferida com extração real em 30/10/2026) |
-| `reconciliation` — Conciliador | Relatórios de origem (folha GPER040) e razão analítico (CTBR400), no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração | `docs/REGRAS_CONCILIADOR.md` | prévia na 2.5.0 (Fase 15: folha de pagamento, Padrão A; provisões e PDF na Fase 16) |
+| `reconciliation` — Conciliador | Relatórios de origem (folha GPER040) e razão analítico (CTBR400), no TXT do spool ou, o razão, em XML; perfil de contas importado na Configuração | `docs/REGRAS_CONCILIADOR.md` | prévia desde a 2.5.0 (Fase 15: folha de pagamento, Padrão A); PDF da folha e do razão na 2.6.0; provisões na Fase 16 (2.7.0) |
 
 **Decisão (20/10/2026):** revoga a decisão de 26/09/2026 registrada na Fase 6 do roteiro ("a generalização saiu do
 escopo; outra área = ferramenta própria"). Novas análises entram como módulos desta plataforma, não como ferramentas

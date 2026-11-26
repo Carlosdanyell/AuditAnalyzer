@@ -114,7 +114,7 @@
             <tbody>
               <tr><td><a href="#cfgr700">Log de auditoria (CFGR700)</a></td><td>Relatório CFGR700 do Protheus (tabela CT2), em <code>.xlsx</code></td><td>Disponível</td></tr>
               <tr><td><a href="#ct2">Integridade da CT2</a></td><td>Extração da tabela CT2 (lançamentos), em <code>.xlsx</code> ou no XML gerado pelo Protheus (também em <code>.zip</code>)</td><td>Disponível</td></tr>
-              <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040, TXT) e razão analítico (CTBR400, TXT ou XML) do Protheus, com o perfil de contas importado na Configuração</td><td>Prévia</td></tr>
+              <tr><td><a href="#reconciliation">Conciliador</a></td><td>Folha de pagamento (GPER040, TXT ou PDF) e razão analítico (CTBR400, TXT, XML ou PDF) do Protheus, com o perfil de contas montado ou importado na Configuração</td><td>Prévia</td></tr>
             </tbody>
           </table>
           <ul>
@@ -408,7 +408,7 @@
         <section id="rec-perfil">
           <h2>2. O perfil</h2>
           <ul>
-            <li>O perfil é importado em <strong>Configuração → Conciliador → Importar perfil (JSON)</strong> e fica salvo neste computador, com cópia na cópia de segurança. Sem um perfil com contas, o botão Analisar fica desabilitado, com a dica do que falta. A Configuração mostra os avisos do perfil (por exemplo, uma verba em mais de uma conta) sem impedir de salvar.</li>
+            <li>O perfil é montado em <strong>Configuração → Conciliador</strong>, campo a campo (Adicionar conta, Adicionar verba), ou importado com <strong>Importar perfil (JSON)</strong>; <strong>Baixar modelo do perfil</strong> traz um exemplo de cada tipo de conta e <strong>Exportar perfil (JSON)</strong> guarda uma cópia. Ele fica salvo neste computador, com cópia na cópia de segurança. Sem um perfil com contas, o botão Analisar fica desabilitado, com a dica do que falta. A Configuração mostra os avisos do perfil (por exemplo, uma verba em mais de uma conta) sem impedir de salvar.</li>
             <li><strong>Conta</strong> do perfil: o código contábil, o padrão e o critério. No critério <strong>verbas</strong>, cada verba traz o sinal (+ ou −) e a coluna da folha; o esperado da conta é a soma dos valores das verbas com o sinal. No critério <strong>netPay</strong> (líquido a pagar), o esperado vem dos proventos e descontos da folha.</li>
             <li><strong>Marca de conferência:</strong> cada verba do critério e cada linha de integração conferida aparecem marcadas nas tabelas e na planilha ("Conferida com a folha?").</li>
             <li><strong>Verbas de baixa</strong> (<code>settlementVerbas</code>): verbas cujas linhas de integração são baixas de saldo (por exemplo, o pagamento de férias ou rescisões) e entram na baixa do saldo anterior, não no esperado do mês.</li>
@@ -418,8 +418,8 @@
         <section id="rec-arquivos">
           <h2>3. Arquivos</h2>
           <ul>
-            <li><strong>Folha:</strong> o relatório GPER040 em <code>.TXT</code> (o spool do Protheus). Um relatório por análise; se dois arquivos forem carregados, devem ser o mesmo relatório.</li>
-            <li><strong>Razão:</strong> o CTBR400 analítico em TXT ou em XML (o XML Spreadsheet 2003 que o sistema grava, puro ou dentro de um <code>.zip</code>). Razão <strong>real</strong> (tipo de saldo 1) e <strong>pré-lançamento</strong> (9) da mesma conta podem ser carregados juntos e são combinados. Até dois meses seguidos por conta.</li>
+            <li><strong>Folha:</strong> o relatório GPER040 em <code>.TXT</code> (o spool do Protheus) ou em PDF. Um relatório por análise; se dois arquivos forem carregados, devem ser o mesmo relatório.</li>
+            <li><strong>Razão:</strong> o CTBR400 analítico em TXT, em PDF ou em XML (o XML Spreadsheet 2003 que o sistema grava, puro ou dentro de um <code>.zip</code>). O PDF é lido neste computador, sem rede, e dá o mesmo resultado do TXT; um PDF fora da grade do relatório não é analisado. Razão <strong>real</strong> (tipo de saldo 1) e <strong>pré-lançamento</strong> (9) da mesma conta podem ser carregados juntos e são combinados. Até dois meses seguidos por conta.</li>
             <li>Os arquivos são <strong>reconhecidos pelo conteúdo</strong>, com qualquer extensão (o spool vem como <code>.##r</code> ou <code>.__r</code>). Relatórios de outros tipos e arquivos não reconhecidos ficam de fora, com aviso.</li>
             <li>Cada arquivo tem o SHA-256 calculado e conferido, e entra na Rastreabilidade.</li>
           </ul>
@@ -475,7 +475,7 @@
         <section id="rec-limites">
           <h2>8. Limites</h2>
           <ul>
-            <li>Nesta prévia só existe o perfil de folha de pagamento (Padrão A). As <strong>provisões</strong> e a leitura de relatórios em <strong>PDF</strong> chegam na próxima versão.</li>
+            <li>Nesta prévia só existe a análise da folha de pagamento (Padrão A). As contas de <strong>provisão</strong> (férias e 13º, GPER070/GPER090) já podem estar no perfil e os relatórios são reconhecidos, mas a análise delas chega na próxima versão: até lá aparecem como não analisadas, com o motivo.</li>
             <li>Só as contas com o <strong>razão original</strong> carregado são analisadas; as demais contas do perfil precisam do razão delas.</li>
             <li>O razão em <code>.xlsx</code> não é lido: use o TXT do spool ou o XML. A cópia do razão colada num papel de trabalho não é um formato de tela.</li>
             <li>A ferramenta aponta diferenças e indícios; a causa e a conclusão são do contador.</li>

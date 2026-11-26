@@ -102,7 +102,7 @@ Mostre o plano antes de começar. Em cada etapa, escreva primeiro os testes com 
 ### Etapa 6 — Documentação e versão
 
 - `REGRAS_CONCILIADOR.md` (o que mudar ao implementar), `MODULOS.md`, `ROTEIRO.md` (Fase 16 com prompt e "Pronto
-  quando"), `public/ajuda.html`, `CHANGELOG.md` `[2.6.0]`, versão 2.6.0, licença do pdf.js em `public/licencas`.
+  quando"), `public/ajuda.html`, `CHANGELOG.md` `[2.7.0]`, versão 2.7.0 (a 2.6.0 publicou o editor de perfil, a etapa 1 e a leitura de PDF da etapa 4), licença do pdf.js em `public/licencas`.
 
 ---
 

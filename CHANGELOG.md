@@ -4,6 +4,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
 
 ## [Não publicado]
 
+## [2.6.0] — 2026-11-26
+
 ### Fluxo das ferramentas: Leitura, Visão geral, Análise e Exportação (25/11/2026)
 - As três ferramentas têm as mesmas visões: **Leitura** (antes Reconciliação), **Visão geral** (antes Painel),
   **Análise** (Achados e Tabelas juntos), **Justificativas** (CFGR700 e Conciliador) e **Exportação**.
@@ -18,6 +20,20 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   conta (Conciliador) da linha escolhida; em tela estreita, por cima.
 - Worker: comando `tests` (CT2) com as linhas de cada tabela por teste sob o filtro comum. Contrato em
   `docs/MODULOS.md`; comportamentos em `docs/INTERFACE.md`.
+
+### Conciliador: perfil montado na tela e leitura de PDF
+- Configuração → Conciliador: o perfil de contas pode ser montado campo a campo (contas, verbas com sinal, conta de
+  líquido a pagar, verbas de baixa e classes de lote), além de importado e exportado em JSON. **Baixar modelo do
+  perfil** traz um exemplo sintético de cada tipo de conta.
+- A folha (GPER040) e o razão (CTBR400) também são lidos em **PDF**, com o mesmo resultado do TXT (regras 3.3 e 3.4 de
+  `docs/REGRAS_CONCILIADOR.md`). O PDF é lido pelo pdf.js (`pdfjs-dist`, Apache-2.0, licença em `public/licencas`),
+  carregado só quando um PDF é recebido e executado no worker do próprio app, sem rede e sem mudar a
+  Content-Security-Policy. Um PDF fora da grade do relatório para a leitura (V-1); o mesmo relatório em formatos
+  diferentes é conferido (V-3).
+- Configuração das provisões (Fase 16, etapa 1): contas de provisão no perfil e marcador de fim dos relatórios
+  GPER070/GPER090 (`provisionReports.endMarker`, opcional). Os relatórios de provisão são reconhecidos, mas a análise
+  das provisões (Padrão B) chega na Fase 16 (versão 2.7.0): a conta de provisão aparece como não analisada, com o
+  motivo.
 
 ## [2.5.0] — 2026-11-24
 
@@ -51,7 +67,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as 
   Rastreabilidade), com "Confere" por conta quando a ponte fecha e a integração bate com a folha e o razão.
 - Contrato dos módulos: arquivos de qualquer extensão (`extensions: 'any'`), `notReady(config)`, avisos da configuração
   (`warnings`), sondagem de spool de texto, comando `account` e `ExportOptions.conc`.
-- Fora desta versão: provisões (Padrão B) e leitura de PDF (Fase 16, versão 2.6.0); razão em `.xlsx` não é lido.
+- Fora desta versão: provisões (Padrão B) e leitura de PDF (Fase 16); razão em `.xlsx` não é lido.
 
 ## [2.4.0] — 2026-11-18
 
